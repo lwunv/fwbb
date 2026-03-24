@@ -109,37 +109,38 @@ export function SessionDetail({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header — date + status on same line */}
       <div className="flex items-center gap-3">
         <Link href="/admin/sessions">
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold capitalize">
-            {formatSessionDate(session.date)}
-          </h1>
-          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium mt-1 ${status.badgeBg} ${status.badgeText}`}>
-            {t(status.labelKey)}
-          </span>
-        </div>
+        <h1 className="text-xl font-bold capitalize flex-1">
+          {formatSessionDate(session.date)}
+        </h1>
+        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${status.badgeBg} ${status.badgeText}`}>
+          {t(status.labelKey)}
+        </span>
       </div>
 
       {/* Session Info Card */}
       <Card>
-        <CardContent className="p-4 space-y-3">
-          <div className="flex items-center gap-2 text-sm">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <span className="capitalize">{formatSessionDate(session.date)}</span>
+        <CardContent className="p-4 space-y-2">
+          <div className="flex items-center gap-4 text-sm">
+            <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-muted-foreground" /> {session.startTime} - {session.endTime}</span>
           </div>
-          <div className="flex items-center gap-2 text-sm">
-            <Clock className="h-4 w-4 text-muted-foreground" />
-            <span>{session.startTime} - {session.endTime}</span>
-          </div>
-          <div className="flex gap-4 text-sm pt-2 border-t">
-            <span>{tDetail("play")}: <strong>{playingCount}</strong> người{totalGuestPlay > 0 && <span className="text-muted-foreground"> +{totalGuestPlay} {tDetail("guest")}</span>}</span>
-            <span>{tDetail("dine")}: <strong>{diningCount}</strong> người{totalGuestDine > 0 && <span className="text-muted-foreground"> +{totalGuestDine} {tDetail("guest")}</span>}</span>
+          <div className="flex gap-4 text-sm">
+            <span>🏸 <strong>{playingCount}</strong> người{totalGuestPlay > 0 && <span className="text-muted-foreground"> +{totalGuestPlay} khách</span>}
+              {session.status === "completed" && playingCount > 0 && (
+                <span className="text-muted-foreground"> · {formatK(Math.round(((session.courtPrice ?? 0) + (session.shuttlecocks?.reduce((sum, s) => sum + Math.round(s.quantityUsed * s.pricePerTube / 12), 0) ?? 0)) / playingCount / 1000) * 1000)}/người</span>
+              )}
+            </span>
+            <span>🍻 <strong>{diningCount}</strong> người{totalGuestDine > 0 && <span className="text-muted-foreground"> +{totalGuestDine} khách</span>}
+              {session.status === "completed" && diningCount > 0 && session.diningBill != null && (
+                <span className="text-muted-foreground"> · {formatK(Math.round(session.diningBill / diningCount / 1000) * 1000)}/người</span>
+              )}
+            </span>
           </div>
 
           {/* Financial summary for completed sessions */}
@@ -167,28 +168,31 @@ export function SessionDetail({
                   <span className="font-medium">{formatK(session.diningBill)}</span>
                 </div>
               )}
-              <div className="flex items-center justify-between text-sm pt-1 border-t font-bold">
-                <span>Tổng chi</span>
-                <span className="text-primary">
-                  {formatK(
-                    (session.courtPrice ?? 0) +
-                    (session.diningBill ?? 0) +
-                    (session.shuttlecocks?.reduce((sum, s) => sum + Math.round(s.quantityUsed * s.pricePerTube / 12), 0) ?? 0)
-                  )}
-                </span>
-              </div>
-              {playingCount > 0 && (
-                <div className="flex gap-4 text-xs text-muted-foreground">
-                  <span>Chơi cầu/người: <strong className="text-foreground">
-                    {formatK(Math.round(((session.courtPrice ?? 0) + (session.shuttlecocks?.reduce((sum, s) => sum + Math.round(s.quantityUsed * s.pricePerTube / 12), 0) ?? 0)) / playingCount / 1000) * 1000)}
-                  </strong></span>
-                  {diningCount > 0 && session.diningBill != null && (
-                    <span>Nhậu/người: <strong className="text-foreground">
-                      {formatK(Math.round(session.diningBill / diningCount / 1000) * 1000)}
-                    </strong></span>
-                  )}
-                </div>
-              )}
+              {(() => {
+                const totalExpense = (session.courtPrice ?? 0) + (session.diningBill ?? 0) + (session.shuttlecocks?.reduce((sum, s) => sum + Math.round(s.quantityUsed * s.pricePerTube / 12), 0) ?? 0);
+                const allDebts = Object.values(debtMap);
+                const totalRevenue = allDebts.reduce((sum, d) => sum + d.amount, 0);
+                const totalPaid = allDebts.filter((d) => d.adminConfirmed).reduce((sum, d) => sum + d.amount, 0);
+                const totalOwed = totalRevenue - totalPaid;
+                return (
+                  <div className="pt-1 border-t space-y-1">
+                    <div className="flex items-center justify-between text-sm font-bold">
+                      <span>Tổng chi</span>
+                      <span className="text-primary">{formatK(totalExpense)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-green-600 dark:text-green-400">Đã thu</span>
+                      <span className="font-bold text-green-600 dark:text-green-400">{formatK(totalPaid)}</span>
+                    </div>
+                    {totalOwed > 0 && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-red-600 dark:text-red-400">Còn nợ</span>
+                        <span className="font-bold text-red-600 dark:text-red-400">{formatK(totalOwed)}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
         </CardContent>

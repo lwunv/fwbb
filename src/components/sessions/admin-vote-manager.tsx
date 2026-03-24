@@ -87,7 +87,6 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
   }
 
   function toggleTag(memberId: number, tag: "play" | "dine") {
-    if (readOnly) return;
     const current = getVote(memberId);
     if (!current) return;
     const newPlay = tag === "play" ? !current.willPlay : current.willPlay;
@@ -198,12 +197,11 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
                 {/* Cầu */}
                 <button
                   onClick={() => toggleTag(member.id, "play")}
-                  disabled={readOnly}
-                  className={`inline-flex items-center justify-center rounded-lg border px-1 py-1 text-base transition-all w-10 h-10${
+                  className={`inline-flex items-center justify-center rounded-lg border px-1 py-1 text-base transition-all w-10 h-10 cursor-pointer hover:opacity-80 ${
                     v.willPlay
                       ? "bg-green-100 text-green-700 border-green-300 dark:bg-green-900/40 dark:text-green-300 dark:border-green-700"
                       : "bg-muted text-muted-foreground border-transparent opacity-40"
-                  } ${!readOnly ? "cursor-pointer hover:opacity-80" : ""}`}
+                  }`}
                 >
                   🏸
                 </button>
@@ -211,12 +209,11 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
                 {/* Nhậu */}
                 <button
                   onClick={() => toggleTag(member.id, "dine")}
-                  disabled={readOnly}
-                  className={`inline-flex items-center justify-center rounded-lg border px-1 py-1 text-base transition-all w-10 h-10${
+                  className={`inline-flex items-center justify-center rounded-lg border px-1 py-1 text-base transition-all w-10 h-10 cursor-pointer hover:opacity-80 ${
                     v.willDine
                       ? "bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-700"
                       : "bg-muted text-muted-foreground border-transparent opacity-40"
-                  } ${!readOnly ? "cursor-pointer hover:opacity-80" : ""}`}
+                  }`}
                 >
                   🍻
                 </button>
