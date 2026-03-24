@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { createSessionManually } from "@/actions/sessions";
+import { createSessionManually, deleteSession } from "@/actions/sessions";
 import { formatVND } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Calendar, MapPin, ChevronRight } from "lucide-react";
+import { Plus, Calendar, MapPin, ChevronRight, ExternalLink, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import type { InferSelectModel } from "drizzle-orm";
@@ -30,7 +30,18 @@ type Session = InferSelectModel<typeof sessionsTable> & {
 export function SessionList({ sessions }: { sessions: Session[] }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [error, setError] = useState("");
+  const [deleting, setDeleting] = useState<number | null>(null);
   const t = useTranslations("sessions");
+  const tCommon = useTranslations("common");
+
+  async function handleDelete(e: React.MouseEvent, sessionId: number) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(tCommon("confirmDelete"))) return;
+    setDeleting(sessionId);
+    await deleteSession(sessionId);
+    setDeleting(null);
+  }
 
   async function handleCreate(formData: FormData) {
     const date = formData.get("date") as string;
@@ -97,19 +108,19 @@ export function SessionList({ sessions }: { sessions: Session[] }) {
 
       <div className="grid gap-3">
         {sessions.map((session) => {
-          const statusConfig: Record<string, { labelKey: "voting" | "confirmed" | "completed" | "cancelled"; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-            voting: { labelKey: "voting", variant: "outline" },
-            confirmed: { labelKey: "confirmed", variant: "default" },
-            completed: { labelKey: "completed", variant: "secondary" },
-            cancelled: { labelKey: "cancelled", variant: "destructive" },
+          const statusStyles: Record<string, { labelKey: "voting" | "confirmed" | "completed" | "cancelled"; cardBg: string; badgeBg: string; badgeText: string; iconBg: string }> = {
+            voting: { labelKey: "voting", cardBg: "bg-green-50/60 border-green-200/50 dark:bg-green-950/20 dark:border-green-900/30", badgeBg: "bg-green-100 dark:bg-green-900/40", badgeText: "text-green-700 dark:text-green-300", iconBg: "bg-green-100 dark:bg-green-900/40" },
+            confirmed: { labelKey: "confirmed", cardBg: "bg-green-50/60 border-green-200/50 dark:bg-green-950/20 dark:border-green-900/30", badgeBg: "bg-green-100 dark:bg-green-900/40", badgeText: "text-green-700 dark:text-green-300", iconBg: "bg-green-100 dark:bg-green-900/40" },
+            completed: { labelKey: "completed", cardBg: "bg-blue-50/60 border-blue-200/50 dark:bg-blue-950/20 dark:border-blue-900/30", badgeBg: "bg-blue-100 dark:bg-blue-900/40", badgeText: "text-blue-700 dark:text-blue-300", iconBg: "bg-blue-100 dark:bg-blue-900/40" },
+            cancelled: { labelKey: "cancelled", cardBg: "bg-red-50/60 border-red-200/50 dark:bg-red-950/20 dark:border-red-900/30", badgeBg: "bg-red-100 dark:bg-red-900/40", badgeText: "text-red-700 dark:text-red-300", iconBg: "bg-red-100 dark:bg-red-900/40" },
           };
-          const status = statusConfig[session.status ?? "voting"];
+          const status = statusStyles[session.status ?? "voting"];
           return (
             <Link key={session.id} href={`/admin/sessions/${session.id}`}>
-              <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
+              <Card className={`hover:opacity-80 transition-all cursor-pointer ${status.cardBg}`}>
                 <CardContent className="flex items-center justify-between p-4">
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center justify-center w-9 h-9 rounded-full bg-accent">
+                    <div className={`flex items-center justify-center w-9 h-9 rounded-full ${status.iconBg}`}>
                       <Calendar className="h-4 w-4" />
                     </div>
                     <div>
@@ -124,6 +135,17 @@ export function SessionList({ sessions }: { sessions: Session[] }) {
                             <span className="flex items-center gap-1">
                               <MapPin className="h-3 w-3" />
                               {session.court.name}
+                              {session.court.mapLink && (
+                                <a
+                                  href={session.court.mapLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-primary hover:underline text-xs"
+                                >
+                                  Chỉ đường <ExternalLink className="h-2.5 w-2.5 inline" />
+                                </a>
+                              )}
                             </span>
                           </>
                         )}
@@ -136,7 +158,16 @@ export function SessionList({ sessions }: { sessions: Session[] }) {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant={status.variant}>{t(status.labelKey)}</Badge>
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${status.badgeBg} ${status.badgeText}`}>
+                      {t(status.labelKey)}
+                    </span>
+                    <button
+                      onClick={(e) => handleDelete(e, session.id)}
+                      disabled={deleting === session.id}
+                      className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </div>
                 </CardContent>

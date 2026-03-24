@@ -59,11 +59,11 @@ export function SessionDetail({
   const tDetail = useTranslations("sessionDetail");
   const tCommon = useTranslations("common");
 
-  const statusConfig: Record<string, { labelKey: "voting" | "confirmed" | "completed" | "cancelled"; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-    voting: { labelKey: "voting", variant: "outline" },
-    confirmed: { labelKey: "confirmed", variant: "default" },
-    completed: { labelKey: "completed", variant: "secondary" },
-    cancelled: { labelKey: "cancelled", variant: "destructive" },
+  const statusConfig: Record<string, { labelKey: "voting" | "confirmed" | "completed" | "cancelled"; badgeBg: string; badgeText: string }> = {
+    voting: { labelKey: "voting", badgeBg: "bg-green-100 dark:bg-green-900/40", badgeText: "text-green-700 dark:text-green-300" },
+    confirmed: { labelKey: "confirmed", badgeBg: "bg-green-100 dark:bg-green-900/40", badgeText: "text-green-700 dark:text-green-300" },
+    completed: { labelKey: "completed", badgeBg: "bg-blue-100 dark:bg-blue-900/40", badgeText: "text-blue-700 dark:text-blue-300" },
+    cancelled: { labelKey: "cancelled", badgeBg: "bg-red-100 dark:bg-red-900/40", badgeText: "text-red-700 dark:text-red-300" },
   };
 
   const status = statusConfig[session.status ?? "voting"];
@@ -116,9 +116,9 @@ export function SessionDetail({
           <h1 className="text-2xl font-bold capitalize">
             {formatSessionDate(session.date)}
           </h1>
-          <Badge variant={status.variant} className="mt-1">
+          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium mt-1 ${status.badgeBg} ${status.badgeText}`}>
             {t(status.labelKey)}
-          </Badge>
+          </span>
         </div>
       </div>
 

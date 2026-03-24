@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { sessions, courts, sessionShuttlecocks, shuttlecockBrands } from "@/db/schema";
+import { sessions, courts, sessionShuttlecocks, shuttlecockBrands, sessionDebts, sessionAttendees, votes } from "@/db/schema";
 import { eq, desc, and, gte, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -172,6 +172,21 @@ export async function cancelSession(sessionId: number) {
 
   revalidatePath("/admin/sessions");
   revalidatePath(`/admin/sessions/${sessionId}`);
+  return { success: true };
+}
+
+export async function deleteSession(sessionId: number) {
+  const session = await db.query.sessions.findFirst({ where: eq(sessions.id, sessionId) });
+  if (!session) return { error: "Không tìm thấy buổi chơi" };
+
+  // Delete related data first (FK constraints)
+  await db.delete(sessionDebts).where(eq(sessionDebts.sessionId, sessionId));
+  await db.delete(sessionAttendees).where(eq(sessionAttendees.sessionId, sessionId));
+  await db.delete(sessionShuttlecocks).where(eq(sessionShuttlecocks.sessionId, sessionId));
+  await db.delete(votes).where(eq(votes.sessionId, sessionId));
+  await db.delete(sessions).where(eq(sessions.id, sessionId));
+
+  revalidatePath("/admin/sessions");
   return { success: true };
 }
 

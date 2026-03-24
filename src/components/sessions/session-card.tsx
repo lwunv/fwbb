@@ -35,14 +35,14 @@ export function SessionCard({
 }: SessionCardProps) {
   const t = useTranslations("sessions");
 
-  const statusConfig: Record<string, { labelKey: "voting" | "confirmed" | "completed" | "cancelled"; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-    voting: { labelKey: "voting", variant: "outline" },
-    confirmed: { labelKey: "confirmed", variant: "default" },
-    completed: { labelKey: "completed", variant: "secondary" },
-    cancelled: { labelKey: "cancelled", variant: "destructive" },
+  const statusStyles: Record<string, { labelKey: "voting" | "confirmed" | "completed" | "cancelled"; badgeBg: string; badgeText: string }> = {
+    voting: { labelKey: "voting", badgeBg: "bg-green-100 dark:bg-green-900/40", badgeText: "text-green-700 dark:text-green-300" },
+    confirmed: { labelKey: "confirmed", badgeBg: "bg-green-100 dark:bg-green-900/40", badgeText: "text-green-700 dark:text-green-300" },
+    completed: { labelKey: "completed", badgeBg: "bg-blue-100 dark:bg-blue-900/40", badgeText: "text-blue-700 dark:text-blue-300" },
+    cancelled: { labelKey: "cancelled", badgeBg: "bg-red-100 dark:bg-red-900/40", badgeText: "text-red-700 dark:text-red-300" },
   };
 
-  const statusInfo = statusConfig[status ?? "voting"];
+  const statusInfo = statusStyles[status ?? "voting"];
 
   function formatSessionDate(dateStr: string) {
     try {
@@ -60,7 +60,9 @@ export function SessionCard({
           <h2 className="font-bold text-lg capitalize">
             {formatSessionDate(date)}
           </h2>
-          <Badge variant={statusInfo.variant}>{t(statusInfo.labelKey)}</Badge>
+          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusInfo.badgeBg} ${statusInfo.badgeText}`}>
+            {t(statusInfo.labelKey)}
+          </span>
         </div>
 
         <div className="space-y-2 text-sm">
