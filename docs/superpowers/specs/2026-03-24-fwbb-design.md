@@ -1,303 +1,302 @@
-# FWBB - Badminton Club Management App
+# FWBB - Ung dung Quan ly Nhom Cau Long
 
-## Software Requirements Specification (SRS)
+## Tai lieu Dac ta Yeu cau Phan mem (SRS)
 
-**Version:** 1.1
-**Date:** 2026-03-24
-**Project:** FWBB (Fun With BadminBton)
-**Author:** AI-assisted design
-
----
-
-## 1. Introduction
-
-### 1.1 Purpose
-
-FWBB is a web application for managing a recreational badminton club of ~20 members. The app handles session scheduling, attendance voting, cost splitting, shuttlecock inventory tracking, and financial management for the group leader (admin).
-
-### 1.2 Problem Statement
-
-The group leader currently manages everything manually: collecting votes, calculating costs, tracking debts, and managing shuttlecock inventory. With variable attendance, guest players, post-game dining with different participants, and multiple shuttlecock brands at different prices, manual calculation is error-prone and time-consuming.
-
-### 1.3 Solution
-
-A mobile-first web application where:
-- Members vote for upcoming sessions and view their debts
-- Admin manages sessions, calculates costs, and tracks finances
-- The system auto-generates sessions and computes cost splits
-
-### 1.4 Scope
-
-**In scope:**
-- Session auto-creation on fixed schedule (Monday & Friday)
-- Attendance voting (play + dine + guests)
-- Court and shuttlecock selection per session
-- Cost splitting (court + shuttlecock + dining)
-- Debt tracking and payment confirmation
-- Shuttlecock inventory management
-- Statistics and charts
-- Multi-theme (Light/Dark/Pink) and multi-language (VI/EN/ZH)
-
-**Out of scope:**
-- Push notifications / automated messaging
-- Online payment integration
-- Real-time chat
-- Tournament/match scoring
+**Phien ban:** 1.1
+**Ngay:** 2026-03-24
+**Du an:** FWBB (Fun With BadminBton)
 
 ---
 
-## 2. User Roles
+## 1. Gioi thieu
 
-### 2.1 Admin (Group Leader)
-- Single admin account
-- Login with username + password
-- Full access to all management features
-- Pays upfront for court, shuttlecocks, dining; collects from members after
-- **The admin is also a member in the members table.** They can vote and participate like any regular member. Their debt is included in cost calculations but auto-confirmed (they are paying themselves).
+### 1.1 Muc dich
 
-### 2.2 User (Member)
-- No login required
-- Identified by selecting name from admin-created list + phone number (first time)
-- Identity persisted via browser cookie
-- Can vote, view session info, view personal debts, confirm payment
+FWBB la ung dung web quan ly nhom cau long phong trao (~20 thanh vien). Ung dung xu ly lich choi, vote diem danh, chia tien, quan ly cau ton kho, va quan ly tai chinh cho truong nhom (admin).
+
+### 1.2 Van de
+
+Truong nhom hien tai quan ly thu cong: thu thap vote, tinh tien, theo doi no, quan ly cau. Voi so nguoi tham gia thay doi, khach giao luu, an nhau sau buoi choi voi nhom nguoi khac, nhieu hang cau voi gia khac nhau — tinh toan thu cong de sai va ton thoi gian.
+
+### 1.3 Giai phap
+
+Ung dung web mobile-first:
+- Thanh vien vote buoi choi sap toi va xem no cua minh
+- Admin quan ly buoi choi, tinh tien, theo doi tai chinh
+- He thong tu dong tao buoi choi va tinh chia tien
+
+### 1.4 Pham vi
+
+**Trong pham vi:**
+- Tu dong tao buoi choi theo lich co dinh (Thu 2 & Thu 6)
+- Vote diem danh (choi cau + an nhau + khach giao luu)
+- Chon san va cau cho moi buoi
+- Chia tien (san + cau + an)
+- Theo doi no va xac nhan thanh toan
+- Quan ly cau ton kho
+- Thong ke va bieu do
+- Da giao dien (Sang/Toi/Hong) va da ngon ngu (Viet/Anh/Trung)
+
+**Ngoai pham vi:**
+- Thong bao push / tin nhan tu dong
+- Tich hop thanh toan online
+- Chat thoi gian thuc
+- Cham diem thi dau
 
 ---
 
-## 3. Functional Requirements
+## 2. Vai tro nguoi dung
 
-### 3.1 User Identification (FR-01)
+### 2.1 Admin (Truong nhom)
+- Mot tai khoan admin duy nhat
+- Dang nhap bang username + password
+- Truy cap day du moi tinh nang quan ly
+- Ung tien truoc cho san, cau, an nhau; thu lai tu thanh vien sau buoi choi
+- **Admin cung la thanh vien trong bang members.** Co the vote va tham gia nhu thanh vien binh thuong. No cua admin duoc tu dong xac nhan (tu tra cho minh).
 
-**FR-01.1** First-time user flow:
-1. User opens app
-2. Selects their name from the member list (created by admin)
-3. Enters phone number for verification
-4. System saves member_id + phone hash in httpOnly cookie, **signed with HMAC-SHA256** using a server-side secret to prevent tampering
-5. Subsequent visits auto-identify the user (cookie signature verified server-side)
+### 2.2 Nguoi dung (Thanh vien)
+- Khong can dang nhap
+- Nhan dien bang cach chon ten tu danh sach admin tao + nhap so dien thoai (lan dau)
+- Thong tin luu trong cookie trinh duyet
+- Co the vote, xem thong tin buoi choi, xem no ca nhan, xac nhan thanh toan
 
-**FR-01.2** Cookie expiry: 365 days. If expired, user repeats the flow.
+---
 
-**FR-01.3** If cookie exists but member is deactivated, show "Contact admin" message.
+## 3. Yeu cau chuc nang
 
-### 3.2 Session Management (FR-02)
+### 3.1 Nhan dien nguoi dung (FR-01)
 
-**FR-02.1** Auto-creation: A cron job runs daily at 00:00 (Asia/Ho_Chi_Minh). If tomorrow is Monday or Friday, create a new session with:
-- `date`: tomorrow's date
+**FR-01.1** Luong nguoi dung lan dau:
+1. Nguoi dung mo app
+2. Chon ten tu danh sach thanh vien (admin tao san)
+3. Nhap so dien thoai xac nhan
+4. He thong luu member_id + hash so dien thoai vao cookie httpOnly, **ky bang HMAC-SHA256** voi khoa bi mat phia server de chong gia mao
+5. Lan sau vao tu nhan dien (cookie duoc xac minh phia server)
+
+**FR-01.2** Cookie het han: 365 ngay. Neu het han, nguoi dung lam lai buoc tren.
+
+**FR-01.3** Neu cookie ton tai nhung thanh vien bi vo hieu hoa, hien thong bao "Lien he admin".
+
+### 3.2 Quan ly buoi choi (FR-02)
+
+**FR-02.1** Tu dong tao: Cron job chay hang ngay luc 00:00 (Asia/Ho_Chi_Minh). Neu ngay mai la Thu 2 hoac Thu 6, tao buoi choi moi voi:
+- `date`: ngay mai
 - `start_time`: 20:30
 - `end_time`: 22:30
 - `status`: `voting`
-- `court_id`: NULL (admin selects later)
+- `court_id`: NULL (admin chon sau)
 
-**FR-02.2** Session statuses:
-| Status | Description |
+**FR-02.2** Trang thai buoi choi:
+| Trang thai | Mo ta |
 |---|---|
-| `voting` | Auto-created, members can vote |
-| `confirmed` | Admin has selected court + shuttlecocks, session is set |
-| `completed` | Session finished, costs calculated |
-| `cancelled` | Admin cancelled the session |
+| `voting` | Moi tao, thanh vien co the vote |
+| `confirmed` | Admin da chon san + cau, buoi choi da xac nhan |
+| `completed` | Buoi choi ket thuc, da tinh tien |
+| `cancelled` | Admin huy buoi choi |
 
-**FR-02.3** Admin can:
-- Select/change court for a session
-- Select shuttlecock types and quantities to use (multiple brands per session)
-- Cancel a session (status → `cancelled`)
-- End a session: finalize attendees + costs → status `completed`
+**FR-02.3** Admin co the:
+- Chon/doi san cho buoi choi
+- Chon loai cau va so luong su dung (nhieu hang trong 1 buoi)
+- Huy buoi choi (status → `cancelled`)
+- Ket thuc buoi choi: chot danh sach + tinh tien → status `completed`
 
-**FR-02.4** Vote auto-opens when session is created (status = `voting`).
+**FR-02.4** Vote tu dong mo khi buoi choi duoc tao (status = `voting`).
 
-**FR-02.5** Admin can cancel a session at any status before `completed`.
+**FR-02.5** Admin co the huy buoi choi o bat ky trang thai nao truoc `completed`.
 
-**FR-02.6** Session state transitions (explicit state machine):
+**FR-02.6** Chuyen trang thai buoi choi (state machine):
 ```
-voting → confirmed    (admin selects court + shuttlecocks)
-voting → cancelled    (admin cancels)
-confirmed → completed (admin finalizes session)
-confirmed → cancelled (admin cancels)
+voting → confirmed    (admin chon san + cau)
+voting → cancelled    (admin huy)
+confirmed → completed (admin chot buoi choi)
+confirmed → cancelled (admin huy)
 ```
-No backward transitions. `cancelled` and `completed` are terminal states.
+Khong co chuyen nguoc. `cancelled` va `completed` la trang thai cuoi cung.
 
-**FR-02.7** Copy Link: Each session has a "Copy Link" button that copies the vote URL (`/vote/[id]`) to clipboard. Admin pastes into group chat for members to vote. Available on both public and admin views.
+**FR-02.7** Copy Link: Moi buoi choi co nut "Copy Link" sao chep URL vote (`/vote/[id]`) vao clipboard. Admin dan vao group chat de thanh vien vote. Hien thi tren ca giao dien user va admin.
 
-### 3.3 Voting (FR-03)
+### 3.3 Vote (FR-03)
 
-**FR-03.1** For each session, a member can vote:
-- Will play badminton: Yes / No
-- Will dine after: Yes / No
-- Add guest(s) for play: count (names are optional at vote stage, finalized by admin later)
-- Add guest(s) for dine: count (names are optional at vote stage, finalized by admin later)
+**FR-03.1** Voi moi buoi choi, thanh vien co the vote:
+- Co choi cau khong: Co / Khong
+- Co di an nhau khong: Co / Khong
+- Them khach giao luu choi: so luong (ten la tuy chon luc vote, admin chot sau)
+- Them khach giao luu an: so luong (ten la tuy chon luc vote, admin chot sau)
 
-**FR-03.2** Members can change their vote anytime before session status becomes `completed`.
+**FR-03.2** Thanh vien co the doi vote bat ky luc nao truoc khi buoi choi chuyen sang `completed`.
 
-**FR-03.3** Guest (giao luu) rules:
-- Any member can add guests via vote
-- Admin can also add guests directly
-- Guest cost is attributed to the member who invited them
+**FR-03.3** Quy tac khach giao luu:
+- Bat ky thanh vien nao cung co the them khach qua vote
+- Admin cung co the them khach truc tiep
+- Tien khach tinh cho nguoi moi
 
-**FR-03.4** The vote page displays:
-- Session date, time
-- Court info (if selected)
-- List of all members with their vote status (voted yes/no/not yet)
-- Total count: playing / dining / not voted
+**FR-03.4** Trang vote hien thi:
+- Ngay, gio buoi choi
+- Thong tin san (neu da chon)
+- Danh sach tat ca thanh vien voi trang thai vote (da vote co/khong/chua vote)
+- Tong so: choi / an / chua vote
 
-### 3.4 Cost Splitting (FR-04)
+### 3.4 Chia tien (FR-04)
 
-**FR-04.1** After a session, admin finalizes the attendee list:
-- **Players list**: initialized from votes (will_play = true) + their guests
-- **Diners list**: initialized from votes (will_dine = true) + their guests
-- Admin can add/remove anyone from either list
+**FR-04.1** Sau buoi choi, admin chot danh sach:
+- **Danh sach nguoi choi**: khoi tao tu vote (will_play = true) + khach cua ho
+- **Danh sach nguoi an**: khoi tao tu vote (will_dine = true) + khach cua ho
+- Admin co the them/xoa bat ky ai tu ca 2 danh sach
 
-**FR-04.2** Cost calculation:
+**FR-04.2** Cong thuc tinh tien:
 
 ```
-total_shuttlecock_cost = SUM(quantity_used_per_brand × price_per_quả_of_brand)
-  where price_per_quả = price_per_tube / 12
+tong_tien_cau = SUM(so_qua_dung_moi_hang × gia_moi_qua_cua_hang)
+  trong do gia_moi_qua = gia_moi_ong / 12
 
-play_cost_per_head = (court_price + total_shuttlecock_cost) / total_players
-  where total_players = members_playing + all_guests_playing
+tien_choi_moi_nguoi = (gia_san + tong_tien_cau) / tong_so_nguoi_choi
+  trong do tong_so_nguoi_choi = thanh_vien_choi + tat_ca_khach_choi
 
-dine_cost_per_head = dining_bill / total_diners
-  where total_diners = members_dining + all_guests_dining
+tien_an_moi_nguoi = tong_bill_an / tong_so_nguoi_an
+  trong do tong_so_nguoi_an = thanh_vien_an + tat_ca_khach_an
 
-member_total =
-  (play_cost_per_head IF member plays, else 0)
-  + (dine_cost_per_head IF member dines, else 0)
-  + (play_cost_per_head × number_of_guests_they_invited_to_play)
-  + (dine_cost_per_head × number_of_guests_they_invited_to_dine)
+tong_no_thanh_vien =
+  (tien_choi_moi_nguoi NEU thanh vien choi, khong thi 0)
+  + (tien_an_moi_nguoi NEU thanh vien an, khong thi 0)
+  + (tien_choi_moi_nguoi × so_khach_ho_moi_choi)
+  + (tien_an_moi_nguoi × so_khach_ho_moi_an)
 ```
 
-**FR-04.3** Amounts are rounded to nearest 1,000 VND for simplicity. Rounding differences (surplus/deficit) are absorbed by the admin. This is acceptable for a small club where differences are minimal (typically < 10,000 VND per session).
+**FR-04.3** So tien lam tron den 1.000 VND gan nhat cho don gian. Chenh lech lam tron (thua/thieu) do admin chiu. Chap nhan duoc voi nhom nho, chenh lech thuong < 10.000 VND moi buoi.
 
-**FR-04.5** Guest counts are independent. A single guest who both plays and dines should be counted in both `guest_play_count` and `guest_dine_count`. Final guest details (names, exact participation) are reconciled during session finalization by admin.
+**FR-04.4** Sau khi admin xac nhan, no duoc tao cho tung thanh vien.
 
-**FR-04.4** After admin confirms, debts are created for each member.
+**FR-04.5** So luong khach la doc lap. Mot khach vua choi vua an se duoc tinh trong ca `guest_play_count` va `guest_dine_count`. Chi tiet khach (ten, tham gia cu the) duoc chot khi admin ket thuc buoi choi.
 
-### 3.5 Payment & Debt Tracking (FR-05)
+### 3.5 Thanh toan & Theo doi no (FR-05)
 
-**FR-05.1** After session completion, each member has a debt record:
-- `play_amount`: cost for playing
-- `dine_amount`: cost for dining
-- `guest_play_amount`: cost for guests playing
-- `guest_dine_amount`: cost for guests dining
-- `total_amount`: sum of above
+**FR-05.1** Sau khi buoi choi ket thuc, moi thanh vien co ban ghi no:
+- `play_amount`: tien choi cau + san
+- `dine_amount`: tien an nhau
+- `guest_play_amount`: tien khach choi
+- `guest_dine_amount`: tien khach an
+- `total_amount`: tong cong
 
-**FR-05.2** Payment confirmation (dual flow):
-- **Flow A**: Member clicks "I've paid" → `member_confirmed = true` → Admin sees notification → Admin clicks "Confirm received" → `admin_confirmed = true` → Debt settled
-- **Flow B**: Admin directly clicks "Received" → `admin_confirmed = true` → Debt settled
+**FR-05.2** Xac nhan thanh toan (2 luong):
+- **Luong A**: Thanh vien bam "Da thanh toan" → `member_confirmed = true` → Admin thay thong bao → Admin bam "Xac nhan da nhan" → `admin_confirmed = true` → Het no
+- **Luong B**: Admin truc tiep bam "Da nhan tien" → `admin_confirmed = true` → Het no
 
-**FR-05.3** Debt viewing:
-- Members can view their debts filtered by: week / month / year / all time
-- Each debt shows: date, session details, breakdown (play/dine/guest), status
-- Running total of unpaid debts
+**FR-05.3** Xem no:
+- Thanh vien xem no theo bo loc: tuan / thang / nam / tat ca
+- Moi khoan no hien: ngay, chi tiet buoi choi, phan tich (choi/an/khach), trang thai
+- Tong no chua thanh toan
 
-**FR-05.4** Admin finance dashboard:
-- Total outstanding debts
-- Per-member debt summary
-- Payment history
-- Filter by: week / month / year / all time
+**FR-05.4** Dashboard tai chinh Admin:
+- Tong no chua thu
+- Tong hop no theo thanh vien
+- Lich su thanh toan
+- Bo loc: tuan / thang / nam / tat ca
 
-### 3.6 Shuttlecock Inventory (FR-06)
+### 3.6 Quan ly cau ton kho (FR-06)
 
-**FR-06.1** Unit system: 1 tube = 12 shuttlecocks (quả).
+**FR-06.1** Don vi: 1 ong = 12 qua cau.
 
-**FR-06.2** Admin can record purchases:
-- Select brand
-- Number of tubes
-- Price per tube
-- Purchase date
-- Notes (optional)
+**FR-06.2** Admin nhap mua:
+- Chon hang
+- So ong
+- Gia moi ong
+- Ngay mua
+- Ghi chu (tuy chon)
 
-**FR-06.3** Per session, admin records usage:
-- Select brand(s)
-- Number of shuttlecocks used (in quả) per brand
+**FR-06.3** Moi buoi choi, admin nhap su dung:
+- Chon hang cau
+- So qua da dung theo tung hang
 
-**FR-06.4** Inventory display per brand:
-- Current stock: X tubes + Y loose quả (e.g., "3 ống 8 quả" = 44 quả)
-- Total stock = SUM(purchased_tubes × 12) - SUM(used_quả)
+**FR-06.4** Hien thi ton kho theo hang:
+- Ton kho hien tai: X ong Y qua le (vi du: "3 ong 8 qua" = 44 qua)
+- Tong ton = SUM(ong_mua × 12) - SUM(qua_dung)
 
-**FR-06.5** Low stock warning when any brand falls below a configurable threshold (default: 12 quả = 1 tube).
+**FR-06.5** Canh bao ton kho thap khi bat ky hang nao duoi nguong cau hinh (mac dinh: 12 qua = 1 ong).
 
-**FR-06.6** Purchase history and usage history views.
+**FR-06.6** Lich su mua va lich su su dung.
 
-### 3.7 Member Management (FR-07)
+### 3.7 Quan ly thanh vien (FR-07)
 
-**FR-07.1** Admin can:
-- Add new member (name, phone)
-- Edit member info
-- Deactivate member (soft delete, preserves history)
-- View member list
+**FR-07.1** Admin co the:
+- Them thanh vien moi (ten, so dien thoai)
+- Sua thong tin thanh vien
+- Vo hieu hoa thanh vien (xoa mem, giu lich su)
+- Xem danh sach thanh vien
 
-**FR-07.2** Member list shows: name, phone, active status, total outstanding debt.
+**FR-07.2** Danh sach hien thi: ten, so dien thoai, trang thai, tong no chua tra.
 
-### 3.8 Court Management (FR-08)
+### 3.8 Quan ly san (FR-08)
 
-**FR-08.1** Admin can:
-- Add court (name, address, price per session)
-- Edit court info
-- Deactivate court
+**FR-08.1** Admin co the:
+- Them san (ten, dia chi, gia moi buoi)
+- Sua thong tin san
+- Vo hieu hoa san
 
-**FR-08.2** Court list shows: name, address, price, active status.
+**FR-08.2** Danh sach san hien thi: ten, dia chi, gia, trang thai.
 
-### 3.9 Shuttlecock Brand Management (FR-09)
+### 3.9 Quan ly hang cau (FR-09)
 
-**FR-09.1** Admin can:
-- Add brand (name, price per tube)
-- Edit brand info
-- Deactivate brand
+**FR-09.1** Admin co the:
+- Them hang (ten, gia moi ong)
+- Sua thong tin hang
+- Vo hieu hoa hang
 
-**FR-09.2** Brand list shows: name, price per tube, current stock, active status.
+**FR-09.2** Danh sach hang hien thi: ten, gia moi ong, ton kho hien tai, trang thai.
 
-### 3.10 Statistics & Charts (FR-10)
+### 3.10 Thong ke & Bieu do (FR-10)
 
-**FR-10.1** Active members chart:
-- Top members by badminton sessions attended
-- Top members by dining sessions attended
-- Top members by both combined
-- Time range filter
+**FR-10.1** Bieu do thanh vien tich cuc:
+- Top thanh vien theo so buoi choi cau
+- Top thanh vien theo so buoi an nhau
+- Top thanh vien theo ca hai
+- Bo loc khoang thoi gian
 
-**FR-10.2** Monthly expense chart:
-- Court costs per month
-- Shuttlecock costs per month
-- Dining costs per month
-- Total combined per month
-- Bar chart or line chart, selectable
+**FR-10.2** Bieu do chi phi hang thang:
+- Tien san theo thang
+- Tien cau theo thang
+- Tien an theo thang
+- Tong cong theo thang
+- Bieu do cot hoac duong, co the chon
 
-**FR-10.3** Attendance chart:
-- Number of players per session (line/bar chart over time)
-- Average attendance trend
+**FR-10.3** Bieu do diem danh:
+- So nguoi choi theo tung buoi (bieu do duong/cot theo thoi gian)
+- Xu huong trung binh
 
-**FR-10.4** All charts support time range filtering.
+**FR-10.4** Tat ca bieu do ho tro bo loc khoang thoi gian.
 
-### 3.11 Admin Authentication (FR-11)
+### 3.11 Xac thuc Admin (FR-11)
 
-**FR-11.1** Single admin account, pre-seeded in database.
+**FR-11.1** Mot tai khoan admin duy nhat, khoi tao san trong database.
 
-**FR-11.2** Login: username + password → validate against bcrypt hash → issue JWT in httpOnly cookie (7-day expiry).
+**FR-11.2** Dang nhap: username + password → xac minh voi bcrypt hash → cap JWT trong cookie httpOnly (het han 7 ngay).
 
-**FR-11.3** All `/admin/*` routes protected by middleware checking JWT validity.
+**FR-11.3** Tat ca route `/admin/*` duoc bao ve boi middleware kiem tra JWT.
 
-**FR-11.4** Logout: clear JWT cookie.
+**FR-11.4** Dang xuat: xoa cookie JWT.
 
-**FR-11.5** Admin can change their password from settings.
+**FR-11.5** Admin co the doi mat khau tu cai dat.
 
 ---
 
-## 4. Non-Functional Requirements
+## 4. Yeu cau phi chuc nang
 
-### 4.1 Performance (NFR-01)
-- First Contentful Paint < 2 seconds on 3G mobile (SSR pages)
-- Time to Interactive < 4 seconds on 3G mobile (chart-heavy pages may be higher)
-- Server Actions response < 500ms
-- Database queries < 100ms (Turso edge)
+### 4.1 Hieu nang (NFR-01)
+- First Contentful Paint < 2 giay tren 3G mobile (trang SSR)
+- Time to Interactive < 4 giay tren 3G mobile (trang nhieu bieu do co the cao hon)
+- Server Actions phan hoi < 500ms
+- Truy van database < 100ms (Turso edge)
 
-### 4.2 Responsive Design (NFR-02)
-- **Mobile** (< 640px): Single column, bottom navigation, touch-friendly (44px min tap targets)
-- **Tablet** (640-1024px): Two-column layout, collapsible sidebar
-- **Desktop** (> 1024px): Full sidebar + content area
-- Mobile-first CSS approach
+### 4.2 Thiet ke Responsive (NFR-02)
+- **Mobile** (< 640px): 1 cot, thanh dieu huong duoi, than thien cam ung (44px min tap targets)
+- **Tablet** (640-1024px): 2 cot, sidebar co the thu gon
+- **Desktop** (> 1024px): Sidebar co dinh + vung noi dung
+- Tiep can mobile-first
 
-### 4.3 Theming (NFR-03)
+### 4.3 Giao dien (NFR-03)
 
-Three themes with CSS custom properties:
+Ba giao dien voi CSS custom properties:
 
-| Token | Light | Dark | Pink |
+| Token | Sang (Light) | Toi (Dark) | Hong (Pink) |
 |---|---|---|---|
 | `--background` | `#FFFFFF` | `#0F172A` | `#FFF0F5` |
 | `--surface` | `#F8FAFC` | `#1E293B` | `#FFE4EF` |
@@ -309,144 +308,144 @@ Three themes with CSS custom properties:
 | `--card` | `#FFFFFF` | `#1E293B` | `#FFF5F8` |
 | `--destructive` | `#EF4444` | `#F87171` | `#E11D48` |
 
-Pink theme additional styles: larger border-radius (12px), softer font weights, playful emoji icons.
+Giao dien Hong co them: border-radius lon hon (12px), font weight mem hon, icon kieu de thuong.
 
-### 4.4 Internationalization (NFR-04)
-- Vietnamese (default), English, Chinese
-- Language selector in header, persisted in cookie
-- All UI text externalized to JSON translation files
-- Date/number formatting localized (e.g., VND currency format)
+### 4.4 Da ngon ngu (NFR-04)
+- Tieng Viet (mac dinh), Tieng Anh, Tieng Trung
+- Chon ngon ngu o header, luu vao cookie
+- Tat ca text UI nam trong file JSON dich
+- Dinh dang ngay/so theo dia phuong (vi du: dinh dang VND)
 
-### 4.5 Security (NFR-05)
-- Admin password hashed with bcrypt (cost factor 12)
-- JWT tokens in httpOnly, secure, sameSite cookies
-- All Server Actions validate input with Zod schemas
-- User identity cookie: member_id + phone hash, **signed with HMAC-SHA256** using `USER_COOKIE_SECRET` to prevent tampering/impersonation
-- No sensitive data in client-side storage
+### 4.5 Bao mat (NFR-05)
+- Mat khau admin hash bang bcrypt (cost factor 12)
+- JWT token trong cookie httpOnly, secure, sameSite
+- Tat ca Server Actions validate input bang Zod schema
+- Cookie nguoi dung: member_id + hash SDT, **ky bang HMAC-SHA256** dung `USER_COOKIE_SECRET` chong gia mao
+- Khong luu du lieu nhay cam phia client
 
-### 4.6 Accessibility (NFR-06)
-- shadcn/ui components are WAI-ARIA compliant
-- Keyboard navigable
-- Color contrast ratio >= 4.5:1 (WCAG AA)
-- Focus indicators visible
+### 4.6 Tiep can (NFR-06)
+- Component shadcn/ui tuan thu WAI-ARIA
+- Dieu huong bang ban phim
+- Ti le tuong phan mau >= 4.5:1 (WCAG AA)
+- Chi bao focus hien thi ro
 
-### 4.7 Code Quality (NFR-07)
+### 4.7 Chat luong code (NFR-07)
 - TypeScript strict mode
 - ESLint + Prettier
-- Drizzle migrations for schema changes
-- Zod validation on all inputs
-- Consistent file/folder naming conventions
+- Drizzle migrations cho thay doi schema
+- Zod validation tren moi input
+- Quy uoc dat ten file/folder nhat quan
 
 ---
 
-## 5. Technical Architecture
+## 5. Kien truc ky thuat
 
-### 5.1 Tech Stack
+### 5.1 Cong nghe su dung
 
-| Layer | Technology | Purpose |
+| Tang | Cong nghe | Muc dich |
 |---|---|---|
 | Framework | Next.js 14+ (App Router) | SSR, Server Actions, API Routes |
-| UI | shadcn/ui + Tailwind CSS v4 | Component library + utility CSS |
-| Theme | next-themes | Theme switching (light/dark/pink) |
-| i18n | next-intl | Multi-language support |
-| ORM | Drizzle ORM | Type-safe database access |
-| Database | Turso (libSQL/SQLite) | Cloud-hosted SQLite |
-| Auth | jose (JWT) | Admin authentication |
-| Charts | Recharts | Data visualization |
-| Forms | React Hook Form + Zod | Form handling + validation |
-| Date | date-fns | Date manipulation |
-| URL State | nuqs | Search params state management |
+| UI | shadcn/ui + Tailwind CSS v4 | Thu vien component + CSS tien ich |
+| Giao dien | next-themes | Chuyen doi giao dien (sang/toi/hong) |
+| Da ngon ngu | next-intl | Ho tro nhieu ngon ngu |
+| ORM | Drizzle ORM | Truy cap database type-safe |
+| Database | Turso (libSQL/SQLite) | SQLite tren cloud |
+| Xac thuc | jose (JWT) | Xac thuc admin |
+| Bieu do | Recharts | Truc quan hoa du lieu |
+| Form | React Hook Form + Zod | Xu ly form + validation |
+| Ngay | date-fns | Xu ly ngay thang |
+| URL State | nuqs | Quan ly trang thai search params |
 | Deploy | Vercel | Hosting + Cron Jobs |
 
-### 5.2 Project Structure
+### 5.2 Cau truc du an
 
 ```
 fwbb/
 ├── public/
-│   └── locales/           # Static assets
+│   └── locales/           # Tai nguyen tinh
 ├── src/
 │   ├── app/
-│   │   ├── (public)/              # User-facing pages (no auth)
-│   │   │   ├── page.tsx           # Home - next session + vote
+│   │   ├── (public)/              # Trang nguoi dung (khong can auth)
+│   │   │   ├── page.tsx           # Trang chu - buoi tiep theo + vote
 │   │   │   ├── vote/[id]/
-│   │   │   │   └── page.tsx       # Vote for specific session
+│   │   │   │   └── page.tsx       # Vote cho buoi cu the
 │   │   │   ├── history/
-│   │   │   │   └── page.tsx       # Past session history
+│   │   │   │   └── page.tsx       # Lich su buoi choi
 │   │   │   ├── my-debts/
-│   │   │   │   └── page.tsx       # Personal debt view
+│   │   │   │   └── page.tsx       # Xem no ca nhan
 │   │   │   ├── me/
-│   │   │   │   └── page.tsx       # Profile + settings (theme/lang)
-│   │   │   └── layout.tsx         # Public layout (bottom nav)
-│   │   ├── (admin)/               # Admin pages (auth required)
+│   │   │   │   └── page.tsx       # Ho so + cai dat (theme/ngon ngu)
+│   │   │   └── layout.tsx         # Layout cong khai (thanh dieu huong duoi)
+│   │   ├── (admin)/               # Trang admin (can auth)
 │   │   │   ├── admin/
 │   │   │   │   ├── login/
-│   │   │   │   │   └── page.tsx   # Admin login
+│   │   │   │   │   └── page.tsx   # Dang nhap admin
 │   │   │   │   ├── dashboard/
-│   │   │   │   │   └── page.tsx   # Admin dashboard
+│   │   │   │   │   └── page.tsx   # Tong quan admin
 │   │   │   │   ├── sessions/
-│   │   │   │   │   ├── page.tsx   # Session list
+│   │   │   │   │   ├── page.tsx   # Danh sach buoi choi
 │   │   │   │   │   └── [id]/
-│   │   │   │   │       └── page.tsx # Session detail + finalize
+│   │   │   │   │       └── page.tsx # Chi tiet + chot buoi choi
 │   │   │   │   ├── members/
-│   │   │   │   │   └── page.tsx   # Member management
+│   │   │   │   │   └── page.tsx   # Quan ly thanh vien
 │   │   │   │   ├── inventory/
-│   │   │   │   │   └── page.tsx   # Shuttlecock inventory
+│   │   │   │   │   └── page.tsx   # Quan ly cau ton kho
 │   │   │   │   ├── finance/
-│   │   │   │   │   └── page.tsx   # Finance + debt management
+│   │   │   │   │   └── page.tsx   # Quan ly tai chinh + no
 │   │   │   │   ├── stats/
-│   │   │   │   │   └── page.tsx   # Statistics + charts
+│   │   │   │   │   └── page.tsx   # Thong ke + bieu do
 │   │   │   │   ├── courts/
-│   │   │   │   │   └── page.tsx   # Court management
+│   │   │   │   │   └── page.tsx   # Quan ly san
 │   │   │   │   └── shuttlecocks/
-│   │   │   │       └── page.tsx   # Brand management
-│   │   │   └── layout.tsx         # Admin layout (sidebar)
+│   │   │   │       └── page.tsx   # Quan ly hang cau
+│   │   │   └── layout.tsx         # Layout admin (sidebar)
 │   │   ├── api/
 │   │   │   └── cron/
 │   │   │       └── create-session/
-│   │   │           └── route.ts   # Auto-create sessions
+│   │   │           └── route.ts   # Tu dong tao buoi choi
 │   │   ├── layout.tsx             # Root layout (theme + i18n providers)
-│   │   └── globals.css            # Global styles + theme tokens
+│   │   └── globals.css            # Style toan cuc + theme tokens
 │   ├── actions/                   # Server Actions
-│   │   ├── auth.ts                # Login/logout
-│   │   ├── sessions.ts            # Session CRUD
-│   │   ├── votes.ts               # Vote actions
-│   │   ├── members.ts             # Member CRUD
-│   │   ├── courts.ts              # Court CRUD
-│   │   ├── shuttlecocks.ts        # Brand CRUD
-│   │   ├── inventory.ts           # Purchase + usage
-│   │   ├── finance.ts             # Debt + payment actions
-│   │   └── stats.ts               # Statistics queries
+│   │   ├── auth.ts                # Dang nhap/dang xuat
+│   │   ├── sessions.ts            # CRUD buoi choi
+│   │   ├── votes.ts               # Xu ly vote
+│   │   ├── members.ts             # CRUD thanh vien
+│   │   ├── courts.ts              # CRUD san
+│   │   ├── shuttlecocks.ts        # CRUD hang cau
+│   │   ├── inventory.ts           # Mua + su dung
+│   │   ├── finance.ts             # No + thanh toan
+│   │   └── stats.ts               # Truy van thong ke
 │   ├── db/
 │   │   ├── index.ts               # Drizzle client (Turso)
-│   │   ├── schema.ts              # Drizzle table definitions
+│   │   ├── schema.ts              # Dinh nghia bang Drizzle
 │   │   └── migrations/            # SQL migrations
 │   ├── components/
-│   │   ├── ui/                    # shadcn/ui components
+│   │   ├── ui/                    # Component shadcn/ui
 │   │   ├── layout/                # Header, Sidebar, BottomNav
-│   │   ├── sessions/              # Session-related components
-│   │   ├── vote/                  # Vote-related components
-│   │   ├── finance/               # Finance-related components
-│   │   ├── inventory/             # Inventory-related components
-│   │   ├── stats/                 # Chart components
-│   │   └── shared/                # Shared components
+│   │   ├── sessions/              # Component buoi choi
+│   │   ├── vote/                  # Component vote
+│   │   ├── finance/               # Component tai chinh
+│   │   ├── inventory/             # Component ton kho
+│   │   ├── stats/                 # Component bieu do
+│   │   └── shared/                # Component dung chung
 │   ├── lib/
-│   │   ├── auth.ts                # JWT helpers
-│   │   ├── utils.ts               # General utilities
-│   │   ├── cost-calculator.ts     # Cost splitting logic
+│   │   ├── auth.ts                # Tien ich JWT
+│   │   ├── utils.ts               # Tien ich chung
+│   │   ├── cost-calculator.ts     # Logic chia tien
 │   │   └── validators.ts          # Zod schemas
 │   ├── i18n/
-│   │   ├── config.ts              # next-intl config
+│   │   ├── config.ts              # Cau hinh next-intl
 │   │   └── messages/
-│   │       ├── vi.json            # Vietnamese
-│   │       ├── en.json            # English
-│   │       └── zh.json            # Chinese
+│   │       ├── vi.json            # Tieng Viet
+│   │       ├── en.json            # Tieng Anh
+│   │       └── zh.json            # Tieng Trung
 │   ├── hooks/                     # Custom React hooks
-│   └── types/                     # TypeScript type definitions
-├── drizzle.config.ts              # Drizzle configuration
-├── next.config.ts                 # Next.js configuration
-├── tailwind.config.ts             # Tailwind configuration
-├── vercel.json                    # Vercel cron config
-├── .env.local                     # Environment variables (local)
+│   └── types/                     # Dinh nghia TypeScript types
+├── drizzle.config.ts              # Cau hinh Drizzle
+├── next.config.ts                 # Cau hinh Next.js
+├── tailwind.config.ts             # Cau hinh Tailwind
+├── vercel.json                    # Cau hinh Vercel cron
+├── .env.local                     # Bien moi truong (local)
 ├── package.json
 └── tsconfig.json
 ```
@@ -456,7 +455,7 @@ fwbb/
 ```typescript
 // db/schema.ts
 
-// ===== ADMINS =====
+// ===== ADMIN =====
 admins {
   id            integer    PK autoincrement
   username      text       NOT NULL UNIQUE
@@ -464,7 +463,7 @@ admins {
   created_at    text       DEFAULT current_timestamp
 }
 
-// ===== MEMBERS =====
+// ===== THANH VIEN =====
 members {
   id            integer    PK autoincrement
   name          text       NOT NULL
@@ -473,7 +472,7 @@ members {
   created_at    text       DEFAULT current_timestamp
 }
 
-// ===== COURTS =====
+// ===== SAN CAU LONG =====
 courts {
   id                integer    PK autoincrement
   name              text       NOT NULL
@@ -482,7 +481,7 @@ courts {
   is_active         integer    DEFAULT 1
 }
 
-// ===== SHUTTLECOCK BRANDS =====
+// ===== HANG CAU =====
 shuttlecock_brands {
   id             integer    PK autoincrement
   name           text       NOT NULL
@@ -490,24 +489,24 @@ shuttlecock_brands {
   is_active      integer    DEFAULT 1
 }
 
-// ===== SESSIONS =====
+// ===== BUOI CHOI =====
 sessions {
   id            integer    PK autoincrement
   date          text       NOT NULL  -- ISO date YYYY-MM-DD
   start_time    text       DEFAULT '20:30'
   end_time      text       DEFAULT '22:30'
   court_id      integer    FK → courts (nullable)
-  court_price   integer    -- snapshot of court price at time of selection (VND)
+  court_price   integer    -- snapshot gia san luc chon (VND)
   status        text       DEFAULT 'voting'
                            CHECK (status IN ('voting','confirmed','completed','cancelled'))
-  dining_bill   integer    -- total dining bill VND (nullable)
+  dining_bill   integer    -- tong bill an nhau VND (nullable)
   notes         text
   created_at    text       DEFAULT current_timestamp
   updated_at    text       DEFAULT current_timestamp
 }
 INDEX idx_sessions_date ON sessions(date)
 
-// ===== VOTES =====
+// ===== VOTE =====
 votes {
   id               integer    PK autoincrement
   session_id       integer    FK → sessions NOT NULL
@@ -522,28 +521,28 @@ votes {
 }
 INDEX idx_votes_session ON votes(session_id)
 
-// ===== SESSION ATTENDEES (finalized by admin) =====
+// ===== NGUOI THAM GIA BUOI CHOI (admin chot) =====
 session_attendees {
   id              integer    PK autoincrement
   session_id      integer    FK → sessions NOT NULL
-  member_id       integer    FK → members (nullable, NULL for guests)
-  guest_name      text       -- for non-member guests
-  invited_by_id   integer    FK → members (nullable, NULL if own member)
+  member_id       integer    FK → members (nullable, NULL cho khach)
+  guest_name      text       -- ten khach giao luu
+  invited_by_id   integer    FK → members (nullable, NULL neu la thanh vien)
   is_guest        integer    DEFAULT 0 (boolean)
   attends_play    integer    DEFAULT 0 (boolean)
   attends_dine    integer    DEFAULT 0 (boolean)
 }
 
-// ===== SESSION SHUTTLECOCKS (used per session) =====
+// ===== CAU SU DUNG TRONG BUOI CHOI =====
 session_shuttlecocks {
   id              integer    PK autoincrement
   session_id      integer    FK → sessions NOT NULL
   brand_id        integer    FK → shuttlecock_brands NOT NULL
-  quantity_used   integer    NOT NULL  -- in quả (shuttlecocks)
-  price_per_tube  integer    NOT NULL  -- snapshot of brand price at time of use (VND)
+  quantity_used   integer    NOT NULL  -- tinh bang qua
+  price_per_tube  integer    NOT NULL  -- snapshot gia hang luc dung (VND)
 }
 
-// ===== INVENTORY PURCHASES =====
+// ===== NHAP MUA CAU =====
 inventory_purchases {
   id             integer    PK autoincrement
   brand_id       integer    FK → shuttlecock_brands NOT NULL
@@ -555,16 +554,16 @@ inventory_purchases {
   created_at     text       DEFAULT current_timestamp
 }
 
-// ===== SESSION DEBTS =====
+// ===== NO THEO BUOI CHOI =====
 session_debts {
   id                  integer    PK autoincrement
   session_id          integer    FK → sessions NOT NULL
   member_id           integer    FK → members NOT NULL
-  play_amount         integer    DEFAULT 0  -- VND
-  dine_amount         integer    DEFAULT 0  -- VND
-  guest_play_amount   integer    DEFAULT 0  -- VND
-  guest_dine_amount   integer    DEFAULT 0  -- VND
-  total_amount        integer    NOT NULL    -- VND
+  play_amount         integer    DEFAULT 0  -- VND (tien choi cau + san)
+  dine_amount         integer    DEFAULT 0  -- VND (tien an nhau)
+  guest_play_amount   integer    DEFAULT 0  -- VND (tien khach choi)
+  guest_dine_amount   integer    DEFAULT 0  -- VND (tien khach an)
+  total_amount        integer    NOT NULL    -- VND (tong no)
   member_confirmed    integer    DEFAULT 0 (boolean)
   member_confirmed_at text
   admin_confirmed     integer    DEFAULT 0 (boolean)
@@ -575,15 +574,15 @@ session_debts {
 INDEX idx_debts_member ON session_debts(member_id, admin_confirmed)
 ```
 
-### 5.4 Key Entity Relationships
+### 5.4 Quan he giua cac bang
 
 ```
-admins          (standalone, single record)
+admins          (doc lap, 1 ban ghi duy nhat)
 
 members ──1:N── votes
 members ──1:N── session_attendees
 members ──1:N── session_debts
-members ──1:N── session_attendees (as invited_by)
+members ──1:N── session_attendees (nguoi moi khach)
 
 courts ──1:N── sessions
 
@@ -597,356 +596,356 @@ sessions ──1:N── session_debts
 sessions ──N:1── courts
 ```
 
-### 5.5 Cost Calculation Algorithm
+### 5.5 Thuat toan tinh tien
 
 ```
-function calculateSessionCosts(session):
-  // 1. Get all attendees
-  players = attendees WHERE attends_play = true
-  diners = attendees WHERE attends_dine = true
+function tinhTienBuoiChoi(session):
+  // 1. Lay danh sach nguoi tham gia
+  nguoi_choi = attendees WHERE attends_play = true
+  nguoi_an = attendees WHERE attends_dine = true
 
-  // 2. Calculate per-head costs (using snapshot prices)
-  court_price = session.court_price  // snapshot at time of selection
-  shuttlecock_cost = SUM(
-    FOR EACH session_shuttlecock:
-      quantity_used × (session_shuttlecock.price_per_tube / 12)  // snapshot price
+  // 2. Tinh tien moi dau nguoi (dung gia snapshot)
+  gia_san = session.court_price  // snapshot luc chon san
+  tien_cau = SUM(
+    VOI MOI session_shuttlecock:
+      so_qua_dung × (session_shuttlecock.price_per_tube / 12)  // gia snapshot
   )
-  play_cost_per_head = (court_price + shuttlecock_cost) / COUNT(players)
-  dine_cost_per_head = session.dining_bill / COUNT(diners)
+  tien_choi_moi_nguoi = (gia_san + tien_cau) / COUNT(nguoi_choi)
+  tien_an_moi_nguoi = session.dining_bill / COUNT(nguoi_an)
 
-  // 3. Round to nearest 1,000 VND
-  play_cost_per_head = ROUND(play_cost_per_head / 1000) × 1000
-  dine_cost_per_head = ROUND(dine_cost_per_head / 1000) × 1000
+  // 3. Lam tron den 1.000 VND gan nhat
+  tien_choi_moi_nguoi = ROUND(tien_choi_moi_nguoi / 1000) × 1000
+  tien_an_moi_nguoi = ROUND(tien_an_moi_nguoi / 1000) × 1000
 
-  // 4. Calculate per-member debt
-  FOR EACH member IN unique_members(attendees):
-    plays = member IN players (not as guest)
-    dines = member IN diners (not as guest)
-    guest_play = COUNT(players WHERE invited_by = member)
-    guest_dine = COUNT(diners WHERE invited_by = member)
+  // 4. Tinh no cho tung thanh vien
+  VOI MOI thanh_vien IN danh_sach_thanh_vien(attendees):
+    co_choi = thanh_vien IN nguoi_choi (khong phai khach)
+    co_an = thanh_vien IN nguoi_an (khong phai khach)
+    so_khach_choi = COUNT(nguoi_choi WHERE invited_by = thanh_vien)
+    so_khach_an = COUNT(nguoi_an WHERE invited_by = thanh_vien)
 
-    debt = {
-      play_amount: plays ? play_cost_per_head : 0,
-      dine_amount: dines ? dine_cost_per_head : 0,
-      guest_play_amount: guest_play × play_cost_per_head,
-      guest_dine_amount: guest_dine × dine_cost_per_head,
-      total: SUM of above
+    no = {
+      play_amount: co_choi ? tien_choi_moi_nguoi : 0,
+      dine_amount: co_an ? tien_an_moi_nguoi : 0,
+      guest_play_amount: so_khach_choi × tien_choi_moi_nguoi,
+      guest_dine_amount: so_khach_an × tien_an_moi_nguoi,
+      total: TONG cac muc tren
     }
-    INSERT session_debts(debt)
+    INSERT session_debts(no)
 ```
 
-### 5.6 Cron Job: Auto-Create Sessions
+### 5.6 Cron Job: Tu dong tao buoi choi
 
 ```
 Endpoint: /api/cron/create-session
-Schedule: 0 0 * * * (daily at 00:00 UTC+7)
-Auth: Vercel cron secret header
+Lich: 0 17 * * * (hang ngay luc 17:00 UTC = 00:00 UTC+7)
+Xac thuc: Vercel cron secret header
 
 Logic:
-  tomorrow = today + 1 day
-  dayOfWeek = tomorrow.getDay()
+  ngay_mai = hom_nay + 1 ngay
+  thu_trong_tuan = ngay_mai.getDay()
 
-  IF dayOfWeek === 1 (Monday) OR dayOfWeek === 5 (Friday):
-    IF NOT EXISTS session WHERE date = tomorrow:
-      INSERT session(date=tomorrow, status='voting')
+  NEU thu_trong_tuan === 1 (Thu 2) HOAC thu_trong_tuan === 5 (Thu 6):
+    NEU KHONG TON TAI session WHERE date = ngay_mai:
+      INSERT session(date=ngay_mai, status='voting')
 
-Note: Sessions are created ~21 hours before start time (00:00 → 20:30).
-This is sufficient for a small group (~20 members) that communicates via group chat.
-Admin shares the vote link after session creation.
+Ghi chu: Buoi choi duoc tao ~21 gio truoc gio bat dau (00:00 → 20:30).
+Day la du cho nhom nho (~20 nguoi) giao tiep qua group chat.
+Admin chia link vote sau khi buoi choi duoc tao.
 ```
 
-### 5.7 Authentication Flow
+### 5.7 Luong xac thuc
 
 ```
-Admin Login:
+Dang nhap Admin:
   POST username + password
   → bcrypt.compare(password, stored_hash)
-  → IF match: sign JWT { sub: admin_id, role: 'admin' }
-  → Set httpOnly cookie (7 days)
+  → NEU khop: ky JWT { sub: admin_id, role: 'admin' }
+  → Dat cookie httpOnly (7 ngay)
 
-Admin Middleware:
-  Every /admin/* request
-  → Read JWT from cookie
-  → Verify with jose
-  → IF invalid/expired: redirect to /admin/login
+Middleware Admin:
+  Moi request /admin/*
+  → Doc JWT tu cookie
+  → Xac minh bang jose
+  → NEU khong hop le/het han: chuyen huong ve /admin/login
 
-User Identification:
-  First visit:
-  → Select name from member list
-  → Enter phone number
-  → Server validates phone matches member record
-  → Set cookie: { member_id, phone_hash } (365 days)
+Nhan dien nguoi dung:
+  Lan dau:
+  → Chon ten tu danh sach thanh vien
+  → Nhap so dien thoai
+  → Server xac minh SDT khop voi ban ghi thanh vien
+  → Dat cookie: { member_id, phone_hash } ky HMAC (365 ngay)
 
-  Subsequent visits:
-  → Read cookie → lookup member → identified
+  Lan sau:
+  → Doc cookie → tra cuu thanh vien → da nhan dien
 ```
 
 ---
 
-## 6. UI/UX Specification
+## 6. Dac ta UI/UX
 
-### 6.1 Design Principles
-- **Mobile-first**: Design for phone screens first, scale up
-- **Cute & Modern**: Rounded corners, soft shadows, playful colors (especially in Pink theme)
-- **Simple**: Minimal clicks to complete any action
-- **Clear hierarchy**: Important info (next session, debt) always visible
+### 6.1 Nguyen tac thiet ke
+- **Mobile-first**: Thiet ke cho dien thoai truoc, mo rong sau
+- **De thuong & Hien dai**: Bo goc tron, bong do mem, mau sac vui tuoi (dac biet giao dien Hong)
+- **Don gian**: It thao tac nhat de hoan thanh hanh dong
+- **Phan cap ro rang**: Thong tin quan trong (buoi tiep theo, no) luon hien thi
 
-### 6.2 Theme System
+### 6.2 He thong giao dien
 
-Three themes managed via `next-themes` + CSS custom properties:
+Ba giao dien quan ly bang `next-themes` + CSS custom properties:
 
-**Light Mode**: Clean, professional. White backgrounds, indigo accents.
-**Dark Mode**: Slate backgrounds, lighter indigo accents. Easy on eyes.
-**Pink Mode**: Lavender-pink backgrounds, pink accents, extra-rounded corners (12px), playful emoji decorations.
+**Che do Sang**: Sach se, chuyen nghiep. Nen trang, diem nhan indigo.
+**Che do Toi**: Nen slate, diem nhan indigo nhat hon. De nhin.
+**Che do Hong**: Nen hong nhat, diem nhan hong, bo goc lon hon (12px), trang tri emoji de thuong.
 
-Theme switcher in header: icon toggle (sun/moon/heart).
+Chuyen doi giao dien o header: nut bam icon (mat troi/trang/trai tim).
 
-### 6.3 Responsive Layout
+### 6.3 Layout Responsive
 
-**Mobile (< 640px)**:
-- Single column layout
-- Bottom navigation bar (4 tabs: Home, History, Debts, Me)
-- Cards stack vertically
-- Admin: hamburger menu → full-screen overlay nav
+**Dien thoai (< 640px)**:
+- Layout 1 cot
+- Thanh dieu huong duoi (4 tab: Trang chu, Lich su, No, Toi)
+- The card xep doc
+- Admin: menu hamburger → nav toan man hinh
 
 **Tablet (640-1024px)**:
-- Two-column where appropriate
-- Bottom nav for user pages
-- Collapsible sidebar for admin pages
+- 2 cot khi phu hop
+- Thanh dieu huong duoi cho trang user
+- Sidebar co the thu gon cho trang admin
 
 **Desktop (> 1024px)**:
-- Admin: persistent left sidebar (240px) + content area
-- User: centered content (max-width 640px) with decorative sides
+- Admin: sidebar co dinh ben trai (240px) + vung noi dung
+- User: noi dung can giua (max-width 640px)
 
-### 6.4 Page Specifications
+### 6.4 Dac ta trang
 
-#### 6.4.1 Home Page (`/`)
+#### 6.4.1 Trang chu (`/`)
 
-**Purpose**: Show next upcoming session, allow voting
-
-**Layout**:
-```
-[Header: Logo | Language Picker | Theme Toggle]
-
-[Next Session Card]
-  - Date & day of week
-  - Time (20:30 - 22:30)
-  - Court name + price (if selected, else "Chua chon san")
-  - Player count / total members
-
-  [Vote Buttons]
-  - "Di choi" / "Khong di" (toggle, highlight active)
-  - "Di an"  / "Khong an" (toggle, highlight active)
-  - "+ Them khach giao luu" (expandable form)
-
-[Vote Status List]
-  - Grouped: Going / Not going / Not voted
-  - Each row: Avatar/initial + Name + icons (racket/beer)
-  - Guest count shown inline
-
-[My Quick Debt Summary]
-  - Total unpaid amount
-  - "Xem chi tiet →" link
-
-[Bottom Nav]
-```
-
-#### 6.4.2 Vote Page (`/vote/[id]`)
-
-**Purpose**: Vote for a specific session (deep link from group chat)
-
-**Layout**: Same as home but for specific session. Shows past sessions too.
-
-#### 6.4.3 History Page (`/history`)
-
-**Purpose**: View past session history
+**Muc dich**: Hien buoi choi sap toi, cho phep vote
 
 **Layout**:
 ```
-[Header]
+[Header: Logo | Chon ngon ngu | Chuyen giao dien]
 
-[Session List - sorted newest first]
-  Each card:
-  - Date + day of week
-  - Court name
-  - Player count + diner count
-  - Total cost breakdown
-  - Status badge (completed/cancelled)
-  - Tap to expand: attendee list, cost details
+[The buoi choi tiep theo]
+  - Ngay & thu
+  - Gio (20:30 - 22:30)
+  - Ten san + gia (neu da chon, khong thi "Chua chon san")
+  - So nguoi vote / tong thanh vien
 
-[Bottom Nav]
+  [Nut Vote]
+  - "Di choi" / "Khong di" (toggle, highlight khi active)
+  - "Di an"  / "Khong an" (toggle, highlight khi active)
+  - "+ Them khach giao luu" (form mo rong)
+
+[Danh sach vote]
+  - Nhom: Di / Khong di / Chua vote
+  - Moi dong: Avatar/chu cai + Ten + icon (vot/bia)
+  - So khach hien inline
+
+[Tom tat no nhanh]
+  - Tong no chua tra
+  - Link "Xem chi tiet →"
+
+[Thanh dieu huong duoi]
 ```
 
-#### 6.4.4 Me Page (`/me`)
+#### 6.4.2 Trang Vote (`/vote/[id]`)
 
-**Purpose**: User profile and settings
+**Muc dich**: Vote cho buoi cu the (deep link tu group chat)
+
+**Layout**: Giong trang chu nhung cho buoi cu the. Cung hien buoi da qua.
+
+#### 6.4.3 Trang Lich su (`/history`)
+
+**Muc dich**: Xem lich su buoi choi da qua
 
 **Layout**:
 ```
 [Header]
 
-[Profile Card]
-  - Name + phone (from cookie identity)
-  - "Doi nguoi dung" link (reset cookie, re-select)
+[Danh sach buoi choi - moi nhat truoc]
+  Moi the:
+  - Ngay + thu
+  - Ten san
+  - So nguoi choi + so nguoi an
+  - Tong chi phi
+  - Badge trang thai (da xong/da huy)
+  - Bam mo rong: danh sach nguoi tham gia, chi tiet tien
 
-[Settings]
-  - Theme toggle: Light / Dark / Pink
-  - Language: VI / EN / ZH
-
-[Quick Stats]
-  - Total sessions played
-  - Total sessions dined
-  - Total spent (all time)
-
-[Bottom Nav]
+[Thanh dieu huong duoi]
 ```
 
-#### 6.4.5 My Debts Page (`/my-debts`)
+#### 6.4.4 Trang Ca nhan (`/me`)
 
-**Purpose**: View personal debt history
+**Muc dich**: Ho so nguoi dung va cai dat
 
 **Layout**:
 ```
 [Header]
 
-[Filter Tabs: Tuan | Thang | Nam | Tat ca]
+[The ho so]
+  - Ten + SDT (tu cookie)
+  - Link "Doi nguoi dung" (reset cookie, chon lai)
 
-[Total Unpaid Banner: "Ban dang no: 450,000d"]
+[Cai dat]
+  - Chuyen giao dien: Sang / Toi / Hong
+  - Ngon ngu: VI / EN / ZH
 
-[Debt List - sorted newest first]
-  Each card:
-  - Date + court name
-  - Breakdown: Tien choi: 85k | Tien an: 120k | Khach: 85k
-  - Total: 290,000d
-  - Status badge: "Chua tra" / "Cho xac nhan" / "Da thanh toan"
-  - [Button: "Da thanh toan"] (if unpaid)
+[Thong ke nhanh]
+  - Tong so buoi da choi
+  - Tong so buoi da an nhau
+  - Tong tien da chi (tat ca)
 
-[Bottom Nav]
+[Thanh dieu huong duoi]
 ```
 
-#### 6.4.6 Admin Dashboard (`/admin/dashboard`)
+#### 6.4.5 Trang No cua toi (`/my-debts`)
 
-**Purpose**: Overview of club status
+**Muc dich**: Xem lich su no ca nhan
 
 **Layout**:
 ```
-[Sidebar] | [Content]
+[Header]
 
-[Stat Cards Row]
-  - Total outstanding debt
-  - Shuttlecock stock (lowest brand warning)
-  - Members active
-  - Sessions this month
+[Tab bo loc: Tuan | Thang | Nam | Tat ca]
 
-[Upcoming Session Card]
-  - Quick actions: Select court, Select shuttlecocks
+[Banner tong no: "Ban dang no: 450.000d"]
 
-[Recent Activity]
-  - Latest votes
-  - Recent payments confirmed
+[Danh sach no - moi nhat truoc]
+  Moi the:
+  - Ngay + ten san
+  - Chi tiet: Tien choi: 85k | Tien an: 120k | Khach: 85k
+  - Tong: 290.000d
+  - Badge trang thai: "Chua tra" / "Cho xac nhan" / "Da thanh toan"
+  - [Nut: "Da thanh toan"] (neu chua tra)
 
-[Quick Links]
-  - Manage next session
-  - View finance
+[Thanh dieu huong duoi]
 ```
 
-#### 6.4.7 Admin Session Detail (`/admin/sessions/[id]`)
+#### 6.4.6 Dashboard Admin (`/admin/dashboard`)
 
-**Purpose**: Manage individual session
-
-**States by session status**:
-
-**Voting state**:
-- See vote list
-- Select court (dropdown)
-- Select shuttlecocks (multi-select brand + quantity)
-- Cancel session button
-
-**Confirmed state**:
-- All above + edit
-- Mark as "Complete session" → opens finalization flow
-
-**Finalization flow** (modal/page):
-1. Review/edit player list (checkboxes, add/remove, add guests)
-2. Review/edit diner list (checkboxes, add/remove, add guests)
-3. Confirm shuttlecock usage
-4. Enter dining bill
-5. Preview cost breakdown (per-head + per-member)
-6. Confirm → creates debts → status = completed
-
-**Completed state**:
-- Read-only summary
-- Cost breakdown table
-- Payment status per member
-
-#### 6.4.8 Admin Finance (`/admin/finance`)
-
-**Purpose**: Track all debts and payments
+**Muc dich**: Tong quan tinh hinh nhom
 
 **Layout**:
 ```
-[Filter: Tuan | Thang | Nam | Tat ca]
+[Sidebar] | [Noi dung]
 
-[Summary Cards]
-  - Total outstanding
-  - Total collected this period
-  - Total expenses this period
+[Hang the thong ke]
+  - Tong no chua thu
+  - Ton kho cau (canh bao hang thap nhat)
+  - Thanh vien hoat dong
+  - So buoi choi thang nay
 
-[Debt Table]
-  Columns: Member | Session Date | Amount | Status | Actions
-  Status: Unpaid / Member Confirmed / Paid
-  Actions: "Confirm Payment" button
+[The buoi choi sap toi]
+  - Thao tac nhanh: Chon san, Chon cau
 
-[Member Summary Tab]
-  Each member:
-  - Name
-  - Total debt
-  - Paid / Unpaid breakdown
+[Hoat dong gan day]
+  - Vote moi nhat
+  - Thanh toan da xac nhan gan day
+
+[Lien ket nhanh]
+  - Quan ly buoi tiep theo
+  - Xem tai chinh
 ```
 
-#### 6.4.9 Admin Stats (`/admin/stats`)
+#### 6.4.7 Chi tiet buoi choi Admin (`/admin/sessions/[id]`)
 
-**Purpose**: Charts and statistics
+**Muc dich**: Quan ly tung buoi choi
 
-**Charts**:
-1. **Active Members** (horizontal bar chart)
-   - Toggle: Play / Dine / Both
-   - Shows top 10 members by session count
+**Theo trang thai buoi choi**:
 
-2. **Monthly Expenses** (stacked bar chart)
-   - Categories: Court / Shuttlecock / Dining
-   - X-axis: months, Y-axis: VND
+**Trang thai Voting**:
+- Xem danh sach vote
+- Chon san (dropdown)
+- Chon cau (multi-select hang + so luong)
+- Nut huy buoi choi
 
-3. **Attendance Trend** (line chart)
-   - Players per session over time
-   - Moving average line
+**Trang thai Confirmed**:
+- Tat ca tren + sua
+- Bam "Ket thuc buoi choi" → mo luong chot
 
-4. **Time range selector** applies to all charts
+**Luong chot buoi choi** (modal/trang):
+1. Xem/sua danh sach nguoi choi (checkbox, them/xoa, them khach)
+2. Xem/sua danh sach nguoi an (checkbox, them/xoa, them khach)
+3. Xac nhan so cau da dung
+4. Nhap tong bill an nhau
+5. Xem truoc chia tien (moi dau nguoi + moi thanh vien)
+6. Xac nhan → tao no → status = completed
 
-#### 6.4.10 Admin Inventory (`/admin/inventory`)
+**Trang thai Completed**:
+- Tom tat chi doc
+- Bang chia tien
+- Trang thai thanh toan tung thanh vien
 
-**Purpose**: Manage shuttlecock stock
+#### 6.4.8 Tai chinh Admin (`/admin/finance`)
+
+**Muc dich**: Theo doi tat ca no va thanh toan
 
 **Layout**:
 ```
-[Stock Summary Cards - per brand]
-  Brand name | Stock: 3 ong 8 qua (44 qua) | Status indicator
+[Bo loc: Tuan | Thang | Nam | Tat ca]
 
-[Tab: Mua vao | Su dung]
+[The tom tat]
+  - Tong no chua thu
+  - Tong da thu ky nay
+  - Tong chi phi ky nay
 
-Mua vao tab:
-  [+ Nhap mua] button → form: brand, tubes, price, date
-  Purchase history table
+[Bang no]
+  Cot: Thanh vien | Ngay buoi choi | So tien | Trang thai | Thao tac
+  Trang thai: Chua tra / TV da xac nhan / Da thu
+  Thao tac: Nut "Xac nhan da nhan"
 
-Su dung tab:
-  Usage per session table: date, brand, quantity used
+[Tab tong hop thanh vien]
+  Moi thanh vien:
+  - Ten
+  - Tong no
+  - Chi tiet da tra / chua tra
+```
+
+#### 6.4.9 Thong ke Admin (`/admin/stats`)
+
+**Muc dich**: Bieu do va thong ke
+
+**Bieu do**:
+1. **Thanh vien tich cuc** (bieu do cot ngang)
+   - Chuyen doi: Choi / An / Ca hai
+   - Top 10 thanh vien theo so buoi
+
+2. **Chi phi hang thang** (bieu do cot chong)
+   - Danh muc: San / Cau / An nhau
+   - Truc X: thang, Truc Y: VND
+
+3. **Xu huong diem danh** (bieu do duong)
+   - So nguoi choi theo tung buoi
+   - Duong trung binh dong
+
+4. **Bo loc khoang thoi gian** ap dung cho tat ca bieu do
+
+#### 6.4.10 Ton kho cau Admin (`/admin/inventory`)
+
+**Muc dich**: Quan ly ton kho cau
+
+**Layout**:
+```
+[The tom tat ton kho - theo hang]
+  Ten hang | Ton: 3 ong 8 qua (44 qua) | Chi bao trang thai
+
+[Tab: Nhap mua | Su dung]
+
+Tab Nhap mua:
+  [+ Nhap mua] nut → form: hang, so ong, gia, ngay
+  Bang lich su mua
+
+Tab Su dung:
+  Bang su dung theo buoi: ngay, hang, so luong dung
 ```
 
 ---
 
-## 7. Deployment
+## 7. Trien khai
 
-### 7.1 Vercel Configuration
+### 7.1 Cau hinh Vercel
 
 ```json
 // vercel.json
@@ -960,10 +959,10 @@ Su dung tab:
 }
 ```
 
-Note: `0 17 * * *` = 17:00 UTC = 00:00 UTC+7 (Vietnam time).
-Requires Vercel Hobby plan (free, supports 2 daily crons — sufficient for this project).
+Ghi chu: `0 17 * * *` = 17:00 UTC = 00:00 UTC+7 (gio Viet Nam).
+Yeu cau Vercel Hobby plan (mien phi, ho tro 2 cron hang ngay — du cho du an nay).
 
-### 7.2 Environment Variables
+### 7.2 Bien moi truong
 
 ```
 TURSO_DATABASE_URL=libsql://fwbb-xxx.turso.io
@@ -975,38 +974,38 @@ ADMIN_USERNAME=admin
 ADMIN_PASSWORD_HASH=<bcrypt-hash>
 ```
 
-### 7.3 Local Development
+### 7.3 Phat trien local
 
 ```bash
-# Install dependencies
+# Cai dat dependencies
 pnpm install
 
-# Set up local SQLite
+# Thiet lap SQLite local
 cp .env.example .env.local
-# Edit .env.local: TURSO_DATABASE_URL=file:local.db
+# Sua .env.local: TURSO_DATABASE_URL=file:local.db
 
-# Run migrations
+# Chay migrations
 pnpm db:migrate
 
-# Seed admin account
+# Khoi tao tai khoan admin
 pnpm db:seed
 
-# Start dev server
+# Khoi dong dev server
 pnpm dev
 ```
 
 ---
 
-## 8. Glossary
+## 8. Tu dien thuat ngu
 
-| Term | Vietnamese | Description |
+| Thuat ngu | Tieng Viet | Mo ta |
 |---|---|---|
-| Session (Buoi choi) | Buoi choi | A scheduled badminton playing session |
-| Vote | Vote/Binh chon | Member's declaration of attendance |
-| Guest (Giao luu) | Khach giao luu | Non-member invited by a member |
-| Debt (Du no) | Du no | Amount owed by member after a session |
-| Court (San) | San cau long | Badminton court venue |
-| Shuttlecock (Cau) | Qua cau | Badminton shuttlecock |
-| Tube (Ong) | Ong cau | Tube of 12 shuttlecocks |
-| Dining (An nhau) | An nhau | Post-session dining/drinking |
-| Admin | Truong nhom | Group leader who manages everything |
+| Session | Buoi choi | Mot buoi choi cau long theo lich |
+| Vote | Binh chon | Thanh vien tuyen bo co di choi khong |
+| Guest | Khach giao luu | Nguoi ngoai nhom duoc thanh vien moi |
+| Debt | Du no | So tien thanh vien no sau buoi choi |
+| Court | San cau long | Dia diem san choi |
+| Shuttlecock | Qua cau | Qua cau long |
+| Tube | Ong cau | Ong cau 12 qua |
+| Dining | An nhau | An uong sau buoi choi |
+| Admin | Truong nhom | Nguoi quan ly moi thu |
