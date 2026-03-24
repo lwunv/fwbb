@@ -73,20 +73,20 @@ export function PurchaseForm({ brands }: PurchaseFormProps) {
   return (
     <Card>
       <CardContent className="p-4">
-        <h3 className="font-semibold mb-3">Nhap mua cau</h3>
+        <h3 className="font-semibold mb-3">Nhập mua cầu</h3>
         <form onSubmit={handleSubmit} className="space-y-3">
           {/* Brand */}
           <div>
-            <Label className="text-xs">Hang cau</Label>
+            <Label className="text-xs">Hãng cầu</Label>
             <select
               value={selectedBrandId}
               onChange={(e) => handleBrandChange(Number(e.target.value))}
               className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
             >
-              <option value="">Chon hang...</option>
+              <option value="">Chọn hãng...</option>
               {brands.map((b) => (
                 <option key={b.id} value={b.id}>
-                  {b.name} ({formatVND(b.pricePerTube)}/ong)
+                  {b.name} ({formatVND(b.pricePerTube)}/ống)
                 </option>
               ))}
             </select>
@@ -95,7 +95,7 @@ export function PurchaseForm({ brands }: PurchaseFormProps) {
           <div className="grid grid-cols-2 gap-3">
             {/* Tubes */}
             <div>
-              <Label className="text-xs">So ong</Label>
+              <Label className="text-xs">Số ống</Label>
               <Input
                 type="number"
                 value={tubes}
@@ -106,7 +106,7 @@ export function PurchaseForm({ brands }: PurchaseFormProps) {
 
             {/* Price per tube */}
             <div>
-              <Label className="text-xs">Gia/ong (VND)</Label>
+              <Label className="text-xs">Giá/ống (VND)</Label>
               <Input
                 type="number"
                 value={pricePerTube || ""}
@@ -119,7 +119,7 @@ export function PurchaseForm({ brands }: PurchaseFormProps) {
 
           {/* Date */}
           <div>
-            <Label className="text-xs">Ngay mua</Label>
+            <Label className="text-xs">Ngày mua</Label>
             <Input
               type="date"
               value={purchasedAt}
@@ -129,18 +129,18 @@ export function PurchaseForm({ brands }: PurchaseFormProps) {
 
           {/* Notes */}
           <div>
-            <Label className="text-xs">Ghi chu</Label>
+            <Label className="text-xs">Ghi chú</Label>
             <Input
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Ghi chu (tuy chon)"
+              placeholder="Ghi chú (tùy chọn)"
             />
           </div>
 
           {/* Total */}
           {totalPrice > 0 && (
             <div className="text-sm text-muted-foreground">
-              Tong: <strong className="text-foreground">{formatVND(totalPrice)}</strong>
+              Tổng: <strong className="text-foreground">{formatVND(totalPrice)}</strong>
             </div>
           )}
 
@@ -150,11 +150,11 @@ export function PurchaseForm({ brands }: PurchaseFormProps) {
             ) : (
               <Plus className="h-4 w-4 mr-2" />
             )}
-            Nhap mua
+            Nhập mua
           </Button>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
-          {success && <p className="text-sm text-primary">Da luu thanh cong!</p>}
+          {success && <p className="text-sm text-primary">Đã lưu thành công!</p>}
         </form>
       </CardContent>
     </Card>

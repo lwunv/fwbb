@@ -57,6 +57,7 @@ export function SessionDetail({
   const [isLoading, setIsLoading] = useState(false);
   const t = useTranslations("sessions");
   const tDetail = useTranslations("sessionDetail");
+  const tCommon = useTranslations("common");
 
   const statusConfig: Record<string, { labelKey: "voting" | "confirmed" | "completed" | "cancelled"; variant: "default" | "secondary" | "destructive" | "outline" }> = {
     voting: { labelKey: "voting", variant: "outline" },
@@ -200,9 +201,9 @@ export function SessionDetail({
         </Card>
       )}
 
-      {/* Action Buttons */}
+      {/* Action Buttons — sticky bottom */}
       {(session.status === "voting" || session.status === "confirmed") && (
-        <div className="flex gap-3">
+        <div className="sticky bottom-0 bg-background/95 backdrop-blur border-t p-3 -mx-4 md:-mx-6 flex gap-3">
           {session.status === "voting" && (
             <Button
               onClick={handleConfirm}
@@ -210,7 +211,7 @@ export function SessionDetail({
               className="flex-1"
             >
               <CheckCircle className="h-4 w-4 mr-2" />
-              {t("confirmSession")}
+              {tCommon("confirm")}
             </Button>
           )}
           <Button
@@ -219,7 +220,7 @@ export function SessionDetail({
             disabled={isLoading}
           >
             <XCircle className="h-4 w-4 mr-2" />
-            {t("cancelSession")}
+            {tCommon("cancel")}
           </Button>
         </div>
       )}

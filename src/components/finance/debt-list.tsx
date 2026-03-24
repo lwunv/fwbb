@@ -21,7 +21,7 @@ export function DebtList({
   if (debts.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground text-sm">
-        Khong co cong no nao.
+        Không có công nợ nào.
       </div>
     );
   }

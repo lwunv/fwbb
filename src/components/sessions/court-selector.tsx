@@ -48,7 +48,7 @@ export function CourtSelector({
   if (courts.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        Chua co san nao. Vui long them san truoc.
+        Chưa có sân nào. Vui lòng thêm sân trước.
       </p>
     );
   }
@@ -60,7 +60,7 @@ export function CourtSelector({
     <div className="space-y-3">
       {/* Court quantity */}
       <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
-        <span className="text-sm font-medium">So luong san</span>
+        <span className="text-sm font-medium">Số lượng sân</span>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -121,7 +121,7 @@ export function CourtSelector({
                     <p className="text-xs text-muted-foreground">{court.address}</p>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    {formatVND(court.pricePerSession)}/san
+                    {formatVND(court.pricePerSession)}/sân
                   </p>
                 </div>
               </div>
@@ -139,7 +139,7 @@ export function CourtSelector({
       {/* Total price */}
       {selectedCourt && (
         <div className="flex items-center justify-between text-sm p-2 rounded bg-primary/10">
-          <span>Tong tien san:</span>
+          <span>Tổng tiền sân:</span>
           <span className="font-bold text-primary">{formatVND(totalPrice)}</span>
         </div>
       )}

@@ -73,7 +73,7 @@ export function ShuttlecockSelector({
                 <div>
                   <p className="font-medium text-sm">{sc.brand.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {sc.quantityUsed} qua x {formatVND(sc.pricePerTube)} = {formatVND(sc.quantityUsed * sc.pricePerTube)}
+                    {sc.quantityUsed} quả x {formatVND(sc.pricePerTube)} = {formatVND(sc.quantityUsed * sc.pricePerTube)}
                   </p>
                 </div>
               </div>
@@ -88,7 +88,7 @@ export function ShuttlecockSelector({
             </div>
           ))}
           <div className="text-sm font-medium text-right pt-2 border-t">
-            Tong: {formatVND(totalCost)}
+            Tổng: {formatVND(totalCost)}
           </div>
         </div>
       )}
@@ -97,8 +97,8 @@ export function ShuttlecockSelector({
       {brands.length > 0 ? (
         <div className="flex items-end gap-2">
           <div className="flex-1">
-            <label className="text-xs text-muted-foreground mb-1 block">
-              Hang cau
+            <label className="text-xs text-muted-foreground mb-1 block sr-only">
+              Hãng cầu
             </label>
             <select
               value={selectedBrandId}
@@ -107,14 +107,14 @@ export function ShuttlecockSelector({
             >
               {brands.map((brand) => (
                 <option key={brand.id} value={brand.id}>
-                  {brand.name} - {formatVND(brand.pricePerTube)}/qua
+                  {brand.name} - {formatVND(brand.pricePerTube)}/quả
                 </option>
               ))}
             </select>
           </div>
           <div className="w-20">
             <label className="text-xs text-muted-foreground mb-1 block">
-              So qua
+              Số quả
             </label>
             <Input
               type="number"
@@ -134,7 +134,7 @@ export function ShuttlecockSelector({
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">
-          Chua co hang cau nao. Vui long them hang cau truoc.
+          Chưa có hãng cầu nào. Vui lòng thêm hãng cầu trước.
         </p>
       )}
 

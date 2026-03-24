@@ -23,7 +23,7 @@ export function PaymentActions({
     return (
       <span className="flex items-center gap-1 text-xs text-primary font-medium">
         <CheckCircle className="h-3 w-3" />
-        Da xac nhan
+        Đã xác nhận
       </span>
     );
   }

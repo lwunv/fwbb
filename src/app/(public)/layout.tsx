@@ -42,9 +42,9 @@ export default async function PublicLayout({
         <main className="flex-1 flex items-center justify-center p-4">
           <div className="text-center max-w-sm space-y-4">
             <div className="text-4xl">🚫</div>
-            <h2 className="text-xl font-bold">Tai khoan bi vo hieu hoa</h2>
+            <h2 className="text-xl font-bold">Tài khoản bị vô hiệu hóa</h2>
             <p className="text-muted-foreground">
-              Tai khoan cua ban da bi vo hieu hoa. Lien he admin de duoc ho tro.
+              Tài khoản của bạn đã bị vô hiệu hóa. Liên hệ admin để được hỗ trợ.
             </p>
             <form action={async () => {
               "use server";
@@ -55,7 +55,7 @@ export default async function PublicLayout({
                 type="submit"
                 className="text-sm text-primary underline underline-offset-2"
               >
-                Dang nhap lai voi tai khoan khac
+                Đăng nhập lại với tài khoản khác
               </button>
             </form>
           </div>
