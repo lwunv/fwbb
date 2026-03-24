@@ -47,12 +47,14 @@ export function SessionDetail({
   courts,
   brands,
   members,
+  debtMap = {},
 }: {
   session: Session;
   votes: Vote[];
   courts: Court[];
   brands: Brand[];
   members: Member[];
+  debtMap?: Record<number, { amount: number; adminConfirmed: boolean; debtId: number }>;
 }) {
   const [actionError, setActionError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -183,25 +185,13 @@ export function SessionDetail({
       )}
 
       {/* Admin Vote Manager — add/remove members from play/dine */}
-      {(session.status === "voting" || session.status === "confirmed") && (
-        <AdminVoteManager
-          sessionId={session.id}
-          votes={votes}
-          members={members}
-        />
-      )}
-
-      {/* Vote List (read-only for completed/cancelled) */}
-      {(session.status === "completed" || session.status === "cancelled") && (
-        <Card>
-          <CardContent className="p-4">
-            <h2 className="font-semibold mb-3">
-              {t("voteList")} ({votes.length}/{members.length})
-            </h2>
-            <VoteList votes={votes} members={members} />
-          </CardContent>
-        </Card>
-      )}
+      <AdminVoteManager
+        sessionId={session.id}
+        votes={votes}
+        members={members}
+        debtMap={debtMap}
+        readOnly={session.status === "completed" || session.status === "cancelled"}
+      />
 
       {/* Action Buttons — sticky bottom */}
       {(session.status === "voting" || session.status === "confirmed") && (

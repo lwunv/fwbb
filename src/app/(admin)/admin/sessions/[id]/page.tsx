@@ -3,6 +3,9 @@ import { getSessionVotes } from "@/actions/votes";
 import { getActiveCourts } from "@/actions/courts";
 import { getActiveBrands } from "@/actions/shuttlecocks";
 import { getActiveMembers } from "@/actions/members";
+import { db } from "@/db";
+import { sessionDebts } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { SessionDetail } from "./session-detail";
 import { notFound } from "next/navigation";
 
@@ -15,15 +18,27 @@ export default async function SessionDetailPage({
   const sessionId = parseInt(id, 10);
   if (isNaN(sessionId)) notFound();
 
-  const [session, votes, courts, brands, members] = await Promise.all([
+  const [session, votes, courts, brands, members, debts] = await Promise.all([
     getSession(sessionId),
     getSessionVotes(sessionId),
     getActiveCourts(),
     getActiveBrands(),
     getActiveMembers(),
+    db.query.sessionDebts.findMany({
+      where: eq(sessionDebts.sessionId, sessionId),
+    }),
   ]);
 
   if (!session) notFound();
+
+  const debtMap: Record<number, { amount: number; adminConfirmed: boolean; debtId: number }> = {};
+  for (const d of debts) {
+    debtMap[d.memberId] = {
+      amount: d.totalAmount,
+      adminConfirmed: d.adminConfirmed ?? false,
+      debtId: d.id,
+    };
+  }
 
   return (
     <div>
@@ -33,6 +48,7 @@ export default async function SessionDetailPage({
         courts={courts}
         brands={brands}
         members={members}
+        debtMap={debtMap}
       />
     </div>
   );
