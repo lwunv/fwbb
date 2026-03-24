@@ -134,11 +134,15 @@
     "sessionsUnit": "场",
     "average": "平均",
     "peoplePerSession": "人/场",
-    "players": "参加者",
-    "diners": "用餐者",
+    "players": "打球人数",
+    "diners": "聚餐人数",
     "people": "人",
     "dateLabel": "日期",
-    "avgShort": "均"
+    "avgShort": "均",
+    "perSession": "每场",
+    "perWeek": "每周",
+    "perMonth": "每月",
+    "perYear": "每年"
   },
   "timeFilter": {
     "week": "周",

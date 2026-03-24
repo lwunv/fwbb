@@ -96,8 +96,10 @@ export interface MonthlyExpense {
   total: number;
 }
 
+// groupBy: "session" | "week" | "month" | "year"
 export async function getMonthlyExpenses(
-  filter: string = "all"
+  filter: string = "all",
+  groupBy: string = "month"
 ): Promise<MonthlyExpense[]> {
   const dateStart = getDateFilterStart(filter);
 
@@ -112,30 +114,47 @@ export async function getMonthlyExpenses(
     ? completedSessions.filter((s) => s.date >= dateStart)
     : completedSessions;
 
-  // Group by month
-  const monthlyMap: Record<
+  function getGroupKey(date: string): string {
+    switch (groupBy) {
+      case "session":
+        return date; // full date YYYY-MM-DD
+      case "week": {
+        const d = new Date(date + "T00:00:00");
+        const dayOfWeek = d.getDay();
+        const monday = new Date(d);
+        monday.setDate(d.getDate() - ((dayOfWeek + 6) % 7));
+        return monday.toISOString().split("T")[0];
+      }
+      case "year":
+        return date.substring(0, 4); // YYYY
+      case "month":
+      default:
+        return date.substring(0, 7); // YYYY-MM
+    }
+  }
+
+  const groupMap: Record<
     string,
     { courtCost: number; shuttlecockCost: number; diningCost: number }
   > = {};
 
   for (const session of filteredSessions) {
-    const month = session.date.substring(0, 7); // YYYY-MM
-    if (!monthlyMap[month]) {
-      monthlyMap[month] = { courtCost: 0, shuttlecockCost: 0, diningCost: 0 };
+    const key = getGroupKey(session.date);
+    if (!groupMap[key]) {
+      groupMap[key] = { courtCost: 0, shuttlecockCost: 0, diningCost: 0 };
     }
 
-    monthlyMap[month].courtCost += session.courtPrice || 0;
-    monthlyMap[month].diningCost += session.diningBill || 0;
+    groupMap[key].courtCost += session.courtPrice || 0;
+    groupMap[key].diningCost += session.diningBill || 0;
 
     for (const sc of session.shuttlecocks) {
-      // quantityUsed is in qua (individual shuttlecocks), pricePerTube is per tube (12 qua)
-      monthlyMap[month].shuttlecockCost += Math.round(
+      groupMap[key].shuttlecockCost += Math.round(
         (sc.quantityUsed * sc.pricePerTube) / 12
       );
     }
   }
 
-  return Object.entries(monthlyMap)
+  return Object.entries(groupMap)
     .map(([month, costs]) => ({
       month,
       ...costs,

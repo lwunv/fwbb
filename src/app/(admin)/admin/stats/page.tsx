@@ -9,14 +9,14 @@ import { StatsClient } from "./stats-client";
 export default async function StatsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string }>;
+  searchParams: Promise<{ period?: string; expenseGroup?: string }>;
 }) {
-  const { period = "all" } = await searchParams;
+  const { period = "all", expenseGroup = "month" } = await searchParams;
   const t = await getTranslations("adminNav");
 
   const [activeMembers, monthlyExpenses, attendance] = await Promise.all([
     getActiveMembersStats(period),
-    getMonthlyExpenses(period),
+    getMonthlyExpenses(period, expenseGroup),
     getAttendanceTrend(period),
   ]);
 
@@ -27,6 +27,7 @@ export default async function StatsPage({
         activeMembers={activeMembers}
         monthlyExpenses={monthlyExpenses}
         attendance={attendance}
+        expenseGroup={expenseGroup}
       />
     </div>
   );

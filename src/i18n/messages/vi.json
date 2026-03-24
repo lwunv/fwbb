@@ -134,11 +134,15 @@
     "sessionsUnit": "buổi",
     "average": "Trung bình",
     "peoplePerSession": "người/buổi",
-    "players": "Người chơi",
-    "diners": "Người ăn",
+    "players": "Người chơi cầu",
+    "diners": "Người ăn nhậu",
     "people": "người",
     "dateLabel": "Ngày",
-    "avgShort": "TB"
+    "avgShort": "TB",
+    "perSession": "Buổi",
+    "perWeek": "Tuần",
+    "perMonth": "Tháng",
+    "perYear": "Năm"
   },
   "timeFilter": {
     "week": "Tuần",

@@ -12,12 +12,14 @@ interface StatsClientProps {
   activeMembers: ActiveMemberStat[];
   monthlyExpenses: MonthlyExpense[];
   attendance: AttendancePoint[];
+  expenseGroup?: string;
 }
 
 export function StatsClient({
   activeMembers,
   monthlyExpenses,
   attendance,
+  expenseGroup = "month",
 }: StatsClientProps) {
   const t = useTranslations("stats");
 
@@ -39,7 +41,7 @@ export function StatsClient({
           <CardTitle>{t("monthlyCost")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <MonthlyExpensesChart data={monthlyExpenses} />
+          <MonthlyExpensesChart data={monthlyExpenses} groupBy={expenseGroup} />
         </CardContent>
       </Card>
 

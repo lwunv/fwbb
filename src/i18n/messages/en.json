@@ -134,11 +134,15 @@
     "sessionsUnit": "sessions",
     "average": "Average",
     "peoplePerSession": "people/session",
-    "players": "Players",
+    "players": "Badminton players",
     "diners": "Diners",
     "people": "people",
     "dateLabel": "Date",
-    "avgShort": "Avg"
+    "avgShort": "Avg",
+    "perSession": "Session",
+    "perWeek": "Week",
+    "perMonth": "Month",
+    "perYear": "Year"
   },
   "timeFilter": {
     "week": "Week",

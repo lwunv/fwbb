@@ -42,7 +42,10 @@
       "Bash(pnpm dev:*)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8888/)",
       "Bash(cmd //c \"netstat -ano | findstr :8888\")",
-      "Bash(cmd //c \"taskkill /PID 44168 /F\")"
+      "Bash(cmd //c \"taskkill /PID 44168 /F\")",
+      "Bash(rg '\"\"perSession\"\"|\"\"perWeek\"\"|\"\"perMonth\"\"|\"\"perYear\"\"' src/i18n/messages/vi.json)",
+      "Bash(rg '\"\"perSession\"\"|\"\"perWeek\"\"|\"\"perMonth\"\"|\"\"perYear\"\"' src/i18n/messages/vi.json -n)",
+      "Bash(rg '\"\"stats\"\"' src/i18n/messages/vi.json -n)"
     ],
     "additionalDirectories": [
       "d:\\Lwcifer\\LW\\fwbb-temp",
