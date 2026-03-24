@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { CourtSelector } from "@/components/sessions/court-selector";
 import { ShuttlecockSelector } from "@/components/sessions/shuttlecock-selector";
 import { VoteList } from "@/components/sessions/vote-list";
+import { AdminVoteManager } from "@/components/sessions/admin-vote-manager";
 import { ArrowLeft, Calendar, Clock, MapPin, CheckCircle, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
@@ -178,15 +179,26 @@ export function SessionDetail({
         </Card>
       )}
 
-      {/* Vote List */}
-      <Card>
-        <CardContent className="p-4">
-          <h2 className="font-semibold mb-3">
-            {t("voteList")} ({votes.length}/{members.length})
-          </h2>
-          <VoteList votes={votes} members={members} />
-        </CardContent>
-      </Card>
+      {/* Admin Vote Manager — add/remove members from play/dine */}
+      {(session.status === "voting" || session.status === "confirmed") && (
+        <AdminVoteManager
+          sessionId={session.id}
+          votes={votes}
+          members={members}
+        />
+      )}
+
+      {/* Vote List (read-only for completed/cancelled) */}
+      {(session.status === "completed" || session.status === "cancelled") && (
+        <Card>
+          <CardContent className="p-4">
+            <h2 className="font-semibold mb-3">
+              {t("voteList")} ({votes.length}/{members.length})
+            </h2>
+            <VoteList votes={votes} members={members} />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Action Buttons */}
       {(session.status === "voting" || session.status === "confirmed") && (
