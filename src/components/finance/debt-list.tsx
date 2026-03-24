@@ -36,21 +36,13 @@ export function DebtList({
 
   return (
     <div className="space-y-4">
-      {/* Summary */}
-      <div className="flex gap-4 text-sm">
-        {totalUnpaid > 0 && (
-          <div className="flex-1 rounded-lg bg-destructive/10 p-3 text-center">
-            <div className="text-xs text-muted-foreground">Con no</div>
-            <div className="font-bold text-destructive">{formatVND(totalUnpaid)}</div>
-          </div>
-        )}
-        {totalPaid > 0 && (
-          <div className="flex-1 rounded-lg bg-primary/10 p-3 text-center">
-            <div className="text-xs text-muted-foreground">Da tra</div>
-            <div className="font-bold text-primary">{formatVND(totalPaid)}</div>
-          </div>
-        )}
-      </div>
+      {/* Summary — only show unpaid */}
+      {totalUnpaid > 0 && (
+        <div className="rounded-lg bg-destructive/10 p-3 text-center">
+          <div className="text-xs text-muted-foreground">Còn nợ</div>
+          <div className="font-bold text-destructive">{formatVND(totalUnpaid)}</div>
+        </div>
+      )}
 
       {/* Debt cards */}
       <div className="space-y-3">
