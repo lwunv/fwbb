@@ -137,12 +137,6 @@ export function SessionDetail({
             <Clock className="h-4 w-4 text-muted-foreground" />
             <span>{session.startTime} - {session.endTime}</span>
           </div>
-          {session.court && (
-            <div className="flex items-center gap-2 text-sm">
-              <MapPin className="h-4 w-4 text-muted-foreground" />
-              <span>{session.court.name}</span>
-            </div>
-          )}
           <div className="flex gap-4 text-sm pt-2 border-t">
             <span>{tDetail("play")}: <strong>{playingCount}</strong> người{totalGuestPlay > 0 && <span className="text-muted-foreground"> +{totalGuestPlay} {tDetail("guest")}</span>}</span>
             <span>{tDetail("dine")}: <strong>{diningCount}</strong> người{totalGuestDine > 0 && <span className="text-muted-foreground"> +{totalGuestDine} {tDetail("guest")}</span>}</span>
