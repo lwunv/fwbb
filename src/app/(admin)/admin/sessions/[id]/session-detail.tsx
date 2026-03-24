@@ -176,10 +176,10 @@ export function SessionDetail({
                 const totalOwed = totalRevenue - totalPaid;
                 return (
                   <div className="flex items-center justify-between text-sm pt-1 border-t font-bold">
-                    <span>Tổng chi <span className="text-primary">{formatK(totalExpense)}</span></span>
+                    <span>Tổng chi</span>
                     <span>
-                      <span className="text-green-600 dark:text-green-400">{formatK(totalPaid)}</span>
-                      {totalOwed > 0 && <span className="text-red-600 dark:text-red-400 ml-2">{formatK(totalOwed)}</span>}
+                      <span className="text-primary">{formatK(totalExpense)}</span>
+                      {totalOwed > 0 && <span className="text-red-500 font-normal text-xs ml-1">(nợ {formatK(totalOwed)})</span>}
                     </span>
                   </div>
                 );
