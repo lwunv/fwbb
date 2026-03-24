@@ -37,7 +37,10 @@
       "Bash(taskkill /PID 35464 /F)",
       "Bash(cmd //c \"taskkill /PID 35464 /F\")",
       "mcp__plugin_context7_context7__resolve-library-id",
-      "mcp__plugin_context7_context7__query-docs"
+      "mcp__plugin_context7_context7__query-docs",
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "Bash(pnpm dev:*)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8888/)"
     ],
     "additionalDirectories": [
       "d:\\Lwcifer\\LW\\fwbb-temp",
