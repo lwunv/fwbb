@@ -176,7 +176,7 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
                         className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium transition-all cursor-pointer hover:opacity-80 ${
                           isConfirmed
                             ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
-                            : "bg-red-100/50 text-red-300 dark:bg-red-900/20 dark:text-red-600 opacity-60"
+                            : "bg-muted text-muted-foreground opacity-40 line-through"
                         }`}
                       >
                         Hết nợ
