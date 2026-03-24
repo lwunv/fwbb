@@ -165,7 +165,10 @@
     "confirm": "Confirm",
     "back": "Back",
     "next": "Next",
-    "total": "Total"
+    "total": "Total",
+    "close": "Close",
+    "noOne": "No one yet",
+    "confirmDelete": "Are you sure you want to delete?"
   },
   "themes": {
     "light": "Light",

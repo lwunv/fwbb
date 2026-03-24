@@ -93,7 +93,7 @@ export function AdminVoteManager({ sessionId, votes, members }: AdminVoteManager
               disabled={isPending}
             >
               {showAddPlay ? <ChevronUp className="h-3 w-3 mr-1" /> : <Plus className="h-3 w-3 mr-1" />}
-              {showAddPlay ? "Đóng" : tCommon("add")}
+              {showAddPlay ? tCommon("close") : tCommon("add")}
             </Button>
           </div>
 
@@ -115,7 +115,7 @@ export function AdminVoteManager({ sessionId, votes, members }: AdminVoteManager
               </div>
             ))}
             {playingMembers.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center py-2">Chưa có ai</p>
+              <p className="text-xs text-muted-foreground text-center py-2">{tCommon("noOne")}</p>
             )}
           </div>
 
@@ -124,7 +124,7 @@ export function AdminVoteManager({ sessionId, votes, members }: AdminVoteManager
             <div className="border rounded-md overflow-hidden">
               <input
                 type="text"
-                placeholder="Tìm kiếm..."
+                placeholder={tCommon("search")}
                 value={searchPlay}
                 onChange={(e) => setSearchPlay(e.target.value)}
                 className="w-full px-3 py-2 text-sm border-b bg-background outline-none"
@@ -170,7 +170,7 @@ export function AdminVoteManager({ sessionId, votes, members }: AdminVoteManager
               disabled={isPending}
             >
               {showAddDine ? <ChevronUp className="h-3 w-3 mr-1" /> : <Plus className="h-3 w-3 mr-1" />}
-              {showAddDine ? "Đóng" : tCommon("add")}
+              {showAddDine ? tCommon("close") : tCommon("add")}
             </Button>
           </div>
 
@@ -192,7 +192,7 @@ export function AdminVoteManager({ sessionId, votes, members }: AdminVoteManager
               </div>
             ))}
             {diningMembers.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center py-2">Chưa có ai</p>
+              <p className="text-xs text-muted-foreground text-center py-2">{tCommon("noOne")}</p>
             )}
           </div>
 
@@ -201,7 +201,7 @@ export function AdminVoteManager({ sessionId, votes, members }: AdminVoteManager
             <div className="border rounded-md overflow-hidden">
               <input
                 type="text"
-                placeholder="Tìm kiếm..."
+                placeholder={tCommon("search")}
                 value={searchDine}
                 onChange={(e) => setSearchDine(e.target.value)}
                 className="w-full px-3 py-2 text-sm border-b bg-background outline-none"

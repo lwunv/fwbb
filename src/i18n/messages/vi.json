@@ -165,7 +165,10 @@
     "confirm": "Xác nhận",
     "back": "Quay lại",
     "next": "Tiếp theo",
-    "total": "Tổng"
+    "total": "Tổng",
+    "close": "Đóng",
+    "noOne": "Chưa có ai",
+    "confirmDelete": "Bạn có chắc chắn muốn xóa?"
   },
   "themes": {
     "light": "Sáng",
