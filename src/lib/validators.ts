@@ -13,6 +13,7 @@ export const memberSchema = z.object({
 export const courtSchema = z.object({
   name: z.string().min(1, "Ten san khong duoc de trong"),
   address: z.string().optional(),
+  mapLink: z.string().url().optional().or(z.literal("")),
   pricePerSession: z.number().min(0, "Gia khong hop le"),
 });
 

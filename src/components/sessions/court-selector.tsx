@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { selectCourt } from "@/actions/sessions";
 import { formatVND } from "@/lib/utils";
-import { MapPin, Check, Minus, Plus } from "lucide-react";
+import { MapPin, Check, Minus, Plus, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { InferSelectModel } from "drizzle-orm";
 import type { courts as courtsTable } from "@/db/schema";
@@ -103,7 +103,20 @@ export function CourtSelector({
               <div className="flex items-center gap-3">
                 <MapPin className="h-4 w-4 text-muted-foreground" />
                 <div>
-                  <p className="font-medium text-sm">{court.name}</p>
+                  <div className="flex items-center gap-1">
+                    <p className="font-medium text-sm">{court.name}</p>
+                    {court.mapLink && (
+                      <a
+                        href={court.mapLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-primary hover:text-primary/80"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+                  </div>
                   {court.address && (
                     <p className="text-xs text-muted-foreground">{court.address}</p>
                   )}

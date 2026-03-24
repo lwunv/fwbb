@@ -116,7 +116,15 @@ export function InventoryClient({
               {tStats("noData")}
             </div>
           ) : (
-            stock.map((s) => <StockCard key={s.brandId} stock={s} />)
+            <>
+              {/* Table header */}
+              <div className="grid grid-cols-[1fr_auto_auto] gap-2 px-3 py-2 text-xs font-medium text-muted-foreground border-b">
+                <span>Hãng cầu</span>
+                <span className="text-right w-32">Tồn kho</span>
+                <span className="text-right w-20">Trạng thái</span>
+              </div>
+              {stock.map((s) => <StockCard key={s.brandId} stock={s} />)}
+            </>
           )}
         </div>
       )}

@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Edit, MapPin, ToggleLeft, ToggleRight } from "lucide-react";
+import { Plus, Edit, MapPin, ToggleLeft, ToggleRight, ExternalLink } from "lucide-react";
 import type { InferSelectModel } from "drizzle-orm";
 import type { courts as courtsTable } from "@/db/schema";
 
@@ -77,6 +77,16 @@ export function CourtList({ courts }: { courts: Court[] }) {
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="mapLink">{t("mapLink")}</Label>
+                <Input
+                  id="mapLink"
+                  name="mapLink"
+                  type="url"
+                  placeholder={t("mapLinkPlaceholder")}
+                  defaultValue={editingCourt?.mapLink ?? ""}
+                />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="pricePerSession">{t("pricePerSession")}</Label>
                 <Input
                   id="pricePerSession"
@@ -103,7 +113,21 @@ export function CourtList({ courts }: { courts: Court[] }) {
                   <MapPin className="h-4 w-4" />
                 </div>
                 <div>
-                  <p className="font-medium">{court.name}</p>
+                  <div className="flex items-center gap-1">
+                    <p className="font-medium">{court.name}</p>
+                    {court.mapLink && (
+                      <a
+                        href={court.mapLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-primary hover:text-primary/80"
+                        title={t("openMap")}
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    )}
+                  </div>
                   {court.address && (
                     <p className="text-sm text-muted-foreground">{court.address}</p>
                   )}

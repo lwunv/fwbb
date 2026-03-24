@@ -57,7 +57,7 @@
     "dine": "聚餐"
   },
   "voting": {
-    "play": "参加",
+    "play": "打羽毛球",
     "noPlay": "不参加",
     "dine": "聚餐",
     "noDine": "不聚餐",
@@ -74,7 +74,7 @@
     "adminConfirmed": "已确认",
     "paid": "已付款",
     "playCost": "打球费",
-    "dineCost": "餐费",
+    "dineCost": "聚餐费",
     "guestPlay": "嘉宾打球",
     "guestDine": "嘉宾餐费",
     "play": "打球",
@@ -285,6 +285,9 @@
     "address": "地址",
     "pricePerSession": "每场价格 (VND)",
     "perSession": "/场",
+    "mapLink": "谷歌地图链接",
+    "mapLinkPlaceholder": "https://maps.google.com/...",
+    "openMap": "打开地图",
     "update": "更新",
     "active": "活跃",
     "inactive": "停用"

@@ -20,6 +20,7 @@ export const courts = sqliteTable("courts", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
   address: text("address"),
+  mapLink: text("map_link"),
   pricePerSession: integer("price_per_session").notNull(),
   isActive: integer("is_active", { mode: "boolean" }).default(true),
 });
