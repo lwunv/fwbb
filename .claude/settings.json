@@ -32,7 +32,8 @@
       "Bash(ls d:/Lwcifer/LW/FWBB/src/app/\\\\\\(admin\\\\\\)/admin/stats/)",
       "Bash(pnpm build:*)",
       "Bash(ls -la src/actions/stats.ts src/components/stats/ \"src/app/\\(admin\\)/admin/stats/\")",
-      "Bash(ls -la \"src/app/\\(public\\)/history/\" \"src/app/\\(public\\)/me/\" \"src/app/\\(admin\\)/admin/dashboard/\" src/app/api/reset-identity/ src/actions/auth.ts)"
+      "Bash(ls -la \"src/app/\\(public\\)/history/\" \"src/app/\\(public\\)/me/\" \"src/app/\\(admin\\)/admin/dashboard/\" src/app/api/reset-identity/ src/actions/auth.ts)",
+      "Bash(NODE_OPTIONS=\"--max-old-space-size=4096\" pnpm build)"
     ],
     "additionalDirectories": [
       "d:\\Lwcifer\\LW\\fwbb-temp",
