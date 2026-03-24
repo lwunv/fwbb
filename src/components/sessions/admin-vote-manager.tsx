@@ -140,59 +140,63 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
             const isConfirmed = debt?.adminConfirmed ?? false;
 
             return (
-              <div key={member.id} className="flex items-center gap-2 py-2">
+              <div key={member.id} className="grid grid-cols-[28px_1fr_auto_auto_auto_auto_auto] items-center gap-x-2 gap-y-0 py-2">
+                {/* Col 1: Avatar */}
                 <MemberAvatar memberId={member.id} size={28} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-sm font-medium">{member.name}</span>
-                    {/* Tags */}
-                    <button
-                      onClick={() => toggleTag(member.id, "play")}
-                      disabled={isPending || readOnly}
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium transition-all ${
-                        v.willPlay
-                          ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
-                          : "bg-muted text-muted-foreground opacity-40 line-through"
-                      } ${!readOnly ? "cursor-pointer hover:opacity-80" : ""}`}
-                    >
-                      🏸 Cầu
-                    </button>
-                    <button
-                      onClick={() => toggleTag(member.id, "dine")}
-                      disabled={isPending || readOnly}
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium transition-all ${
-                        v.willDine
-                          ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
-                          : "bg-muted text-muted-foreground opacity-40 line-through"
-                      } ${!readOnly ? "cursor-pointer hover:opacity-80" : ""}`}
-                    >
-                      🍻 Nhậu
-                    </button>
-                    {/* Hết nợ tag */}
-                    {debt && (
-                      <button
-                        onClick={() => isConfirmed ? handleUndo(debt.debtId) : handlePay(debt.debtId)}
-                        disabled={payLoading === debt.debtId}
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium transition-all cursor-pointer hover:opacity-80 ${
-                          isConfirmed
-                            ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
-                            : "bg-muted text-muted-foreground opacity-40 line-through"
-                        }`}
-                      >
-                        Hết nợ
-                      </button>
-                    )}
-                    {/* Amount — color by payment status */}
-                    {debt && (
-                      <span className={`text-xs font-bold ${isConfirmed ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-                        {formatVND(debt.amount)}
-                      </span>
-                    )}
-                  </div>
-                </div>
 
-                {/* Remove button */}
-                <div className="flex items-center gap-1.5 flex-shrink-0">
+                {/* Col 2: Name */}
+                <span className="text-sm font-medium truncate" title={member.name}>{member.name}</span>
+
+                {/* Col 3: Cầu tag */}
+                <button
+                  onClick={() => toggleTag(member.id, "play")}
+                  disabled={isPending || readOnly}
+                  className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] font-medium transition-all w-14 ${
+                    v.willPlay
+                      ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+                      : "bg-muted text-muted-foreground opacity-40 line-through"
+                  } ${!readOnly ? "cursor-pointer hover:opacity-80" : ""}`}
+                >
+                  🏸 Cầu
+                </button>
+
+                {/* Col 4: Nhậu tag */}
+                <button
+                  onClick={() => toggleTag(member.id, "dine")}
+                  disabled={isPending || readOnly}
+                  className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] font-medium transition-all w-14 ${
+                    v.willDine
+                      ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
+                      : "bg-muted text-muted-foreground opacity-40 line-through"
+                  } ${!readOnly ? "cursor-pointer hover:opacity-80" : ""}`}
+                >
+                  🍻 Nhậu
+                </button>
+
+                {/* Col 5: Hết nợ tag */}
+                {debt ? (
+                  <button
+                    onClick={() => isConfirmed ? handleUndo(debt.debtId) : handlePay(debt.debtId)}
+                    disabled={payLoading === debt.debtId}
+                    className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] font-medium transition-all w-16 cursor-pointer hover:opacity-80 ${
+                      isConfirmed
+                        ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+                        : "bg-muted text-muted-foreground opacity-40 line-through"
+                    }`}
+                  >
+                    Hết nợ
+                  </button>
+                ) : <span />}
+
+                {/* Col 6: Amount */}
+                {debt ? (
+                  <span className={`text-xs font-bold tabular-nums text-right w-20 ${isConfirmed ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                    {formatVND(debt.amount)}
+                  </span>
+                ) : <span />}
+
+                {/* Col 7: Remove */}
+                <div className="flex items-center justify-end">
                   {!readOnly && (
                     <button
                       onClick={() => handleRemoveClick(member.id, member.name)}
