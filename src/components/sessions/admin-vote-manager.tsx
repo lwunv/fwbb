@@ -66,22 +66,9 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
       const willDine = v?.willDine ?? false;
 
       if (tag === "play") {
-        const newPlay = !willPlay;
-        if (!newPlay && !willDine) {
-          // Removing last tag — confirm removal
-          const member = members.find((m) => m.id === memberId);
-          setRemoveTarget({ memberId, name: member?.name ?? "" });
-          return;
-        }
-        await adminSetVote(sessionId, memberId, newPlay, willDine);
+        await adminSetVote(sessionId, memberId, !willPlay, willDine);
       } else {
-        const newDine = !willDine;
-        if (!newDine && !willPlay) {
-          const member = members.find((m) => m.id === memberId);
-          setRemoveTarget({ memberId, name: member?.name ?? "" });
-          return;
-        }
-        await adminSetVote(sessionId, memberId, willPlay, newDine);
+        await adminSetVote(sessionId, memberId, willPlay, !willDine);
       }
     });
   }
