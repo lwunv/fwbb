@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { MemberAvatar } from "@/components/shared/member-avatar";
 import {
   Dialog,
   DialogContent,
@@ -17,22 +17,62 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Calendar, MapPin, ChevronRight, ExternalLink, Trash2 } from "lucide-react";
+import { Plus, Calendar, MapPin, ChevronRight, ChevronDown, ExternalLink, Trash2, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
-import type { InferSelectModel } from "drizzle-orm";
-import type { sessions as sessionsTable, courts as courtsTable } from "@/db/schema";
 
-type Session = InferSelectModel<typeof sessionsTable> & {
-  court: InferSelectModel<typeof courtsTable> | null;
+interface UnpaidDebt {
+  memberId: number;
+  memberName: string;
+  amount: number;
+}
+
+interface ShuttlecockInfo {
+  brandName: string;
+  quantity: number;
+}
+
+interface SessionCard {
+  id: number;
+  date: string;
+  startTime: string | null;
+  endTime: string | null;
+  status: string | null;
+  courtName: string | null;
+  courtMapLink: string | null;
+  courtPrice: number | null;
+  playerCount: number;
+  dinerCount: number;
+  totalDebt: number;
+  paidDebt: number;
+  unpaidDebts: UnpaidDebt[];
+  shuttlecockInfo: ShuttlecockInfo[];
+}
+
+const statusStyles: Record<string, { labelKey: "voting" | "confirmed" | "completed" | "cancelled"; cardBg: string; badgeBg: string; badgeText: string; iconBg: string }> = {
+  voting: { labelKey: "voting", cardBg: "bg-green-50/60 border-green-200/50 dark:bg-green-950/20 dark:border-green-900/30", badgeBg: "bg-green-100 dark:bg-green-900/40", badgeText: "text-green-700 dark:text-green-300", iconBg: "bg-green-100 dark:bg-green-900/40" },
+  confirmed: { labelKey: "confirmed", cardBg: "bg-green-50/60 border-green-200/50 dark:bg-green-950/20 dark:border-green-900/30", badgeBg: "bg-green-100 dark:bg-green-900/40", badgeText: "text-green-700 dark:text-green-300", iconBg: "bg-green-100 dark:bg-green-900/40" },
+  completed: { labelKey: "completed", cardBg: "bg-blue-50/60 border-blue-200/50 dark:bg-blue-950/20 dark:border-blue-900/30", badgeBg: "bg-blue-100 dark:bg-blue-900/40", badgeText: "text-blue-700 dark:text-blue-300", iconBg: "bg-blue-100 dark:bg-blue-900/40" },
+  cancelled: { labelKey: "cancelled", cardBg: "bg-red-50/60 border-red-200/50 dark:bg-red-950/20 dark:border-red-900/30", badgeBg: "bg-red-100 dark:bg-red-900/40", badgeText: "text-red-700 dark:text-red-300", iconBg: "bg-red-100 dark:bg-red-900/40" },
 };
 
-export function SessionList({ sessions }: { sessions: Session[] }) {
+export function SessionList({ sessions }: { sessions: SessionCard[] }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [error, setError] = useState("");
   const [deleting, setDeleting] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   const t = useTranslations("sessions");
   const tCommon = useTranslations("common");
+  const tVoting = useTranslations("voting");
+
+  async function handleCreate(formData: FormData) {
+    const date = formData.get("date") as string;
+    if (!date) { setError(t("pleaseSelectDate")); return; }
+    const result = await createSessionManually(date);
+    if (result.error) { setError(result.error); return; }
+    setDialogOpen(false);
+    setError("");
+  }
 
   async function handleDelete(e: React.MouseEvent, sessionId: number) {
     e.preventDefault();
@@ -43,41 +83,16 @@ export function SessionList({ sessions }: { sessions: Session[] }) {
     setDeleting(null);
   }
 
-  async function handleCreate(formData: FormData) {
-    const date = formData.get("date") as string;
-    if (!date) {
-      setError(t("pleaseSelectDate"));
-      return;
-    }
-    const result = await createSessionManually(date);
-    if (result.error) {
-      setError(result.error);
-      return;
-    }
-    setDialogOpen(false);
-    setError("");
-  }
-
   function formatSessionDate(dateStr: string) {
     try {
-      const date = new Date(dateStr + "T00:00:00");
-      return format(date, "EEEE, dd/MM/yyyy", { locale: vi });
-    } catch {
-      return dateStr;
-    }
+      return format(new Date(dateStr + "T00:00:00"), "EEEE, dd/MM/yyyy", { locale: vi });
+    } catch { return dateStr; }
   }
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
-        <p className="text-muted-foreground">{t("sessionsCount", { count: sessions.length })}</p>
-        <Dialog
-          open={dialogOpen}
-          onOpenChange={(open) => {
-            setDialogOpen(open);
-            if (!open) setError("");
-          }}
-        >
+      <div className="flex justify-end mb-4">
+        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setError(""); }}>
           <DialogTrigger render={<Button />}>
             <Plus className="h-4 w-4 mr-2" /> {t("createSession")}
           </DialogTrigger>
@@ -88,19 +103,10 @@ export function SessionList({ sessions }: { sessions: Session[] }) {
             <form action={handleCreate} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="date">{t("date")}</Label>
-                <Input
-                  id="date"
-                  name="date"
-                  type="date"
-                  required
-                />
+                <Input id="date" name="date" type="date" required />
               </div>
-              {error && (
-                <p className="text-sm text-destructive">{error}</p>
-              )}
-              <Button type="submit" className="w-full">
-                {t("create")}
-              </Button>
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <Button type="submit" className="w-full">{t("create")}</Button>
             </form>
           </DialogContent>
         </Dialog>
@@ -108,71 +114,120 @@ export function SessionList({ sessions }: { sessions: Session[] }) {
 
       <div className="grid gap-3">
         {sessions.map((session) => {
-          const statusStyles: Record<string, { labelKey: "voting" | "confirmed" | "completed" | "cancelled"; cardBg: string; badgeBg: string; badgeText: string; iconBg: string }> = {
-            voting: { labelKey: "voting", cardBg: "bg-green-50/60 border-green-200/50 dark:bg-green-950/20 dark:border-green-900/30", badgeBg: "bg-green-100 dark:bg-green-900/40", badgeText: "text-green-700 dark:text-green-300", iconBg: "bg-green-100 dark:bg-green-900/40" },
-            confirmed: { labelKey: "confirmed", cardBg: "bg-green-50/60 border-green-200/50 dark:bg-green-950/20 dark:border-green-900/30", badgeBg: "bg-green-100 dark:bg-green-900/40", badgeText: "text-green-700 dark:text-green-300", iconBg: "bg-green-100 dark:bg-green-900/40" },
-            completed: { labelKey: "completed", cardBg: "bg-blue-50/60 border-blue-200/50 dark:bg-blue-950/20 dark:border-blue-900/30", badgeBg: "bg-blue-100 dark:bg-blue-900/40", badgeText: "text-blue-700 dark:text-blue-300", iconBg: "bg-blue-100 dark:bg-blue-900/40" },
-            cancelled: { labelKey: "cancelled", cardBg: "bg-red-50/60 border-red-200/50 dark:bg-red-950/20 dark:border-red-900/30", badgeBg: "bg-red-100 dark:bg-red-900/40", badgeText: "text-red-700 dark:text-red-300", iconBg: "bg-red-100 dark:bg-red-900/40" },
-          };
           const status = statusStyles[session.status ?? "voting"];
+          const unpaidAmount = session.totalDebt - session.paidDebt;
+          const allPaid = session.status === "completed" && unpaidAmount <= 0;
+          const isExpanded = expandedId === session.id;
+
           return (
-            <Link key={session.id} href={`/admin/sessions/${session.id}`}>
-              <Card className={`hover:opacity-80 transition-all cursor-pointer ${status.cardBg}`}>
-                <CardContent className="flex items-center justify-between p-4">
-                  <div className="flex items-center gap-3">
-                    <div className={`flex items-center justify-center w-9 h-9 rounded-full ${status.iconBg}`}>
-                      <Calendar className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <p className="font-medium capitalize">
-                        {formatSessionDate(session.date)}
-                      </p>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <span>{session.startTime} - {session.endTime}</span>
-                        {session.court && (
-                          <>
-                            <span>·</span>
-                            <span className="flex items-center gap-1">
-                              <MapPin className="h-3 w-3" />
-                              {session.court.name}
-                              {session.court.mapLink && (
-                                <a
-                                  href={session.court.mapLink}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="text-primary hover:underline text-xs"
-                                >
-                                  Chỉ đường <ExternalLink className="h-2.5 w-2.5 inline" />
-                                </a>
-                              )}
-                            </span>
-                          </>
-                        )}
+            <div key={session.id}>
+              <Link href={`/admin/sessions/${session.id}`}>
+                <Card className={`hover:opacity-90 transition-all cursor-pointer ${status.cardBg}`}>
+                  <CardContent className="p-4 space-y-2">
+                    {/* Row 1: Date + Status + Actions */}
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`flex items-center justify-center w-9 h-9 rounded-full flex-shrink-0 ${status.iconBg}`}>
+                          <Calendar className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="font-semibold capitalize text-sm">
+                            {formatSessionDate(session.date)}
+                          </p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                            <span>{session.startTime} - {session.endTime}</span>
+                            {session.courtName && (
+                              <>
+                                <span>·</span>
+                                <span className="flex items-center gap-1">
+                                  <MapPin className="h-3 w-3" />
+                                  {session.courtName}
+                                  {session.courtMapLink && (
+                                    <a
+                                      href={session.courtMapLink}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="text-primary hover:underline"
+                                    >
+                                      <ExternalLink className="h-2.5 w-2.5 inline" />
+                                    </a>
+                                  )}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      {session.courtPrice != null && (
-                        <p className="text-sm font-medium text-primary">
-                          {formatVND(session.courtPrice)}
-                        </p>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${status.badgeBg} ${status.badgeText}`}>
+                          {t(status.labelKey)}
+                        </span>
+                        <button
+                          onClick={(e) => handleDelete(e, session.id)}
+                          disabled={deleting === session.id}
+                          className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Row 2: Players + Diners + Shuttlecocks */}
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs pl-12">
+                      <span>🏸 {tVoting("badmintonShort")}: <strong>{session.playerCount}</strong> người</span>
+                      <span>🍻 {tVoting("diningShort")}: <strong>{session.dinerCount}</strong> người</span>
+                      {session.shuttlecockInfo.length > 0 && (
+                        <span className="text-muted-foreground">
+                          🪶 {session.shuttlecockInfo.map((s) => `${s.quantity} quả ${s.brandName}`).join(", ")}
+                        </span>
                       )}
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${status.badgeBg} ${status.badgeText}`}>
-                      {t(status.labelKey)}
-                    </span>
-                    <button
-                      onClick={(e) => handleDelete(e, session.id)}
-                      disabled={deleting === session.id}
-                      className="p-1 text-muted-foreground hover:text-destructive transition-colors"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
+
+                    {/* Row 3: Payment status (completed sessions only) */}
+                    {session.status === "completed" && (
+                      <div className="pl-12">
+                        {allPaid ? (
+                          <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                            ✓ Đã thanh toán hết — {formatVND(session.totalDebt)}
+                          </span>
+                        ) : (
+                          <div className="space-y-1">
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setExpandedId(isExpanded ? null : session.id);
+                              }}
+                              className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 font-medium hover:underline"
+                            >
+                              <AlertTriangle className="h-3 w-3" />
+                              Còn thiếu {formatVND(unpaidAmount)} / {formatVND(session.totalDebt)}
+                              <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </Link>
+
+              {/* Expandable unpaid debts list */}
+              {isExpanded && session.unpaidDebts.length > 0 && (
+                <div className="ml-12 mt-1 mb-2 border rounded-md bg-card divide-y">
+                  {session.unpaidDebts.map((d) => (
+                    <div key={d.memberId} className="flex items-center justify-between px-3 py-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <MemberAvatar memberId={d.memberId} size={20} />
+                        <span>{d.memberName}</span>
+                      </div>
+                      <span className="font-medium text-destructive">{formatVND(d.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           );
         })}
 
