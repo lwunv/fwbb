@@ -108,7 +108,8 @@
     "confirmReceived": "Đã nhận tiền",
     "memberReported": "TV đã báo",
     "undo": "Hoàn tác",
-    "undoLabel": "Nợ"
+    "undoLabel": "Chưa nhận",
+    "notReceived": "Chưa nhận"
   },
   "inventory": {
     "inventory": "Tồn kho",

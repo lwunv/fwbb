@@ -108,7 +108,8 @@
     "confirmReceived": "Received",
     "memberReported": "Member reported",
     "undo": "Undo",
-    "undoLabel": "Owed"
+    "undoLabel": "Not received",
+    "notReceived": "Not received"
   },
   "inventory": {
     "inventory": "Inventory",

@@ -194,13 +194,13 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
                   {debt && (
                     isConfirmed ? (
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
                         onClick={() => handleUndo(debt.debtId)}
                         disabled={payLoading === debt.debtId}
-                        className="h-6 px-2 text-[11px] text-amber-600 hover:text-destructive"
+                        className="h-6 px-2 text-[11px] border-amber-300 text-amber-600 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950/30"
                       >
-                        {tFinance("undoLabel")}
+                        {tFinance("notReceived")}
                       </Button>
                     ) : (
                       <Button
