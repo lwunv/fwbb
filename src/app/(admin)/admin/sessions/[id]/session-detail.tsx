@@ -152,6 +152,56 @@ export function SessionDetail({
             <span>{tDetail("play")}: <strong>{playingCount}</strong> người{totalGuestPlay > 0 && <span className="text-muted-foreground"> +{totalGuestPlay} {tDetail("guest")}</span>}</span>
             <span>{tDetail("dine")}: <strong>{diningCount}</strong> người{totalGuestDine > 0 && <span className="text-muted-foreground"> +{totalGuestDine} {tDetail("guest")}</span>}</span>
           </div>
+
+          {/* Financial summary for completed sessions */}
+          {session.status === "completed" && (
+            <div className="pt-2 border-t space-y-1.5">
+              {session.shuttlecocks && session.shuttlecocks.length > 0 && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">🪶 Cầu</span>
+                  <span className="font-medium">
+                    {session.shuttlecocks.map((s) => `${s.quantityUsed} quả ${s.brand?.name ?? ""}`).join(", ")}
+                    {" · "}
+                    {formatVND(session.shuttlecocks.reduce((sum, s) => sum + Math.round(s.quantityUsed * s.pricePerTube / 12), 0))}
+                  </span>
+                </div>
+              )}
+              {session.courtPrice != null && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">🏟 Sân</span>
+                  <span className="font-medium">{formatVND(session.courtPrice)}</span>
+                </div>
+              )}
+              {session.diningBill != null && session.diningBill > 0 && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">🍻 Nhậu</span>
+                  <span className="font-medium">{formatVND(session.diningBill)}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between text-sm pt-1 border-t font-bold">
+                <span>Tổng chi</span>
+                <span className="text-primary">
+                  {formatVND(
+                    (session.courtPrice ?? 0) +
+                    (session.diningBill ?? 0) +
+                    (session.shuttlecocks?.reduce((sum, s) => sum + Math.round(s.quantityUsed * s.pricePerTube / 12), 0) ?? 0)
+                  )}
+                </span>
+              </div>
+              {playingCount > 0 && (
+                <div className="flex gap-4 text-xs text-muted-foreground">
+                  <span>Chơi cầu/người: <strong className="text-foreground">
+                    {formatVND(Math.round(((session.courtPrice ?? 0) + (session.shuttlecocks?.reduce((sum, s) => sum + Math.round(s.quantityUsed * s.pricePerTube / 12), 0) ?? 0)) / playingCount / 1000) * 1000)}
+                  </strong></span>
+                  {diningCount > 0 && session.diningBill != null && (
+                    <span>Nhậu/người: <strong className="text-foreground">
+                      {formatVND(Math.round(session.diningBill / diningCount / 1000) * 1000)}
+                    </strong></span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 

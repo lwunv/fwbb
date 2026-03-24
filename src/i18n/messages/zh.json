@@ -107,7 +107,8 @@
     "received": "已收款",
     "confirmReceived": "已收款",
     "memberReported": "成员已报告",
-    "undo": "撤销"
+    "undo": "撤销",
+    "undoLabel": "欠款"
   },
   "inventory": {
     "inventory": "库存",

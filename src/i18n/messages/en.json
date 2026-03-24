@@ -107,7 +107,8 @@
     "received": "Received",
     "confirmReceived": "Received",
     "memberReported": "Member reported",
-    "undo": "Undo"
+    "undo": "Undo",
+    "undoLabel": "Owed"
   },
   "inventory": {
     "inventory": "Inventory",
