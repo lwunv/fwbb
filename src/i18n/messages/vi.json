@@ -65,7 +65,12 @@
     "willPlay": "Sẽ chơi",
     "willDine": "Sẽ ăn",
     "guestPlay": "Khách chơi",
-    "guestDine": "Khách ăn"
+    "guestDine": "Khách ăn",
+    "badmintonShort": "Cầu lông",
+    "diningShort": "Nhậu",
+    "notGoing": "Không đi",
+    "notVoted": "Chưa vote",
+    "noMembers": "Chưa có thành viên nào"
   },
   "finance": {
     "debts": "Công nợ",

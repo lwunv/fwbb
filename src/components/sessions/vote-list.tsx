@@ -2,6 +2,7 @@
 
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { Badge } from "@/components/ui/badge";
+import { useTranslations } from "next-intl";
 import type { InferSelectModel } from "drizzle-orm";
 import type { votes as votesTable, members as membersTable } from "@/db/schema";
 
@@ -18,16 +19,14 @@ export function VoteList({
   votes: Vote[];
   members: Member[];
 }) {
-  // Map of memberId -> vote
+  const t = useTranslations("voting");
   const voteMap = new Map(votes.map((v) => [v.memberId, v]));
 
-  // Split into voted and not-voted
   const votedMembers = members.filter((m) => voteMap.has(m.id));
   const notVotedMembers = members.filter((m) => !voteMap.has(m.id));
 
   return (
     <div className="space-y-4">
-      {/* Members who voted */}
       {votedMembers.length > 0 && (
         <div className="space-y-2">
           {votedMembers.map((member) => {
@@ -44,17 +43,17 @@ export function VoteList({
                     <div className="flex gap-1 mt-0.5">
                       {vote.willPlay && (
                         <Badge variant="default" className="text-xs">
-                          Choi
+                          🏸 {t("badmintonShort")}
                         </Badge>
                       )}
                       {vote.willDine && (
                         <Badge variant="secondary" className="text-xs">
-                          An
+                          🍻 {t("diningShort")}
                         </Badge>
                       )}
                       {!vote.willPlay && !vote.willDine && (
                         <Badge variant="outline" className="text-xs">
-                          Khong di
+                          {t("notGoing")}
                         </Badge>
                       )}
                     </div>
@@ -62,10 +61,10 @@ export function VoteList({
                 </div>
                 <div className="text-right text-xs text-muted-foreground">
                   {(vote.guestPlayCount ?? 0) > 0 && (
-                    <p>+{vote.guestPlayCount} khach choi</p>
+                    <p>+{vote.guestPlayCount} {t("guestPlay")}</p>
                   )}
                   {(vote.guestDineCount ?? 0) > 0 && (
-                    <p>+{vote.guestDineCount} khach an</p>
+                    <p>+{vote.guestDineCount} {t("guestDine")}</p>
                   )}
                 </div>
               </div>
@@ -74,11 +73,10 @@ export function VoteList({
         </div>
       )}
 
-      {/* Members who haven't voted */}
       {notVotedMembers.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-            Chua vote ({notVotedMembers.length})
+            {t("notVoted")} ({notVotedMembers.length})
           </p>
           {notVotedMembers.map((member) => (
             <div
@@ -94,7 +92,7 @@ export function VoteList({
 
       {members.length === 0 && (
         <p className="text-sm text-muted-foreground text-center py-4">
-          Chua co thanh vien nao
+          {t("noMembers")}
         </p>
       )}
     </div>

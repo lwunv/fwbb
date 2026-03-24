@@ -65,7 +65,12 @@
     "willPlay": "Will play",
     "willDine": "Will dine",
     "guestPlay": "Guest play",
-    "guestDine": "Guest dine"
+    "guestDine": "Guest dine",
+    "badmintonShort": "Badminton",
+    "diningShort": "Dining",
+    "notGoing": "Not going",
+    "notVoted": "Not voted",
+    "noMembers": "No members yet"
   },
   "finance": {
     "debts": "Debts",

@@ -65,7 +65,12 @@
     "willPlay": "将参加",
     "willDine": "将聚餐",
     "guestPlay": "嘉宾打球",
-    "guestDine": "嘉宾聚餐"
+    "guestDine": "嘉宾聚餐",
+    "badmintonShort": "羽毛球",
+    "diningShort": "聚餐",
+    "notGoing": "不参加",
+    "notVoted": "未投票",
+    "noMembers": "暂无成员"
   },
   "finance": {
     "debts": "债务",
