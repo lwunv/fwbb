@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatVND } from "@/lib/utils";
+import { MemberAvatar } from "@/components/shared/member-avatar";
 import {
   Wallet,
   AlertTriangle,
@@ -36,6 +37,7 @@ interface UpcomingSession {
 
 interface RecentPayment {
   id: number;
+  memberId: number;
   memberName: string;
   sessionDate: string;
   amount: number;
@@ -256,7 +258,7 @@ export function DashboardClient({
                   className="flex items-center justify-between py-1.5 border-b last:border-0"
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                    <MemberAvatar memberId={p.memberId} size={24} />
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">
                         {p.memberName}

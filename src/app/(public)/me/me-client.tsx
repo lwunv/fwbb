@@ -6,6 +6,7 @@ import { useTheme } from "next-themes";
 import { useTranslations } from "next-intl";
 import { formatVND } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { MemberAvatar } from "@/components/shared/member-avatar";
 import {
   User,
   Phone,
@@ -19,6 +20,7 @@ import {
 } from "lucide-react";
 
 interface MeClientProps {
+  memberId: number;
   memberName: string;
   memberPhone: string;
   totalPlayed: number;
@@ -27,6 +29,7 @@ interface MeClientProps {
 }
 
 export function MeClient({
+  memberId,
   memberName,
   memberPhone,
   totalPlayed,
@@ -58,9 +61,7 @@ export function MeClient({
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-xl font-bold text-primary">
-              {memberName.charAt(0).toUpperCase()}
-            </div>
+            <MemberAvatar memberId={memberId} size={48} />
             <div>
               <p className="font-medium">{memberName}</p>
               <p className="text-sm text-muted-foreground flex items-center gap-1">

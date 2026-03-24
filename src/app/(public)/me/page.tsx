@@ -53,6 +53,7 @@ export default async function MePage() {
     <div className="space-y-6">
       <h1 className="text-xl font-bold">{t("me")}</h1>
       <MeClient
+        memberId={member.id}
         memberName={member.name}
         memberPhone={member.phone}
         totalPlayed={totalPlayed}

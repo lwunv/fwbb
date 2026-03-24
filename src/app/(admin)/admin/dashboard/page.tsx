@@ -49,6 +49,7 @@ export default async function DashboardPage() {
 
   const recentPaymentCards = recentPayments.slice(0, 10).map((d) => ({
     id: d.id,
+    memberId: d.memberId,
     memberName: d.member.name,
     sessionDate: d.session.date,
     amount: d.totalAmount,
