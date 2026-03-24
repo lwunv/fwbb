@@ -1,5 +1,5 @@
 import { sqliteTable, text, integer, uniqueIndex, index } from "drizzle-orm/sqlite-core";
-import { sql } from "drizzle-orm";
+import { sql, relations } from "drizzle-orm";
 
 export const admins = sqliteTable("admins", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -108,3 +108,54 @@ export const sessionDebts = sqliteTable("session_debts", {
 }, (table) => [
   uniqueIndex("debts_session_member_idx").on(table.sessionId, table.memberId),
 ]);
+
+// Relations
+
+export const sessionsRelations = relations(sessions, ({ one, many }) => ({
+  court: one(courts, { fields: [sessions.courtId], references: [courts.id] }),
+  votes: many(votes),
+  attendees: many(sessionAttendees),
+  shuttlecocks: many(sessionShuttlecocks),
+  debts: many(sessionDebts),
+}));
+
+export const votesRelations = relations(votes, ({ one }) => ({
+  session: one(sessions, { fields: [votes.sessionId], references: [sessions.id] }),
+  member: one(members, { fields: [votes.memberId], references: [members.id] }),
+}));
+
+export const sessionAttendeesRelations = relations(sessionAttendees, ({ one }) => ({
+  session: one(sessions, { fields: [sessionAttendees.sessionId], references: [sessions.id] }),
+  member: one(members, { fields: [sessionAttendees.memberId], references: [members.id], relationName: "attendeeMember" }),
+  invitedBy: one(members, { fields: [sessionAttendees.invitedById], references: [members.id], relationName: "invitedByMember" }),
+}));
+
+export const sessionShuttlecocksRelations = relations(sessionShuttlecocks, ({ one }) => ({
+  session: one(sessions, { fields: [sessionShuttlecocks.sessionId], references: [sessions.id] }),
+  brand: one(shuttlecockBrands, { fields: [sessionShuttlecocks.brandId], references: [shuttlecockBrands.id] }),
+}));
+
+export const sessionDebtsRelations = relations(sessionDebts, ({ one }) => ({
+  session: one(sessions, { fields: [sessionDebts.sessionId], references: [sessions.id] }),
+  member: one(members, { fields: [sessionDebts.memberId], references: [members.id] }),
+}));
+
+export const membersRelations = relations(members, ({ many }) => ({
+  votes: many(votes),
+  debts: many(sessionDebts),
+  attendances: many(sessionAttendees, { relationName: "attendeeMember" }),
+  guestsInvited: many(sessionAttendees, { relationName: "invitedByMember" }),
+}));
+
+export const courtsRelations = relations(courts, ({ many }) => ({
+  sessions: many(sessions),
+}));
+
+export const shuttlecockBrandsRelations = relations(shuttlecockBrands, ({ many }) => ({
+  sessionShuttlecocks: many(sessionShuttlecocks),
+  purchases: many(inventoryPurchases),
+}));
+
+export const inventoryPurchasesRelations = relations(inventoryPurchases, ({ one }) => ({
+  brand: one(shuttlecockBrands, { fields: [inventoryPurchases.brandId], references: [shuttlecockBrands.id] }),
+}));

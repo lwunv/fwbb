@@ -29,7 +29,9 @@
       "Bash(ls \"d:/Lwcifer/LW/FWBB/src/app/\\(admin\\)/admin/\")"
     ],
     "additionalDirectories": [
-      "d:\\Lwcifer\\LW\\fwbb-temp"
+      "d:\\Lwcifer\\LW\\fwbb-temp",
+      "d:\\Lwcifer\\LW\\FWBB\\src\\app\\(admin)\\admin\\sessions",
+      "d:\\Lwcifer\\LW\\FWBB\\src\\app\\(public)\\vote"
     ]
   },
   "enabledPlugins": {
