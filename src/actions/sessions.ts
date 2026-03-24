@@ -42,6 +42,19 @@ export async function getNextSession() {
   });
 }
 
+export async function getLatestCompletedSession() {
+  return db.query.sessions.findFirst({
+    where: eq(sessions.status, "completed"),
+    orderBy: [desc(sessions.date)],
+    with: {
+      court: true,
+      shuttlecocks: {
+        with: { brand: true },
+      },
+    },
+  });
+}
+
 export async function selectCourt(sessionId: number, courtId: number, courtQuantity: number = 1) {
   const court = await db.query.courts.findFirst({ where: eq(courts.id, courtId) });
   if (!court) return { error: "San khong ton tai" };
