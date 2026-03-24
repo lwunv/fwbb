@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { confirmSession, cancelSession } from "@/actions/sessions";
-import { formatVND } from "@/lib/utils";
+import { formatK } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -141,11 +141,6 @@ export function SessionDetail({
             <div className="flex items-center gap-2 text-sm">
               <MapPin className="h-4 w-4 text-muted-foreground" />
               <span>{session.court.name}</span>
-              {session.courtPrice != null && (
-                <span className="text-primary font-medium">
-                  ({formatVND(session.courtPrice)})
-                </span>
-              )}
             </div>
           )}
           <div className="flex gap-4 text-sm pt-2 border-t">
@@ -162,26 +157,26 @@ export function SessionDetail({
                   <span className="font-medium">
                     {session.shuttlecocks.map((s) => `${s.quantityUsed} quả ${s.brand?.name ?? ""}`).join(", ")}
                     {" · "}
-                    {formatVND(session.shuttlecocks.reduce((sum, s) => sum + Math.round(s.quantityUsed * s.pricePerTube / 12), 0))}
+                    {formatK(session.shuttlecocks.reduce((sum, s) => sum + Math.round(s.quantityUsed * s.pricePerTube / 12), 0))}
                   </span>
                 </div>
               )}
               {session.courtPrice != null && (
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">🏟 Sân</span>
-                  <span className="font-medium">{formatVND(session.courtPrice)}</span>
+                  <span className="text-muted-foreground">🏟 {session.court?.name ?? "Sân"}</span>
+                  <span className="font-medium">{formatK(session.courtPrice)}</span>
                 </div>
               )}
               {session.diningBill != null && session.diningBill > 0 && (
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">🍻 Nhậu</span>
-                  <span className="font-medium">{formatVND(session.diningBill)}</span>
+                  <span className="font-medium">{formatK(session.diningBill)}</span>
                 </div>
               )}
               <div className="flex items-center justify-between text-sm pt-1 border-t font-bold">
                 <span>Tổng chi</span>
                 <span className="text-primary">
-                  {formatVND(
+                  {formatK(
                     (session.courtPrice ?? 0) +
                     (session.diningBill ?? 0) +
                     (session.shuttlecocks?.reduce((sum, s) => sum + Math.round(s.quantityUsed * s.pricePerTube / 12), 0) ?? 0)
@@ -191,11 +186,11 @@ export function SessionDetail({
               {playingCount > 0 && (
                 <div className="flex gap-4 text-xs text-muted-foreground">
                   <span>Chơi cầu/người: <strong className="text-foreground">
-                    {formatVND(Math.round(((session.courtPrice ?? 0) + (session.shuttlecocks?.reduce((sum, s) => sum + Math.round(s.quantityUsed * s.pricePerTube / 12), 0) ?? 0)) / playingCount / 1000) * 1000)}
+                    {formatK(Math.round(((session.courtPrice ?? 0) + (session.shuttlecocks?.reduce((sum, s) => sum + Math.round(s.quantityUsed * s.pricePerTube / 12), 0) ?? 0)) / playingCount / 1000) * 1000)}
                   </strong></span>
                   {diningCount > 0 && session.diningBill != null && (
                     <span>Nhậu/người: <strong className="text-foreground">
-                      {formatVND(Math.round(session.diningBill / diningCount / 1000) * 1000)}
+                      {formatK(Math.round(session.diningBill / diningCount / 1000) * 1000)}
                     </strong></span>
                   )}
                 </div>

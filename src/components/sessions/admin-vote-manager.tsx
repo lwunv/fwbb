@@ -7,13 +7,7 @@ import { MemberAvatar } from "@/components/shared/member-avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { formatVND } from "@/lib/utils";
-
-function formatShort(amount: number): string {
-  if (amount >= 1000000) return `${(amount / 1000000).toFixed(1)}M`;
-  if (amount >= 1000) return `${Math.round(amount / 1000)}k`;
-  return String(amount);
-}
+import { formatK } from "@/lib/utils";
 import { Plus, X, Check, ChevronUp, Search } from "lucide-react";
 import { confirmPaymentByAdmin, undoPaymentByAdmin } from "@/actions/finance";
 import type { InferSelectModel } from "drizzle-orm";
@@ -244,7 +238,7 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
                 {/* Amount */}
                 {debt ? (
                   <span className={`text-xs font-bold tabular-nums text-right ${isConfirmed ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-                    {formatShort(debt.amount)}
+                    {formatK(debt.amount)}
                   </span>
                 ) : <span />}
 
