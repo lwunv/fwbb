@@ -38,3 +38,42 @@ export async function logout() {
   await clearAdminCookie();
   redirect("/admin/login");
 }
+
+export async function changePassword(
+  _prevState: { error?: string; success?: boolean } | null,
+  formData: FormData
+) {
+  const currentPassword = formData.get("currentPassword") as string;
+  const newPassword = formData.get("newPassword") as string;
+  const confirmPassword = formData.get("confirmPassword") as string;
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    return { error: "Vui long nhap day du thong tin" };
+  }
+
+  if (newPassword.length < 6) {
+    return { error: "Mat khau moi phai co it nhat 6 ky tu" };
+  }
+
+  if (newPassword !== confirmPassword) {
+    return { error: "Mat khau moi khong khop" };
+  }
+
+  const admin = await db.query.admins.findFirst();
+  if (!admin) {
+    return { error: "Khong tim thay tai khoan admin" };
+  }
+
+  const isValid = await bcrypt.compare(currentPassword, admin.passwordHash);
+  if (!isValid) {
+    return { error: "Mat khau hien tai khong dung" };
+  }
+
+  const newHash = await bcrypt.hash(newPassword, 12);
+  await db
+    .update(admins)
+    .set({ passwordHash: newHash })
+    .where(eq(admins.id, admin.id));
+
+  return { success: true };
+}

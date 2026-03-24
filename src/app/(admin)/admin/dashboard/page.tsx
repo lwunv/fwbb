@@ -1,8 +1,85 @@
-export default function DashboardPage() {
+import { db } from "@/db";
+import { sessions, sessionDebts, members } from "@/db/schema";
+import { eq, and, gte, desc, or, ne } from "drizzle-orm";
+import { getDebtSummary } from "@/actions/finance";
+import { checkLowStock } from "@/actions/inventory";
+import { getNextSession } from "@/actions/sessions";
+import { DashboardClient } from "./dashboard-client";
+import { PasswordChangeForm } from "./password-change-form";
+
+export default async function DashboardPage() {
+  // 1. Total outstanding debt
+  const allDebts = await db.query.sessionDebts.findMany();
+  const totalOutstanding = allDebts
+    .filter((d) => !d.adminConfirmed)
+    .reduce((sum, d) => sum + d.totalAmount, 0);
+
+  // 2. Low stock
+  const lowStockItems = await checkLowStock();
+
+  // 3. Active members count
+  const activeMembers = await db.query.members.findMany({
+    where: eq(members.isActive, true),
+  });
+
+  // 4. Sessions this month
+  const now = new Date();
+  const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+  const allSessions = await db.query.sessions.findMany({
+    where: gte(sessions.date, monthStart),
+  });
+  const sessionsThisMonth = allSessions.length;
+
+  // 5. Upcoming session
+  const nextSession = await getNextSession();
+
+  // 6. Recent payments (last 10 confirmed debts)
+  const recentPayments = await db.query.sessionDebts.findMany({
+    where: eq(sessionDebts.adminConfirmed, true),
+    with: {
+      member: true,
+      session: true,
+    },
+    orderBy: [desc(sessionDebts.adminConfirmedAt)],
+  });
+
+  const recentPaymentCards = recentPayments.slice(0, 10).map((d) => ({
+    id: d.id,
+    memberName: d.member.name,
+    sessionDate: d.session.date,
+    amount: d.totalAmount,
+    confirmedAt: d.adminConfirmedAt || "",
+  }));
+
+  const upcomingSession = nextSession
+    ? {
+        id: nextSession.id,
+        date: nextSession.date,
+        status: nextSession.status as string,
+        courtName: nextSession.court?.name || null,
+        startTime: nextSession.startTime || "20:30",
+        endTime: nextSession.endTime || "22:30",
+      }
+    : null;
+
+  const lowStockWarning =
+    lowStockItems.length > 0
+      ? `${lowStockItems[0].brandName}: ${lowStockItems[0].ong} ong ${lowStockItems[0].qua} qua`
+      : null;
+
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6">Tong quan</h1>
-      <p className="text-muted-foreground">Dashboard dang duoc xay dung...</p>
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold">Tong quan</h1>
+      <DashboardClient
+        totalOutstanding={totalOutstanding}
+        lowStockWarning={lowStockWarning}
+        lowStockCount={lowStockItems.length}
+        activeMembersCount={activeMembers.length}
+        sessionsThisMonth={sessionsThisMonth}
+        upcomingSession={upcomingSession}
+        recentPayments={recentPaymentCards}
+      />
+      <PasswordChangeForm />
     </div>
   );
 }
