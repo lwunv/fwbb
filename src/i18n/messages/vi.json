@@ -101,7 +101,10 @@
     "owed": "Nợ",
     "alreadyPaid": "Đã trả",
     "noDebt": "Hết nợ",
-    "noDebts": "Không có công nợ nào."
+    "noDebts": "Không có công nợ nào.",
+    "received": "Đã nhận tiền",
+    "confirmReceived": "Xác nhận",
+    "memberReported": "TV đã báo"
   },
   "inventory": {
     "inventory": "Tồn kho",

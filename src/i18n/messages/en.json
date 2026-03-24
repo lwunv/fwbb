@@ -101,7 +101,10 @@
     "owed": "Owed",
     "alreadyPaid": "Paid",
     "noDebt": "No debt",
-    "noDebts": "No debts."
+    "noDebts": "No debts.",
+    "received": "Received",
+    "confirmReceived": "Confirm",
+    "memberReported": "Member reported"
   },
   "inventory": {
     "inventory": "Inventory",

@@ -52,7 +52,11 @@
       "Bash(rg '\"\"[A-Z][a-z]+ [a-z]+ [a-z]+\"\"' src/components/sessions/court-selector.tsx -n --no-filename)",
       "Bash(rg \"Tong|luong|Chua|khong|nhap|Tim\" src/components/ -n --include=\"*.tsx\")",
       "Bash(rg '\"\"noOne\"\"|\"\"close\"\"|\"\"search\"\"' src/i18n/messages/vi.json -n)",
-      "Bash(rg \"Badge variant={status.variant}\" src/app/\\\\\\(admin\\\\\\)/admin/sessions/[id]/session-detail.tsx -n)"
+      "Bash(rg \"Badge variant={status.variant}\" src/app/\\\\\\(admin\\\\\\)/admin/sessions/[id]/session-detail.tsx -n)",
+      "Bash(rg '\"\"received\"\"|\"\"confirmReceived\"\"|\"\"memberReported\"\"' src/i18n/messages/vi.json -n)",
+      "Bash(rg '\"\"noDebts\"\"' src/i18n/messages/vi.json -n)",
+      "Bash(rg '\"\"noDebts\"\"' src/i18n/messages/en.json -n)",
+      "Bash(rg '\"\"noDebts\"\"' src/i18n/messages/zh.json -n)"
     ],
     "additionalDirectories": [
       "d:\\Lwcifer\\LW\\fwbb-temp",
