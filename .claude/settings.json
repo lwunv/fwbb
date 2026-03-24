@@ -18,7 +18,15 @@
       "Bash(pnpm install:*)",
       "Bash(npx --yes rimraf node_modules)",
       "Bash(cmd //c \"rmdir /s /q node_modules\")",
-      "Bash(pnpm dlx:*)"
+      "Bash(pnpm dlx:*)",
+      "Bash(pnpm db:push)",
+      "Bash(ls -la d:/Lwcifer/LW/FWBB/.env*)",
+      "Bash(pnpm db:seed)",
+      "Bash(node -e \"const z = require\\(''zod''\\); console.log\\(''Zod version:'', z.z ? ''v4+'' : ''v3''\\); const s = z.z ? z.z.object\\({a: z.z.string\\(\\).min\\(1\\)}\\) : z.object\\({a: z.string\\(\\).min\\(1\\)}\\); console.log\\(s.safeParse\\({a: ''''}\\).success\\);\")",
+      "Bash(node -e \"const zod = require\\(''zod''\\); console.log\\(Object.keys\\(zod\\).slice\\(0, 20\\)\\);\")",
+      "Bash(node -e \":*)",
+      "Bash(ls -la d:/Lwcifer/LW/FWBB/src/actions/auth.ts \"d:/Lwcifer/LW/FWBB/src/app/\\(admin\\)/admin/login/page.tsx\")",
+      "Bash(ls \"d:/Lwcifer/LW/FWBB/src/app/\\(admin\\)/admin/\")"
     ],
     "additionalDirectories": [
       "d:\\Lwcifer\\LW\\fwbb-temp"
