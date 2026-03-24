@@ -42,13 +42,15 @@ export async function getNextSession() {
   });
 }
 
-export async function selectCourt(sessionId: number, courtId: number) {
+export async function selectCourt(sessionId: number, courtId: number, courtQuantity: number = 1) {
   const court = await db.query.courts.findFirst({ where: eq(courts.id, courtId) });
   if (!court) return { error: "San khong ton tai" };
 
+  const qty = Math.max(1, courtQuantity);
   await db.update(sessions).set({
     courtId,
-    courtPrice: court.pricePerSession,
+    courtQuantity: qty,
+    courtPrice: court.pricePerSession * qty,
     updatedAt: new Date().toISOString(),
   }).where(eq(sessions.id, sessionId));
 

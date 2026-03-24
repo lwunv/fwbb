@@ -154,6 +154,7 @@ export function SessionDetail({
               sessionId={session.id}
               courts={courts}
               currentCourtId={session.courtId}
+              currentCourtQuantity={session.courtQuantity ?? 1}
             />
           </CardContent>
         </Card>

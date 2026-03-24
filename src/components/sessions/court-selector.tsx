@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { selectCourt } from "@/actions/sessions";
 import { formatVND } from "@/lib/utils";
+import { MapPin, Check, Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { MapPin, Check } from "lucide-react";
 import type { InferSelectModel } from "drizzle-orm";
 import type { courts as courtsTable } from "@/db/schema";
 
@@ -14,22 +14,35 @@ export function CourtSelector({
   sessionId,
   courts,
   currentCourtId,
+  currentCourtQuantity = 1,
 }: {
   sessionId: number;
   courts: Court[];
   currentCourtId: number | null;
+  currentCourtQuantity?: number;
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [quantity, setQuantity] = useState(currentCourtQuantity);
 
   async function handleSelect(courtId: number) {
     setIsLoading(true);
     setError("");
-    const result = await selectCourt(sessionId, courtId);
+    const result = await selectCourt(sessionId, courtId, quantity);
     if (result.error) {
       setError(result.error);
     }
     setIsLoading(false);
+  }
+
+  async function handleQuantityChange(newQty: number) {
+    const q = Math.max(1, newQty);
+    setQuantity(q);
+    if (currentCourtId) {
+      setIsLoading(true);
+      await selectCourt(sessionId, currentCourtId, q);
+      setIsLoading(false);
+    }
   }
 
   if (courts.length === 0) {
@@ -40,11 +53,42 @@ export function CourtSelector({
     );
   }
 
+  const selectedCourt = courts.find((c) => c.id === currentCourtId);
+  const totalPrice = selectedCourt ? selectedCourt.pricePerSession * quantity : 0;
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
+      {/* Court quantity */}
+      <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
+        <span className="text-sm font-medium">So luong san</span>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => handleQuantityChange(quantity - 1)}
+            disabled={quantity <= 1 || isLoading}
+          >
+            <Minus className="h-3 w-3" />
+          </Button>
+          <span className="w-8 text-center font-bold">{quantity}</span>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => handleQuantityChange(quantity + 1)}
+            disabled={isLoading}
+          >
+            <Plus className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Court list */}
       <div className="grid gap-2">
         {courts.map((court) => {
           const isSelected = court.id === currentCourtId;
+          const courtTotal = court.pricePerSession * quantity;
           return (
             <button
               key={court.id}
@@ -63,16 +107,30 @@ export function CourtSelector({
                   {court.address && (
                     <p className="text-xs text-muted-foreground">{court.address}</p>
                   )}
-                  <p className="text-xs font-medium text-primary">
-                    {formatVND(court.pricePerSession)}/buoi
+                  <p className="text-xs text-muted-foreground">
+                    {formatVND(court.pricePerSession)}/san
                   </p>
                 </div>
               </div>
-              {isSelected && <Check className="h-4 w-4 text-primary" />}
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-primary">
+                  {formatVND(courtTotal)}
+                </span>
+                {isSelected && <Check className="h-4 w-4 text-primary" />}
+              </div>
             </button>
           );
         })}
       </div>
+
+      {/* Total price */}
+      {selectedCourt && (
+        <div className="flex items-center justify-between text-sm p-2 rounded bg-primary/10">
+          <span>Tong tien san:</span>
+          <span className="font-bold text-primary">{formatVND(totalPrice)}</span>
+        </div>
+      )}
+
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );

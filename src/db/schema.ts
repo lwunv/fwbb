@@ -37,6 +37,7 @@ export const sessions = sqliteTable("sessions", {
   startTime: text("start_time").default("20:30"),
   endTime: text("end_time").default("22:30"),
   courtId: integer("court_id").references(() => courts.id),
+  courtQuantity: integer("court_quantity").default(1),
   courtPrice: integer("court_price"),
   status: text("status", { enum: ["voting", "confirmed", "completed", "cancelled"] }).default("voting"),
   diningBill: integer("dining_bill"),
