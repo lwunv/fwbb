@@ -110,6 +110,7 @@
     "tube": "筒",
     "piece": "个",
     "lowStockWarning": "低库存警告",
+    "totalStock": "总库存",
     "purchaseHistory": "采购记录",
     "noPurchases": "暂无采购记录。",
     "usageHistory": "使用记录",

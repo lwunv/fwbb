@@ -19,7 +19,7 @@ export default async function DashboardPage() {
     .reduce((sum, d) => sum + d.totalAmount, 0);
 
   // 2. Low stock
-  const lowStockItems = await checkLowStock();
+  const lowStockResult = await checkLowStock();
 
   // 3. Active members count
   const activeMembers = await db.query.members.findMany({
@@ -66,10 +66,9 @@ export default async function DashboardPage() {
       }
     : null;
 
-  const lowStockWarning =
-    lowStockItems.length > 0
-      ? `${lowStockItems[0].brandName}: ${lowStockItems[0].ong} ${tInv("tube")} ${lowStockItems[0].qua} ${tInv("piece")}`
-      : null;
+  const lowStockWarning = lowStockResult.isLow
+    ? `${tInv("totalStock")}: ${lowStockResult.totalQua} ${tInv("piece")}`
+    : null;
 
   return (
     <div className="space-y-6">
@@ -77,7 +76,7 @@ export default async function DashboardPage() {
       <DashboardClient
         totalOutstanding={totalOutstanding}
         lowStockWarning={lowStockWarning}
-        lowStockCount={lowStockItems.length}
+        lowStockCount={lowStockResult.isLow ? 1 : 0}
         activeMembersCount={activeMembers.length}
         sessionsThisMonth={sessionsThisMonth}
         upcomingSession={upcomingSession}

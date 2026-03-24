@@ -45,7 +45,10 @@
       "Bash(cmd //c \"taskkill /PID 44168 /F\")",
       "Bash(rg '\"\"perSession\"\"|\"\"perWeek\"\"|\"\"perMonth\"\"|\"\"perYear\"\"' src/i18n/messages/vi.json)",
       "Bash(rg '\"\"perSession\"\"|\"\"perWeek\"\"|\"\"perMonth\"\"|\"\"perYear\"\"' src/i18n/messages/vi.json -n)",
-      "Bash(rg '\"\"stats\"\"' src/i18n/messages/vi.json -n)"
+      "Bash(rg '\"\"stats\"\"' src/i18n/messages/vi.json -n)",
+      "Bash(rg '\"\"totalStock\"\"' src/i18n/messages/vi.json)",
+      "Bash(rg '\"\"tube\"\"|\"\"piece\"\"' src/i18n/messages/vi.json -n)",
+      "Bash(rg '\"\"lowStockWarning\"\"' src/i18n/messages/en.json -n)"
     ],
     "additionalDirectories": [
       "d:\\Lwcifer\\LW\\fwbb-temp",

@@ -120,7 +120,13 @@ export async function getUsageHistory() {
   });
 }
 
-export async function checkLowStock(): Promise<StockByBrand[]> {
+export async function checkLowStock(): Promise<{ isLow: boolean; totalQua: number; items: StockByBrand[] }> {
   const stock = await getStockByBrand();
-  return stock.filter((s) => s.isActive && s.isLowStock);
+  const activeStock = stock.filter((s) => s.isActive);
+  const totalQua = activeStock.reduce((sum, s) => sum + s.currentStockQua, 0);
+  return {
+    isLow: totalQua < 12,
+    totalQua,
+    items: activeStock,
+  };
 }

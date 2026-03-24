@@ -110,6 +110,7 @@
     "tube": "ống",
     "piece": "quả",
     "lowStockWarning": "Cảnh báo tồn kho thấp",
+    "totalStock": "Tổng tồn kho",
     "purchaseHistory": "Lịch sử nhập mua",
     "noPurchases": "Chưa có lịch sử nhập mua.",
     "usageHistory": "Lịch sử sử dụng",

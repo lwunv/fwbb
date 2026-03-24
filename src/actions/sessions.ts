@@ -26,13 +26,79 @@ export async function getSession(id: number) {
 
 export async function getNextSession() {
   const today = new Date().toISOString().split("T")[0];
-  return db.query.sessions.findFirst({
+  const existing = await db.query.sessions.findFirst({
     where: and(
       gte(sessions.date, today),
       ne(sessions.status, "completed"),
       ne(sessions.status, "cancelled"),
     ),
     orderBy: [sessions.date],
+    with: {
+      court: true,
+      shuttlecocks: {
+        with: { brand: true },
+      },
+    },
+  });
+
+  if (existing) return existing;
+
+  // Auto-create next Mon(1) or Fri(5) session
+  const now = new Date();
+  const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, ..., 5=Fri, 6=Sat
+  let daysUntilNext: number;
+  if (dayOfWeek <= 1) {
+    daysUntilNext = 1 - dayOfWeek; // days until Monday
+  } else if (dayOfWeek <= 5) {
+    daysUntilNext = 5 - dayOfWeek; // days until Friday
+  } else {
+    daysUntilNext = 2; // Saturday → Monday
+  }
+  if (daysUntilNext === 0) daysUntilNext = 0; // today is Mon or Fri
+
+  const nextDate = new Date(now);
+  nextDate.setDate(now.getDate() + daysUntilNext);
+  const dateStr = nextDate.toISOString().split("T")[0];
+
+  // Check if that date already has a session (completed/cancelled)
+  const existingForDate = await db.query.sessions.findFirst({
+    where: eq(sessions.date, dateStr),
+  });
+
+  let targetDate = dateStr;
+  if (existingForDate) {
+    // Skip to next session day
+    const skip = dayOfWeek <= 1 ? 4 : dayOfWeek <= 5 ? (7 - dayOfWeek + 1) : 2;
+    const altDate = new Date(now);
+    altDate.setDate(now.getDate() + daysUntilNext + (daysUntilNext === 0 && dayOfWeek === 1 ? 4 : daysUntilNext === 0 && dayOfWeek === 5 ? 3 : 0));
+    if (existingForDate.status === "completed" || existingForDate.status === "cancelled") {
+      // Find next available Mon/Fri
+      const d = new Date(dateStr + "T00:00:00");
+      for (let i = 1; i <= 7; i++) {
+        d.setDate(d.getDate() + 1);
+        const dow = d.getDay();
+        if (dow === 1 || dow === 5) {
+          targetDate = d.toISOString().split("T")[0];
+          const check = await db.query.sessions.findFirst({ where: eq(sessions.date, targetDate) });
+          if (!check) break;
+        }
+      }
+    } else {
+      // There's an active session for that date, return it
+      return db.query.sessions.findFirst({
+        where: eq(sessions.id, existingForDate.id),
+        with: { court: true, shuttlecocks: { with: { brand: true } } },
+      });
+    }
+  }
+
+  const [newSession] = await db.insert(sessions).values({
+    date: targetDate,
+    status: "voting",
+  }).returning();
+
+  return db.query.sessions.findFirst({
+    where: eq(sessions.id, newSession.id),
     with: {
       court: true,
       shuttlecocks: {

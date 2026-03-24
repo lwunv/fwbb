@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatVND } from "@/lib/utils";
-import { AlertTriangle, Package } from "lucide-react";
+import { Package } from "lucide-react";
 import type { StockByBrand } from "@/actions/inventory";
 
 interface StockCardProps {
@@ -27,12 +27,6 @@ export function StockCard({ stock }: StockCardProps) {
               </div>
             </div>
           </div>
-          {stock.isLowStock && (
-            <Badge variant="destructive" className="flex items-center gap-1">
-              <AlertTriangle className="h-3 w-3" />
-              {t("lowStockWarning")}
-            </Badge>
-          )}
           {!stock.isActive && (
             <Badge variant="secondary">Ngừng</Badge>
           )}

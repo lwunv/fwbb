@@ -110,6 +110,7 @@
     "tube": "tube(s)",
     "piece": "piece(s)",
     "lowStockWarning": "Low stock warning",
+    "totalStock": "Total stock",
     "purchaseHistory": "Purchase history",
     "noPurchases": "No purchase history.",
     "usageHistory": "Usage history",

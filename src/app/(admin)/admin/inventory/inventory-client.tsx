@@ -58,17 +58,18 @@ export function InventoryClient({
   const t = useTranslations("inventory");
   const tStats = useTranslations("stats");
 
-  const lowStockCount = stock.filter((s) => s.isActive && s.isLowStock).length;
+  const totalQua = stock.filter((s) => s.isActive).reduce((sum, s) => sum + s.currentStockQua, 0);
+  const isLowStock = totalQua < 12;
 
   return (
     <div className="space-y-4">
-      {/* Low stock warning */}
-      {lowStockCount > 0 && (
+      {/* Low stock warning — only when TOTAL across all brands < 12 */}
+      {isLowStock && (
         <Card>
           <CardContent className="p-3 flex items-center gap-2 bg-destructive/5">
-            <Badge variant="destructive">{lowStockCount}</Badge>
+            <Badge variant="destructive">!</Badge>
             <span className="text-sm">
-              {t("lowStockWarning")}
+              {t("lowStockWarning")} — {t("totalStock")}: {totalQua} {t("piece")}
             </span>
           </CardContent>
         </Card>
