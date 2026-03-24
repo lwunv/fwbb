@@ -157,7 +157,9 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
                 <MemberAvatar memberId={member.id} size={28} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-sm font-medium">{member.name}</span>
+                    <span className="text-sm font-medium">{member.name}
+                      {debt && <span className="text-xs font-bold text-muted-foreground ml-1">{formatVND(debt.amount)}</span>}
+                    </span>
                     {/* Tags */}
                     <button
                       onClick={() => toggleTag(member.id, "play")}
@@ -181,38 +183,25 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
                     >
                       🍻 Nhậu
                     </button>
+                    {/* Hết nợ tag */}
+                    {debt && (
+                      <button
+                        onClick={() => isConfirmed ? handleUndo(debt.debtId) : handlePay(debt.debtId)}
+                        disabled={payLoading === debt.debtId}
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium transition-all cursor-pointer hover:opacity-80 ${
+                          isConfirmed
+                            ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+                            : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                        }`}
+                      >
+                        {isConfirmed ? "✓ Hết nợ" : "✗ Nợ"}
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                {/* Debt + Payment */}
+                {/* Remove button */}
                 <div className="flex items-center gap-1.5 flex-shrink-0">
-                  {debt && (
-                    <span className="text-xs font-bold tabular-nums">
-                      {formatVND(debt.amount)}
-                    </span>
-                  )}
-                  {debt && (
-                    isConfirmed ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleUndo(debt.debtId)}
-                        disabled={payLoading === debt.debtId}
-                        className="h-6 px-2 text-[11px] border-amber-300 text-amber-600 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950/30"
-                      >
-                        {tFinance("notReceived")}
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        onClick={() => handlePay(debt.debtId)}
-                        disabled={payLoading === debt.debtId}
-                        className="h-6 px-2 text-[11px]"
-                      >
-                        Done
-                      </Button>
-                    )
-                  )}
                   {!readOnly && (
                     <button
                       onClick={() => handleRemoveClick(member.id, member.name)}
