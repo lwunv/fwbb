@@ -70,7 +70,7 @@ export function MonthlyExpensesChart({ data, groupBy }: MonthlyExpensesChartProp
   function handleGroupChange(group: string) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("expenseGroup", group);
-    router.push(`?${params.toString()}`);
+    router.push(`?${params.toString()}`, { scroll: false });
   }
 
   const chartData = data.map((item) => ({

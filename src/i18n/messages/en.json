@@ -48,6 +48,8 @@
     "create": "Create",
     "pleaseSelectDate": "Please select a date",
     "noSessions": "No sessions yet",
+    "deleteSessionTitle": "Delete session",
+    "deleteSessionDesc": "Are you sure? All related data will be deleted.",
     "confirmSession": "Confirm session",
     "cancelSession": "Cancel",
     "cancelConfirm": "Are you sure you want to cancel this session?",

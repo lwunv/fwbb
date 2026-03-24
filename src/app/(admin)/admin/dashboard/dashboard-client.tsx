@@ -225,7 +225,7 @@ export function DashboardClient({
                       rel="noopener noreferrer"
                       className="text-primary text-xs hover:underline"
                     >
-                      Chỉ đường
+                      📍 Chỉ đường
                     </a>
                   )}
                 </div>

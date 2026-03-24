@@ -56,7 +56,11 @@
       "Bash(rg '\"\"received\"\"|\"\"confirmReceived\"\"|\"\"memberReported\"\"' src/i18n/messages/vi.json -n)",
       "Bash(rg '\"\"noDebts\"\"' src/i18n/messages/vi.json -n)",
       "Bash(rg '\"\"noDebts\"\"' src/i18n/messages/en.json -n)",
-      "Bash(rg '\"\"noDebts\"\"' src/i18n/messages/zh.json -n)"
+      "Bash(rg '\"\"noDebts\"\"' src/i18n/messages/zh.json -n)",
+      "Bash(rg '\"\"deleteSessionTitle\"\"|\"\"deleteSessionDesc\"\"' src/i18n/messages/vi.json)",
+      "Bash(rg '\"\"noSessions\"\"' src/i18n/messages/vi.json -n)",
+      "Bash(rg '\"\"noSessions\"\"' src/i18n/messages/en.json -n)",
+      "Bash(rg '\"\"noSessions\"\"' src/i18n/messages/zh.json -n)"
     ],
     "additionalDirectories": [
       "d:\\Lwcifer\\LW\\fwbb-temp",

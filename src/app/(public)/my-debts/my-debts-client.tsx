@@ -41,7 +41,7 @@ export function MyDebtsClient({
     } else {
       params.set("member", value);
     }
-    router.push(`/my-debts?${params.toString()}`);
+    router.push(`/my-debts?${params.toString()}`, { scroll: false });
     setDropdownOpen(false);
   }
 

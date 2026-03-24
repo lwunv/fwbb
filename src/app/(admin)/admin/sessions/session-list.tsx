@@ -17,7 +17,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Calendar, MapPin, ChevronRight, ChevronDown, ExternalLink, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, Calendar, MapPin, ChevronDown, Trash2, Navigation, AlertTriangle } from "lucide-react";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 
@@ -60,6 +61,7 @@ export function SessionList({ sessions }: { sessions: SessionCard[] }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [error, setError] = useState("");
   const [deleting, setDeleting] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const t = useTranslations("sessions");
   const tCommon = useTranslations("common");
@@ -74,13 +76,18 @@ export function SessionList({ sessions }: { sessions: SessionCard[] }) {
     setError("");
   }
 
-  async function handleDelete(e: React.MouseEvent, sessionId: number) {
+  function handleDeleteClick(e: React.MouseEvent, sessionId: number) {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm(tCommon("confirmDelete"))) return;
-    setDeleting(sessionId);
-    await deleteSession(sessionId);
+    setDeleteTarget(sessionId);
+  }
+
+  async function handleDeleteConfirm() {
+    if (!deleteTarget) return;
+    setDeleting(deleteTarget);
+    await deleteSession(deleteTarget);
     setDeleting(null);
+    setDeleteTarget(null);
   }
 
   function formatSessionDate(dateStr: string) {
@@ -150,7 +157,7 @@ export function SessionList({ sessions }: { sessions: SessionCard[] }) {
                                       onClick={(e) => e.stopPropagation()}
                                       className="text-primary hover:underline"
                                     >
-                                      <ExternalLink className="h-2.5 w-2.5 inline" />
+                                      <Navigation className="h-2.5 w-2.5 inline mr-0.5" /> Chỉ đường
                                     </a>
                                   )}
                                 </span>
@@ -164,7 +171,7 @@ export function SessionList({ sessions }: { sessions: SessionCard[] }) {
                           {t(status.labelKey)}
                         </span>
                         <button
-                          onClick={(e) => handleDelete(e, session.id)}
+                          onClick={(e) => handleDeleteClick(e, session.id)}
                           disabled={deleting === session.id}
                           className="p-1 text-muted-foreground hover:text-destructive transition-colors"
                         >
@@ -237,6 +244,16 @@ export function SessionList({ sessions }: { sessions: SessionCard[] }) {
           </div>
         )}
       </div>
+
+      {/* Delete confirmation dialog */}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title={t("deleteSessionTitle")}
+        description={t("deleteSessionDesc")}
+        onConfirm={handleDeleteConfirm}
+        loading={deleting !== null}
+      />
     </div>
   );
 }

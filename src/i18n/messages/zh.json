@@ -48,6 +48,8 @@
     "create": "创建",
     "pleaseSelectDate": "请选择日期",
     "noSessions": "暂无活动",
+    "deleteSessionTitle": "删除活动",
+    "deleteSessionDesc": "确定要删除吗？所有相关数据将被删除。",
     "confirmSession": "确认活动",
     "cancelSession": "取消",
     "cancelConfirm": "确定要取消此活动吗？",

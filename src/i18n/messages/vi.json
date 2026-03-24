@@ -48,6 +48,8 @@
     "create": "Tạo",
     "pleaseSelectDate": "Vui lòng chọn ngày",
     "noSessions": "Chưa có buổi chơi nào",
+    "deleteSessionTitle": "Xóa buổi chơi",
+    "deleteSessionDesc": "Bạn có chắc chắn muốn xóa buổi chơi này? Tất cả dữ liệu liên quan sẽ bị xóa.",
     "confirmSession": "Xác nhận buổi chơi",
     "cancelSession": "Hủy",
     "cancelConfirm": "Bạn có chắc muốn hủy buổi chơi này?",

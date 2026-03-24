@@ -12,6 +12,7 @@ import { CourtSelector } from "@/components/sessions/court-selector";
 import { ShuttlecockSelector } from "@/components/sessions/shuttlecock-selector";
 import { VoteList } from "@/components/sessions/vote-list";
 import { AdminVoteManager } from "@/components/sessions/admin-vote-manager";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ArrowLeft, Calendar, Clock, MapPin, CheckCircle, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
@@ -87,8 +88,9 @@ export function SessionDetail({
     setIsLoading(false);
   }
 
-  async function handleCancel() {
-    if (!confirm(t("cancelConfirm"))) return;
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+
+  async function handleCancelConfirm() {
     setIsLoading(true);
     setActionError("");
     const result = await cancelSession(session.id);
@@ -216,11 +218,11 @@ export function SessionDetail({
           )}
           <Button
             variant="destructive"
-            onClick={handleCancel}
+            onClick={() => setShowCancelDialog(true)}
             disabled={isLoading}
           >
             <XCircle className="h-4 w-4 mr-2" />
-            {tCommon("cancel")}
+            {t("cancelSession")}
           </Button>
         </div>
       )}
@@ -240,6 +242,15 @@ export function SessionDetail({
           {t("sessionCompleted")}
         </div>
       )}
+
+      <ConfirmDialog
+        open={showCancelDialog}
+        onOpenChange={setShowCancelDialog}
+        title={t("cancelSession")}
+        description={t("cancelConfirm")}
+        onConfirm={handleCancelConfirm}
+        loading={isLoading}
+      />
     </div>
   );
 }
