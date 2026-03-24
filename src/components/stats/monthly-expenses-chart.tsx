@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   BarChart,
   Bar,
@@ -42,10 +43,22 @@ function formatLabel(key: string, group: string): string {
   }
 }
 
+const DATA_KEYS = ["courtCost", "shuttlecockCost", "diningCost"] as const;
+
 export function MonthlyExpensesChart({ data, groupBy }: MonthlyExpensesChartProps) {
   const t = useTranslations("stats");
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+
+  function toggleSeries(dataKey: string) {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(dataKey)) next.delete(dataKey);
+      else next.add(dataKey);
+      return next;
+    });
+  }
 
   const groupLabels: Record<string, string> = {
     session: t("perSession"),
@@ -120,10 +133,16 @@ export function MonthlyExpensesChart({ data, groupBy }: MonthlyExpensesChartProp
               }}
               formatter={(value, name) => [formatVND(Number(value)), labels[String(name)] || String(name)]}
             />
-            <Legend formatter={(value: string) => labels[value] || value} />
-            <Bar dataKey="courtCost" stackId="a" fill="var(--color-chart-1, #6366f1)" />
-            <Bar dataKey="shuttlecockCost" stackId="a" fill="var(--color-chart-2, #8b5cf6)" />
-            <Bar dataKey="diningCost" stackId="a" fill="var(--color-chart-3, #10b981)" radius={[4, 4, 0, 0]} />
+            <Legend
+              onClick={(e) => { if (e.dataKey) toggleSeries(String(e.dataKey)); }}
+              formatter={(value: string) => {
+                const isHidden = hidden.has(value);
+                return <span style={{ color: isHidden ? "#999" : undefined, textDecoration: isHidden ? "line-through" : undefined, cursor: "pointer" }}>{labels[value] || value}</span>;
+              }}
+            />
+            <Bar dataKey="courtCost" stackId="a" fill="var(--color-chart-1, #6366f1)" hide={hidden.has("courtCost")} />
+            <Bar dataKey="shuttlecockCost" stackId="a" fill="var(--color-chart-2, #8b5cf6)" hide={hidden.has("shuttlecockCost")} />
+            <Bar dataKey="diningCost" stackId="a" fill="var(--color-chart-3, #10b981)" radius={[4, 4, 0, 0]} hide={hidden.has("diningCost")} />
           </BarChart>
         </ResponsiveContainer>
       )}

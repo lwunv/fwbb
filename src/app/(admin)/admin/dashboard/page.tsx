@@ -4,6 +4,7 @@ import { eq, and, gte, desc, or, ne } from "drizzle-orm";
 import { getDebtSummary } from "@/actions/finance";
 import { checkLowStock } from "@/actions/inventory";
 import { getNextSession } from "@/actions/sessions";
+import { getSessionVotes } from "@/actions/votes";
 import { getTranslations } from "next-intl/server";
 import { DashboardClient } from "./dashboard-client";
 import { PasswordChangeForm } from "./password-change-form";
@@ -56,16 +57,27 @@ export default async function DashboardPage() {
     confirmedAt: d.adminConfirmedAt || "",
   }));
 
-  const upcomingSession = nextSession
-    ? {
-        id: nextSession.id,
-        date: nextSession.date,
-        status: nextSession.status as string,
-        courtName: nextSession.court?.name || null,
-        startTime: nextSession.startTime || "20:30",
-        endTime: nextSession.endTime || "22:30",
-      }
-    : null;
+  let upcomingSession: {
+    id: number; date: string; status: string;
+    courtName: string | null; courtMapLink: string | null;
+    startTime: string; endTime: string;
+    playerCount: number; dinerCount: number;
+  } | null = null;
+
+  if (nextSession) {
+    const sessionVotes = await getSessionVotes(nextSession.id);
+    upcomingSession = {
+      id: nextSession.id,
+      date: nextSession.date,
+      status: nextSession.status as string,
+      courtName: nextSession.court?.name || null,
+      courtMapLink: nextSession.court?.mapLink || null,
+      startTime: nextSession.startTime || "20:30",
+      endTime: nextSession.endTime || "22:30",
+      playerCount: sessionVotes.filter((v) => v.willPlay).length,
+      dinerCount: sessionVotes.filter((v) => v.willDine).length,
+    };
+  }
 
   const lowStockWarning = lowStockResult.isLow
     ? `${tInv("totalStock")}: ${lowStockResult.totalQua} ${tInv("piece")}`

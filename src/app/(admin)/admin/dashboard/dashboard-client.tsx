@@ -31,8 +31,11 @@ interface UpcomingSession {
   date: string;
   status: string;
   courtName: string | null;
+  courtMapLink: string | null;
   startTime: string;
   endTime: string;
+  playerCount: number;
+  dinerCount: number;
 }
 
 interface RecentPayment {
@@ -215,6 +218,20 @@ export function DashboardClient({
                   <span>
                     {upcomingSession.courtName || td("courtNotSelected")}
                   </span>
+                  {upcomingSession.courtMapLink && (
+                    <a
+                      href={upcomingSession.courtMapLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary text-xs hover:underline"
+                    >
+                      Chỉ đường
+                    </a>
+                  )}
+                </div>
+                <div className="flex gap-4 text-sm pt-1">
+                  <span>🏸 Cầu lông: <strong>{upcomingSession.playerCount}</strong> người</span>
+                  <span>🍻 Nhậu: <strong>{upcomingSession.dinerCount}</strong> người</span>
                 </div>
               </div>
               <Link href={`/admin/sessions/${upcomingSession.id}`}>
