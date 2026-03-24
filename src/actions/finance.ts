@@ -170,6 +170,28 @@ export async function confirmPaymentByAdmin(debtId: number) {
 
   revalidatePath("/my-debts");
   revalidatePath("/admin/finance");
+  revalidatePath("/admin/sessions");
+  return { success: true };
+}
+
+export async function undoPaymentByAdmin(debtId: number) {
+  const debt = await db.query.sessionDebts.findFirst({
+    where: eq(sessionDebts.id, debtId),
+  });
+  if (!debt) return { error: "Không tìm thấy công nợ" };
+
+  await db
+    .update(sessionDebts)
+    .set({
+      adminConfirmed: false,
+      adminConfirmedAt: null,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(sessionDebts.id, debtId));
+
+  revalidatePath("/my-debts");
+  revalidatePath("/admin/finance");
+  revalidatePath("/admin/sessions");
   return { success: true };
 }
 

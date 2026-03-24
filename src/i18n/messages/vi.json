@@ -105,8 +105,9 @@
     "noDebt": "Hết nợ",
     "noDebts": "Không có công nợ nào.",
     "received": "Đã nhận tiền",
-    "confirmReceived": "Xác nhận",
-    "memberReported": "TV đã báo"
+    "confirmReceived": "Đã nhận tiền",
+    "memberReported": "TV đã báo",
+    "undo": "Hoàn tác"
   },
   "inventory": {
     "inventory": "Tồn kho",

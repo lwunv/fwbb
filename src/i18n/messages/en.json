@@ -105,8 +105,9 @@
     "noDebt": "No debt",
     "noDebts": "No debts.",
     "received": "Received",
-    "confirmReceived": "Confirm",
-    "memberReported": "Member reported"
+    "confirmReceived": "Received",
+    "memberReported": "Member reported",
+    "undo": "Undo"
   },
   "inventory": {
     "inventory": "Inventory",

@@ -105,8 +105,9 @@
     "noDebt": "无欠款",
     "noDebts": "暂无债务记录。",
     "received": "已收款",
-    "confirmReceived": "确认",
-    "memberReported": "成员已报告"
+    "confirmReceived": "已收款",
+    "memberReported": "成员已报告",
+    "undo": "撤销"
   },
   "inventory": {
     "inventory": "库存",
