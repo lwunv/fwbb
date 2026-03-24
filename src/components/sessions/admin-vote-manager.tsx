@@ -24,19 +24,30 @@ interface DebtInfo {
   debtId: number;
 }
 
+interface SessionCosts {
+  courtPrice: number;
+  courtName: string | null;
+  diningBill: number;
+  shuttlecocks: { brandName: string; quantity: number; pricePerTube: number }[];
+  startTime: string;
+  endTime: string;
+  isCompleted: boolean;
+}
+
 interface AdminVoteManagerProps {
   sessionId: number;
   votes: Vote[];
   members: Member[];
   debtMap?: Record<number, DebtInfo>;
   readOnly?: boolean;
+  sessionCosts?: SessionCosts;
 }
 
 // Local optimistic state types
 interface LocalVote { willPlay: boolean; willDine: boolean; }
 interface LocalDebt { adminConfirmed: boolean; }
 
-export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, readOnly = false }: AdminVoteManagerProps) {
+export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, readOnly = false, sessionCosts }: AdminVoteManagerProps) {
   const t = useTranslations("voting");
   const tCommon = useTranslations("common");
   const [showAdd, setShowAdd] = useState(false);
@@ -163,13 +174,33 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
           </div>
         )}
 
-        {/* Header */}
+        {/* Header — live recalculation from optimistic state */}
+        {(() => {
+          const sc = sessionCosts;
+          const shuttlecockCost = sc ? sc.shuttlecocks.reduce((sum, s) => sum + Math.round(s.quantity * s.pricePerTube / 12), 0) : 0;
+          const playCost = sc ? sc.courtPrice + shuttlecockCost : 0;
+          const playPerHead = playerCount > 0 ? Math.ceil(playCost / playerCount / 1000) * 1000 : 0;
+          const dinePerHead = dinerCount > 0 && sc ? Math.ceil(sc.diningBill / dinerCount / 1000) * 1000 : 0;
+          const paidAmount = Object.entries(debtMap).filter(([mid]) => getDebtConfirmed(Number(mid))).reduce((sum, [, d]) => sum + d.amount, 0);
+          const totalDebtAmount = Object.values(debtMap).reduce((sum, d) => sum + d.amount, 0);
+          const totalOwed = totalDebtAmount - paidAmount;
+
+          return (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm">
+                <span>🏸 <strong>{playerCount}</strong>{sc?.isCompleted && playPerHead > 0 && <span className="text-muted-foreground text-xs"> · {formatK(playPerHead)}/ng</span>}</span>
+                <span>🍻 <strong>{dinerCount}</strong>{sc?.isCompleted && dinePerHead > 0 && <span className="text-muted-foreground text-xs"> · {formatK(dinePerHead)}/ng</span>}</span>
+              </div>
+              {sc?.isCompleted && totalOwed > 0 && (
+                <span className="text-xs font-bold text-red-500">nợ {formatK(totalOwed)}</span>
+              )}
+              {sc?.isCompleted && totalOwed <= 0 && totalDebtAmount > 0 && (
+                <span className="text-xs font-bold text-green-600">✓ Hết nợ</span>
+              )}
+            </div>
+          );
+        })()}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3 text-sm">
-            <span>🏸 <strong>{playerCount}</strong></span>
-            <span>🍻 <strong>{dinerCount}</strong></span>
-            <span className="text-muted-foreground">({activeMembers.length} người)</span>
-          </div>
           {!readOnly && (
             <Button
               variant="outline"

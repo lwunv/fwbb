@@ -130,20 +130,6 @@ export function SessionDetail({
           <div className="flex items-center gap-4 text-sm">
             <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-muted-foreground" /> {session.startTime} - {session.endTime}</span>
           </div>
-          <div className="flex gap-4 text-sm">
-            <span>🏸 <strong>{playingCount}</strong> người{totalGuestPlay > 0 && <span className="text-muted-foreground"> +{totalGuestPlay} khách</span>}
-              {session.status === "completed" && playingCount > 0 && (
-                <span className="text-muted-foreground"> · {formatK(Math.round(((session.courtPrice ?? 0) + (session.shuttlecocks?.reduce((sum, s) => sum + Math.round(s.quantityUsed * s.pricePerTube / 12), 0) ?? 0)) / playingCount / 1000) * 1000)}/người</span>
-              )}
-            </span>
-            <span>🍻 <strong>{diningCount}</strong> người{totalGuestDine > 0 && <span className="text-muted-foreground"> +{totalGuestDine} khách</span>}
-              {session.status === "completed" && diningCount > 0 && session.diningBill != null && (
-                <span className="text-muted-foreground"> · {formatK(Math.round(session.diningBill / diningCount / 1000) * 1000)}/người</span>
-              )}
-            </span>
-          </div>
-
-          {/* Financial summary for completed sessions */}
           {session.status === "completed" && (
             <div className="pt-1.5 border-t space-y-1">
               {session.shuttlecocks && session.shuttlecocks.length > 0 && (
@@ -168,22 +154,16 @@ export function SessionDetail({
                   <span className="font-medium">{formatK(session.diningBill)}</span>
                 </div>
               )}
-              {(() => {
-                const totalExpense = (session.courtPrice ?? 0) + (session.diningBill ?? 0) + (session.shuttlecocks?.reduce((sum, s) => sum + Math.round(s.quantityUsed * s.pricePerTube / 12), 0) ?? 0);
-                const allDebts = Object.values(debtMap);
-                const totalRevenue = allDebts.reduce((sum, d) => sum + d.amount, 0);
-                const totalPaid = allDebts.filter((d) => d.adminConfirmed).reduce((sum, d) => sum + d.amount, 0);
-                const totalOwed = totalRevenue - totalPaid;
-                return (
-                  <div className="flex items-center justify-between text-sm pt-1 border-t font-bold">
-                    <span>Tổng chi</span>
-                    <span>
-                      <span className="text-primary">{formatK(totalExpense)}</span>
-                      {totalOwed > 0 && <span className="text-red-500 font-normal text-xs ml-1">(nợ {formatK(totalOwed)})</span>}
-                    </span>
-                  </div>
-                );
-              })()}
+              <div className="flex items-center justify-between text-sm pt-1 border-t font-bold">
+                <span>Tổng chi</span>
+                <span className="text-primary">
+                  {formatK(
+                    (session.courtPrice ?? 0) +
+                    (session.diningBill ?? 0) +
+                    (session.shuttlecocks?.reduce((sum, s) => sum + Math.round(s.quantityUsed * s.pricePerTube / 12), 0) ?? 0)
+                  )}
+                </span>
+              </div>
             </div>
           )}
         </CardContent>
@@ -225,6 +205,19 @@ export function SessionDetail({
         members={members}
         debtMap={debtMap}
         readOnly={session.status === "completed" || session.status === "cancelled"}
+        sessionCosts={{
+          courtPrice: session.courtPrice ?? 0,
+          courtName: session.court?.name ?? null,
+          diningBill: session.diningBill ?? 0,
+          shuttlecocks: (session.shuttlecocks ?? []).map((s) => ({
+            brandName: s.brand?.name ?? "",
+            quantity: s.quantityUsed,
+            pricePerTube: s.pricePerTube,
+          })),
+          startTime: session.startTime ?? "20:30",
+          endTime: session.endTime ?? "22:30",
+          isCompleted: session.status === "completed",
+        }}
       />
 
       {/* Action Buttons — sticky bottom */}
@@ -253,18 +246,6 @@ export function SessionDetail({
 
       {actionError && (
         <p className="text-sm text-destructive">{actionError}</p>
-      )}
-
-      {/* Cancelled / Completed notice */}
-      {session.status === "cancelled" && (
-        <div className="text-center py-4 text-muted-foreground">
-          {t("sessionCancelled")}
-        </div>
-      )}
-      {session.status === "completed" && (
-        <div className="text-center py-4 text-muted-foreground">
-          {t("sessionCompleted")}
-        </div>
       )}
 
       <ConfirmDialog
