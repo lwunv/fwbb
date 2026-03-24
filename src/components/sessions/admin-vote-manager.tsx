@@ -144,9 +144,7 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
                 <MemberAvatar memberId={member.id} size={28} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-sm font-medium">{member.name}
-                      {debt && <span className="text-xs font-bold text-muted-foreground ml-1">{formatVND(debt.amount)}</span>}
-                    </span>
+                    <span className="text-sm font-medium">{member.name}</span>
                     {/* Tags */}
                     <button
                       onClick={() => toggleTag(member.id, "play")}
@@ -183,6 +181,12 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
                       >
                         Hết nợ
                       </button>
+                    )}
+                    {/* Amount — color by payment status */}
+                    {debt && (
+                      <span className={`text-xs font-bold ${isConfirmed ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                        {formatVND(debt.amount)}
+                      </span>
                     )}
                   </div>
                 </div>
