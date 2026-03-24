@@ -108,25 +108,25 @@ export function SessionDetail({
   const totalGuestDine = votes.reduce((sum, v) => sum + (v.guestDineCount ?? 0), 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* Header — date + status on same line */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <Link href="/admin/sessions">
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" className="h-8 w-8">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <h1 className="text-xl font-bold capitalize flex-1">
+        <h1 className="text-lg font-bold capitalize flex-1">
           {formatSessionDate(session.date)}
         </h1>
-        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${status.badgeBg} ${status.badgeText}`}>
+        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${status.badgeBg} ${status.badgeText}`}>
           {t(status.labelKey)}
         </span>
       </div>
 
-      {/* Session Info Card */}
-      <Card>
-        <CardContent className="p-4 space-y-2">
+      {/* Session Info Card — blue tint */}
+      <Card className="bg-blue-50/40 border-blue-200/40 dark:bg-blue-950/20 dark:border-blue-900/30">
+        <CardContent className="p-3 space-y-1.5">
           <div className="flex items-center gap-4 text-sm">
             <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-muted-foreground" /> {session.startTime} - {session.endTime}</span>
           </div>
@@ -145,7 +145,7 @@ export function SessionDetail({
 
           {/* Financial summary for completed sessions */}
           {session.status === "completed" && (
-            <div className="pt-2 border-t space-y-1.5">
+            <div className="pt-1.5 border-t space-y-1">
               {session.shuttlecocks && session.shuttlecocks.length > 0 && (
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">🪶 Cầu</span>
@@ -175,21 +175,12 @@ export function SessionDetail({
                 const totalPaid = allDebts.filter((d) => d.adminConfirmed).reduce((sum, d) => sum + d.amount, 0);
                 const totalOwed = totalRevenue - totalPaid;
                 return (
-                  <div className="pt-1 border-t space-y-1">
-                    <div className="flex items-center justify-between text-sm font-bold">
-                      <span>Tổng chi</span>
-                      <span className="text-primary">{formatK(totalExpense)}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-green-600 dark:text-green-400">Đã thu</span>
-                      <span className="font-bold text-green-600 dark:text-green-400">{formatK(totalPaid)}</span>
-                    </div>
-                    {totalOwed > 0 && (
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-red-600 dark:text-red-400">Còn nợ</span>
-                        <span className="font-bold text-red-600 dark:text-red-400">{formatK(totalOwed)}</span>
-                      </div>
-                    )}
+                  <div className="flex items-center justify-between text-sm pt-1 border-t font-bold">
+                    <span>Tổng chi <span className="text-primary">{formatK(totalExpense)}</span></span>
+                    <span>
+                      <span className="text-green-600 dark:text-green-400">{formatK(totalPaid)}</span>
+                      {totalOwed > 0 && <span className="text-red-600 dark:text-red-400 ml-2">{formatK(totalOwed)}</span>}
+                    </span>
                   </div>
                 );
               })()}

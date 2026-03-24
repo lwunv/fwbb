@@ -154,8 +154,8 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
   }
 
   return (
-    <Card>
-      <CardContent className="p-4 space-y-3">
+    <Card className="bg-amber-50/30 border-amber-200/40 dark:bg-amber-950/10 dark:border-amber-900/20">
+      <CardContent className="p-3 space-y-2">
         {/* Error toast */}
         {error && (
           <div className="rounded-md bg-destructive/10 text-destructive text-xs p-2 text-center">
@@ -190,7 +190,7 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
             const isConfirmed = getDebtConfirmed(member.id);
 
             return (
-              <div key={member.id} className="grid grid-cols-[28px_1fr_40px_40px_40px_auto_20px] gap-x-1.5 items-center gap-x-2 py-2">
+              <div key={member.id} className="grid grid-cols-[28px_1fr_40px_40px_40px_auto_20px] gap-x-1 items-center gap-x-2 py-2">
                 <MemberAvatar memberId={member.id} size={28} />
                 <span className="text-sm font-medium truncate" title={member.name}>{member.name}</span>
 
