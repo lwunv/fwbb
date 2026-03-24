@@ -26,7 +26,9 @@
       "Bash(node -e \"const zod = require\\(''zod''\\); console.log\\(Object.keys\\(zod\\).slice\\(0, 20\\)\\);\")",
       "Bash(node -e \":*)",
       "Bash(ls -la d:/Lwcifer/LW/FWBB/src/actions/auth.ts \"d:/Lwcifer/LW/FWBB/src/app/\\(admin\\)/admin/login/page.tsx\")",
-      "Bash(ls \"d:/Lwcifer/LW/FWBB/src/app/\\(admin\\)/admin/\")"
+      "Bash(ls \"d:/Lwcifer/LW/FWBB/src/app/\\(admin\\)/admin/\")",
+      "Bash(ls -d d:/Lwcifer/LW/FWBB/src/components/finance d:/Lwcifer/LW/FWBB/src/components/inventory d:/Lwcifer/LW/FWBB/src/app/\\\\\\(public\\\\\\)/my-debts d:/Lwcifer/LW/FWBB/src/app/\\\\\\(admin\\\\\\)/admin/finance d:/Lwcifer/LW/FWBB/src/app/\\\\\\(admin\\\\\\)/admin/inventory)",
+      "Bash(ls -la d:/Lwcifer/LW/FWBB/src/lib/cost-calculator.ts d:/Lwcifer/LW/FWBB/src/actions/finance.ts d:/Lwcifer/LW/FWBB/src/actions/inventory.ts d:/Lwcifer/LW/FWBB/src/components/sessions/finalize-session.tsx d:/Lwcifer/LW/FWBB/src/components/shared/time-filter.tsx d:/Lwcifer/LW/FWBB/src/components/finance/debt-card.tsx d:/Lwcifer/LW/FWBB/src/components/finance/debt-list.tsx d:/Lwcifer/LW/FWBB/src/components/finance/payment-actions.tsx \"d:/Lwcifer/LW/FWBB/src/app/\\(public\\)/my-debts/page.tsx\" \"d:/Lwcifer/LW/FWBB/src/app/\\(public\\)/my-debts/my-debts-client.tsx\" \"d:/Lwcifer/LW/FWBB/src/app/\\(admin\\)/admin/finance/page.tsx\" \"d:/Lwcifer/LW/FWBB/src/app/\\(admin\\)/admin/finance/finance-client.tsx\" \"d:/Lwcifer/LW/FWBB/src/app/\\(admin\\)/admin/inventory/page.tsx\" \"d:/Lwcifer/LW/FWBB/src/app/\\(admin\\)/admin/inventory/inventory-client.tsx\" d:/Lwcifer/LW/FWBB/src/components/inventory/stock-card.tsx d:/Lwcifer/LW/FWBB/src/components/inventory/purchase-form.tsx)"
     ],
     "additionalDirectories": [
       "d:\\Lwcifer\\LW\\fwbb-temp",
