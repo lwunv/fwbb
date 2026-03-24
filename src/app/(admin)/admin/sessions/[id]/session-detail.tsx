@@ -143,8 +143,8 @@ export function SessionDetail({
             </div>
           )}
           <div className="flex gap-4 text-sm pt-2 border-t">
-            <span>{tDetail("play")}: <strong>{playingCount}</strong> + {totalGuestPlay} {tDetail("guest")}</span>
-            <span>{tDetail("dine")}: <strong>{diningCount}</strong> + {totalGuestDine} {tDetail("guest")}</span>
+            <span>{tDetail("play")}: <strong>{playingCount}</strong> người{totalGuestPlay > 0 && <span className="text-muted-foreground"> +{totalGuestPlay} {tDetail("guest")}</span>}</span>
+            <span>{tDetail("dine")}: <strong>{diningCount}</strong> người{totalGuestDine > 0 && <span className="text-muted-foreground"> +{totalGuestDine} {tDetail("guest")}</span>}</span>
           </div>
         </CardContent>
       </Card>
