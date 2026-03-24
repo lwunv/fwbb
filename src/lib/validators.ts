@@ -40,5 +40,5 @@ export const purchaseSchema = z.object({
 
 export const identifySchema = z.object({
   memberId: z.number(),
-  phone: z.string().min(10).max(11),
+  phone: z.string().optional(),
 });
