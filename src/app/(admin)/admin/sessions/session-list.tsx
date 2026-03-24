@@ -97,27 +97,28 @@ export function SessionList({ sessions }: { sessions: SessionCard[] }) {
   }
 
   return (
-    <div>
-      <div className="flex justify-end mb-4">
-        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setError(""); }}>
-          <DialogTrigger render={<Button />}>
+    <div className="pb-20">
+      <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setError(""); }}>
+        {/* Sticky bottom button on mobile */}
+        <div className="fixed bottom-0 left-0 right-0 lg:left-60 z-30 p-3 bg-background/95 backdrop-blur border-t">
+          <DialogTrigger render={<Button className="w-full" size="lg" />}>
             <Plus className="h-4 w-4 mr-2" /> {t("createSession")}
           </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{t("createSessionTitle")}</DialogTitle>
-            </DialogHeader>
-            <form action={handleCreate} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="date">{t("date")}</Label>
-                <Input id="date" name="date" type="date" required />
-              </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button type="submit" className="w-full">{t("create")}</Button>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
+        </div>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("createSessionTitle")}</DialogTitle>
+          </DialogHeader>
+          <form action={handleCreate} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="date">{t("date")}</Label>
+              <Input id="date" name="date" type="date" required />
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <Button type="submit" className="w-full">{t("create")}</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <div className="grid gap-3">
         {sessions.map((session) => {
