@@ -1,39 +1,36 @@
-# FWBB - Badminton Club Management
-
-A web application for managing a recreational badminton club. Handles session scheduling, attendance voting, cost splitting, shuttlecock inventory tracking, and financial management.
-
-## Tech Stack
-
-- **Framework**: Next.js 14+ (App Router + Server Actions)
-- **UI**: shadcn/ui + Tailwind CSS
-- **Database**: Turso (libSQL/SQLite)
-- **ORM**: Drizzle ORM
-- **Auth**: JWT (jose)
-- **Charts**: Recharts
-- **Deploy**: Vercel
-
-## Features
-
-- Auto-created sessions (Monday & Friday, 20:30-22:30)
-- Member voting (play + dine + guests)
-- Cost splitting (court + shuttlecock + dining)
-- Debt tracking with payment confirmation
-- Shuttlecock inventory management
-- Statistics & charts
-- 3 themes: Light / Dark / Pink
-- 3 languages: Vietnamese / English / Chinese
-- Mobile-first responsive design
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
 
+First, run the development server:
+
 ```bash
-pnpm install
-cp .env.example .env.local
-pnpm db:migrate
-pnpm db:seed
+npm run dev
+# or
+yarn dev
+# or
 pnpm dev
+# or
+bun dev
 ```
 
-## Documentation
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-- [SRS / Design Spec](docs/superpowers/specs/2026-03-24-fwbb-design.md)
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm create:*)",
+      "Read(//d/Lwcifer/LW/**)",
+      "Bash(cp -r fwbb-temp/* \"d:/Lwcifer/LW/FWBB/\")",
+      "Bash(cp fwbb-temp/.eslintrc.json \"d:/Lwcifer/LW/FWBB/\")",
+      "Bash(cp fwbb-temp/.gitignore \"d:/Lwcifer/LW/FWBB/\")",
+      "Bash(cp -r fwbb-temp/node_modules \"d:/Lwcifer/LW/FWBB/\")",
+      "Bash(cp fwbb-temp/pnpm-lock.yaml \"d:/Lwcifer/LW/FWBB/\")",
+      "Bash(cp \"d:/Lwcifer/LW/fwbb-temp/package.json\" \"d:/Lwcifer/LW/FWBB/\")",
+      "Bash(cp \"d:/Lwcifer/LW/fwbb-temp/pnpm-lock.yaml\" \"d:/Lwcifer/LW/FWBB/\")",
+      "Bash(cp \"d:/Lwcifer/LW/fwbb-temp/tsconfig.json\" \"d:/Lwcifer/LW/FWBB/\")",
+      "Bash(cp \"d:/Lwcifer/LW/fwbb-temp/postcss.config.mjs\" \"d:/Lwcifer/LW/FWBB/\")",
+      "Bash(cp \"d:/Lwcifer/LW/fwbb-temp/pnpm-workspace.yaml\" \"d:/Lwcifer/LW/FWBB/\")",
+      "Bash(pnpm add:*)",
+      "Bash(rm -rf node_modules)",
+      "Bash(pnpm install:*)",
+      "Bash(npx --yes rimraf node_modules)",
+      "Bash(cmd //c \"rmdir /s /q node_modules\")",
+      "Bash(pnpm dlx:*)"
+    ],
+    "additionalDirectories": [
+      "d:\\Lwcifer\\LW\\fwbb-temp"
+    ]
+  },
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": true
+  }
+}
