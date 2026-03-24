@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { submitVote } from "@/actions/votes";
 import { cn } from "@/lib/utils";
-import { Volleyball, UtensilsCrossed } from "lucide-react";
+import { Volleyball, UtensilsCrossed, Check } from "lucide-react";
 
 interface VoteButtonsProps {
   sessionId: number;
@@ -49,95 +49,128 @@ export function VoteButtons({
   function togglePlay() {
     const newPlay = !willPlay;
     setWillPlay(newPlay);
-    doSubmit(newPlay, willDine, guestPlayCount, guestDineCount);
+    if (!newPlay) {
+      setGuestPlayCount(0);
+      doSubmit(newPlay, willDine, 0, guestDineCount);
+    } else {
+      doSubmit(newPlay, willDine, guestPlayCount, guestDineCount);
+    }
   }
 
   function toggleDine() {
     const newDine = !willDine;
     setWillDine(newDine);
-    doSubmit(willPlay, newDine, guestPlayCount, guestDineCount);
+    if (!newDine) {
+      setGuestDineCount(0);
+      doSubmit(willPlay, newDine, guestPlayCount, 0);
+    } else {
+      doSubmit(willPlay, newDine, guestPlayCount, guestDineCount);
+    }
   }
 
   return (
-    <div className="space-y-4">
-      {/* Toggle buttons */}
-      <div className="flex gap-3">
-        <button
-          onClick={togglePlay}
-          disabled={disabled || isPending}
+    <div className="space-y-3">
+      {/* Checkbox card: Play */}
+      <button
+        type="button"
+        onClick={togglePlay}
+        disabled={disabled || isPending}
+        className={cn(
+          "w-full flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all",
+          willPlay
+            ? "border-primary bg-primary/10"
+            : "border-border bg-background hover:bg-accent",
+          (disabled || isPending) && "opacity-50 cursor-not-allowed"
+        )}
+      >
+        <div
           className={cn(
-            "flex-1 flex items-center justify-center gap-2 p-4 rounded-xl border-2 text-sm font-medium transition-all",
+            "flex-shrink-0 h-5 w-5 rounded border-2 flex items-center justify-center transition-all",
             willPlay
-              ? "border-primary bg-primary/10 text-primary"
-              : "border-border bg-background text-muted-foreground hover:bg-accent",
-            (disabled || isPending) && "opacity-50 cursor-not-allowed"
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-muted-foreground/40 bg-background"
           )}
         >
-          <Volleyball className="h-5 w-5" />
-          <span>{willPlay ? t("willPlay") : t("play")}</span>
-        </button>
+          {willPlay && <Check className="h-3.5 w-3.5" />}
+        </div>
+        <Volleyball className={cn("h-5 w-5 flex-shrink-0", willPlay ? "text-primary" : "text-muted-foreground")} />
+        <span className={cn("text-sm font-medium", willPlay ? "text-primary" : "text-muted-foreground")}>
+          {t("play")}
+        </span>
+      </button>
 
-        <button
-          onClick={toggleDine}
-          disabled={disabled || isPending}
+      {/* Guest count for play */}
+      {willPlay && (
+        <div className="flex items-center gap-2 pl-12 text-sm">
+          <label className="text-muted-foreground whitespace-nowrap">
+            {t("guestPlay")}:
+          </label>
+          <select
+            value={guestPlayCount}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              setGuestPlayCount(v);
+              doSubmit(willPlay, willDine, v, guestDineCount);
+            }}
+            disabled={disabled || isPending}
+            className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+          >
+            {[0, 1, 2, 3, 4, 5].map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Checkbox card: Dine */}
+      <button
+        type="button"
+        onClick={toggleDine}
+        disabled={disabled || isPending}
+        className={cn(
+          "w-full flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all",
+          willDine
+            ? "border-orange-500 bg-orange-500/10"
+            : "border-border bg-background hover:bg-accent",
+          (disabled || isPending) && "opacity-50 cursor-not-allowed"
+        )}
+      >
+        <div
           className={cn(
-            "flex-1 flex items-center justify-center gap-2 p-4 rounded-xl border-2 text-sm font-medium transition-all",
+            "flex-shrink-0 h-5 w-5 rounded border-2 flex items-center justify-center transition-all",
             willDine
-              ? "border-orange-500 bg-orange-500/10 text-orange-600"
-              : "border-border bg-background text-muted-foreground hover:bg-accent",
-            (disabled || isPending) && "opacity-50 cursor-not-allowed"
+              ? "border-orange-500 bg-orange-500 text-white"
+              : "border-muted-foreground/40 bg-background"
           )}
         >
-          <UtensilsCrossed className="h-5 w-5" />
-          <span>{willDine ? t("willDine") : t("dine")}</span>
-        </button>
-      </div>
+          {willDine && <Check className="h-3.5 w-3.5" />}
+        </div>
+        <UtensilsCrossed className={cn("h-5 w-5 flex-shrink-0", willDine ? "text-orange-600" : "text-muted-foreground")} />
+        <span className={cn("text-sm font-medium", willDine ? "text-orange-600" : "text-muted-foreground")}>
+          {t("dine")}
+        </span>
+      </button>
 
-      {/* Guest form (inline, only show when playing or dining) */}
-      {(willPlay || willDine) && (
-        <div className="flex gap-3 text-sm">
-          {willPlay && (
-            <div className="flex items-center gap-2 flex-1">
-              <label className="text-muted-foreground whitespace-nowrap">
-                {t("guestPlay")}:
-              </label>
-              <select
-                value={guestPlayCount}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  setGuestPlayCount(v);
-                  doSubmit(willPlay, willDine, v, guestDineCount);
-                }}
-                disabled={disabled || isPending}
-                className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
-              >
-                {[0, 1, 2, 3, 4, 5].map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-            </div>
-          )}
-          {willDine && (
-            <div className="flex items-center gap-2 flex-1">
-              <label className="text-muted-foreground whitespace-nowrap">
-                {t("guestDine")}:
-              </label>
-              <select
-                value={guestDineCount}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  setGuestDineCount(v);
-                  doSubmit(willPlay, willDine, guestPlayCount, v);
-                }}
-                disabled={disabled || isPending}
-                className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
-              >
-                {[0, 1, 2, 3, 4, 5].map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-            </div>
-          )}
+      {/* Guest count for dine */}
+      {willDine && (
+        <div className="flex items-center gap-2 pl-12 text-sm">
+          <label className="text-muted-foreground whitespace-nowrap">
+            {t("guestDine")}:
+          </label>
+          <select
+            value={guestDineCount}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              setGuestDineCount(v);
+              doSubmit(willPlay, willDine, guestPlayCount, v);
+            }}
+            disabled={disabled || isPending}
+            className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+          >
+            {[0, 1, 2, 3, 4, 5].map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
         </div>
       )}
 

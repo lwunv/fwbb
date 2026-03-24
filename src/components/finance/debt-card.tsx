@@ -62,11 +62,6 @@ export function DebtCard({
   }
 
   const status = getStatusBadge(debt.memberConfirmed, debt.adminConfirmed);
-  const hasBreakdown =
-    debt.playAmount > 0 ||
-    debt.dineAmount > 0 ||
-    debt.guestPlayAmount > 0 ||
-    debt.guestDineAmount > 0;
 
   return (
     <Card size="sm">
@@ -90,42 +85,12 @@ export function DebtCard({
             </div>
           </div>
           <div className="flex flex-col items-end gap-1">
-            <span className="text-sm font-bold text-primary">
+            <span className="text-base font-bold text-primary">
               {formatVND(debt.totalAmount)}
             </span>
             <Badge variant={status.variant}>{status.label}</Badge>
           </div>
         </div>
-
-        {/* Breakdown */}
-        {hasBreakdown && (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-muted-foreground border-t pt-2">
-            {debt.playAmount > 0 && (
-              <>
-                <span>{t("play")}:</span>
-                <span className="text-right">{formatVND(debt.playAmount)}</span>
-              </>
-            )}
-            {debt.dineAmount > 0 && (
-              <>
-                <span>{t("dine")}:</span>
-                <span className="text-right">{formatVND(debt.dineAmount)}</span>
-              </>
-            )}
-            {debt.guestPlayAmount > 0 && (
-              <>
-                <span>{t("guestPlay")}:</span>
-                <span className="text-right">{formatVND(debt.guestPlayAmount)}</span>
-              </>
-            )}
-            {debt.guestDineAmount > 0 && (
-              <>
-                <span>{t("guestDine")}:</span>
-                <span className="text-right">{formatVND(debt.guestDineAmount)}</span>
-              </>
-            )}
-          </div>
-        )}
 
         {/* Action button */}
         {onPayAction && !debt.adminConfirmed && (
