@@ -22,6 +22,7 @@ import {
   Clock,
   MapPin,
   CheckCircle,
+  Package,
 } from "lucide-react";
 
 interface UpcomingSession {
@@ -43,8 +44,7 @@ interface RecentPayment {
 
 interface DashboardClientProps {
   totalOutstanding: number;
-  lowStockWarning: string | null;
-  lowStockCount: number;
+  totalStockQua: number;
   activeMembersCount: number;
   sessionsThisMonth: number;
   upcomingSession: UpcomingSession | null;
@@ -69,8 +69,7 @@ function formatDateFull(dateStr: string): string {
 
 export function DashboardClient({
   totalOutstanding,
-  lowStockWarning,
-  lowStockCount,
+  totalStockQua,
   activeMembersCount,
   sessionsThisMonth,
   upcomingSession,
@@ -104,22 +103,27 @@ export function DashboardClient({
         <Card size="sm">
           <CardContent className="p-3">
             <div className="flex items-center gap-2">
-              <div className="rounded-lg bg-amber-500/10 p-2">
-                <AlertTriangle className="h-4 w-4 text-amber-500" />
+              <div className={`rounded-lg p-2 ${
+                totalStockQua < 12 ? "bg-red-500/10" : totalStockQua <= 40 ? "bg-amber-500/10" : "bg-green-500/10"
+              }`}>
+                <Package className={`h-4 w-4 ${
+                  totalStockQua < 12 ? "text-red-500" : totalStockQua <= 40 ? "text-amber-500" : "text-green-500"
+                }`} />
               </div>
               <div className="min-w-0">
                 <p className="text-[11px] text-muted-foreground truncate">
                   {tf("shuttleStock")}
                 </p>
-                {lowStockWarning ? (
-                  <p className="text-sm font-bold text-amber-600">
-                    {tf("lowStockCount", { count: lowStockCount })}
-                  </p>
-                ) : (
-                  <p className="text-sm font-bold text-green-600">{tf("sufficient")}</p>
-                )}
+                <p className={`text-sm font-bold ${
+                  totalStockQua < 12 ? "text-red-600" : totalStockQua <= 40 ? "text-amber-600" : "text-green-600"
+                }`}>
+                  {totalStockQua} quả
+                </p>
               </div>
             </div>
+            {totalStockQua < 12 && (
+              <p className="text-xs text-red-500 mt-1">⚠ Mua thêm cầu!</p>
+            )}
           </CardContent>
         </Card>
 
@@ -157,14 +161,14 @@ export function DashboardClient({
       </div>
 
       {/* Low stock warning detail */}
-      {lowStockWarning && (
-        <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20">
+      {totalStockQua < 12 && (
+        <Card className="border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-950/20">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <AlertTriangle className="h-4 w-4 text-red-500" />
                 <span className="text-sm">
-                  {tf("shuttleRunningLow")}: <strong>{lowStockWarning}</strong>
+                  ⚠ Cầu sắp hết! Còn <strong>{totalStockQua} quả</strong> — mua thêm cầu!
                 </span>
               </div>
               <Link href="/admin/inventory">

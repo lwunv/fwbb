@@ -6,7 +6,7 @@ import { adminSetVote, adminRemoveVote } from "@/actions/votes";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Check, ChevronUp } from "lucide-react";
 import type { InferSelectModel } from "drizzle-orm";
 import type { votes as votesTable, members as membersTable } from "@/db/schema";
 
@@ -35,49 +35,48 @@ export function AdminVoteManager({ sessionId, votes, members }: AdminVoteManager
   const playingMembers = votes.filter((v) => v.willPlay);
   const diningMembers = votes.filter((v) => v.willDine);
 
-  const notPlayingMembers = members.filter((m) => !voteMap.get(m.id)?.willPlay);
-  const notDiningMembers = members.filter((m) => !voteMap.get(m.id)?.willDine);
-
-  function handleAddToPlay(memberId: number) {
+  function togglePlay(memberId: number) {
     startTransition(async () => {
       const existingVote = voteMap.get(memberId);
-      await adminSetVote(sessionId, memberId, true, existingVote?.willDine ?? false);
-      setShowAddPlay(false);
-    });
-  }
-
-  function handleRemoveFromPlay(memberId: number) {
-    startTransition(async () => {
-      const existingVote = voteMap.get(memberId);
-      if (existingVote?.willDine) {
-        // Still dining, just remove play
-        await adminSetVote(sessionId, memberId, false, true);
+      const isPlaying = existingVote?.willPlay ?? false;
+      if (isPlaying) {
+        // Remove from play
+        if (existingVote?.willDine) {
+          await adminSetVote(sessionId, memberId, false, true);
+        } else {
+          await adminRemoveVote(sessionId, memberId);
+        }
       } else {
-        // Not dining either, remove vote entirely
-        await adminRemoveVote(sessionId, memberId);
+        // Add to play
+        await adminSetVote(sessionId, memberId, true, existingVote?.willDine ?? false);
       }
     });
   }
 
-  function handleAddToDine(memberId: number) {
+  function toggleDine(memberId: number) {
     startTransition(async () => {
       const existingVote = voteMap.get(memberId);
-      await adminSetVote(sessionId, memberId, existingVote?.willPlay ?? false, true);
-      setShowAddDine(false);
+      const isDining = existingVote?.willDine ?? false;
+      if (isDining) {
+        // Remove from dine
+        if (existingVote?.willPlay) {
+          await adminSetVote(sessionId, memberId, true, false);
+        } else {
+          await adminRemoveVote(sessionId, memberId);
+        }
+      } else {
+        // Add to dine
+        await adminSetVote(sessionId, memberId, existingVote?.willPlay ?? false, true);
+      }
     });
   }
 
-  function handleRemoveFromDine(memberId: number) {
-    startTransition(async () => {
-      const existingVote = voteMap.get(memberId);
-      if (existingVote?.willPlay) {
-        // Still playing, just remove dine
-        await adminSetVote(sessionId, memberId, true, false);
-      } else {
-        // Not playing either, remove vote entirely
-        await adminRemoveVote(sessionId, memberId);
-      }
-    });
+  function filterMembers(list: Member[], search: string) {
+    if (!search) return list;
+    const q = search.toLowerCase();
+    return list.filter((m) =>
+      m.name.toLowerCase().includes(q) || m.phone.includes(search)
+    );
   }
 
   return (
@@ -90,11 +89,11 @@ export function AdminVoteManager({ sessionId, votes, members }: AdminVoteManager
             <Button
               variant="outline"
               size="sm"
-              onClick={() => { setShowAddPlay(!showAddPlay); setShowAddDine(false); }}
+              onClick={() => { setShowAddPlay(!showAddPlay); setShowAddDine(false); setSearchPlay(""); }}
               disabled={isPending}
             >
-              <Plus className="h-3 w-3 mr-1" />
-              {tCommon("add")}
+              {showAddPlay ? <ChevronUp className="h-3 w-3 mr-1" /> : <Plus className="h-3 w-3 mr-1" />}
+              {showAddPlay ? "Đóng" : tCommon("add")}
             </Button>
           </div>
 
@@ -107,7 +106,7 @@ export function AdminVoteManager({ sessionId, votes, members }: AdminVoteManager
                   <span className="text-sm">{v.member.name}</span>
                 </div>
                 <button
-                  onClick={() => handleRemoveFromPlay(v.memberId)}
+                  onClick={() => togglePlay(v.memberId)}
                   disabled={isPending}
                   className="text-muted-foreground hover:text-destructive transition-colors p-1"
                 >
@@ -120,8 +119,8 @@ export function AdminVoteManager({ sessionId, votes, members }: AdminVoteManager
             )}
           </div>
 
-          {/* Add player dropdown */}
-          {showAddPlay && notPlayingMembers.length > 0 && (
+          {/* Multi-select dropdown */}
+          {showAddPlay && (
             <div className="border rounded-md overflow-hidden">
               <input
                 type="text"
@@ -129,22 +128,30 @@ export function AdminVoteManager({ sessionId, votes, members }: AdminVoteManager
                 value={searchPlay}
                 onChange={(e) => setSearchPlay(e.target.value)}
                 className="w-full px-3 py-2 text-sm border-b bg-background outline-none"
+                autoFocus
               />
-              <div className="max-h-40 overflow-auto">
-              {notPlayingMembers.filter((m) =>
-                m.name.toLowerCase().includes(searchPlay.toLowerCase()) ||
-                m.phone.includes(searchPlay)
-              ).map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => handleAddToPlay(m.id)}
-                  disabled={isPending}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent transition-colors text-left"
-                >
-                  <MemberAvatar memberId={m.id} size={20} />
-                  <span>{m.name}</span>
-                </button>
-              ))}
+              <div className="max-h-48 overflow-auto">
+                {filterMembers(members, searchPlay).map((m) => {
+                  const isSelected = voteMap.get(m.id)?.willPlay ?? false;
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => togglePlay(m.id)}
+                      disabled={isPending}
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors text-left ${
+                        isSelected ? "bg-primary/10" : "hover:bg-accent"
+                      }`}
+                    >
+                      <div className={`h-4 w-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                        isSelected ? "bg-primary border-primary" : "border-border"
+                      }`}>
+                        {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                      </div>
+                      <MemberAvatar memberId={m.id} size={20} />
+                      <span>{m.name}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -159,11 +166,11 @@ export function AdminVoteManager({ sessionId, votes, members }: AdminVoteManager
             <Button
               variant="outline"
               size="sm"
-              onClick={() => { setShowAddDine(!showAddDine); setShowAddPlay(false); }}
+              onClick={() => { setShowAddDine(!showAddDine); setShowAddPlay(false); setSearchDine(""); }}
               disabled={isPending}
             >
-              <Plus className="h-3 w-3 mr-1" />
-              {tCommon("add")}
+              {showAddDine ? <ChevronUp className="h-3 w-3 mr-1" /> : <Plus className="h-3 w-3 mr-1" />}
+              {showAddDine ? "Đóng" : tCommon("add")}
             </Button>
           </div>
 
@@ -176,7 +183,7 @@ export function AdminVoteManager({ sessionId, votes, members }: AdminVoteManager
                   <span className="text-sm">{v.member.name}</span>
                 </div>
                 <button
-                  onClick={() => handleRemoveFromDine(v.memberId)}
+                  onClick={() => toggleDine(v.memberId)}
                   disabled={isPending}
                   className="text-muted-foreground hover:text-destructive transition-colors p-1"
                 >
@@ -189,8 +196,8 @@ export function AdminVoteManager({ sessionId, votes, members }: AdminVoteManager
             )}
           </div>
 
-          {/* Add diner dropdown */}
-          {showAddDine && notDiningMembers.length > 0 && (
+          {/* Multi-select dropdown */}
+          {showAddDine && (
             <div className="border rounded-md overflow-hidden">
               <input
                 type="text"
@@ -198,22 +205,30 @@ export function AdminVoteManager({ sessionId, votes, members }: AdminVoteManager
                 value={searchDine}
                 onChange={(e) => setSearchDine(e.target.value)}
                 className="w-full px-3 py-2 text-sm border-b bg-background outline-none"
+                autoFocus
               />
-              <div className="max-h-40 overflow-auto">
-              {notDiningMembers.filter((m) =>
-                m.name.toLowerCase().includes(searchDine.toLowerCase()) ||
-                m.phone.includes(searchDine)
-              ).map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => handleAddToDine(m.id)}
-                  disabled={isPending}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent transition-colors text-left"
-                >
-                  <MemberAvatar memberId={m.id} size={20} />
-                  <span>{m.name}</span>
-                </button>
-              ))}
+              <div className="max-h-48 overflow-auto">
+                {filterMembers(members, searchDine).map((m) => {
+                  const isSelected = voteMap.get(m.id)?.willDine ?? false;
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => toggleDine(m.id)}
+                      disabled={isPending}
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors text-left ${
+                        isSelected ? "bg-primary/10" : "hover:bg-accent"
+                      }`}
+                    >
+                      <div className={`h-4 w-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                        isSelected ? "bg-primary border-primary" : "border-border"
+                      }`}>
+                        {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                      </div>
+                      <MemberAvatar memberId={m.id} size={20} />
+                      <span>{m.name}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

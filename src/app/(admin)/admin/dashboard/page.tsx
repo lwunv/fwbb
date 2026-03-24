@@ -75,8 +75,7 @@ export default async function DashboardPage() {
       <h1 className="text-2xl font-bold">{t("overview")}</h1>
       <DashboardClient
         totalOutstanding={totalOutstanding}
-        lowStockWarning={lowStockWarning}
-        lowStockCount={lowStockResult.isLow ? 1 : 0}
+        totalStockQua={lowStockResult.totalQua}
         activeMembersCount={activeMembers.length}
         sessionsThisMonth={sessionsThisMonth}
         upcomingSession={upcomingSession}
