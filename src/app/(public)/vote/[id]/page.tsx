@@ -11,6 +11,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getTranslations } from "next-intl/server";
 
 export default async function VoteSessionPage({
   params,
@@ -21,9 +22,10 @@ export default async function VoteSessionPage({
   const sessionId = parseInt(id, 10);
   if (isNaN(sessionId)) notFound();
 
-  const [session, user] = await Promise.all([
+  const [session, user, t] = await Promise.all([
     getSession(sessionId),
     getUserFromCookie(),
+    getTranslations("sessions"),
   ]);
 
   if (!session) notFound();
@@ -51,7 +53,7 @@ export default async function VoteSessionPage({
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <h1 className="text-lg font-bold flex-1">Buoi choi</h1>
+        <h1 className="text-lg font-bold flex-1">{t("session")}</h1>
         <CopyLinkButton sessionId={session.id} />
       </div>
 
@@ -72,7 +74,7 @@ export default async function VoteSessionPage({
       {isVotingOpen && (
         <Card>
           <CardContent className="p-4">
-            <h2 className="font-semibold mb-3">Vote cua ban</h2>
+            <h2 className="font-semibold mb-3">{t("yourVote")}</h2>
             <VoteButtons
               sessionId={session.id}
               currentWillPlay={myVote?.willPlay ?? false}
@@ -88,8 +90,8 @@ export default async function VoteSessionPage({
         <Card>
           <CardContent className="p-4 text-center text-muted-foreground">
             {session.status === "cancelled"
-              ? "Buoi choi nay da bi huy"
-              : "Buoi choi nay da hoan thanh"}
+              ? t("sessionCancelled")
+              : t("sessionCompleted")}
           </CardContent>
         </Card>
       )}
@@ -98,7 +100,7 @@ export default async function VoteSessionPage({
       <Card>
         <CardContent className="p-4">
           <h2 className="font-semibold mb-3">
-            Danh sach ({votes.length}/{members.length} da vote)
+            {t("voteList")} ({t("votedOf", { voted: votes.length, total: members.length })})
           </h2>
           <VoteList votes={votes} members={members} />
         </CardContent>

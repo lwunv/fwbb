@@ -1,6 +1,7 @@
 import { getUserFromCookie } from "@/lib/user-identity";
 import { getDebtsForMember, getAllDebts } from "@/actions/finance";
 import { getActiveMembers } from "@/actions/members";
+import { getTranslations } from "next-intl/server";
 import { MyDebtsClient } from "./my-debts-client";
 
 export default async function MyDebtsPage({
@@ -9,10 +10,13 @@ export default async function MyDebtsPage({
   searchParams: Promise<{ period?: string; member?: string }>;
 }) {
   const user = await getUserFromCookie();
+  const t = await getTranslations("finance");
+  const tIdentify = await getTranslations("identify");
+
   if (!user) {
     return (
       <div className="text-center py-16 text-muted-foreground">
-        Vui long xac nhan danh tinh truoc.
+        {tIdentify("selectNameAndPhone")}
       </div>
     );
   }
@@ -66,7 +70,7 @@ export default async function MyDebtsPage({
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
-      <h1 className="text-lg font-bold">Du no</h1>
+      <h1 className="text-lg font-bold">{t("debts")}</h1>
       <MyDebtsClient
         debts={debts}
         members={members.map((m) => ({ id: m.id, name: m.name }))}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { submitVote } from "@/actions/votes";
 import { cn } from "@/lib/utils";
 import { Volleyball, UtensilsCrossed } from "lucide-react";
@@ -28,6 +29,7 @@ export function VoteButtons({
   const [guestDineCount, setGuestDineCount] = useState(currentGuestDineCount);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState("");
+  const t = useTranslations("voting");
 
   function doSubmit(
     play: boolean,
@@ -72,7 +74,7 @@ export function VoteButtons({
           )}
         >
           <Volleyball className="h-5 w-5" />
-          <span>{willPlay ? "Se choi" : "Choi"}</span>
+          <span>{willPlay ? t("willPlay") : t("play")}</span>
         </button>
 
         <button
@@ -87,7 +89,7 @@ export function VoteButtons({
           )}
         >
           <UtensilsCrossed className="h-5 w-5" />
-          <span>{willDine ? "Se an" : "An"}</span>
+          <span>{willDine ? t("willDine") : t("dine")}</span>
         </button>
       </div>
 
@@ -97,7 +99,7 @@ export function VoteButtons({
           {willPlay && (
             <div className="flex items-center gap-2 flex-1">
               <label className="text-muted-foreground whitespace-nowrap">
-                Khach choi:
+                {t("guestPlay")}:
               </label>
               <select
                 value={guestPlayCount}
@@ -118,7 +120,7 @@ export function VoteButtons({
           {willDine && (
             <div className="flex items-center gap-2 flex-1">
               <label className="text-muted-foreground whitespace-nowrap">
-                Khach an:
+                {t("guestDine")}:
               </label>
               <select
                 value={guestDineCount}

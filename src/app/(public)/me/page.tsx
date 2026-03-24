@@ -3,15 +3,19 @@ import { db } from "@/db";
 import { members, sessionAttendees, sessionDebts, sessions } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { MeClient } from "./me-client";
 
 export default async function MePage() {
   const user = await getUserFromCookie();
   if (!user) redirect("/");
 
-  const member = await db.query.members.findFirst({
-    where: eq(members.id, user.memberId),
-  });
+  const [member, t] = await Promise.all([
+    db.query.members.findFirst({
+      where: eq(members.id, user.memberId),
+    }),
+    getTranslations("nav"),
+  ]);
 
   if (!member) redirect("/");
 
@@ -47,7 +51,7 @@ export default async function MePage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold">Ca nhan</h1>
+      <h1 className="text-xl font-bold">{t("me")}</h1>
       <MeClient
         memberName={member.name}
         memberPhone={member.phone}

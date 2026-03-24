@@ -1,4 +1,5 @@
 import { getAllDebts, getDebtSummary } from "@/actions/finance";
+import { getTranslations } from "next-intl/server";
 import { AdminFinanceClient } from "./finance-client";
 
 export default async function AdminFinancePage({
@@ -7,6 +8,8 @@ export default async function AdminFinancePage({
   searchParams: Promise<{ period?: string }>;
 }) {
   const { period = "all" } = await searchParams;
+  const t = await getTranslations("adminNav");
+
   const [debts, summary] = await Promise.all([
     getAllDebts(period),
     getDebtSummary(),
@@ -29,7 +32,7 @@ export default async function AdminFinancePage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Quan ly tai chinh</h1>
+      <h1 className="text-2xl font-bold">{t("finance")}</h1>
       <AdminFinanceClient debts={debtCards} summary={summary} />
     </div>
   );

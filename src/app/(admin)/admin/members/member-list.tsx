@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { createMember, updateMember, toggleMemberActive } from "@/actions/members";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,8 @@ type Member = InferSelectModel<typeof membersTable>;
 export function MemberList({ members }: { members: Member[] }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const t = useTranslations("adminMembers");
+  const tCommon = useTranslations("common");
 
   async function handleSubmit(formData: FormData) {
     if (editingMember) {
@@ -38,7 +41,7 @@ export function MemberList({ members }: { members: Member[] }) {
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <p className="text-muted-foreground">{members.length} thanh vien</p>
+        <p className="text-muted-foreground">{t("count", { count: members.length })}</p>
         <Dialog
           open={dialogOpen}
           onOpenChange={(open) => {
@@ -47,17 +50,17 @@ export function MemberList({ members }: { members: Member[] }) {
           }}
         >
           <DialogTrigger render={<Button />}>
-            <Plus className="h-4 w-4 mr-2" /> Them thanh vien
+            <Plus className="h-4 w-4 mr-2" /> {t("addMember")}
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {editingMember ? "Sua thanh vien" : "Them thanh vien moi"}
+                {editingMember ? t("editMember") : t("addNewMember")}
               </DialogTitle>
             </DialogHeader>
             <form action={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Ten</Label>
+                <Label htmlFor="name">{t("name")}</Label>
                 <Input
                   id="name"
                   name="name"
@@ -66,7 +69,7 @@ export function MemberList({ members }: { members: Member[] }) {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phone">So dien thoai</Label>
+                <Label htmlFor="phone">{t("phone")}</Label>
                 <Input
                   id="phone"
                   name="phone"
@@ -75,7 +78,7 @@ export function MemberList({ members }: { members: Member[] }) {
                 />
               </div>
               <Button type="submit" className="w-full">
-                {editingMember ? "Cap nhat" : "Them"}
+                {editingMember ? t("update") : tCommon("add")}
               </Button>
             </form>
           </DialogContent>
@@ -95,7 +98,7 @@ export function MemberList({ members }: { members: Member[] }) {
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant={member.isActive ? "default" : "secondary"}>
-                  {member.isActive ? "Hoat dong" : "Ngung"}
+                  {member.isActive ? t("active") : t("inactive")}
                 </Badge>
                 <Button
                   variant="ghost"

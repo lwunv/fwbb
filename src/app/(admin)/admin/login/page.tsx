@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { useTranslations } from "next-intl";
 import { login } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function LoginPage() {
   const [state, formAction, pending] = useActionState(login, null);
+  const t = useTranslations("auth");
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
@@ -19,18 +21,18 @@ export default function LoginPage() {
         <CardContent>
           <form action={formAction} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">Ten dang nhap</Label>
+              <Label htmlFor="username">{t("username")}</Label>
               <Input id="username" name="username" required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Mat khau</Label>
+              <Label htmlFor="password">{t("password")}</Label>
               <Input id="password" name="password" type="password" required />
             </div>
             {state?.error && (
               <p className="text-sm text-destructive">{state.error}</p>
             )}
             <Button type="submit" className="w-full" disabled={pending}>
-              {pending ? "Dang nhap..." : "Dang nhap"}
+              {pending ? t("loggingIn") : t("login")}
             </Button>
           </form>
         </CardContent>

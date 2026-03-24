@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { createCourt, updateCourt, toggleCourtActive } from "@/actions/courts";
 import { formatVND } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,8 @@ type Court = InferSelectModel<typeof courtsTable>;
 export function CourtList({ courts }: { courts: Court[] }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCourt, setEditingCourt] = useState<Court | null>(null);
+  const t = useTranslations("adminCourts");
+  const tCommon = useTranslations("common");
 
   async function handleSubmit(formData: FormData) {
     if (editingCourt) {
@@ -38,7 +41,7 @@ export function CourtList({ courts }: { courts: Court[] }) {
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <p className="text-muted-foreground">{courts.length} san</p>
+        <p className="text-muted-foreground">{t("count", { count: courts.length })}</p>
         <Dialog
           open={dialogOpen}
           onOpenChange={(open) => {
@@ -47,17 +50,17 @@ export function CourtList({ courts }: { courts: Court[] }) {
           }}
         >
           <DialogTrigger render={<Button />}>
-            <Plus className="h-4 w-4 mr-2" /> Them san
+            <Plus className="h-4 w-4 mr-2" /> {t("addCourt")}
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {editingCourt ? "Sua san" : "Them san moi"}
+                {editingCourt ? t("editCourt") : t("addNewCourt")}
               </DialogTitle>
             </DialogHeader>
             <form action={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Ten san</Label>
+                <Label htmlFor="name">{t("courtName")}</Label>
                 <Input
                   id="name"
                   name="name"
@@ -66,7 +69,7 @@ export function CourtList({ courts }: { courts: Court[] }) {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="address">Dia chi</Label>
+                <Label htmlFor="address">{t("address")}</Label>
                 <Input
                   id="address"
                   name="address"
@@ -74,7 +77,7 @@ export function CourtList({ courts }: { courts: Court[] }) {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="pricePerSession">Gia moi buoi (VND)</Label>
+                <Label htmlFor="pricePerSession">{t("pricePerSession")}</Label>
                 <Input
                   id="pricePerSession"
                   name="pricePerSession"
@@ -84,7 +87,7 @@ export function CourtList({ courts }: { courts: Court[] }) {
                 />
               </div>
               <Button type="submit" className="w-full">
-                {editingCourt ? "Cap nhat" : "Them"}
+                {editingCourt ? t("update") : tCommon("add")}
               </Button>
             </form>
           </DialogContent>
@@ -105,13 +108,13 @@ export function CourtList({ courts }: { courts: Court[] }) {
                     <p className="text-sm text-muted-foreground">{court.address}</p>
                   )}
                   <p className="text-sm font-medium text-primary">
-                    {formatVND(court.pricePerSession)}/buoi
+                    {formatVND(court.pricePerSession)}{t("perSession")}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant={court.isActive ? "default" : "secondary"}>
-                  {court.isActive ? "Hoat dong" : "Ngung"}
+                  {court.isActive ? t("active") : t("inactive")}
                 </Badge>
                 <Button
                   variant="ghost"

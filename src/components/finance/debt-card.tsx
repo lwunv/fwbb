@@ -8,6 +8,7 @@ import { formatVND } from "@/lib/utils";
 import { Calendar, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
+import { useTranslations } from "next-intl";
 
 export interface DebtCardData {
   id: number;
@@ -32,16 +33,6 @@ interface DebtCardProps {
   actionLoading?: boolean;
 }
 
-function getStatusBadge(memberConfirmed: boolean, adminConfirmed: boolean) {
-  if (adminConfirmed) {
-    return { label: "Da xac nhan", variant: "default" as const };
-  }
-  if (memberConfirmed) {
-    return { label: "Cho admin", variant: "secondary" as const };
-  }
-  return { label: "Chua thanh toan", variant: "destructive" as const };
-}
-
 function formatSessionDate(dateStr: string) {
   try {
     const date = new Date(dateStr + "T00:00:00");
@@ -58,6 +49,18 @@ export function DebtCard({
   actionLabel,
   actionLoading,
 }: DebtCardProps) {
+  const t = useTranslations("finance");
+
+  function getStatusBadge(memberConfirmed: boolean, adminConfirmed: boolean) {
+    if (adminConfirmed) {
+      return { label: t("adminConfirmed"), variant: "default" as const };
+    }
+    if (memberConfirmed) {
+      return { label: t("waitingAdmin"), variant: "secondary" as const };
+    }
+    return { label: t("unpaid"), variant: "destructive" as const };
+  }
+
   const status = getStatusBadge(debt.memberConfirmed, debt.adminConfirmed);
   const hasBreakdown =
     debt.playAmount > 0 ||
@@ -99,25 +102,25 @@ export function DebtCard({
           <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-muted-foreground border-t pt-2">
             {debt.playAmount > 0 && (
               <>
-                <span>Choi:</span>
+                <span>{t("play")}:</span>
                 <span className="text-right">{formatVND(debt.playAmount)}</span>
               </>
             )}
             {debt.dineAmount > 0 && (
               <>
-                <span>An:</span>
+                <span>{t("dine")}:</span>
                 <span className="text-right">{formatVND(debt.dineAmount)}</span>
               </>
             )}
             {debt.guestPlayAmount > 0 && (
               <>
-                <span>Khach choi:</span>
+                <span>{t("guestPlay")}:</span>
                 <span className="text-right">{formatVND(debt.guestPlayAmount)}</span>
               </>
             )}
             {debt.guestDineAmount > 0 && (
               <>
-                <span>Khach an:</span>
+                <span>{t("guestDine")}:</span>
                 <span className="text-right">{formatVND(debt.guestDineAmount)}</span>
               </>
             )}
@@ -134,7 +137,7 @@ export function DebtCard({
             className="w-full"
           >
             <CheckCircle className="h-3 w-3 mr-1" />
-            {actionLabel ?? "Da thanh toan"}
+            {actionLabel ?? t("paid")}
           </Button>
         )}
       </CardContent>

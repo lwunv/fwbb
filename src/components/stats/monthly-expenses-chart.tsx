@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { useTranslations } from "next-intl";
 import { formatVND } from "@/lib/utils";
 import type { MonthlyExpense } from "@/actions/stats";
 
@@ -23,6 +24,8 @@ function formatMonth(month: string): string {
 }
 
 export function MonthlyExpensesChart({ data }: MonthlyExpensesChartProps) {
+  const t = useTranslations("stats");
+
   const chartData = data.map((item) => ({
     ...item,
     label: formatMonth(item.month),
@@ -31,10 +34,16 @@ export function MonthlyExpensesChart({ data }: MonthlyExpensesChartProps) {
   if (chartData.length === 0) {
     return (
       <div className="flex items-center justify-center h-[300px] text-muted-foreground text-sm">
-        Chua co du lieu
+        {t("noData")}
       </div>
     );
   }
+
+  const labels: Record<string, string> = {
+    courtCost: t("court"),
+    shuttlecockCost: t("shuttlecock"),
+    diningCost: t("diningCost"),
+  };
 
   return (
     <ResponsiveContainer width="100%" height={350}>
@@ -64,22 +73,12 @@ export function MonthlyExpensesChart({ data }: MonthlyExpensesChartProps) {
             color: "var(--color-popover-foreground, #1e293b)",
           }}
           formatter={(value, name) => {
-            const labels: Record<string, string> = {
-              courtCost: "San",
-              shuttlecockCost: "Cau",
-              diningCost: "An nhau",
-            };
             return [formatVND(Number(value)), labels[String(name)] || String(name)];
           }}
-          labelFormatter={(label) => `Thang ${label}`}
+          labelFormatter={(label) => t("monthLabel", { label: String(label) })}
         />
         <Legend
           formatter={(value: string) => {
-            const labels: Record<string, string> = {
-              courtCost: "San",
-              shuttlecockCost: "Cau",
-              diningCost: "An nhau",
-            };
             return labels[value] || value;
           }}
         />

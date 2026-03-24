@@ -1,16 +1,12 @@
 "use client";
 
 import { useQueryState } from "nuqs";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
-const filters = [
-  { key: "week", label: "Tuan" },
-  { key: "month", label: "Thang" },
-  { key: "year", label: "Nam" },
-  { key: "all", label: "Tat ca" },
-] as const;
+const filterKeys = ["week", "month", "year", "all"] as const;
 
-export type TimeFilterValue = (typeof filters)[number]["key"];
+export type TimeFilterValue = (typeof filterKeys)[number];
 
 interface TimeFilterProps {
   value?: TimeFilterValue;
@@ -18,10 +14,11 @@ interface TimeFilterProps {
 }
 
 /**
- * Time filter tabs: Tuan / Thang / Nam / Tat ca.
+ * Time filter tabs: Week / Month / Year / All.
  * Uses nuqs for URL state when no explicit value/onChange provided.
  */
 export function TimeFilter({ value: controlledValue, onChange }: TimeFilterProps) {
+  const t = useTranslations("timeFilter");
   const [queryValue, setQueryValue] = useQueryState("period", {
     defaultValue: "all",
   });
@@ -31,18 +28,18 @@ export function TimeFilter({ value: controlledValue, onChange }: TimeFilterProps
 
   return (
     <div className="flex gap-1 rounded-lg bg-muted p-1">
-      {filters.map((f) => (
+      {filterKeys.map((key) => (
         <button
-          key={f.key}
-          onClick={() => handleChange(f.key)}
+          key={key}
+          onClick={() => handleChange(key)}
           className={cn(
             "flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-            currentValue === f.key
+            currentValue === key
               ? "bg-background text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground",
           )}
         >
-          {f.label}
+          {t(key)}
         </button>
       ))}
     </div>

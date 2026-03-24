@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { CircleDot } from "lucide-react";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { LanguageSelector } from "@/components/shared/language-selector";
 
 export function Header() {
   return (
@@ -13,8 +14,8 @@ export function Header() {
           <span className="font-bold text-lg">FWBB</span>
         </Link>
         <div className="flex items-center gap-1">
+          <LanguageSelector />
           <ThemeToggle />
-          {/* Language selector placeholder */}
         </div>
       </div>
     </header>

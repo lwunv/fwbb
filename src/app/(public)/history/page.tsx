@@ -1,9 +1,13 @@
 import { db } from "@/db";
 import { sessions } from "@/db/schema";
 import { desc, or, eq } from "drizzle-orm";
+import { getTranslations } from "next-intl/server";
 import { HistoryClient } from "./history-client";
 
 export default async function HistoryPage() {
+  const t = await getTranslations("nav");
+  const tSessions = await getTranslations("sessions");
+
   const pastSessions = await db.query.sessions.findMany({
     where: or(
       eq(sessions.status, "completed"),
@@ -37,7 +41,7 @@ export default async function HistoryPage() {
 
     const attendees = s.attendees.map((a) => ({
       id: a.id,
-      name: a.isGuest ? a.guestName || "Khach" : a.member?.name || "Unknown",
+      name: a.isGuest ? a.guestName || "Guest" : a.member?.name || "Unknown",
       memberId: a.memberId,
       isGuest: a.isGuest ?? false,
       attendsPlay: a.attendsPlay ?? false,
@@ -48,7 +52,7 @@ export default async function HistoryPage() {
       id: s.id,
       date: s.date,
       status: s.status as string,
-      courtName: s.court?.name || "Khong ro",
+      courtName: s.court?.name || "-",
       courtPrice: s.courtPrice || 0,
       shuttlecockCost,
       diningBill: s.diningBill || 0,
@@ -61,9 +65,9 @@ export default async function HistoryPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold">Lich su buoi choi</h1>
+      <h1 className="text-xl font-bold">{t("history")}</h1>
       {sessionCards.length === 0 ? (
-        <p className="text-muted-foreground text-sm">Chua co buoi choi nao.</p>
+        <p className="text-muted-foreground text-sm">{tSessions("noSessions")}</p>
       ) : (
         <HistoryClient sessions={sessionCards} />
       )}

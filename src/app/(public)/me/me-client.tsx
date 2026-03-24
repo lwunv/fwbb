@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "next-themes";
+import { useTranslations } from "next-intl";
 import { formatVND } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import {
@@ -33,11 +34,14 @@ export function MeClient({
   totalSpent,
 }: MeClientProps) {
   const { theme, setTheme } = useTheme();
+  const tThemes = useTranslations("themes");
+  const tMe = useTranslations("me");
+  const tStats = useTranslations("stats");
 
   const themes = [
-    { key: "light", label: "Sang", icon: Sun },
-    { key: "dark", label: "Toi", icon: Moon },
-    { key: "pink", label: "Hong", icon: Heart },
+    { key: "light", label: tThemes("light"), icon: Sun },
+    { key: "dark", label: tThemes("dark"), icon: Moon },
+    { key: "pink", label: tThemes("pink"), icon: Heart },
   ] as const;
 
   const maskedPhone = memberPhone.slice(0, 4) + "****" + memberPhone.slice(-2);
@@ -49,7 +53,7 @@ export function MeClient({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <User className="h-5 w-5 text-primary" />
-            Ho so
+            {tMe("profile")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -68,7 +72,7 @@ export function MeClient({
           <form action="/api/reset-identity" method="POST">
             <Button variant="outline" size="sm" className="w-full">
               <LogOut className="h-4 w-4 mr-1" />
-              Doi nguoi dung
+              {tMe("switchUser")}
             </Button>
           </form>
         </CardContent>
@@ -77,11 +81,11 @@ export function MeClient({
       {/* Settings Card */}
       <Card>
         <CardHeader>
-          <CardTitle>Cai dat</CardTitle>
+          <CardTitle>{tMe("settings")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium">Giao dien</label>
+            <label className="text-sm font-medium">{tMe("appearance")}</label>
             <div className="flex gap-2">
               {themes.map((t) => {
                 const Icon = t.icon;
@@ -110,7 +114,7 @@ export function MeClient({
       {/* Quick Stats Card */}
       <Card>
         <CardHeader>
-          <CardTitle>Thong ke nhanh</CardTitle>
+          <CardTitle>{tStats("quickStats")}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 gap-3">
@@ -119,21 +123,21 @@ export function MeClient({
                 <Users className="h-5 w-5 text-primary" />
               </div>
               <p className="text-lg font-bold">{totalPlayed}</p>
-              <p className="text-[11px] text-muted-foreground">Buoi choi</p>
+              <p className="text-[11px] text-muted-foreground">{tStats("sessionsPlayed")}</p>
             </div>
             <div className="text-center space-y-1">
               <div className="mx-auto w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
                 <UtensilsCrossed className="h-5 w-5 text-accent" />
               </div>
               <p className="text-lg font-bold">{totalDined}</p>
-              <p className="text-[11px] text-muted-foreground">Buoi an</p>
+              <p className="text-[11px] text-muted-foreground">{tStats("sessionsDined")}</p>
             </div>
             <div className="text-center space-y-1">
               <div className="mx-auto w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
                 <Wallet className="h-5 w-5 text-destructive" />
               </div>
               <p className="text-sm font-bold">{formatVND(totalSpent)}</p>
-              <p className="text-[11px] text-muted-foreground">Tong chi</p>
+              <p className="text-[11px] text-muted-foreground">{tStats("totalSpent")}</p>
             </div>
           </div>
         </CardContent>

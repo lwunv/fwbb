@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { TimeFilter } from "@/components/shared/time-filter";
 import { DebtList } from "@/components/finance/debt-list";
 import { confirmPaymentByMember } from "@/actions/finance";
@@ -25,6 +26,7 @@ export function MyDebtsClient({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const t = useTranslations("finance");
 
   async function handleMarkPaid(debtId: number) {
     setLoadingId(debtId);
@@ -45,8 +47,8 @@ export function MyDebtsClient({
 
   const currentLabel =
     selectedMemberId === "all"
-      ? "Tat ca thanh vien"
-      : members.find((m) => m.id === selectedMemberId)?.name ?? "Cua toi";
+      ? t("allMembers")
+      : members.find((m) => m.id === selectedMemberId)?.name ?? t("mine");
 
   const isOwnView = selectedMemberId === currentUserId;
 
@@ -64,7 +66,7 @@ export function MyDebtsClient({
             )}
             <span>{currentLabel}</span>
             {isOwnView && (
-              <span className="text-xs text-muted-foreground">(ban)</span>
+              <span className="text-xs text-muted-foreground">({t("you")})</span>
             )}
           </div>
           <svg
@@ -92,8 +94,8 @@ export function MyDebtsClient({
                 }`}
               >
                 <MemberAvatar memberId={currentUserId} size={24} />
-                <span>{members.find((m) => m.id === currentUserId)?.name ?? "Cua toi"}</span>
-                <span className="text-xs text-muted-foreground">(ban)</span>
+                <span>{members.find((m) => m.id === currentUserId)?.name ?? t("mine")}</span>
+                <span className="text-xs text-muted-foreground">({t("you")})</span>
               </button>
 
               {/* Separator */}
@@ -107,7 +109,7 @@ export function MyDebtsClient({
                 }`}
               >
                 <span className="w-6 h-6 flex items-center justify-center text-base">👥</span>
-                <span>Tat ca thanh vien</span>
+                <span>{t("allMembers")}</span>
               </button>
 
               {/* Separator */}
@@ -139,7 +141,7 @@ export function MyDebtsClient({
       <DebtList
         debts={debts}
         onPayAction={isOwnView ? handleMarkPaid : undefined}
-        actionLabel={isOwnView ? "Da thanh toan" : undefined}
+        actionLabel={isOwnView ? t("paid") : undefined}
         actionLoadingId={loadingId}
         showMemberInfo={selectedMemberId === "all"}
       />

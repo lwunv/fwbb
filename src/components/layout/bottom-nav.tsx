@@ -2,19 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { Home, Clock, Wallet, BarChart3, User } from "lucide-react";
 
 const navItems = [
-  { href: "/", label: "Trang chu", icon: Home },
-  { href: "/history", label: "Lich su", icon: Clock },
-  { href: "/my-debts", label: "Cong no", icon: Wallet },
-  { href: "/stats", label: "Thong ke", icon: BarChart3 },
-  { href: "/me", label: "Ca nhan", icon: User },
+  { href: "/", labelKey: "home" as const, icon: Home },
+  { href: "/history", labelKey: "history" as const, icon: Clock },
+  { href: "/my-debts", labelKey: "debts" as const, icon: Wallet },
+  { href: "/stats", labelKey: "stats" as const, icon: BarChart3 },
+  { href: "/me", labelKey: "me" as const, icon: User },
 ];
 
 export function BottomNav() {
   const pathname = usePathname();
+  const t = useTranslations("nav");
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -37,7 +39,7 @@ export function BottomNav() {
               )}
             >
               <item.icon className={cn("h-5 w-5", isActive && "text-primary")} />
-              <span>{item.label}</span>
+              <span>{t(item.labelKey)}</span>
             </Link>
           );
         })}

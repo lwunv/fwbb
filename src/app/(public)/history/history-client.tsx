@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { format, parseISO } from "date-fns";
 import { vi } from "date-fns/locale";
+import { useTranslations } from "next-intl";
 import { ChevronDown, ChevronUp, Users, UtensilsCrossed } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +49,8 @@ function formatDateLabel(dateStr: string): string {
 
 export function HistoryClient({ sessions }: HistoryClientProps) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const t = useTranslations("history");
+  const tSessions = useTranslations("sessions");
 
   const toggle = (id: number) => {
     setExpandedId(expandedId === id ? null : id);
@@ -76,7 +79,7 @@ export function HistoryClient({ sessions }: HistoryClientProps) {
                         variant={isCompleted ? "secondary" : "destructive"}
                         className="text-[10px]"
                       >
-                        {isCompleted ? "Da xong" : "Da huy"}
+                        {isCompleted ? t("completed") : t("cancelled")}
                       </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground">
@@ -85,11 +88,11 @@ export function HistoryClient({ sessions }: HistoryClientProps) {
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <Users className="h-3 w-3" />
-                        {session.playerCount} choi
+                        {session.playerCount} {t("play")}
                       </span>
                       <span className="flex items-center gap-1">
                         <UtensilsCrossed className="h-3 w-3" />
-                        {session.dinerCount} an
+                        {session.dinerCount} {t("dine")}
                       </span>
                     </div>
                   </div>
@@ -114,22 +117,22 @@ export function HistoryClient({ sessions }: HistoryClientProps) {
                 {/* Cost breakdown */}
                 <div className="space-y-1">
                   <h4 className="text-xs font-semibold uppercase text-muted-foreground">
-                    Chi phi
+                    {t("costBreakdown")}
                   </h4>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                    <span className="text-muted-foreground">San:</span>
+                    <span className="text-muted-foreground">{t("court")}:</span>
                     <span className="text-right">
                       {formatVND(session.courtPrice)}
                     </span>
-                    <span className="text-muted-foreground">Cau:</span>
+                    <span className="text-muted-foreground">{t("shuttlecock")}:</span>
                     <span className="text-right">
                       {formatVND(session.shuttlecockCost)}
                     </span>
-                    <span className="text-muted-foreground">An nhau:</span>
+                    <span className="text-muted-foreground">{t("dining")}:</span>
                     <span className="text-right">
                       {formatVND(session.diningBill)}
                     </span>
-                    <span className="font-medium">Tong:</span>
+                    <span className="font-medium">{t("total")}:</span>
                     <span className="text-right font-medium">
                       {formatVND(session.totalCost)}
                     </span>
@@ -139,7 +142,7 @@ export function HistoryClient({ sessions }: HistoryClientProps) {
                 {/* Attendees */}
                 <div className="space-y-2">
                   <h4 className="text-xs font-semibold uppercase text-muted-foreground">
-                    Nguoi tham gia
+                    {t("participants")}
                   </h4>
                   <div className="space-y-1.5">
                     {session.attendees.map((a) => (
@@ -156,17 +159,17 @@ export function HistoryClient({ sessions }: HistoryClientProps) {
                         )}
                         <span className={cn(a.isGuest && "italic text-muted-foreground")}>
                           {a.name}
-                          {a.isGuest && " (khach)"}
+                          {a.isGuest && ` (${t("guest")})`}
                         </span>
                         <div className="flex gap-1 ml-auto">
                           {a.attendsPlay && (
                             <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                              Choi
+                              {tSessions("play")}
                             </Badge>
                           )}
                           {a.attendsDine && (
                             <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                              An
+                              {tSessions("dine")}
                             </Badge>
                           )}
                         </div>
@@ -180,7 +183,7 @@ export function HistoryClient({ sessions }: HistoryClientProps) {
             {isExpanded && !isCompleted && (
               <div className="border-t px-4 py-3 bg-muted/30">
                 <p className="text-sm text-muted-foreground">
-                  Buoi choi da bi huy.
+                  {t("sessionCancelled")}
                 </p>
               </div>
             )}

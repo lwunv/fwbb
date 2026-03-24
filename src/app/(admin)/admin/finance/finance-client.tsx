@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { TimeFilter } from "@/components/shared/time-filter";
 import { DebtCard, type DebtCardData } from "@/components/finance/debt-card";
@@ -35,6 +36,8 @@ function formatSessionDate(dateStr: string) {
 
 export function AdminFinanceClient({ debts, summary }: AdminFinanceClientProps) {
   const [activeTab, setActiveTab] = useState<"summary" | "debts">("summary");
+  const t = useTranslations("finance");
+  const tStats = useTranslations("stats");
 
   const totalOutstanding = summary.reduce((sum, s) => sum + s.totalOutstanding, 0);
 
@@ -43,7 +46,7 @@ export function AdminFinanceClient({ debts, summary }: AdminFinanceClientProps) 
       {/* Total outstanding */}
       <Card>
         <CardContent className="p-4 text-center">
-          <div className="text-sm text-muted-foreground">Tong cong no chua thu</div>
+          <div className="text-sm text-muted-foreground">{t("outstandingDebt")}</div>
           <div className="text-2xl font-bold text-destructive mt-1">
             {formatVND(totalOutstanding)}
           </div>
@@ -60,7 +63,7 @@ export function AdminFinanceClient({ debts, summary }: AdminFinanceClientProps) 
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          Theo thanh vien
+          {t("byMember")}
         </button>
         <button
           onClick={() => setActiveTab("debts")}
@@ -70,7 +73,7 @@ export function AdminFinanceClient({ debts, summary }: AdminFinanceClientProps) 
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          Chi tiet
+          {t("detail")}
         </button>
       </div>
 
@@ -79,7 +82,7 @@ export function AdminFinanceClient({ debts, summary }: AdminFinanceClientProps) 
         <div className="space-y-2">
           {summary.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground text-sm">
-              Khong co du lieu.
+              {tStats("noData")}
             </div>
           ) : (
             summary.map((s) => (
@@ -91,12 +94,12 @@ export function AdminFinanceClient({ debts, summary }: AdminFinanceClientProps) 
                     <div className="flex gap-2 mt-0.5">
                       {s.totalOutstanding > 0 && (
                         <span className="text-xs text-destructive">
-                          No: {formatVND(s.totalOutstanding)}
+                          {t("owed")}: {formatVND(s.totalOutstanding)}
                         </span>
                       )}
                       {s.totalPaid > 0 && (
                         <span className="text-xs text-muted-foreground">
-                          Da tra: {formatVND(s.totalPaid)}
+                          {t("alreadyPaid")}: {formatVND(s.totalPaid)}
                         </span>
                       )}
                     </div>
@@ -106,7 +109,7 @@ export function AdminFinanceClient({ debts, summary }: AdminFinanceClientProps) 
                       {formatVND(s.totalOutstanding)}
                     </span>
                   ) : (
-                    <Badge variant="default">Het no</Badge>
+                    <Badge variant="default">{t("noDebt")}</Badge>
                   )}
                 </CardContent>
               </Card>
@@ -121,7 +124,7 @@ export function AdminFinanceClient({ debts, summary }: AdminFinanceClientProps) 
           <TimeFilter />
           {debts.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground text-sm">
-              Khong co cong no nao.
+              {t("noDebts")}
             </div>
           ) : (
             <div className="space-y-3">
@@ -147,13 +150,13 @@ export function AdminFinanceClient({ debts, summary }: AdminFinanceClientProps) 
 
                     {/* Row 2: Breakdown */}
                     <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                      {debt.playAmount > 0 && <span>Choi: {formatVND(debt.playAmount)}</span>}
-                      {debt.dineAmount > 0 && <span>An: {formatVND(debt.dineAmount)}</span>}
+                      {debt.playAmount > 0 && <span>{t("play")}: {formatVND(debt.playAmount)}</span>}
+                      {debt.dineAmount > 0 && <span>{t("dine")}: {formatVND(debt.dineAmount)}</span>}
                       {debt.guestPlayAmount > 0 && (
-                        <span>K.choi: {formatVND(debt.guestPlayAmount)}</span>
+                        <span>{t("guestPlay")}: {formatVND(debt.guestPlayAmount)}</span>
                       )}
                       {debt.guestDineAmount > 0 && (
-                        <span>K.an: {formatVND(debt.guestDineAmount)}</span>
+                        <span>{t("guestDine")}: {formatVND(debt.guestDineAmount)}</span>
                       )}
                     </div>
 
@@ -161,11 +164,11 @@ export function AdminFinanceClient({ debts, summary }: AdminFinanceClientProps) 
                     <div className="flex items-center justify-between border-t pt-2">
                       <div className="flex items-center gap-2">
                         {debt.adminConfirmed ? (
-                          <Badge variant="default">Da xac nhan</Badge>
+                          <Badge variant="default">{t("adminConfirmed")}</Badge>
                         ) : debt.memberConfirmed ? (
-                          <Badge variant="secondary">Cho admin</Badge>
+                          <Badge variant="secondary">{t("waitingAdmin")}</Badge>
                         ) : (
-                          <Badge variant="destructive">Chua tra</Badge>
+                          <Badge variant="destructive">{t("unpaid")}</Badge>
                         )}
                       </div>
                       <PaymentActions

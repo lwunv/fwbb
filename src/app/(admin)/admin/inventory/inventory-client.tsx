@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StockCard } from "@/components/inventory/stock-card";
@@ -54,6 +55,8 @@ export function InventoryClient({
   const [activeTab, setActiveTab] = useState<"stock" | "purchases" | "usage">(
     "stock",
   );
+  const t = useTranslations("inventory");
+  const tStats = useTranslations("stats");
 
   const lowStockCount = stock.filter((s) => s.isActive && s.isLowStock).length;
 
@@ -65,7 +68,7 @@ export function InventoryClient({
           <CardContent className="p-3 flex items-center gap-2 bg-destructive/5">
             <Badge variant="destructive">{lowStockCount}</Badge>
             <span className="text-sm">
-              hang cau sap het (duoi 12 qua)
+              {t("lowStockWarning")}
             </span>
           </CardContent>
         </Card>
@@ -81,7 +84,7 @@ export function InventoryClient({
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          Ton kho
+          {t("inventory")}
         </button>
         <button
           onClick={() => setActiveTab("purchases")}
@@ -91,7 +94,7 @@ export function InventoryClient({
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          Nhap mua
+          {t("purchase")}
         </button>
         <button
           onClick={() => setActiveTab("usage")}
@@ -101,7 +104,7 @@ export function InventoryClient({
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          Su dung
+          {t("usage")}
         </button>
       </div>
 
@@ -110,7 +113,7 @@ export function InventoryClient({
         <div className="space-y-3">
           {stock.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground text-sm">
-              Chua co du lieu ton kho.
+              {tStats("noData")}
             </div>
           ) : (
             stock.map((s) => <StockCard key={s.brandId} stock={s} />)
@@ -123,10 +126,10 @@ export function InventoryClient({
         <div className="space-y-4">
           <PurchaseForm brands={brands} />
 
-          <h3 className="font-semibold text-sm">Lich su nhap mua</h3>
+          <h3 className="font-semibold text-sm">{t("purchaseHistory")}</h3>
           {purchases.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground text-sm">
-              Chua co lich su nhap mua.
+              {t("noPurchases")}
             </div>
           ) : (
             <div className="space-y-2">
@@ -138,7 +141,7 @@ export function InventoryClient({
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium">
-                        {p.brand.name} - {p.tubes} ong
+                        {p.brand.name} - {p.tubes} {t("tube")}
                       </div>
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Calendar className="h-3 w-3" />
@@ -160,10 +163,10 @@ export function InventoryClient({
       {/* Usage tab */}
       {activeTab === "usage" && (
         <div className="space-y-2">
-          <h3 className="font-semibold text-sm">Lich su su dung</h3>
+          <h3 className="font-semibold text-sm">{t("usageHistory")}</h3>
           {usage.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground text-sm">
-              Chua co lich su su dung.
+              {t("noUsage")}
             </div>
           ) : (
             usage.map((u) => (
@@ -174,7 +177,7 @@ export function InventoryClient({
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium">
-                      {u.brand.name} - {u.quantityUsed} qua
+                      {u.brand.name} - {u.quantityUsed} {t("piece")}
                     </div>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Calendar className="h-3 w-3" />
@@ -182,7 +185,7 @@ export function InventoryClient({
                     </div>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {formatVND(u.quantityUsed * (u.pricePerTube / 12))}/tong
+                    {formatVND(u.quantityUsed * (u.pricePerTube / 12))}
                   </div>
                 </CardContent>
               </Card>

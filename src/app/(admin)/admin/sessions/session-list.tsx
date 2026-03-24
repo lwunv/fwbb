@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { createSessionManually } from "@/actions/sessions";
 import { formatVND } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -26,21 +27,15 @@ type Session = InferSelectModel<typeof sessionsTable> & {
   court: InferSelectModel<typeof courtsTable> | null;
 };
 
-const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  voting: { label: "Dang vote", variant: "outline" },
-  confirmed: { label: "Da xac nhan", variant: "default" },
-  completed: { label: "Hoan thanh", variant: "secondary" },
-  cancelled: { label: "Da huy", variant: "destructive" },
-};
-
 export function SessionList({ sessions }: { sessions: Session[] }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [error, setError] = useState("");
+  const t = useTranslations("sessions");
 
   async function handleCreate(formData: FormData) {
     const date = formData.get("date") as string;
     if (!date) {
-      setError("Vui long chon ngay");
+      setError(t("pleaseSelectDate"));
       return;
     }
     const result = await createSessionManually(date);
@@ -64,7 +59,7 @@ export function SessionList({ sessions }: { sessions: Session[] }) {
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <p className="text-muted-foreground">{sessions.length} buoi choi</p>
+        <p className="text-muted-foreground">{t("sessionsCount", { count: sessions.length })}</p>
         <Dialog
           open={dialogOpen}
           onOpenChange={(open) => {
@@ -73,15 +68,15 @@ export function SessionList({ sessions }: { sessions: Session[] }) {
           }}
         >
           <DialogTrigger render={<Button />}>
-            <Plus className="h-4 w-4 mr-2" /> Tao buoi choi
+            <Plus className="h-4 w-4 mr-2" /> {t("createSession")}
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Tao buoi choi moi</DialogTitle>
+              <DialogTitle>{t("createSessionTitle")}</DialogTitle>
             </DialogHeader>
             <form action={handleCreate} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="date">Ngay</Label>
+                <Label htmlFor="date">{t("date")}</Label>
                 <Input
                   id="date"
                   name="date"
@@ -93,7 +88,7 @@ export function SessionList({ sessions }: { sessions: Session[] }) {
                 <p className="text-sm text-destructive">{error}</p>
               )}
               <Button type="submit" className="w-full">
-                Tao
+                {t("create")}
               </Button>
             </form>
           </DialogContent>
@@ -102,6 +97,12 @@ export function SessionList({ sessions }: { sessions: Session[] }) {
 
       <div className="grid gap-3">
         {sessions.map((session) => {
+          const statusConfig: Record<string, { labelKey: "voting" | "confirmed" | "completed" | "cancelled"; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+            voting: { labelKey: "voting", variant: "outline" },
+            confirmed: { labelKey: "confirmed", variant: "default" },
+            completed: { labelKey: "completed", variant: "secondary" },
+            cancelled: { labelKey: "cancelled", variant: "destructive" },
+          };
           const status = statusConfig[session.status ?? "voting"];
           return (
             <Link key={session.id} href={`/admin/sessions/${session.id}`}>
@@ -135,7 +136,7 @@ export function SessionList({ sessions }: { sessions: Session[] }) {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant={status.variant}>{status.label}</Badge>
+                    <Badge variant={status.variant}>{t(status.labelKey)}</Badge>
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </div>
                 </CardContent>
@@ -146,7 +147,7 @@ export function SessionList({ sessions }: { sessions: Session[] }) {
 
         {sessions.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">
-            Chua co buoi choi nao
+            {t("noSessions")}
           </div>
         )}
       </div>

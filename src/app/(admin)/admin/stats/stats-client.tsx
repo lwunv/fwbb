@@ -1,6 +1,7 @@
 "use client";
 
 import { NuqsAdapter } from "nuqs/adapters/next/app";
+import { useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TimeFilter } from "@/components/shared/time-filter";
 import { ActiveMembersChart } from "@/components/stats/active-members-chart";
@@ -19,6 +20,8 @@ export function StatsClient({
   monthlyExpenses,
   attendance,
 }: StatsClientProps) {
+  const t = useTranslations("stats");
+
   return (
     <NuqsAdapter>
       <div className="space-y-6">
@@ -26,7 +29,7 @@ export function StatsClient({
 
         <Card>
           <CardHeader>
-            <CardTitle>Thanh vien tich cuc</CardTitle>
+            <CardTitle>{t("activeMembers")}</CardTitle>
           </CardHeader>
           <CardContent>
             <ActiveMembersChart data={activeMembers} />
@@ -35,7 +38,7 @@ export function StatsClient({
 
         <Card>
           <CardHeader>
-            <CardTitle>Chi phi hang thang</CardTitle>
+            <CardTitle>{t("monthlyCost")}</CardTitle>
           </CardHeader>
           <CardContent>
             <MonthlyExpensesChart data={monthlyExpenses} />
@@ -44,7 +47,7 @@ export function StatsClient({
 
         <Card>
           <CardHeader>
-            <CardTitle>Xu huong diem danh</CardTitle>
+            <CardTitle>{t("attendanceTrend")}</CardTitle>
           </CardHeader>
           <CardContent>
             <AttendanceChart data={attendance} />

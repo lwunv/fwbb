@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
+import { useTranslations } from "next-intl";
 import type { AttendancePoint } from "@/actions/stats";
 
 interface AttendanceChartProps {
@@ -22,6 +23,8 @@ function formatDate(dateStr: string): string {
 }
 
 export function AttendanceChart({ data }: AttendanceChartProps) {
+  const t = useTranslations("stats");
+
   const chartData = data.map((item) => ({
     ...item,
     label: formatDate(item.date),
@@ -37,7 +40,7 @@ export function AttendanceChart({ data }: AttendanceChartProps) {
   if (chartData.length === 0) {
     return (
       <div className="flex items-center justify-center h-[300px] text-muted-foreground text-sm">
-        Chua co du lieu
+        {t("noData")}
       </div>
     );
   }
@@ -45,7 +48,7 @@ export function AttendanceChart({ data }: AttendanceChartProps) {
   return (
     <div className="space-y-2">
       <div className="text-xs text-muted-foreground">
-        Trung binh: {avgPlayers} nguoi/buoi
+        {t("average")}: {avgPlayers} {t("peoplePerSession")}
       </div>
       <ResponsiveContainer width="100%" height={300}>
         <LineChart
@@ -68,19 +71,19 @@ export function AttendanceChart({ data }: AttendanceChartProps) {
             }}
             formatter={(value, name) => {
               const labels: Record<string, string> = {
-                playerCount: "Nguoi choi",
-                dinerCount: "Nguoi an",
+                playerCount: t("players"),
+                dinerCount: t("diners"),
               };
-              return [`${value} nguoi`, labels[String(name)] || String(name)];
+              return [`${value} ${t("people")}`, labels[String(name)] || String(name)];
             }}
-            labelFormatter={(label) => `Ngay ${label}`}
+            labelFormatter={(label) => `${t("dateLabel")} ${label}`}
           />
           <ReferenceLine
             y={avgPlayers}
             stroke="var(--color-muted-foreground, #94a3b8)"
             strokeDasharray="3 3"
             label={{
-              value: `TB: ${avgPlayers}`,
+              value: `${t("avgShort")}: ${avgPlayers}`,
               position: "right",
               fontSize: 10,
               fill: "var(--color-muted-foreground, #94a3b8)",
@@ -108,11 +111,11 @@ export function AttendanceChart({ data }: AttendanceChartProps) {
       <div className="flex gap-4 justify-center text-xs text-muted-foreground">
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-0.5 bg-[var(--color-chart-1,#6366f1)]" />
-          Nguoi choi
+          {t("players")}
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-0.5 bg-[var(--color-chart-3,#10b981)] border-dashed" style={{ borderTop: "2px dashed var(--color-chart-3, #10b981)", height: 0 }} />
-          Nguoi an
+          {t("diners")}
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useTheme } from "next-themes";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { Sun, Moon, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,14 +14,9 @@ const themeIcons = {
   pink: Heart,
 };
 
-const themeLabels = {
-  light: "Sang",
-  dark: "Toi",
-  pink: "Hong",
-};
-
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
+  const t = useTranslations("themes");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -51,11 +47,11 @@ export function ThemeToggle() {
       variant="ghost"
       size="icon"
       onClick={cycle}
-      title={`Giao dien: ${themeLabels[currentTheme]} (bam de doi sang ${themeLabels[nextTheme]})`}
+      title={`${t(currentTheme)} → ${t(nextTheme)}`}
     >
       <Icon className="h-4 w-4" />
       <span className="sr-only">
-        Doi giao dien sang {themeLabels[nextTheme]}
+        {t(nextTheme)}
       </span>
     </Button>
   );

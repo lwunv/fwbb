@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -74,6 +75,8 @@ export function FinalizeSession({
   const [step, setStep] = useState<Step>("players");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const t = useTranslations("finalize");
+  const tCommon = useTranslations("common");
 
   // Initialize from votes
   const votedPlayerIds = new Set(votes.filter((v) => v.willPlay).map((v) => v.memberId));
@@ -87,7 +90,7 @@ export function FinalizeSession({
     for (const v of votes) {
       for (let i = 0; i < (v.guestPlayCount ?? 0); i++) {
         initial.push({
-          name: `Khach ${i + 1} (${v.member.name})`,
+          name: `${t("guests")} ${i + 1} (${v.member.name})`,
           invitedById: v.memberId,
           invitedByName: v.member.name,
           attendsPlay: true,
@@ -107,7 +110,7 @@ export function FinalizeSession({
           existingPlayGuest.attendsDine = true;
         } else {
           initial.push({
-            name: `Khach an ${i + 1} (${v.member.name})`,
+            name: `${t("guestDine")} ${i + 1} (${v.member.name})`,
             invitedById: v.memberId,
             invitedByName: v.member.name,
             attendsPlay: false,
@@ -253,11 +256,11 @@ export function FinalizeSession({
   }
 
   const steps: { key: Step; label: string; icon: React.ReactNode }[] = [
-    { key: "players", label: "Nguoi choi", icon: <Users className="h-4 w-4" /> },
-    { key: "diners", label: "Nguoi an", icon: <UtensilsCrossed className="h-4 w-4" /> },
-    { key: "guests", label: "Khach", icon: <Plus className="h-4 w-4" /> },
-    { key: "dining-bill", label: "Tien an", icon: <Calculator className="h-4 w-4" /> },
-    { key: "preview", label: "Xac nhan", icon: <CheckCircle className="h-4 w-4" /> },
+    { key: "players", label: t("players"), icon: <Users className="h-4 w-4" /> },
+    { key: "diners", label: t("diners"), icon: <UtensilsCrossed className="h-4 w-4" /> },
+    { key: "guests", label: t("guests"), icon: <Plus className="h-4 w-4" /> },
+    { key: "dining-bill", label: t("diningBill"), icon: <Calculator className="h-4 w-4" /> },
+    { key: "preview", label: t("confirm"), icon: <CheckCircle className="h-4 w-4" /> },
   ];
 
   const currentStepIndex = steps.findIndex((s) => s.key === step);
@@ -303,7 +306,7 @@ export function FinalizeSession({
           <CardContent className="p-4 space-y-3">
             <h3 className="font-semibold flex items-center gap-2">
               <Users className="h-4 w-4" />
-              Chon nguoi choi ({playerIds.size})
+              {t("selectPlayers")} ({playerIds.size})
             </h3>
             <div className="space-y-2 max-h-80 overflow-y-auto">
               {members.map((m) => (
@@ -321,7 +324,7 @@ export function FinalizeSession({
                   <span className="text-sm font-medium">{m.name}</span>
                   {votedPlayerIds.has(m.id) && (
                     <Badge variant="outline" className="ml-auto text-xs">
-                      Da vote
+                      {t("voted")}
                     </Badge>
                   )}
                 </label>
@@ -337,7 +340,7 @@ export function FinalizeSession({
           <CardContent className="p-4 space-y-3">
             <h3 className="font-semibold flex items-center gap-2">
               <UtensilsCrossed className="h-4 w-4" />
-              Chon nguoi an ({dinerIds.size})
+              {t("selectDiners")} ({dinerIds.size})
             </h3>
             <div className="space-y-2 max-h-80 overflow-y-auto">
               {members.map((m) => (
@@ -355,7 +358,7 @@ export function FinalizeSession({
                   <span className="text-sm font-medium">{m.name}</span>
                   {votedDinerIds.has(m.id) && (
                     <Badge variant="outline" className="ml-auto text-xs">
-                      Da vote
+                      {t("voted")}
                     </Badge>
                   )}
                 </label>
@@ -371,7 +374,7 @@ export function FinalizeSession({
           <CardContent className="p-4 space-y-4">
             <h3 className="font-semibold flex items-center gap-2">
               <Plus className="h-4 w-4" />
-              Khach giao luu ({guests.length})
+              {t("guestExchange")} ({guests.length})
             </h3>
 
             {/* Existing guests */}
@@ -388,10 +391,10 @@ export function FinalizeSession({
                     </span>
                     <div className="flex gap-1">
                       {g.attendsPlay && (
-                        <Badge variant="outline" className="text-xs">Choi</Badge>
+                        <Badge variant="outline" className="text-xs">{t("play")}</Badge>
                       )}
                       {g.attendsDine && (
-                        <Badge variant="outline" className="text-xs">An</Badge>
+                        <Badge variant="outline" className="text-xs">{t("dine")}</Badge>
                       )}
                     </div>
                     <button
@@ -409,21 +412,21 @@ export function FinalizeSession({
             <div className="space-y-3 border-t pt-3">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <Label className="text-xs">Ten khach</Label>
+                  <Label className="text-xs">{t("guestName")}</Label>
                   <Input
                     value={newGuestName}
                     onChange={(e) => setNewGuestName(e.target.value)}
-                    placeholder="Nhap ten..."
+                    placeholder={t("enterName")}
                   />
                 </div>
                 <div>
-                  <Label className="text-xs">Nguoi moi</Label>
+                  <Label className="text-xs">{t("invitedBy")}</Label>
                   <select
                     value={newGuestInviterId ?? ""}
                     onChange={(e) => setNewGuestInviterId(Number(e.target.value) || null)}
                     className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
                   >
-                    <option value="">Chon...</option>
+                    <option value="">{t("select")}</option>
                     {members.map((m) => (
                       <option key={m.id} value={m.id}>
                         {m.name}
@@ -440,7 +443,7 @@ export function FinalizeSession({
                     onChange={(e) => setNewGuestPlays(e.target.checked)}
                     className="h-4 w-4 rounded accent-primary"
                   />
-                  Choi cau
+                  {t("playBadminton")}
                 </label>
                 <label className="flex items-center gap-2 text-sm">
                   <input
@@ -449,7 +452,7 @@ export function FinalizeSession({
                     onChange={(e) => setNewGuestDines(e.target.checked)}
                     className="h-4 w-4 rounded accent-primary"
                   />
-                  An nhau
+                  {t("dineOut")}
                 </label>
               </div>
               <Button
@@ -459,7 +462,7 @@ export function FinalizeSession({
                 variant="outline"
               >
                 <Plus className="h-3 w-3 mr-1" />
-                Them khach
+                {t("addGuest")}
               </Button>
             </div>
           </CardContent>
@@ -472,10 +475,10 @@ export function FinalizeSession({
           <CardContent className="p-4 space-y-3">
             <h3 className="font-semibold flex items-center gap-2">
               <Calculator className="h-4 w-4" />
-              Tien an nhau
+              {t("diningBillTitle")}
             </h3>
             <div>
-              <Label>Tong tien an (VND)</Label>
+              <Label>{t("totalDiningVND")}</Label>
               <Input
                 type="number"
                 value={diningBill || ""}
@@ -491,7 +494,7 @@ export function FinalizeSession({
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Nhap 0 neu khong co an nhau.
+              {t("enterZeroIfNone")}
             </p>
           </CardContent>
         </Card>
@@ -503,27 +506,27 @@ export function FinalizeSession({
           {/* Summary */}
           <Card>
             <CardContent className="p-4 space-y-3">
-              <h3 className="font-semibold">Tong ket chi phi</h3>
+              <h3 className="font-semibold">{t("costSummary")}</h3>
               <div className="grid grid-cols-2 gap-2 text-sm">
-                <span className="text-muted-foreground">Tien san:</span>
+                <span className="text-muted-foreground">{t("courtCost")}:</span>
                 <span className="text-right font-medium">{formatVND(preview.courtPrice)}</span>
-                <span className="text-muted-foreground">Tien cau:</span>
+                <span className="text-muted-foreground">{t("shuttlecockCost")}:</span>
                 <span className="text-right font-medium">{formatVND(preview.totalShuttlecockCost)}</span>
-                <span className="text-muted-foreground">Tien an:</span>
+                <span className="text-muted-foreground">{t("diningCost")}:</span>
                 <span className="text-right font-medium">{formatVND(preview.diningBill)}</span>
               </div>
               <div className="border-t pt-2 grid grid-cols-2 gap-2 text-sm">
-                <span className="text-muted-foreground">So nguoi choi:</span>
+                <span className="text-muted-foreground">{t("playerCount")}:</span>
                 <span className="text-right font-medium">{preview.totalPlayers}</span>
-                <span className="text-muted-foreground">So nguoi an:</span>
+                <span className="text-muted-foreground">{t("dinerCount")}:</span>
                 <span className="text-right font-medium">{preview.totalDiners}</span>
               </div>
               <div className="border-t pt-2 grid grid-cols-2 gap-2 text-sm">
-                <span className="text-muted-foreground">Tien choi/nguoi:</span>
+                <span className="text-muted-foreground">{t("costPerPlayer")}:</span>
                 <span className="text-right font-medium text-primary">
                   {formatVND(preview.playCostPerHead)}
                 </span>
-                <span className="text-muted-foreground">Tien an/nguoi:</span>
+                <span className="text-muted-foreground">{t("costPerDiner")}:</span>
                 <span className="text-right font-medium text-primary">
                   {formatVND(preview.dineCostPerHead)}
                 </span>
@@ -534,7 +537,7 @@ export function FinalizeSession({
           {/* Per-member breakdown */}
           <Card>
             <CardContent className="p-4 space-y-3">
-              <h3 className="font-semibold">Chi tiet cong no</h3>
+              <h3 className="font-semibold">{t("debtDetail")}</h3>
               <div className="space-y-3">
                 {preview.memberDebts.map((debt) => {
                   const member = members.find((m) => m.id === debt.memberId);
@@ -550,16 +553,16 @@ export function FinalizeSession({
                         </div>
                         <div className="text-xs text-muted-foreground space-y-0.5 mt-1">
                           {debt.playAmount > 0 && (
-                            <div>Choi: {formatVND(debt.playAmount)}</div>
+                            <div>{t("play")}: {formatVND(debt.playAmount)}</div>
                           )}
                           {debt.dineAmount > 0 && (
-                            <div>An: {formatVND(debt.dineAmount)}</div>
+                            <div>{t("dine")}: {formatVND(debt.dineAmount)}</div>
                           )}
                           {debt.guestPlayAmount > 0 && (
-                            <div>Khach choi: {formatVND(debt.guestPlayAmount)}</div>
+                            <div>{t("guestPlay")}: {formatVND(debt.guestPlayAmount)}</div>
                           )}
                           {debt.guestDineAmount > 0 && (
-                            <div>Khach an: {formatVND(debt.guestDineAmount)}</div>
+                            <div>{t("guestDine")}: {formatVND(debt.guestDineAmount)}</div>
                           )}
                         </div>
                       </div>
@@ -580,12 +583,12 @@ export function FinalizeSession({
         {currentStepIndex > 0 && (
           <Button variant="outline" onClick={goPrev} className="flex-1">
             <ChevronLeft className="h-4 w-4 mr-1" />
-            Quay lai
+            {t("back")}
           </Button>
         )}
         {currentStepIndex < steps.length - 1 && (
           <Button onClick={goNext} className="flex-1">
-            Tiep theo
+            {t("next")}
             <ChevronRight className="h-4 w-4 ml-1" />
           </Button>
         )}
@@ -596,7 +599,7 @@ export function FinalizeSession({
             className="flex-1"
           >
             <CheckCircle className="h-4 w-4 mr-2" />
-            {isLoading ? "Dang xu ly..." : "Hoan thanh buoi choi"}
+            {isLoading ? tCommon("processing") : t("completeSession")}
           </Button>
         )}
       </div>

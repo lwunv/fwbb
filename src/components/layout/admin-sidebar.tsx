@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -17,18 +18,19 @@ import {
 import { logout } from "@/actions/auth";
 
 const navItems = [
-  { href: "/admin/dashboard", label: "Tong quan", icon: LayoutDashboard },
-  { href: "/admin/sessions", label: "Buoi choi", icon: Calendar },
-  { href: "/admin/members", label: "Thanh vien", icon: Users },
-  { href: "/admin/courts", label: "San", icon: MapPin },
-  { href: "/admin/shuttlecocks", label: "Hang cau", icon: CircleDot },
-  { href: "/admin/inventory", label: "Ton kho", icon: Package },
-  { href: "/admin/finance", label: "Tai chinh", icon: DollarSign },
-  { href: "/admin/stats", label: "Thong ke", icon: BarChart3 },
+  { href: "/admin/dashboard", labelKey: "dashboard" as const, icon: LayoutDashboard },
+  { href: "/admin/sessions", labelKey: "sessions" as const, icon: Calendar },
+  { href: "/admin/members", labelKey: "members" as const, icon: Users },
+  { href: "/admin/courts", labelKey: "courts" as const, icon: MapPin },
+  { href: "/admin/shuttlecocks", labelKey: "shuttlecocks" as const, icon: CircleDot },
+  { href: "/admin/inventory", labelKey: "inventory" as const, icon: Package },
+  { href: "/admin/finance", labelKey: "finance" as const, icon: DollarSign },
+  { href: "/admin/stats", labelKey: "stats" as const, icon: BarChart3 },
 ];
 
 export function AdminSidebar() {
   const pathname = usePathname();
+  const t = useTranslations("adminNav");
 
   return (
     <aside className="hidden lg:flex lg:w-60 lg:flex-col lg:fixed lg:inset-y-0 border-r bg-card">
@@ -48,7 +50,7 @@ export function AdminSidebar() {
             )}
           >
             <item.icon className="h-4 w-4" />
-            {item.label}
+            {t(item.labelKey)}
           </Link>
         ))}
       </nav>
@@ -59,7 +61,7 @@ export function AdminSidebar() {
             className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium w-full hover:bg-accent transition-colors"
           >
             <LogOut className="h-4 w-4" />
-            Dang xuat
+            {t("logout")}
           </button>
         </form>
       </div>

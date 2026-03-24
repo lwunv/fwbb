@@ -11,16 +11,11 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import type { ActiveMemberStat } from "@/actions/stats";
 
 type ViewMode = "play" | "dine" | "both";
-
-const viewLabels: Record<ViewMode, string> = {
-  play: "Choi cau",
-  dine: "An nhau",
-  both: "Ca hai",
-};
 
 interface ActiveMembersChartProps {
   data: ActiveMemberStat[];
@@ -36,6 +31,13 @@ const CHART_COLORS = [
 
 export function ActiveMembersChart({ data }: ActiveMembersChartProps) {
   const [mode, setMode] = useState<ViewMode>("play");
+  const t = useTranslations("stats");
+
+  const viewLabels: Record<ViewMode, string> = {
+    play: t("playBadminton"),
+    dine: t("dining"),
+    both: t("both"),
+  };
 
   const getValue = (item: ActiveMemberStat) => {
     switch (mode) {
@@ -79,7 +81,7 @@ export function ActiveMembersChart({ data }: ActiveMembersChartProps) {
 
       {chartData.length === 0 ? (
         <div className="flex items-center justify-center h-[300px] text-muted-foreground text-sm">
-          Chua co du lieu
+          {t("noData")}
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={Math.max(300, chartData.length * 40)}>
@@ -103,7 +105,7 @@ export function ActiveMembersChart({ data }: ActiveMembersChartProps) {
                 borderRadius: "8px",
                 color: "var(--color-popover-foreground, #1e293b)",
               }}
-              formatter={(value) => [`${value} buoi`, viewLabels[mode]]}
+              formatter={(value) => [`${value} ${t("sessionsUnit")}`, viewLabels[mode]]}
             />
             <Bar dataKey="value" radius={[0, 4, 4, 0]}>
               {chartData.map((_, index) => (

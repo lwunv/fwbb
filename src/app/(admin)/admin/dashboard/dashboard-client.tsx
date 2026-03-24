@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
 import { vi } from "date-fns/locale";
+import { useTranslations } from "next-intl";
 import {
   Card,
   CardContent,
@@ -75,6 +76,9 @@ export function DashboardClient({
   upcomingSession,
   recentPayments,
 }: DashboardClientProps) {
+  const tf = useTranslations("finance");
+  const td = useTranslations("dashboard");
+
   return (
     <div className="space-y-6">
       {/* Stat Cards */}
@@ -87,7 +91,7 @@ export function DashboardClient({
               </div>
               <div className="min-w-0">
                 <p className="text-[11px] text-muted-foreground truncate">
-                  No chua thu
+                  {tf("outstandingDebt")}
                 </p>
                 <p className="text-sm font-bold">
                   {formatVND(totalOutstanding)}
@@ -105,14 +109,14 @@ export function DashboardClient({
               </div>
               <div className="min-w-0">
                 <p className="text-[11px] text-muted-foreground truncate">
-                  Ton kho cau
+                  {tf("shuttleStock")}
                 </p>
                 {lowStockWarning ? (
                   <p className="text-sm font-bold text-amber-600">
-                    {lowStockCount} hang thap
+                    {tf("lowStockCount", { count: lowStockCount })}
                   </p>
                 ) : (
-                  <p className="text-sm font-bold text-green-600">Du</p>
+                  <p className="text-sm font-bold text-green-600">{tf("sufficient")}</p>
                 )}
               </div>
             </div>
@@ -127,7 +131,7 @@ export function DashboardClient({
               </div>
               <div className="min-w-0">
                 <p className="text-[11px] text-muted-foreground truncate">
-                  Thanh vien
+                  {td("members")}
                 </p>
                 <p className="text-sm font-bold">{activeMembersCount}</p>
               </div>
@@ -143,7 +147,7 @@ export function DashboardClient({
               </div>
               <div className="min-w-0">
                 <p className="text-[11px] text-muted-foreground truncate">
-                  Buoi thang nay
+                  {td("sessionsThisMonth")}
                 </p>
                 <p className="text-sm font-bold">{sessionsThisMonth}</p>
               </div>
@@ -160,12 +164,12 @@ export function DashboardClient({
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-amber-500" />
                 <span className="text-sm">
-                  Cau sap het: <strong>{lowStockWarning}</strong>
+                  {tf("shuttleRunningLow")}: <strong>{lowStockWarning}</strong>
                 </span>
               </div>
               <Link href="/admin/inventory">
                 <Button variant="ghost" size="sm">
-                  Xem
+                  {tf("view")}
                   <ArrowRight className="h-3 w-3 ml-1" />
                 </Button>
               </Link>
@@ -178,7 +182,7 @@ export function DashboardClient({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Buoi choi sap toi</span>
+            <span>{td("upcomingSession")}</span>
             {upcomingSession && (
               <Badge variant="outline">{upcomingSession.status}</Badge>
             )}
@@ -203,20 +207,20 @@ export function DashboardClient({
                 <div className="flex items-center gap-2 text-sm">
                   <MapPin className="h-4 w-4 text-muted-foreground" />
                   <span>
-                    {upcomingSession.courtName || "Chua chon san"}
+                    {upcomingSession.courtName || td("courtNotSelected")}
                   </span>
                 </div>
               </div>
               <Link href={`/admin/sessions/${upcomingSession.id}`}>
                 <Button size="sm" className="w-full">
-                  Quan ly buoi choi
+                  {td("manageSession")}
                   <ArrowRight className="h-3 w-3 ml-1" />
                 </Button>
               </Link>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Khong co buoi choi sap toi.
+              {td("noUpcoming")}
             </p>
           )}
         </CardContent>
@@ -226,10 +230,10 @@ export function DashboardClient({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Thanh toan gan day</span>
+            <span>{tf("recentPayments")}</span>
             <Link href="/admin/finance">
               <Button variant="ghost" size="sm">
-                Xem tat ca
+                {tf("viewAll")}
                 <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
             </Link>
@@ -238,7 +242,7 @@ export function DashboardClient({
         <CardContent>
           {recentPayments.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Chua co thanh toan nao.
+              {tf("noPayments")}
             </p>
           ) : (
             <div className="space-y-2">
@@ -254,7 +258,7 @@ export function DashboardClient({
                         {p.memberName}
                       </p>
                       <p className="text-[11px] text-muted-foreground">
-                        Buoi {formatDateShort(p.sessionDate)}
+                        {tf("session")} {formatDateShort(p.sessionDate)}
                       </p>
                     </div>
                   </div>
@@ -274,7 +278,7 @@ export function DashboardClient({
           <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
             <CardContent className="p-4 flex items-center gap-3">
               <CalendarDays className="h-5 w-5 text-primary" />
-              <span className="text-sm font-medium">Quan ly buoi choi</span>
+              <span className="text-sm font-medium">{td("manageSessions")}</span>
             </CardContent>
           </Card>
         </Link>
@@ -282,7 +286,7 @@ export function DashboardClient({
           <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
             <CardContent className="p-4 flex items-center gap-3">
               <Wallet className="h-5 w-5 text-primary" />
-              <span className="text-sm font-medium">Tai chinh</span>
+              <span className="text-sm font-medium">{td("financeLink")}</span>
             </CardContent>
           </Card>
         </Link>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { useTranslations } from "next-intl";
 import { changePassword } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,20 +18,21 @@ export function PasswordChangeForm() {
   const [state, formAction, isPending] = useActionState(changePassword, null);
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
+  const t = useTranslations("passwordChange");
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Lock className="h-5 w-5" />
-          Doi mat khau
+          {t("title")}
         </CardTitle>
       </CardHeader>
       <CardContent>
         {state?.success ? (
           <div className="flex items-center gap-2 text-green-600 text-sm py-2">
             <Check className="h-4 w-4" />
-            Doi mat khau thanh cong!
+            {t("success")}
           </div>
         ) : (
           <form action={formAction} className="space-y-3">
@@ -41,7 +43,7 @@ export function PasswordChangeForm() {
             )}
 
             <div className="space-y-1.5">
-              <Label htmlFor="currentPassword">Mat khau hien tai</Label>
+              <Label htmlFor="currentPassword">{t("currentPassword")}</Label>
               <div className="relative">
                 <Input
                   id="currentPassword"
@@ -65,7 +67,7 @@ export function PasswordChangeForm() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="newPassword">Mat khau moi</Label>
+              <Label htmlFor="newPassword">{t("newPassword")}</Label>
               <div className="relative">
                 <Input
                   id="newPassword"
@@ -90,7 +92,7 @@ export function PasswordChangeForm() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="confirmPassword">Xac nhan mat khau moi</Label>
+              <Label htmlFor="confirmPassword">{t("confirmPassword")}</Label>
               <Input
                 id="confirmPassword"
                 name="confirmPassword"
@@ -102,7 +104,7 @@ export function PasswordChangeForm() {
             </div>
 
             <Button type="submit" disabled={isPending} className="w-full">
-              {isPending ? "Dang xu ly..." : "Doi mat khau"}
+              {isPending ? t("processing") : t("submit")}
             </Button>
           </form>
         )}

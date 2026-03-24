@@ -4,10 +4,14 @@ import { eq, and, gte, desc, or, ne } from "drizzle-orm";
 import { getDebtSummary } from "@/actions/finance";
 import { checkLowStock } from "@/actions/inventory";
 import { getNextSession } from "@/actions/sessions";
+import { getTranslations } from "next-intl/server";
 import { DashboardClient } from "./dashboard-client";
 import { PasswordChangeForm } from "./password-change-form";
 
 export default async function DashboardPage() {
+  const t = await getTranslations("dashboard");
+  const tInv = await getTranslations("inventory");
+
   // 1. Total outstanding debt
   const allDebts = await db.query.sessionDebts.findMany();
   const totalOutstanding = allDebts
@@ -64,12 +68,12 @@ export default async function DashboardPage() {
 
   const lowStockWarning =
     lowStockItems.length > 0
-      ? `${lowStockItems[0].brandName}: ${lowStockItems[0].ong} ong ${lowStockItems[0].qua} qua`
+      ? `${lowStockItems[0].brandName}: ${lowStockItems[0].ong} ${tInv("tube")} ${lowStockItems[0].qua} ${tInv("piece")}`
       : null;
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Tong quan</h1>
+      <h1 className="text-2xl font-bold">{t("overview")}</h1>
       <DashboardClient
         totalOutstanding={totalOutstanding}
         lowStockWarning={lowStockWarning}

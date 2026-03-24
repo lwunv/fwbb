@@ -6,6 +6,7 @@ import { formatVND } from "@/lib/utils";
 import { Calendar, Clock, MapPin, Users } from "lucide-react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
+import { useTranslations } from "next-intl";
 
 interface SessionCardProps {
   date: string;
@@ -20,13 +21,6 @@ interface SessionCardProps {
   guestDineCount: number;
 }
 
-const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  voting: { label: "Dang vote", variant: "outline" },
-  confirmed: { label: "Da xac nhan", variant: "default" },
-  completed: { label: "Hoan thanh", variant: "secondary" },
-  cancelled: { label: "Da huy", variant: "destructive" },
-};
-
 export function SessionCard({
   date,
   startTime,
@@ -39,6 +33,15 @@ export function SessionCard({
   guestPlayCount,
   guestDineCount,
 }: SessionCardProps) {
+  const t = useTranslations("sessions");
+
+  const statusConfig: Record<string, { labelKey: "voting" | "confirmed" | "completed" | "cancelled"; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+    voting: { labelKey: "voting", variant: "outline" },
+    confirmed: { labelKey: "confirmed", variant: "default" },
+    completed: { labelKey: "completed", variant: "secondary" },
+    cancelled: { labelKey: "cancelled", variant: "destructive" },
+  };
+
   const statusInfo = statusConfig[status ?? "voting"];
 
   function formatSessionDate(dateStr: string) {
@@ -57,7 +60,7 @@ export function SessionCard({
           <h2 className="font-bold text-lg capitalize">
             {formatSessionDate(date)}
           </h2>
-          <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+          <Badge variant={statusInfo.variant}>{t(statusInfo.labelKey)}</Badge>
         </div>
 
         <div className="space-y-2 text-sm">
@@ -82,12 +85,12 @@ export function SessionCard({
             <Users className="h-4 w-4 text-muted-foreground" />
             <div className="flex gap-4">
               <span>
-                Choi: <strong>{playerCount}</strong>
-                {guestPlayCount > 0 && <span className="text-muted-foreground"> +{guestPlayCount} khach</span>}
+                {t("badminton")}: <strong>{playerCount}</strong> {t("people")}
+                {guestPlayCount > 0 && <span className="text-muted-foreground"> +{guestPlayCount} {t("guest")}</span>}
               </span>
               <span>
-                An: <strong>{dinerCount}</strong>
-                {guestDineCount > 0 && <span className="text-muted-foreground"> +{guestDineCount} khach</span>}
+                {t("dining")}: <strong>{dinerCount}</strong> {t("people")}
+                {guestDineCount > 0 && <span className="text-muted-foreground"> +{guestDineCount} {t("guest")}</span>}
               </span>
             </div>
           </div>

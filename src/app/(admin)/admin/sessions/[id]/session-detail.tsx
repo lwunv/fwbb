@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { confirmSession, cancelSession } from "@/actions/sessions";
 import { formatVND } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -38,13 +39,6 @@ type Court = InferSelectModel<typeof courtsTable>;
 type Brand = InferSelectModel<typeof brandsTable>;
 type Member = InferSelectModel<typeof membersTable>;
 
-const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  voting: { label: "Dang vote", variant: "outline" },
-  confirmed: { label: "Da xac nhan", variant: "default" },
-  completed: { label: "Hoan thanh", variant: "secondary" },
-  cancelled: { label: "Da huy", variant: "destructive" },
-};
-
 export function SessionDetail({
   session,
   votes,
@@ -60,6 +54,16 @@ export function SessionDetail({
 }) {
   const [actionError, setActionError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const t = useTranslations("sessions");
+  const tDetail = useTranslations("sessionDetail");
+
+  const statusConfig: Record<string, { labelKey: "voting" | "confirmed" | "completed" | "cancelled"; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+    voting: { labelKey: "voting", variant: "outline" },
+    confirmed: { labelKey: "confirmed", variant: "default" },
+    completed: { labelKey: "completed", variant: "secondary" },
+    cancelled: { labelKey: "cancelled", variant: "destructive" },
+  };
+
   const status = statusConfig[session.status ?? "voting"];
 
   function formatSessionDate(dateStr: string) {
@@ -82,7 +86,7 @@ export function SessionDetail({
   }
 
   async function handleCancel() {
-    if (!confirm("Ban co chac muon huy buoi choi nay?")) return;
+    if (!confirm(t("cancelConfirm"))) return;
     setIsLoading(true);
     setActionError("");
     const result = await cancelSession(session.id);
@@ -111,7 +115,7 @@ export function SessionDetail({
             {formatSessionDate(session.date)}
           </h1>
           <Badge variant={status.variant} className="mt-1">
-            {status.label}
+            {t(status.labelKey)}
           </Badge>
         </div>
       </div>
@@ -139,8 +143,8 @@ export function SessionDetail({
             </div>
           )}
           <div className="flex gap-4 text-sm pt-2 border-t">
-            <span>Choi: <strong>{playingCount}</strong> + {totalGuestPlay} khach</span>
-            <span>An: <strong>{diningCount}</strong> + {totalGuestDine} khach</span>
+            <span>{tDetail("play")}: <strong>{playingCount}</strong> + {totalGuestPlay} {tDetail("guest")}</span>
+            <span>{tDetail("dine")}: <strong>{diningCount}</strong> + {totalGuestDine} {tDetail("guest")}</span>
           </div>
         </CardContent>
       </Card>
@@ -149,7 +153,7 @@ export function SessionDetail({
       {(session.status === "voting" || session.status === "confirmed") && (
         <Card>
           <CardContent className="p-4">
-            <h2 className="font-semibold mb-3">Chon san</h2>
+            <h2 className="font-semibold mb-3">{t("selectCourt")}</h2>
             <CourtSelector
               sessionId={session.id}
               courts={courts}
@@ -164,7 +168,7 @@ export function SessionDetail({
       {(session.status === "voting" || session.status === "confirmed") && (
         <Card>
           <CardContent className="p-4">
-            <h2 className="font-semibold mb-3">Cau long su dung</h2>
+            <h2 className="font-semibold mb-3">{t("shuttlecockUsage")}</h2>
             <ShuttlecockSelector
               sessionId={session.id}
               brands={brands}
@@ -178,7 +182,7 @@ export function SessionDetail({
       <Card>
         <CardContent className="p-4">
           <h2 className="font-semibold mb-3">
-            Danh sach vote ({votes.length}/{members.length})
+            {t("voteList")} ({votes.length}/{members.length})
           </h2>
           <VoteList votes={votes} members={members} />
         </CardContent>
@@ -194,7 +198,7 @@ export function SessionDetail({
               className="flex-1"
             >
               <CheckCircle className="h-4 w-4 mr-2" />
-              Xac nhan buoi choi
+              {t("confirmSession")}
             </Button>
           )}
           <Button
@@ -203,7 +207,7 @@ export function SessionDetail({
             disabled={isLoading}
           >
             <XCircle className="h-4 w-4 mr-2" />
-            Huy
+            {t("cancelSession")}
           </Button>
         </div>
       )}
@@ -215,12 +219,12 @@ export function SessionDetail({
       {/* Cancelled / Completed notice */}
       {session.status === "cancelled" && (
         <div className="text-center py-4 text-muted-foreground">
-          Buoi choi nay da bi huy
+          {t("sessionCancelled")}
         </div>
       )}
       {session.status === "completed" && (
         <div className="text-center py-4 text-muted-foreground">
-          Buoi choi nay da hoan thanh
+          {t("sessionCompleted")}
         </div>
       )}
     </div>

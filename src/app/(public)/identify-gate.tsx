@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { identifyUser } from "@/actions/identify";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,11 +19,12 @@ export function IdentifyGate({ members }: { members: Member[] }) {
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const t = useTranslations("identify");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedMemberId) {
-      setError("Vui long chon ten");
+      setError(t("pleaseSelectName"));
       return;
     }
     setIsLoading(true);
@@ -50,13 +52,13 @@ export function IdentifyGate({ members }: { members: Member[] }) {
           <CircleDot className="h-10 w-10 text-primary mx-auto" />
           <h1 className="text-xl font-bold">FWBB</h1>
           <p className="text-sm text-muted-foreground">
-            Chon ten va nhap so dien thoai de tiep tuc
+            {t("selectNameAndPhone")}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label>Chon ten cua ban</Label>
+            <Label>{t("selectYourName")}</Label>
             <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
               {members.map((member) => (
                 <button
@@ -76,13 +78,13 @@ export function IdentifyGate({ members }: { members: Member[] }) {
             </div>
             {members.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-4">
-                Chua co thanh vien nao
+                {t("noMembers")}
               </p>
             )}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="phone">So dien thoai</Label>
+            <Label htmlFor="phone">{t("phone")}</Label>
             <Input
               id="phone"
               type="tel"
@@ -105,7 +107,7 @@ export function IdentifyGate({ members }: { members: Member[] }) {
             disabled={isLoading || !selectedMemberId}
           >
             <LogIn className="h-4 w-4 mr-2" />
-            {isLoading ? "Dang xac nhan..." : "Xac nhan"}
+            {isLoading ? t("confirming") : t("confirm")}
           </Button>
         </form>
       </CardContent>

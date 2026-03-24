@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { createBrand, updateBrand, toggleBrandActive } from "@/actions/shuttlecocks";
 import { formatVND } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,8 @@ type Brand = InferSelectModel<typeof brandsTable>;
 export function BrandList({ brands }: { brands: Brand[] }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
+  const t = useTranslations("adminShuttlecocks");
+  const tCommon = useTranslations("common");
 
   async function handleSubmit(formData: FormData) {
     if (editingBrand) {
@@ -38,7 +41,7 @@ export function BrandList({ brands }: { brands: Brand[] }) {
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <p className="text-muted-foreground">{brands.length} hang cau</p>
+        <p className="text-muted-foreground">{t("count", { count: brands.length })}</p>
         <Dialog
           open={dialogOpen}
           onOpenChange={(open) => {
@@ -47,17 +50,17 @@ export function BrandList({ brands }: { brands: Brand[] }) {
           }}
         >
           <DialogTrigger render={<Button />}>
-            <Plus className="h-4 w-4 mr-2" /> Them hang cau
+            <Plus className="h-4 w-4 mr-2" /> {t("addBrand")}
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {editingBrand ? "Sua hang cau" : "Them hang cau moi"}
+                {editingBrand ? t("editBrand") : t("addNewBrand")}
               </DialogTitle>
             </DialogHeader>
             <form action={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Ten hang</Label>
+                <Label htmlFor="name">{t("brandName")}</Label>
                 <Input
                   id="name"
                   name="name"
@@ -66,7 +69,7 @@ export function BrandList({ brands }: { brands: Brand[] }) {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="pricePerTube">Gia moi hop (VND)</Label>
+                <Label htmlFor="pricePerTube">{t("pricePerTube")}</Label>
                 <Input
                   id="pricePerTube"
                   name="pricePerTube"
@@ -76,7 +79,7 @@ export function BrandList({ brands }: { brands: Brand[] }) {
                 />
               </div>
               <Button type="submit" className="w-full">
-                {editingBrand ? "Cap nhat" : "Them"}
+                {editingBrand ? t("update") : tCommon("add")}
               </Button>
             </form>
           </DialogContent>
@@ -94,13 +97,13 @@ export function BrandList({ brands }: { brands: Brand[] }) {
                 <div>
                   <p className="font-medium">{brand.name}</p>
                   <p className="text-sm font-medium text-primary">
-                    {formatVND(brand.pricePerTube)}/hop
+                    {formatVND(brand.pricePerTube)}{t("perTube")}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant={brand.isActive ? "default" : "secondary"}>
-                  {brand.isActive ? "Hoat dong" : "Ngung"}
+                  {brand.isActive ? t("active") : t("inactive")}
                 </Badge>
                 <Button
                   variant="ghost"
