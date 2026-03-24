@@ -3,7 +3,6 @@ import {
   getMonthlyExpenses,
   getAttendanceTrend,
 } from "@/actions/stats";
-import { getTranslations } from "next-intl/server";
 import { StatsClient } from "./stats-client";
 
 export default async function StatsPage({
@@ -12,7 +11,6 @@ export default async function StatsPage({
   searchParams: Promise<{ period?: string; expenseGroup?: string }>;
 }) {
   const { period = "all", expenseGroup = "month" } = await searchParams;
-  const t = await getTranslations("adminNav");
 
   const [activeMembers, monthlyExpenses, attendance] = await Promise.all([
     getActiveMembersStats(period),
@@ -22,7 +20,6 @@ export default async function StatsPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">{t("stats")}</h1>
       <StatsClient
         activeMembers={activeMembers}
         monthlyExpenses={monthlyExpenses}

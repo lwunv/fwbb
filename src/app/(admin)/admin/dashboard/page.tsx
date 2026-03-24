@@ -10,7 +10,6 @@ import { DashboardClient } from "./dashboard-client";
 import { PasswordChangeForm } from "./password-change-form";
 
 export default async function DashboardPage() {
-  const t = await getTranslations("dashboard");
   const tInv = await getTranslations("inventory");
 
   // 1. Total outstanding debt
@@ -85,7 +84,6 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">{t("overview")}</h1>
       <DashboardClient
         totalOutstanding={totalOutstanding}
         totalStockQua={lowStockResult.totalQua}

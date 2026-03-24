@@ -1,12 +1,9 @@
 import { db } from "@/db";
 import { sessions, votes, sessionDebts, sessionShuttlecocks } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
-import { getTranslations } from "next-intl/server";
 import { SessionList } from "./session-list";
 
 export default async function SessionsPage() {
-  const t = await getTranslations("dashboard");
-
   const allSessions = await db.query.sessions.findMany({
     orderBy: [desc(sessions.date)],
     with: {
@@ -52,7 +49,6 @@ export default async function SessionsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">{t("manageSessions")}</h1>
       <SessionList sessions={sessionCards} />
     </div>
   );
