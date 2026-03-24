@@ -191,10 +191,10 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
                         className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium transition-all cursor-pointer hover:opacity-80 ${
                           isConfirmed
                             ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
-                            : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                            : "bg-red-100 text-red-400 dark:bg-red-900/30 dark:text-red-500"
                         }`}
                       >
-                        {isConfirmed ? "✓ Hết nợ" : "✗ Nợ"}
+                        Hết nợ
                       </button>
                     )}
                   </div>
