@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { adminSetVote, adminRemoveVote } from "@/actions/votes";
 import { MemberAvatar } from "@/components/shared/member-avatar";
@@ -8,6 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { formatVND } from "@/lib/utils";
+
+function formatShort(amount: number): string {
+  if (amount >= 1000000) return `${(amount / 1000000).toFixed(1)}M`;
+  if (amount >= 1000) return `${Math.round(amount / 1000)}k`;
+  return String(amount);
+}
 import { Plus, X, Check, ChevronUp, Search } from "lucide-react";
 import { confirmPaymentByAdmin, undoPaymentByAdmin } from "@/actions/finance";
 import type { InferSelectModel } from "drizzle-orm";
@@ -32,75 +38,120 @@ interface AdminVoteManagerProps {
   readOnly?: boolean;
 }
 
+// Local optimistic state types
+interface LocalVote { willPlay: boolean; willDine: boolean; }
+interface LocalDebt { adminConfirmed: boolean; }
+
 export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, readOnly = false }: AdminVoteManagerProps) {
   const t = useTranslations("voting");
   const tCommon = useTranslations("common");
-  const tFinance = useTranslations("finance");
-  const [isPending, startTransition] = useTransition();
   const [showAdd, setShowAdd] = useState(false);
   const [search, setSearch] = useState("");
   const [removeTarget, setRemoveTarget] = useState<{ memberId: number; name: string } | null>(null);
-  const [payLoading, setPayLoading] = useState<number | null>(null);
+  const [error, setError] = useState("");
 
-  const voteMap = new Map(votes.map((v) => [v.memberId, v]));
+  // Optimistic local state — overrides server data instantly
+  const [localVotes, setLocalVotes] = useState<Record<number, LocalVote>>({});
+  const [localDebts, setLocalDebts] = useState<Record<number, LocalDebt>>({});
+  const [removedMembers, setRemovedMembers] = useState<Set<number>>(new Set());
+  const [addedMembers, setAddedMembers] = useState<Set<number>>(new Set());
 
-  // All members who are in either play or dine
+  // Merge server + local state
+  function getVote(memberId: number): { willPlay: boolean; willDine: boolean } | null {
+    if (removedMembers.has(memberId)) return null;
+    const local = localVotes[memberId];
+    if (local) return local;
+    const sv = votes.find((v) => v.memberId === memberId);
+    if (sv) return { willPlay: sv.willPlay ?? false, willDine: sv.willDine ?? false };
+    if (addedMembers.has(memberId)) return { willPlay: true, willDine: true };
+    return null;
+  }
+
+  function getDebtConfirmed(memberId: number): boolean {
+    const local = localDebts[memberId];
+    if (local !== undefined) return local.adminConfirmed;
+    return debtMap[memberId]?.adminConfirmed ?? false;
+  }
+
   const activeMembers = members.filter((m) => {
-    const v = voteMap.get(m.id);
+    const v = getVote(m.id);
     return v && (v.willPlay || v.willDine);
   });
 
-  const notInList = members.filter((m) => {
-    const v = voteMap.get(m.id);
-    return !v || (!v.willPlay && !v.willDine);
-  });
+  const playerCount = activeMembers.filter((m) => getVote(m.id)?.willPlay).length;
+  const dinerCount = activeMembers.filter((m) => getVote(m.id)?.willDine).length;
 
-  const playerCount = votes.filter((v) => v.willPlay).length;
-  const dinerCount = votes.filter((v) => v.willDine).length;
-
-  function toggleTag(memberId: number, tag: "play" | "dine") {
-    if (readOnly) return;
-    startTransition(async () => {
-      const v = voteMap.get(memberId);
-      const willPlay = v?.willPlay ?? false;
-      const willDine = v?.willDine ?? false;
-
-      if (tag === "play") {
-        await adminSetVote(sessionId, memberId, !willPlay, willDine);
-      } else {
-        await adminSetVote(sessionId, memberId, willPlay, !willDine);
+  // Fire-and-forget with rollback on error
+  function fireAsync(fn: () => Promise<{ error?: string; success?: boolean }>, rollback: () => void) {
+    fn().then((result) => {
+      if (result.error) {
+        rollback();
+        setError(result.error);
+        setTimeout(() => setError(""), 3000);
       }
     });
   }
 
+  function toggleTag(memberId: number, tag: "play" | "dine") {
+    if (readOnly) return;
+    const current = getVote(memberId);
+    if (!current) return;
+    const newPlay = tag === "play" ? !current.willPlay : current.willPlay;
+    const newDine = tag === "dine" ? !current.willDine : current.willDine;
+    const prev = { ...current };
+
+    // Optimistic
+    setLocalVotes((s) => ({ ...s, [memberId]: { willPlay: newPlay, willDine: newDine } }));
+
+    // API
+    fireAsync(
+      () => adminSetVote(sessionId, memberId, newPlay, newDine),
+      () => setLocalVotes((s) => ({ ...s, [memberId]: prev }))
+    );
+  }
+
   function handleAddMember(memberId: number) {
     if (readOnly) return;
-    startTransition(async () => {
-      await adminSetVote(sessionId, memberId, true, true);
-    });
+    // Optimistic
+    setAddedMembers((s) => new Set(s).add(memberId));
+    setLocalVotes((s) => ({ ...s, [memberId]: { willPlay: true, willDine: true } }));
+    setRemovedMembers((s) => { const n = new Set(s); n.delete(memberId); return n; });
+
+    fireAsync(
+      () => adminSetVote(sessionId, memberId, true, true),
+      () => {
+        setAddedMembers((s) => { const n = new Set(s); n.delete(memberId); return n; });
+        setLocalVotes((s) => { const n = { ...s }; delete n[memberId]; return n; });
+      }
+    );
   }
 
   async function handleRemoveConfirm() {
     if (!removeTarget) return;
-    await adminRemoveVote(sessionId, removeTarget.memberId);
+    const mid = removeTarget.memberId;
+    // Optimistic
+    setRemovedMembers((s) => new Set(s).add(mid));
     setRemoveTarget(null);
+
+    fireAsync(
+      () => adminRemoveVote(sessionId, mid),
+      () => setRemovedMembers((s) => { const n = new Set(s); n.delete(mid); return n; })
+    );
   }
 
-  function handleRemoveClick(memberId: number, name: string) {
-    if (readOnly) return;
-    setRemoveTarget({ memberId, name });
-  }
+  function togglePayment(memberId: number) {
+    const debt = debtMap[memberId];
+    if (!debt) return;
+    const current = getDebtConfirmed(memberId);
+    const newVal = !current;
 
-  async function handlePay(debtId: number) {
-    setPayLoading(debtId);
-    await confirmPaymentByAdmin(debtId);
-    setPayLoading(null);
-  }
+    // Optimistic
+    setLocalDebts((s) => ({ ...s, [memberId]: { adminConfirmed: newVal } }));
 
-  async function handleUndo(debtId: number) {
-    setPayLoading(debtId);
-    await undoPaymentByAdmin(debtId);
-    setPayLoading(null);
+    fireAsync(
+      () => newVal ? confirmPaymentByAdmin(debt.debtId) : undoPaymentByAdmin(debt.debtId),
+      () => setLocalDebts((s) => ({ ...s, [memberId]: { adminConfirmed: current } }))
+    );
   }
 
   function filterMembers(list: Member[], q: string) {
@@ -112,6 +163,13 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
   return (
     <Card>
       <CardContent className="p-4 space-y-3">
+        {/* Error toast */}
+        {error && (
+          <div className="rounded-md bg-destructive/10 text-destructive text-xs p-2 text-center">
+            {error}
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 text-sm">
@@ -124,7 +182,6 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
               variant="outline"
               size="sm"
               onClick={() => { setShowAdd(!showAdd); setSearch(""); }}
-              disabled={isPending}
             >
               {showAdd ? <ChevronUp className="h-3 w-3 mr-1" /> : <Plus className="h-3 w-3 mr-1" />}
               {showAdd ? tCommon("close") : tCommon("add")}
@@ -135,72 +192,67 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
         {/* Member list */}
         <div className="divide-y">
           {activeMembers.map((member) => {
-            const v = voteMap.get(member.id)!;
+            const v = getVote(member.id)!;
             const debt = debtMap[member.id];
-            const isConfirmed = debt?.adminConfirmed ?? false;
+            const isConfirmed = getDebtConfirmed(member.id);
 
             return (
-              <div key={member.id} className="grid grid-cols-[28px_1fr_auto_auto_auto_auto_auto] items-center gap-x-2 gap-y-0 py-2">
-                {/* Col 1: Avatar */}
+              <div key={member.id} className="grid grid-cols-[28px_1fr_40px_40px_40px_auto_20px] gap-x-1.5 items-center gap-x-2 py-2">
                 <MemberAvatar memberId={member.id} size={28} />
-
-                {/* Col 2: Name */}
                 <span className="text-sm font-medium truncate" title={member.name}>{member.name}</span>
 
-                {/* Col 3: Cầu tag */}
+                {/* Cầu */}
                 <button
                   onClick={() => toggleTag(member.id, "play")}
-                  disabled={isPending || readOnly}
-                  className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] font-medium transition-all w-14 ${
+                  disabled={readOnly}
+                  className={`inline-flex items-center justify-center rounded-lg border px-1 py-1 text-base transition-all w-10 h-10${
                     v.willPlay
-                      ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
-                      : "bg-muted text-muted-foreground opacity-40 line-through"
+                      ? "bg-green-100 text-green-700 border-green-300 dark:bg-green-900/40 dark:text-green-300 dark:border-green-700"
+                      : "bg-muted text-muted-foreground border-transparent opacity-40"
                   } ${!readOnly ? "cursor-pointer hover:opacity-80" : ""}`}
                 >
-                  🏸 Cầu
+                  🏸
                 </button>
 
-                {/* Col 4: Nhậu tag */}
+                {/* Nhậu */}
                 <button
                   onClick={() => toggleTag(member.id, "dine")}
-                  disabled={isPending || readOnly}
-                  className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] font-medium transition-all w-14 ${
+                  disabled={readOnly}
+                  className={`inline-flex items-center justify-center rounded-lg border px-1 py-1 text-base transition-all w-10 h-10${
                     v.willDine
-                      ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
-                      : "bg-muted text-muted-foreground opacity-40 line-through"
+                      ? "bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-700"
+                      : "bg-muted text-muted-foreground border-transparent opacity-40"
                   } ${!readOnly ? "cursor-pointer hover:opacity-80" : ""}`}
                 >
-                  🍻 Nhậu
+                  🍻
                 </button>
 
-                {/* Col 5: Hết nợ tag */}
+                {/* Hết nợ */}
                 {debt ? (
                   <button
-                    onClick={() => isConfirmed ? handleUndo(debt.debtId) : handlePay(debt.debtId)}
-                    disabled={payLoading === debt.debtId}
-                    className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] font-medium transition-all w-16 cursor-pointer hover:opacity-80 ${
+                    onClick={() => togglePayment(member.id)}
+                    className={`inline-flex items-center justify-center rounded-lg border px-1 py-1 text-base transition-all w-10 h-10cursor-pointer hover:opacity-80 ${
                       isConfirmed
-                        ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
-                        : "bg-muted text-muted-foreground opacity-40 line-through"
+                        ? "bg-green-100 text-green-700 border-green-300 dark:bg-green-900/40 dark:text-green-300 dark:border-green-700"
+                        : "bg-muted text-muted-foreground border-transparent opacity-40"
                     }`}
                   >
-                    Hết nợ
+                    🪙
                   </button>
                 ) : <span />}
 
-                {/* Col 6: Amount */}
+                {/* Amount */}
                 {debt ? (
-                  <span className={`text-xs font-bold tabular-nums text-right w-20 ${isConfirmed ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-                    {formatVND(debt.amount)}
+                  <span className={`text-xs font-bold tabular-nums text-right ${isConfirmed ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                    {formatShort(debt.amount)}
                   </span>
                 ) : <span />}
 
-                {/* Col 7: Remove */}
+                {/* Remove */}
                 <div className="flex items-center justify-end">
                   {!readOnly && (
                     <button
-                      onClick={() => handleRemoveClick(member.id, member.name)}
-                      disabled={isPending}
+                      onClick={() => setRemoveTarget({ memberId: member.id, name: member.name })}
                       className="text-muted-foreground hover:text-destructive transition-colors p-0.5"
                     >
                       <X className="h-3.5 w-3.5" />
@@ -215,7 +267,7 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
           )}
         </div>
 
-        {/* Add member multi-select */}
+        {/* Add member */}
         {showAdd && !readOnly && (
           <div className="border rounded-md overflow-hidden">
             <div className="relative">
@@ -231,13 +283,13 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
             </div>
             <div className="max-h-48 overflow-auto">
               {filterMembers(members, search).map((m) => {
-                const v = voteMap.get(m.id);
+                const v = getVote(m.id);
                 const isIn = v && (v.willPlay || v.willDine);
                 return (
                   <button
                     key={m.id}
                     onClick={() => !isIn && handleAddMember(m.id)}
-                    disabled={isPending || !!isIn}
+                    disabled={!!isIn}
                     className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors text-left ${
                       isIn ? "bg-primary/10 opacity-60" : "hover:bg-accent"
                     }`}
@@ -257,7 +309,6 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
         )}
       </CardContent>
 
-      {/* Remove confirm dialog */}
       <ConfirmDialog
         open={removeTarget !== null}
         onOpenChange={(open) => { if (!open) setRemoveTarget(null); }}
