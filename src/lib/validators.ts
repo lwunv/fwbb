@@ -7,7 +7,6 @@ export const loginSchema = z.object({
 
 export const memberSchema = z.object({
   name: z.string().min(1, "Ten khong duoc de trong"),
-  phone: z.string().min(10, "So dien thoai khong hop le").max(11),
 });
 
 export const courtSchema = z.object({
@@ -36,9 +35,4 @@ export const purchaseSchema = z.object({
   pricePerTube: z.number().min(0),
   purchasedAt: z.string(),
   notes: z.string().optional(),
-});
-
-export const identifySchema = z.object({
-  memberId: z.number(),
-  phone: z.string().optional(),
 });
