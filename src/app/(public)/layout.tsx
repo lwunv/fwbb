@@ -4,27 +4,23 @@ import { members } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { Header } from "@/components/layout/header";
 import { BottomNav } from "@/components/layout/bottom-nav";
-import { IdentifyGate } from "./identify-gate";
+import { FacebookLoginGate } from "./facebook-login-gate";
+import { getAppName } from "@/actions/settings";
 
 export default async function PublicLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const user = await getUserFromCookie();
+  const [user, appName] = await Promise.all([getUserFromCookie(), getAppName()]);
 
-  // If user is not identified, show the identify dialog
+  // If user is not identified, show the Facebook login gate
   if (!user) {
-    const allMembers = await db.query.members.findMany({
-      where: eq(members.isActive, true),
-      orderBy: (m, { asc }) => [asc(m.name)],
-    });
-
     return (
       <div className="min-h-screen flex flex-col">
-        <Header />
+        <Header appName={appName} />
         <main className="flex-1 flex items-center justify-center p-4">
-          <IdentifyGate members={allMembers} />
+          <FacebookLoginGate appName={appName} />
         </main>
       </div>
     );
@@ -38,7 +34,7 @@ export default async function PublicLayout({
   if (!member || !member.isActive) {
     return (
       <div className="min-h-screen flex flex-col">
-        <Header />
+        <Header appName={appName} />
         <main className="flex-1 flex items-center justify-center p-4">
           <div className="text-center max-w-sm space-y-4">
             <div className="text-4xl">🚫</div>
@@ -66,7 +62,7 @@ export default async function PublicLayout({
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header />
+      <Header appName={appName} />
       <main className="flex-1 pb-20 px-4 py-4">
         {children}
       </main>
