@@ -1,22 +1,14 @@
 import { getAllDebts } from "@/actions/finance";
-import { getActiveMembers } from "@/actions/members";
 import { AdminFinanceClient } from "./finance-client";
 
 export default async function AdminFinancePage() {
-  const [debts, members] = await Promise.all([
-    getAllDebts("all"),
-    getActiveMembers(),
-  ]);
-
-  const memberPhones: Record<number, string> = {};
-  for (const m of members) {
-    memberPhones[m.id] = m.phone;
-  }
+  const debts = await getAllDebts("all");
 
   const debtCards = debts.map((d) => ({
     id: d.id,
     sessionId: d.sessionId,
     memberId: d.memberId,
+    memberAvatarKey: d.member.avatarKey ?? null,
     memberName: d.member.name,
     sessionDate: d.session.date,
     playAmount: d.playAmount ?? 0,
@@ -26,6 +18,7 @@ export default async function AdminFinancePage() {
     totalAmount: d.totalAmount,
     memberConfirmed: d.memberConfirmed ?? false,
     adminConfirmed: d.adminConfirmed ?? false,
+    adminConfirmedAt: d.adminConfirmedAt ?? null,
   }));
 
   const totalOutstanding = debtCards
@@ -37,7 +30,6 @@ export default async function AdminFinancePage() {
       <AdminFinanceClient
         debts={debtCards}
         totalOutstanding={totalOutstanding}
-        memberPhones={memberPhones}
       />
     </div>
   );
