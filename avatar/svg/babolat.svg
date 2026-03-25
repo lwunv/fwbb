@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <!-- Babolat: Three parallel swooping stripes curving from bottom-left to upper-right -->
-  <!-- Top stripe (longest) -->
-  <path d="M15,32 Q35,18 85,22" stroke="#D4920B" stroke-width="8" fill="none" stroke-linecap="round"/>
-  <!-- Middle stripe -->
-  <path d="M20,50 Q40,36 78,40" stroke="#D4920B" stroke-width="8" fill="none" stroke-linecap="round"/>
-  <!-- Bottom stripe (shortest) -->
-  <path d="M25,68 Q45,54 70,58" stroke="#D4920B" stroke-width="8" fill="none" stroke-linecap="round"/>
-</svg>
