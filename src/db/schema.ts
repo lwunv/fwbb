@@ -11,7 +11,11 @@ export const admins = sqliteTable("admins", {
 export const members = sqliteTable("members", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
-  phone: text("phone").notNull().unique(),
+  nickname: text("nickname"),
+  avatarKey: text("avatar_key"),
+  facebookId: text("facebook_id").notNull().unique(),
+  avatarUrl: text("avatar_url"),
+  email: text("email"),
   isActive: integer("is_active", { mode: "boolean" }).default(true),
   createdAt: text("created_at").default(sql`(current_timestamp)`),
 });
@@ -30,6 +34,7 @@ export const shuttlecockBrands = sqliteTable("shuttlecock_brands", {
   name: text("name").notNull(),
   pricePerTube: integer("price_per_tube").notNull(),
   isActive: integer("is_active", { mode: "boolean" }).default(true),
+  stockAdjustQua: integer("stock_adjust_qua").default(0),
 });
 
 export const sessions = sqliteTable("sessions", {
@@ -148,6 +153,11 @@ export const membersRelations = relations(members, ({ many }) => ({
   attendances: many(sessionAttendees, { relationName: "attendeeMember" }),
   guestsInvited: many(sessionAttendees, { relationName: "invitedByMember" }),
 }));
+
+export const appSettings = sqliteTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+});
 
 export const courtsRelations = relations(courts, ({ many }) => ({
   sessions: many(sessions),
