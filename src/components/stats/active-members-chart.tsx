@@ -29,6 +29,14 @@ const CHART_COLORS = [
   "var(--color-chart-5, #ddd6fe)",
 ];
 
+const DISPLAY_NAME_MAX = 11;
+
+function shortenName(name: string, max = DISPLAY_NAME_MAX) {
+  const t = name.trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max - 1)}…`;
+}
+
 export function ActiveMembersChart({ data }: ActiveMembersChartProps) {
   const [mode, setMode] = useState<ViewMode>("play");
   const t = useTranslations("stats");
@@ -54,7 +62,8 @@ export function ActiveMembersChart({ data }: ActiveMembersChartProps) {
     .sort((a, b) => getValue(b) - getValue(a))
     .slice(0, 10)
     .map((item) => ({
-      name: item.memberName,
+      memberName: item.memberName,
+      displayName: shortenName(item.memberName),
       value: getValue(item),
     }));
 
@@ -84,19 +93,42 @@ export function ActiveMembersChart({ data }: ActiveMembersChartProps) {
           {t("noData")}
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={Math.max(300, chartData.length * 40)}>
+        <ResponsiveContainer width="100%" height={Math.max(300, chartData.length * 44)}>
           <BarChart
             data={chartData}
             layout="vertical"
-            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+            margin={{ top: 8, right: 16, left: 4, bottom: 8 }}
           >
             <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-            <XAxis type="number" allowDecimals={false} />
+            <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
             <YAxis
               type="category"
-              dataKey="name"
-              width={100}
-              tick={{ fontSize: 12 }}
+              dataKey="displayName"
+              width={58}
+              interval={0}
+              tick={(props: {
+                x: number | string;
+                y: number | string;
+                payload: { value: string };
+              }) => {
+                const x = Number(props.x);
+                const y = Number(props.y);
+                const { payload } = props;
+                return (
+                  <g transform={`translate(${x},${y})`}>
+                    <text
+                      textAnchor="end"
+                      fill="var(--muted-foreground)"
+                      fontSize={10}
+                      transform="rotate(-42)"
+                      dx={-2}
+                      dy={3}
+                    >
+                      {payload.value}
+                    </text>
+                  </g>
+                );
+              }}
             />
             <Tooltip
               contentStyle={{
@@ -105,6 +137,9 @@ export function ActiveMembersChart({ data }: ActiveMembersChartProps) {
                 borderRadius: "8px",
                 color: "var(--color-popover-foreground, #1e293b)",
               }}
+              labelFormatter={(_, payload) =>
+                (payload?.[0]?.payload as { memberName?: string })?.memberName ?? ""
+              }
               formatter={(value) => [`${value} ${t("sessionsUnit")}`, viewLabels[mode]]}
             />
             <Bar dataKey="value" radius={[0, 4, 4, 0]}>

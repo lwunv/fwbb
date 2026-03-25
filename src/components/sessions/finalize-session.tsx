@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { MemberAvatar } from "@/components/shared/member-avatar";
-import { formatVND } from "@/lib/utils";
+import { formatK } from "@/lib/utils";
 import {
   calculateSessionCosts,
   type AttendeeInput,
@@ -320,7 +320,7 @@ export function FinalizeSession({
                     onChange={() => togglePlayer(m.id)}
                     className="h-4 w-4 rounded accent-primary"
                   />
-                  <MemberAvatar memberId={m.id} size={32} />
+                  <MemberAvatar memberId={m.id} avatarKey={m.avatarKey} size={32} />
                   <span className="text-sm font-medium">{m.name}</span>
                   {votedPlayerIds.has(m.id) && (
                     <Badge variant="outline" className="ml-auto text-xs">
@@ -354,7 +354,7 @@ export function FinalizeSession({
                     onChange={() => toggleDiner(m.id)}
                     className="h-4 w-4 rounded accent-primary"
                   />
-                  <MemberAvatar memberId={m.id} size={32} />
+                  <MemberAvatar memberId={m.id} avatarKey={m.avatarKey} size={32} />
                   <span className="text-sm font-medium">{m.name}</span>
                   {votedDinerIds.has(m.id) && (
                     <Badge variant="outline" className="ml-auto text-xs">
@@ -489,7 +489,7 @@ export function FinalizeSession({
               />
               {diningBill > 0 && (
                 <p className="text-sm text-muted-foreground mt-1">
-                  {formatVND(diningBill)}
+                  {formatK(diningBill)}
                 </p>
               )}
             </div>
@@ -509,11 +509,11 @@ export function FinalizeSession({
               <h3 className="font-semibold">{t("costSummary")}</h3>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <span className="text-muted-foreground">{t("courtCost")}:</span>
-                <span className="text-right font-medium">{formatVND(preview.courtPrice)}</span>
+                <span className="text-right font-medium">{formatK(preview.courtPrice)}</span>
                 <span className="text-muted-foreground">{t("shuttlecockCost")}:</span>
-                <span className="text-right font-medium">{formatVND(preview.totalShuttlecockCost)}</span>
+                <span className="text-right font-medium">{formatK(preview.totalShuttlecockCost)}</span>
                 <span className="text-muted-foreground">{t("diningCost")}:</span>
-                <span className="text-right font-medium">{formatVND(preview.diningBill)}</span>
+                <span className="text-right font-medium">{formatK(preview.diningBill)}</span>
               </div>
               <div className="border-t pt-2 grid grid-cols-2 gap-2 text-sm">
                 <span className="text-muted-foreground">{t("playerCount")}:</span>
@@ -524,11 +524,11 @@ export function FinalizeSession({
               <div className="border-t pt-2 grid grid-cols-2 gap-2 text-sm">
                 <span className="text-muted-foreground">{t("costPerPlayer")}:</span>
                 <span className="text-right font-medium text-primary">
-                  {formatVND(preview.playCostPerHead)}
+                  {formatK(preview.playCostPerHead)}
                 </span>
                 <span className="text-muted-foreground">{t("costPerDiner")}:</span>
                 <span className="text-right font-medium text-primary">
-                  {formatVND(preview.dineCostPerHead)}
+                  {formatK(preview.dineCostPerHead)}
                 </span>
               </div>
             </CardContent>
@@ -546,28 +546,32 @@ export function FinalizeSession({
                       key={debt.memberId}
                       className="flex items-start gap-3 p-2 rounded-lg bg-muted/50"
                     >
-                      <MemberAvatar memberId={debt.memberId} size={32} />
+                      <MemberAvatar
+                        memberId={debt.memberId}
+                        avatarKey={member?.avatarKey}
+                        size={32}
+                      />
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-sm">
                           {member?.name ?? `ID ${debt.memberId}`}
                         </div>
                         <div className="text-xs text-muted-foreground space-y-0.5 mt-1">
                           {debt.playAmount > 0 && (
-                            <div>{t("play")}: {formatVND(debt.playAmount)}</div>
+                            <div>{t("play")}: {formatK(debt.playAmount)}</div>
                           )}
                           {debt.dineAmount > 0 && (
-                            <div>{t("dine")}: {formatVND(debt.dineAmount)}</div>
+                            <div>{t("dine")}: {formatK(debt.dineAmount)}</div>
                           )}
                           {debt.guestPlayAmount > 0 && (
-                            <div>{t("guestPlay")}: {formatVND(debt.guestPlayAmount)}</div>
+                            <div>{t("guestPlay")}: {formatK(debt.guestPlayAmount)}</div>
                           )}
                           {debt.guestDineAmount > 0 && (
-                            <div>{t("guestDine")}: {formatVND(debt.guestDineAmount)}</div>
+                            <div>{t("guestDine")}: {formatK(debt.guestDineAmount)}</div>
                           )}
                         </div>
                       </div>
                       <div className="text-sm font-bold text-primary">
-                        {formatVND(debt.totalAmount)}
+                        {formatK(debt.totalAmount)}
                       </div>
                     </div>
                   );

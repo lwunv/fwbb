@@ -5,24 +5,25 @@ import {
 } from "@/actions/stats";
 import { StatsClient } from "@/app/(admin)/admin/stats/stats-client";
 import { getTranslations } from "next-intl/server";
+import { getUserFromCookie } from "@/lib/user-identity";
 
 export default async function PublicStatsPage({
   searchParams,
 }: {
   searchParams: Promise<{ period?: string; expenseGroup?: string }>;
 }) {
-  const { period = "all", expenseGroup = "month" } = await searchParams;
+  const { period = "all", expenseGroup = "week" } = await searchParams;
   const t = await getTranslations("nav");
+  const user = await getUserFromCookie();
 
   const [activeMembers, monthlyExpenses, attendance] = await Promise.all([
     getActiveMembersStats(period),
-    getMonthlyExpenses(period, expenseGroup),
-    getAttendanceTrend(period),
+    getMonthlyExpenses(period, expenseGroup, user?.memberId ?? null),
+    getAttendanceTrend(),
   ]);
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
-      <h1 className="text-lg font-bold">{t("stats")}</h1>
       <StatsClient
         activeMembers={activeMembers}
         monthlyExpenses={monthlyExpenses}

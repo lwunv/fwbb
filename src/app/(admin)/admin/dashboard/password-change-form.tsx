@@ -103,7 +103,7 @@ export function PasswordChangeForm() {
               />
             </div>
 
-            <Button type="submit" disabled={isPending} className="w-full">
+            <Button type="submit" disabled={isPending} size="lg" className="w-full">
               {isPending ? t("processing") : t("submit")}
             </Button>
           </form>

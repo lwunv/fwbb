@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Adidas three-bar mountain mark -->
+  <g fill="#1a1a1a">
+    <!-- Left bar (shortest) -->
+    <polygon points="10,80 22,80 34,42 22,42"/>
+    <!-- Middle bar -->
+    <polygon points="28,80 40,80 52,30 40,30"/>
+    <!-- Right bar (tallest) -->
+    <polygon points="46,80 58,80 70,18 58,18"/>
+  </g>
+</svg>

@@ -1,10 +1,12 @@
 "use client";
 
 import { DebtCard, type DebtCardData } from "./debt-card";
-import { formatVND } from "@/lib/utils";
+import { formatK } from "@/lib/utils";
 
 interface DebtListProps {
   debts: DebtCardData[];
+  /** Nếu có (vd. khi phân trang), dùng tổng còn nợ trên toàn bộ khoản nợ thay vì chỉ trang hiện tại */
+  outstandingTotal?: number;
   showMemberInfo?: boolean;
   onPayAction?: (debtId: number) => void;
   actionLabel?: string;
@@ -13,6 +15,7 @@ interface DebtListProps {
 
 export function DebtList({
   debts,
+  outstandingTotal: outstandingTotalOverride,
   showMemberInfo = false,
   onPayAction,
   actionLabel,
@@ -26,9 +29,11 @@ export function DebtList({
     );
   }
 
-  const totalUnpaid = debts
-    .filter((d) => !d.adminConfirmed)
-    .reduce((sum, d) => sum + d.totalAmount, 0);
+  const totalUnpaid =
+    outstandingTotalOverride ??
+    debts
+      .filter((d) => !d.adminConfirmed && !d.memberConfirmed)
+      .reduce((sum, d) => sum + d.totalAmount, 0);
 
   const totalPaid = debts
     .filter((d) => d.adminConfirmed)
@@ -40,7 +45,7 @@ export function DebtList({
       {totalUnpaid > 0 && (
         <div className="rounded-lg bg-destructive/10 p-3 text-center">
           <div className="text-xs text-muted-foreground">Còn nợ</div>
-          <div className="font-bold text-destructive">{formatVND(totalUnpaid)}</div>
+          <div className="font-bold text-destructive">{formatK(totalUnpaid)}</div>
         </div>
       )}
 

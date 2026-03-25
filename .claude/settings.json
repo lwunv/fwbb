@@ -60,12 +60,26 @@
       "Bash(rg '\"\"deleteSessionTitle\"\"|\"\"deleteSessionDesc\"\"' src/i18n/messages/vi.json)",
       "Bash(rg '\"\"noSessions\"\"' src/i18n/messages/vi.json -n)",
       "Bash(rg '\"\"noSessions\"\"' src/i18n/messages/en.json -n)",
-      "Bash(rg '\"\"noSessions\"\"' src/i18n/messages/zh.json -n)"
+      "Bash(rg '\"\"noSessions\"\"' src/i18n/messages/zh.json -n)",
+      "Bash(ls -la /d/Lwcifer/LW/FWBB/*.ts /d/Lwcifer/LW/FWBB/*.js)",
+      "Bash(npx drizzle-kit:*)",
+      "Bash(npx tsx -e \":*)",
+      "Read(//d/Lwcifer/LW/FWBB/**)",
+      "Bash(do)",
+      "Bash(sed -i 's|<svg xmlns=\"\"http://www.w3.org/2000/svg\"\" viewBox=\"\"0 0 100 100\"\"|<svg xmlns=\"\"http://www.w3.org/2000/svg\"\" width=\"\"100\"\" height=\"\"100\"\" viewBox=\"\"0 0 100 100\"\"|' \"$f\")",
+      "Bash(find d:LwciferLWFWBB -name *facebook* -o -name *oauth*)",
+      "Bash(find /d/Lwcifer/LW/FWBB/src -type f \\\\\\(-name *login* -o -name *auth* \\\\\\))",
+      "Read(//c/Users/Admin/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.5/skills/subagent-driven-development/**)",
+      "Bash(node -e \"const en = require\\(''./src/i18n/messages/en.json''\\); console.log\\(JSON.stringify\\(en.identify, null, 2\\)\\)\")",
+      "Bash(ls \"d:/Lwcifer/LW/FWBB/src/app/\\(public\\)/\")",
+      "Bash(ssh-keygen -t ed25519 -C \"fwbb-deploy\" -f ~/.ssh/fwbb_deploy -N \"\")",
+      "Bash(ssh -T git@github-fwbb)"
     ],
     "additionalDirectories": [
       "d:\\Lwcifer\\LW\\fwbb-temp",
       "d:\\Lwcifer\\LW\\FWBB\\src\\app\\(admin)\\admin\\sessions",
-      "d:\\Lwcifer\\LW\\FWBB\\src\\app\\(public)\\vote"
+      "d:\\Lwcifer\\LW\\FWBB\\src\\app\\(public)\\vote",
+      "C:\\Users\\Admin\\.ssh"
     ]
   },
   "enabledPlugins": {

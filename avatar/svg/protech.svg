@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Protech: Red oval/teardrop swoosh with white crescent cutout -->
+  <defs>
+    <clipPath id="bounds">
+      <rect x="0" y="0" width="100" height="100"/>
+    </clipPath>
+  </defs>
+  <!-- Main red oval, slightly tilted -->
+  <ellipse cx="50" cy="50" rx="40" ry="32" fill="#E31B23" transform="rotate(-15, 50, 50)"/>
+  <!-- White crescent cutout: a shifted ellipse that carves out a wave -->
+  <ellipse cx="55" cy="42" rx="30" ry="22" fill="white" transform="rotate(-15, 50, 50)"/>
+</svg>

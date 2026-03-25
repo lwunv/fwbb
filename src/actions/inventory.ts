@@ -38,6 +38,57 @@ export async function recordPurchase(formData: FormData) {
   return { success: true };
 }
 
+export async function updatePurchaseTubes(purchaseId: number, tubes: number) {
+  if (tubes < 1) return { error: "Số ống phải >= 1" };
+
+  const purchase = await db.query.inventoryPurchases.findFirst({
+    where: eq(inventoryPurchases.id, purchaseId),
+  });
+  if (!purchase) return { error: "Không tìm thấy" };
+
+  const totalPrice = tubes * purchase.pricePerTube;
+  await db
+    .update(inventoryPurchases)
+    .set({ tubes, totalPrice })
+    .where(eq(inventoryPurchases.id, purchaseId));
+
+  revalidatePath("/admin/inventory");
+  return { success: true };
+}
+
+export async function setStockQua(brandId: number, desiredQua: number) {
+  if (desiredQua < 0) return { error: "Số lượng không được âm" };
+
+  const brand = await db.query.shuttlecockBrands.findFirst({
+    where: eq(shuttlecockBrands.id, brandId),
+  });
+  if (!brand) return { error: "Không tìm thấy hãng cầu" };
+
+  // Calculate current stock
+  const purchases = await db.query.inventoryPurchases.findMany({
+    where: eq(inventoryPurchases.brandId, brandId),
+  });
+  const usage = await db.query.sessionShuttlecocks.findMany({
+    where: eq(sessionShuttlecocks.brandId, brandId),
+  });
+  const adjustQua = brand.stockAdjustQua ?? 0;
+  const totalPurchasedQua = purchases.reduce((s, p) => s + p.tubes, 0) * 12;
+  const totalUsedQua = usage.reduce((s, u) => s + u.quantityUsed, 0);
+  const currentStock = totalPurchasedQua - totalUsedQua + adjustQua;
+
+  if (desiredQua === currentStock) return { success: true };
+
+  // Update adjustment delta
+  const newAdjust = adjustQua + (desiredQua - currentStock);
+  await db
+    .update(shuttlecockBrands)
+    .set({ stockAdjustQua: newAdjust })
+    .where(eq(shuttlecockBrands.id, brandId));
+
+  revalidatePath("/admin/inventory");
+  return { success: true };
+}
+
 export interface StockByBrand {
   brandId: number;
   brandName: string;
@@ -46,6 +97,7 @@ export interface StockByBrand {
   totalPurchasedTubes: number;
   totalPurchasedQua: number;
   totalUsedQua: number;
+  adjustQua: number;
   currentStockQua: number;
   ong: number; // tubes in stock
   qua: number; // remaining qua after full tubes
@@ -79,7 +131,8 @@ export async function getStockByBrand(): Promise<StockByBrand[]> {
       .filter((u) => u.brandId === brand.id)
       .reduce((sum, u) => sum + u.quantityUsed, 0);
 
-    const currentStockQua = totalPurchasedQua - totalUsedQua;
+    const adjustQua = brand.stockAdjustQua ?? 0;
+    const currentStockQua = totalPurchasedQua - totalUsedQua + adjustQua;
 
     // Convert to ong + qua display
     const ong = Math.floor(Math.max(0, currentStockQua) / 12);
@@ -93,6 +146,7 @@ export async function getStockByBrand(): Promise<StockByBrand[]> {
       totalPurchasedTubes,
       totalPurchasedQua,
       totalUsedQua,
+      adjustQua,
       currentStockQua: Math.max(0, currentStockQua),
       ong,
       qua,

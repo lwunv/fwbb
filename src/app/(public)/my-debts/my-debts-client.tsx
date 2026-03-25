@@ -3,21 +3,23 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { TimeFilter } from "@/components/shared/time-filter";
 import { DebtList } from "@/components/finance/debt-list";
 import { confirmPaymentByMember } from "@/actions/finance";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import type { DebtCardData } from "@/components/finance/debt-card";
+import { usePolling } from "@/lib/use-polling";
 
 interface MyDebtsClientProps {
   debts: (DebtCardData & { memberName?: string })[];
-  members: { id: number; name: string }[];
+  outstandingTotal: number;
+  members: { id: number; name: string; avatarKey: string | null }[];
   currentUserId: number;
   selectedMemberId: number | "all";
 }
 
 export function MyDebtsClient({
   debts,
+  outstandingTotal,
   members,
   currentUserId,
   selectedMemberId,
@@ -27,6 +29,7 @@ export function MyDebtsClient({
   const router = useRouter();
   const searchParams = useSearchParams();
   const t = useTranslations("finance");
+  usePolling();
 
   async function handleMarkPaid(debtId: number) {
     setLoadingId(debtId);
@@ -41,6 +44,7 @@ export function MyDebtsClient({
     } else {
       params.set("member", value);
     }
+    params.delete("page");
     router.push(`/my-debts?${params.toString()}`, { scroll: false });
     setDropdownOpen(false);
   }
@@ -49,6 +53,13 @@ export function MyDebtsClient({
     selectedMemberId === "all"
       ? t("allMembers")
       : members.find((m) => m.id === selectedMemberId)?.name ?? t("mine");
+
+  const selectedAvatarKey =
+    selectedMemberId === "all"
+      ? null
+      : members.find((m) => m.id === selectedMemberId)?.avatarKey ?? null;
+  const currentUserAvatarKey =
+    members.find((m) => m.id === currentUserId)?.avatarKey ?? null;
 
   const isOwnView = selectedMemberId === currentUserId;
 
@@ -62,12 +73,13 @@ export function MyDebtsClient({
         >
           <div className="flex items-center gap-2">
             {selectedMemberId !== "all" && (
-              <MemberAvatar memberId={selectedMemberId as number} size={24} />
+              <MemberAvatar
+                memberId={selectedMemberId as number}
+                avatarKey={selectedAvatarKey}
+                size={24}
+              />
             )}
             <span>{currentLabel}</span>
-            {isOwnView && (
-              <span className="text-xs text-muted-foreground">({t("you")})</span>
-            )}
           </div>
           <svg
             className={`h-4 w-4 transition-transform ${dropdownOpen ? "rotate-180" : ""}`}
@@ -93,9 +105,8 @@ export function MyDebtsClient({
                   isOwnView ? "bg-accent font-medium" : ""
                 }`}
               >
-                <MemberAvatar memberId={currentUserId} size={24} />
+                <MemberAvatar memberId={currentUserId} avatarKey={currentUserAvatarKey} size={24} />
                 <span>{members.find((m) => m.id === currentUserId)?.name ?? t("mine")}</span>
-                <span className="text-xs text-muted-foreground">({t("you")})</span>
               </button>
 
               {/* Separator */}
@@ -126,7 +137,7 @@ export function MyDebtsClient({
                       selectedMemberId === m.id ? "bg-accent font-medium" : ""
                     }`}
                   >
-                    <MemberAvatar memberId={m.id} size={24} />
+                    <MemberAvatar memberId={m.id} avatarKey={m.avatarKey} size={24} />
                     <span>{m.name}</span>
                   </button>
                 ))}
@@ -135,11 +146,9 @@ export function MyDebtsClient({
         )}
       </div>
 
-      <TimeFilter />
-
-      {/* Show member name in cards when viewing all */}
       <DebtList
         debts={debts}
+        outstandingTotal={outstandingTotal}
         onPayAction={isOwnView ? handleMarkPaid : undefined}
         actionLabel={isOwnView ? t("paid") : undefined}
         actionLoadingId={loadingId}

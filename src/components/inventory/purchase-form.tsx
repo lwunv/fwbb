@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { recordPurchase } from "@/actions/inventory";
-import { formatVND } from "@/lib/utils";
+import { formatK } from "@/lib/utils";
 import { Plus, Loader2 } from "lucide-react";
 import type { InferSelectModel } from "drizzle-orm";
 import type { shuttlecockBrands as brandsTable } from "@/db/schema";
@@ -86,7 +86,7 @@ export function PurchaseForm({ brands }: PurchaseFormProps) {
               <option value="">Chọn hãng...</option>
               {brands.map((b) => (
                 <option key={b.id} value={b.id}>
-                  {b.name} ({formatVND(b.pricePerTube)}/ống)
+                  {b.name} ({formatK(b.pricePerTube)}/ống)
                 </option>
               ))}
             </select>
@@ -140,7 +140,7 @@ export function PurchaseForm({ brands }: PurchaseFormProps) {
           {/* Total */}
           {totalPrice > 0 && (
             <div className="text-sm text-muted-foreground">
-              Tổng: <strong className="text-foreground">{formatVND(totalPrice)}</strong>
+              Tổng: <strong className="text-foreground">{formatK(totalPrice)}</strong>
             </div>
           )}
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { selectCourt } from "@/actions/sessions";
-import { formatVND } from "@/lib/utils";
+import { formatK } from "@/lib/utils";
 import { MapPin, Check, Minus, Plus, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { InferSelectModel } from "drizzle-orm";
@@ -121,13 +121,13 @@ export function CourtSelector({
                     <p className="text-xs text-muted-foreground">{court.address}</p>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    {formatVND(court.pricePerSession)}/sân
+                    {formatK(court.pricePerSession)}/sân
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-primary">
-                  {formatVND(courtTotal)}
+                  {formatK(courtTotal)}
                 </span>
                 {isSelected && <Check className="h-4 w-4 text-primary" />}
               </div>
@@ -140,7 +140,7 @@ export function CourtSelector({
       {selectedCourt && (
         <div className="flex items-center justify-between text-sm p-2 rounded bg-primary/10">
           <span>Tổng tiền sân:</span>
-          <span className="font-bold text-primary">{formatVND(totalPrice)}</span>
+          <span className="font-bold text-primary">{formatK(totalPrice)}</span>
         </div>
       )}
 

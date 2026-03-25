@@ -13,6 +13,7 @@ import { ShuttlecockSelector } from "@/components/sessions/shuttlecock-selector"
 import { VoteList } from "@/components/sessions/vote-list";
 import { AdminVoteManager } from "@/components/sessions/admin-vote-manager";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { usePolling } from "@/lib/use-polling";
 import { ArrowLeft, Calendar, Clock, MapPin, CheckCircle, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
@@ -61,6 +62,7 @@ export function SessionDetail({
   const t = useTranslations("sessions");
   const tDetail = useTranslations("sessionDetail");
   const tCommon = useTranslations("common");
+  usePolling();
 
   const statusConfig: Record<string, { labelKey: "voting" | "confirmed" | "completed" | "cancelled"; badgeBg: string; badgeText: string }> = {
     voting: { labelKey: "voting", badgeBg: "bg-green-100 dark:bg-green-900/40", badgeText: "text-green-700 dark:text-green-300" },
@@ -124,50 +126,6 @@ export function SessionDetail({
         </span>
       </div>
 
-      {/* Session Info Card — blue tint */}
-      <Card className="bg-blue-50/40 border-blue-200/40 dark:bg-blue-950/20 dark:border-blue-900/30">
-        <CardContent className="p-3 space-y-1.5">
-          <div className="flex items-center gap-4 text-sm">
-            <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-muted-foreground" /> {session.startTime} - {session.endTime}</span>
-          </div>
-          {session.status === "completed" && (
-            <div className="pt-1.5 border-t space-y-1">
-              {session.shuttlecocks && session.shuttlecocks.length > 0 && (
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">🪶 Cầu</span>
-                  <span className="font-medium">
-                    {session.shuttlecocks.map((s) => `${s.quantityUsed} quả ${s.brand?.name ?? ""}`).join(", ")}
-                    {" · "}
-                    {formatK(session.shuttlecocks.reduce((sum, s) => sum + Math.round(s.quantityUsed * s.pricePerTube / 12), 0))}
-                  </span>
-                </div>
-              )}
-              {session.courtPrice != null && (
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">🏟 {session.court?.name ?? "Sân"}</span>
-                  <span className="font-medium">{formatK(session.courtPrice)}</span>
-                </div>
-              )}
-              {session.diningBill != null && session.diningBill > 0 && (
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">🍻 Nhậu</span>
-                  <span className="font-medium">{formatK(session.diningBill)}</span>
-                </div>
-              )}
-              <div className="flex items-center justify-between text-sm pt-1 border-t font-bold">
-                <span>Tổng chi</span>
-                <span className="text-primary">
-                  {formatK(
-                    (session.courtPrice ?? 0) +
-                    (session.diningBill ?? 0) +
-                    (session.shuttlecocks?.reduce((sum, s) => sum + Math.round(s.quantityUsed * s.pricePerTube / 12), 0) ?? 0)
-                  )}
-                </span>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {/* Court Selector (only for voting status) */}
       {(session.status === "voting" || session.status === "confirmed") && (

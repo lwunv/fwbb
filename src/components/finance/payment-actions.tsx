@@ -45,7 +45,7 @@ export function PaymentActions({
           size="sm"
           onClick={handleUndo}
           disabled={isLoading}
-          className="h-6 px-2 text-xs border-amber-300 text-amber-600 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950/30"
+          className="h-6 px-2 text-xs border-destructive/40 text-destructive hover:bg-destructive/10"
         >
           {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
           {t("notReceived")}
@@ -56,10 +56,7 @@ export function PaymentActions({
   }
 
   return (
-    <div className="flex items-center gap-2">
-      {memberConfirmed && (
-        <span className="text-xs text-muted-foreground">{t("memberReported")}</span>
-      )}
+    <div className="flex items-center gap-1.5">
       <Button
         size="sm"
         onClick={handleConfirm}
@@ -72,6 +69,17 @@ export function PaymentActions({
         )}
         {t("received")}
       </Button>
+      {memberConfirmed && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleUndo}
+          disabled={isLoading}
+          className="h-6 px-2 text-xs border-destructive/40 text-destructive hover:bg-destructive/10"
+        >
+          {t("notReceived")}
+        </Button>
+      )}
       {error && <span className="text-xs text-destructive">{error}</span>}
     </div>
   );

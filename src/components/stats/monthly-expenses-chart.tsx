@@ -13,7 +13,7 @@ import {
 } from "recharts";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
-import { formatVND } from "@/lib/utils";
+import { formatK } from "@/lib/utils";
 import type { MonthlyExpense } from "@/actions/stats";
 
 interface MonthlyExpensesChartProps {
@@ -131,7 +131,7 @@ export function MonthlyExpensesChart({ data, groupBy }: MonthlyExpensesChartProp
                 borderRadius: "8px",
                 color: "var(--color-popover-foreground, #1e293b)",
               }}
-              formatter={(value, name) => [formatVND(Number(value)), labels[String(name)] || String(name)]}
+              formatter={(value, name) => [formatK(Number(value)), labels[String(name)] || String(name)]}
             />
             <Legend
               onClick={(e) => { if (e.dataKey) toggleSeries(String(e.dataKey)); }}

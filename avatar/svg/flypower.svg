@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Flypower swooping teardrop/comma shape -->
+  <!-- Main red shape: thick bulbous top-right, thin tail curving to lower-left -->
+  <path d="
+    M 70 4
+    C 88 4, 96 20, 94 38
+    C 92 52, 82 64, 66 74
+    C 48 86, 26 94, 10 98
+    C 6 99, 4 98, 6 96
+    C 12 90, 22 82, 30 74
+    C 38 66, 34 56, 26 48
+    C 16 38, 14 24, 24 14
+    C 34 6, 52 2, 70 4
+    Z
+  " fill="#E31B23"/>
+  <!-- White curved swoosh line cutting through -->
+  <path d="
+    M 18 80
+    C 32 68, 52 52, 68 38
+    C 78 28, 84 20, 88 14
+  " fill="none" stroke="white" stroke-width="4.5" stroke-linecap="round"/>
+</svg>

@@ -20,6 +20,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { logout } from "@/actions/auth";
+import { LanguageSelector } from "@/components/shared/language-selector";
+import { ThemeToggle } from "@/components/shared/theme-toggle";
 
 const navItems = [
   { href: "/admin/dashboard", labelKey: "dashboard" as const, icon: LayoutDashboard },
@@ -32,14 +34,14 @@ const navItems = [
   { href: "/admin/stats", labelKey: "stats" as const, icon: BarChart3 },
 ];
 
-export function AdminMobileNav() {
+export function AdminMobileNav({ appName = "FWBB" }: { appName?: string }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const t = useTranslations("adminNav");
 
   return (
     <div className="lg:hidden flex items-center justify-between p-4 border-b bg-card">
-      <h1 className="text-lg font-bold">FWBB Admin</h1>
+      <h1 className="text-lg font-bold">{appName} Admin</h1>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger
           render={<Button variant="ghost" size="icon" />}
@@ -48,7 +50,7 @@ export function AdminMobileNav() {
         </SheetTrigger>
         <SheetContent side="left" className="w-64 p-0">
           <div className="p-6 border-b">
-            <h2 className="text-lg font-bold">FWBB Admin</h2>
+            <h2 className="text-lg font-bold">{appName} Admin</h2>
           </div>
           <nav className="flex-1 px-3 py-4 space-y-1">
             {navItems.map((item) => (
@@ -68,7 +70,11 @@ export function AdminMobileNav() {
               </Link>
             ))}
           </nav>
-          <div className="p-3 border-t">
+          <div className="p-3 border-t space-y-2">
+            <div className="flex items-center gap-2 px-1">
+              <LanguageSelector className="flex-1" />
+              <ThemeToggle />
+            </div>
             <form action={logout}>
               <button
                 type="submit"

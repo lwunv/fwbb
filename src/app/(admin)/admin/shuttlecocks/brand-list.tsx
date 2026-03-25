@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { createBrand, updateBrand, toggleBrandActive } from "@/actions/shuttlecocks";
-import { formatVND } from "@/lib/utils";
+import { formatK } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Plus, Edit, CircleDot, ToggleLeft, ToggleRight } from "lucide-react";
+import { usePolling } from "@/lib/use-polling";
 import type { InferSelectModel } from "drizzle-orm";
 import type { shuttlecockBrands as brandsTable } from "@/db/schema";
 
@@ -27,6 +28,7 @@ export function BrandList({ brands }: { brands: Brand[] }) {
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
   const t = useTranslations("adminShuttlecocks");
   const tCommon = useTranslations("common");
+  usePolling();
 
   async function handleSubmit(formData: FormData) {
     if (editingBrand) {
@@ -39,26 +41,29 @@ export function BrandList({ brands }: { brands: Brand[] }) {
   }
 
   return (
-    <div>
+    <div className="pb-20">
       <div className="flex justify-between items-center mb-4">
         <p className="text-muted-foreground">{t("count", { count: brands.length })}</p>
-        <Dialog
-          open={dialogOpen}
-          onOpenChange={(open) => {
-            setDialogOpen(open);
-            if (!open) setEditingBrand(null);
-          }}
-        >
-          <DialogTrigger render={<Button />}>
+      </div>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setEditingBrand(null);
+        }}
+      >
+        <div className="fixed bottom-0 left-0 right-0 lg:left-60 z-30 p-3 bg-background/95 backdrop-blur border-t">
+          <DialogTrigger render={<Button className="w-full" size="lg" />}>
             <Plus className="h-4 w-4 mr-2" /> {t("addBrand")}
           </DialogTrigger>
+        </div>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
                 {editingBrand ? t("editBrand") : t("addNewBrand")}
               </DialogTitle>
             </DialogHeader>
-            <form action={handleSubmit} className="space-y-4">
+            <form key={editingBrand?.id ?? "new"} action={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="name">{t("brandName")}</Label>
                 <Input
@@ -83,8 +88,7 @@ export function BrandList({ brands }: { brands: Brand[] }) {
               </Button>
             </form>
           </DialogContent>
-        </Dialog>
-      </div>
+      </Dialog>
 
       <div className="grid gap-3">
         {brands.map((brand) => (
@@ -97,7 +101,7 @@ export function BrandList({ brands }: { brands: Brand[] }) {
                 <div>
                   <p className="font-medium">{brand.name}</p>
                   <p className="text-sm font-medium text-primary">
-                    {formatVND(brand.pricePerTube)}{t("perTube")}
+                    {formatK(brand.pricePerTube)}{t("perTube")}
                   </p>
                 </div>
               </div>

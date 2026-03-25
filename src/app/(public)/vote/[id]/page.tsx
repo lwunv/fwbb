@@ -2,9 +2,7 @@ import { getSession } from "@/actions/sessions";
 import { getSessionVotes } from "@/actions/votes";
 import { getActiveMembers } from "@/actions/members";
 import { getUserFromCookie } from "@/lib/user-identity";
-import { SessionCard } from "@/components/sessions/session-card";
-import { VoteButtons } from "@/components/sessions/vote-buttons";
-import { VoteList } from "@/components/sessions/vote-list";
+import { SessionVoteOptimisticPanel } from "@/components/sessions/session-vote-optimistic-panel";
 import { CopyLinkButton } from "@/components/shared/copy-link-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { notFound } from "next/navigation";
@@ -35,14 +33,6 @@ export default async function VoteSessionPage({
     getActiveMembers(),
   ]);
 
-  const playerCount = votes.filter((v) => v.willPlay).length;
-  const dinerCount = votes.filter((v) => v.willDine).length;
-  const totalGuestPlay = votes.reduce((sum, v) => sum + (v.guestPlayCount ?? 0), 0);
-  const totalGuestDine = votes.reduce((sum, v) => sum + (v.guestDineCount ?? 0), 0);
-
-  // Find current user's vote
-  const myVote = user ? votes.find((v) => v.memberId === user.memberId) : null;
-
   const isVotingOpen = session.status === "voting" || session.status === "confirmed";
 
   return (
@@ -57,35 +47,6 @@ export default async function VoteSessionPage({
         <CopyLinkButton sessionId={session.id} />
       </div>
 
-      <SessionCard
-        date={session.date}
-        startTime={session.startTime}
-        endTime={session.endTime}
-        courtName={session.court?.name}
-        courtPrice={session.courtPrice}
-        status={session.status}
-        playerCount={playerCount}
-        dinerCount={dinerCount}
-        guestPlayCount={totalGuestPlay}
-        guestDineCount={totalGuestDine}
-      />
-
-      {/* Vote Buttons */}
-      {isVotingOpen && (
-        <Card>
-          <CardContent className="p-4">
-            <h2 className="font-semibold mb-3">{t("yourVote")}</h2>
-            <VoteButtons
-              sessionId={session.id}
-              currentWillPlay={myVote?.willPlay ?? false}
-              currentWillDine={myVote?.willDine ?? false}
-              currentGuestPlayCount={myVote?.guestPlayCount ?? 0}
-              currentGuestDineCount={myVote?.guestDineCount ?? 0}
-            />
-          </CardContent>
-        </Card>
-      )}
-
       {!isVotingOpen && (
         <Card>
           <CardContent className="p-4 text-center text-muted-foreground">
@@ -96,15 +57,22 @@ export default async function VoteSessionPage({
         </Card>
       )}
 
-      {/* Vote List */}
-      <Card>
-        <CardContent className="p-4">
-          <h2 className="font-semibold mb-3">
-            {t("voteList")} ({t("votedOf", { voted: votes.length, total: members.length })})
-          </h2>
-          <VoteList votes={votes} members={members} />
-        </CardContent>
-      </Card>
+      <SessionVoteOptimisticPanel
+        sessionId={session.id}
+        session={{
+          date: session.date,
+          startTime: session.startTime,
+          endTime: session.endTime,
+          courtName: session.court?.name,
+          courtMapLink: session.court?.mapLink ?? null,
+          courtPrice: session.courtPrice,
+          status: session.status,
+        }}
+        votes={votes}
+        members={members}
+        currentMemberId={user?.memberId ?? null}
+        isVotingOpen={isVotingOpen}
+      />
     </div>
   );
 }

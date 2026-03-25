@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Victor: V-shape wings with circle at bottom center -->
+  <g fill="#1a1a1a">
+    <!-- Left wing of V -->
+    <polygon points="5,15 18,15 50,68 44,68"/>
+    <!-- Right wing of V -->
+    <polygon points="95,15 82,15 50,68 56,68"/>
+    <!-- Circle at bottom with white gap -->
+    <circle cx="50" cy="72" r="12"/>
+    <!-- White gap ring -->
+    <circle cx="50" cy="72" r="9" fill="white"/>
+    <!-- Inner filled circle -->
+    <circle cx="50" cy="72" r="7" fill="#1a1a1a"/>
+  </g>
+</svg>

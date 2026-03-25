@@ -6,8 +6,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StockCard } from "@/components/inventory/stock-card";
 import { PurchaseForm } from "@/components/inventory/purchase-form";
-import { formatVND } from "@/lib/utils";
-import { Package, Calendar, ArrowDown, ArrowUp } from "lucide-react";
+import { formatK } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Package, Calendar, ArrowDown, ArrowUp, Pencil, Check, X } from "lucide-react";
+import { updatePurchaseTubes } from "@/actions/inventory";
+import { usePolling } from "@/lib/use-polling";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import type { StockByBrand } from "@/actions/inventory";
@@ -55,8 +59,11 @@ export function InventoryClient({
   const [activeTab, setActiveTab] = useState<"stock" | "purchases" | "usage">(
     "stock",
   );
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editTubes, setEditTubes] = useState(0);
   const t = useTranslations("inventory");
   const tStats = useTranslations("stats");
+  usePolling();
 
   const totalQua = stock.filter((s) => s.isActive).reduce((sum, s) => sum + s.currentStockQua, 0);
   const isLowStock = totalQua < 12;
@@ -142,28 +149,72 @@ export function InventoryClient({
             </div>
           ) : (
             <div className="space-y-2">
-              {purchases.map((p) => (
-                <Card key={p.id} size="sm">
-                  <CardContent className="p-3 flex items-center gap-3">
-                    <div className="flex items-center justify-center h-8 w-8 rounded-md bg-primary/10">
-                      <ArrowDown className="h-4 w-4 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
+              {purchases.map((p) => {
+                const isEditing = editingId === p.id;
+                return (
+                  <Card key={p.id} size="sm">
+                    <CardContent className="p-3 flex items-center gap-3">
+                      <div className="flex items-center justify-center h-8 w-8 rounded-md bg-primary/10 shrink-0">
+                        <ArrowDown className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium flex items-center gap-1.5">
+                          {p.brand.name} -{" "}
+                          {isEditing ? (
+                            <span className="inline-flex items-center gap-1">
+                              <Input
+                                type="number"
+                                value={editTubes}
+                                onChange={(e) => setEditTubes(Number(e.target.value) || 1)}
+                                min={1}
+                                className="h-6 w-16 text-xs px-1.5"
+                                autoFocus
+                              />
+                              <span className="text-xs">{t("tube")}</span>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  await updatePurchaseTubes(p.id, editTubes);
+                                  setEditingId(null);
+                                }}
+                                className="text-green-600 hover:text-green-700"
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingId(null)}
+                                className="text-muted-foreground hover:text-foreground"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1">
+                              {p.tubes} {t("tube")}
+                              <button
+                                type="button"
+                                onClick={() => { setEditingId(p.id); setEditTubes(p.tubes); }}
+                                className="text-muted-foreground hover:text-foreground"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </button>
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          {formatDate(p.purchasedAt)}
+                          {p.notes && <span> - {p.notes}</span>}
+                        </div>
+                      </div>
                       <div className="text-sm font-medium">
-                        {p.brand.name} - {p.tubes} {t("tube")}
+                        {isEditing ? formatK(editTubes * p.pricePerTube) : formatK(p.totalPrice)}
                       </div>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Calendar className="h-3 w-3" />
-                        {formatDate(p.purchasedAt)}
-                        {p.notes && <span> - {p.notes}</span>}
-                      </div>
-                    </div>
-                    <div className="text-sm font-medium">
-                      {formatVND(p.totalPrice)}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </div>
@@ -194,7 +245,7 @@ export function InventoryClient({
                     </div>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {formatVND(u.quantityUsed * (u.pricePerTube / 12))}
+                    {formatK(u.quantityUsed * (u.pricePerTube / 12))}
                   </div>
                 </CardContent>
               </Card>

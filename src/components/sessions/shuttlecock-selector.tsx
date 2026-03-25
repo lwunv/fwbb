@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { addSessionShuttlecocks, removeSessionShuttlecock } from "@/actions/sessions";
-import { formatVND } from "@/lib/utils";
+import { formatK } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CircleDot, Plus, Trash2 } from "lucide-react";
@@ -54,7 +54,7 @@ export function ShuttlecockSelector({
   }
 
   const totalCost = currentShuttlecocks.reduce(
-    (sum, s) => sum + s.quantityUsed * s.pricePerTube,
+    (sum, s) => sum + Math.round(s.quantityUsed * s.pricePerTube / 12),
     0
   );
 
@@ -73,7 +73,7 @@ export function ShuttlecockSelector({
                 <div>
                   <p className="font-medium text-sm">{sc.brand.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {sc.quantityUsed} quả x {formatVND(sc.pricePerTube)} = {formatVND(sc.quantityUsed * sc.pricePerTube)}
+                    {sc.quantityUsed} quả x {formatK(Math.round(sc.pricePerTube / 12))}/quả = {formatK(Math.round(sc.quantityUsed * sc.pricePerTube / 12))}
                   </p>
                 </div>
               </div>
@@ -88,7 +88,7 @@ export function ShuttlecockSelector({
             </div>
           ))}
           <div className="text-sm font-medium text-right pt-2 border-t">
-            Tổng: {formatVND(totalCost)}
+            Tổng: {formatK(totalCost)}
           </div>
         </div>
       )}
@@ -107,7 +107,7 @@ export function ShuttlecockSelector({
             >
               {brands.map((brand) => (
                 <option key={brand.id} value={brand.id}>
-                  {brand.name} - {formatVND(brand.pricePerTube)}/quả
+                  {brand.name} - {formatK(brand.pricePerTube)}/ống
                 </option>
               ))}
             </select>

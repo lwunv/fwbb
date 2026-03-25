@@ -7,7 +7,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-roboto), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -46,6 +46,16 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  /* Lịch sử / hoạt động: cầu lông = tím, nhậu = cam (ăn theo dark mode) */
+  --color-hist-play-bg: color-mix(in oklab, #7c3aed 12%, transparent);
+  --color-hist-play-bg-strong: color-mix(in oklab, #7c3aed 24%, transparent);
+  --color-hist-play-border: color-mix(in oklab, #7c3aed 28%, transparent);
+  --color-hist-play-fg: #5b21b6;
+  --color-hist-play-icon-bg: color-mix(in oklab, #7c3aed 16%, transparent);
+  --color-hist-dine-bg: color-mix(in oklab, #ea580c 12%, transparent);
+  --color-hist-dine-border: color-mix(in oklab, #ea580c 28%, transparent);
+  --color-hist-dine-fg: #9a3412;
+  --color-hist-dine-icon-bg: color-mix(in oklab, #ea580c 16%, transparent);
 }
 
 /* ========== Light Theme (default) ========== */
@@ -118,6 +128,15 @@
   --sidebar-accent-foreground: #F1F5F9;
   --sidebar-border: #334155;
   --sidebar-ring: #818CF8;
+  --color-hist-play-bg: color-mix(in oklab, #a78bfa 14%, transparent);
+  --color-hist-play-bg-strong: color-mix(in oklab, #a78bfa 28%, transparent);
+  --color-hist-play-border: color-mix(in oklab, #a78bfa 35%, transparent);
+  --color-hist-play-fg: #ddd6fe;
+  --color-hist-play-icon-bg: color-mix(in oklab, #a78bfa 18%, transparent);
+  --color-hist-dine-bg: color-mix(in oklab, #fb923c 14%, transparent);
+  --color-hist-dine-border: color-mix(in oklab, #fb923c 35%, transparent);
+  --color-hist-dine-fg: #fed7aa;
+  --color-hist-dine-icon-bg: color-mix(in oklab, #fb923c 18%, transparent);
 }
 
 /* ========== Pink Theme ========== */
@@ -160,10 +179,33 @@
   * {
     @apply border-border outline-ring/50;
   }
+  button,
+  a,
+  select,
+  [role="button"],
+  [type="submit"],
+  [type="reset"],
+  label[for],
+  summary {
+    cursor: pointer;
+  }
   body {
     @apply bg-background text-foreground;
   }
   html {
     @apply font-sans;
   }
+  /* Tiếng Trung: Roboto thiếu glyph Hán — ưu tiên Geist + font hệ thống CJK */
+  html[lang="zh"] {
+    --font-sans: var(--font-geist-sans), ui-sans-serif, "PingFang SC", "Microsoft YaHei UI",
+      "Segoe UI", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+  }
+}
+
+@keyframes border-pulse {
+  0%, 100% { border-color: oklch(0.723 0.219 149.58); }
+  50% { border-color: oklch(0.723 0.219 149.58 / 0.25); }
+}
+.animate-border-pulse {
+  animation: border-pulse 2s ease-in-out infinite;
 }

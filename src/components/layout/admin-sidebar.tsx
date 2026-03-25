@@ -16,6 +16,8 @@ import {
   LogOut,
 } from "lucide-react";
 import { logout } from "@/actions/auth";
+import { LanguageSelector } from "@/components/shared/language-selector";
+import { ThemeToggle } from "@/components/shared/theme-toggle";
 
 const navItems = [
   { href: "/admin/dashboard", labelKey: "dashboard" as const, icon: LayoutDashboard },
@@ -28,14 +30,14 @@ const navItems = [
   { href: "/admin/stats", labelKey: "stats" as const, icon: BarChart3 },
 ];
 
-export function AdminSidebar() {
+export function AdminSidebar({ appName = "FWBB" }: { appName?: string }) {
   const pathname = usePathname();
   const t = useTranslations("adminNav");
 
   return (
     <aside className="hidden lg:flex lg:w-60 lg:flex-col lg:fixed lg:inset-y-0 border-r bg-card">
       <div className="p-6">
-        <h1 className="text-xl font-bold">FWBB Admin</h1>
+        <h1 className="text-xl font-bold">{appName} Admin</h1>
       </div>
       <nav className="flex-1 px-3 space-y-1">
         {navItems.map((item) => (
@@ -54,7 +56,11 @@ export function AdminSidebar() {
           </Link>
         ))}
       </nav>
-      <div className="p-3 border-t">
+      <div className="p-3 border-t space-y-2">
+        <div className="flex items-center gap-2 px-1">
+          <LanguageSelector className="flex-1" />
+          <ThemeToggle />
+        </div>
         <form action={logout}>
           <button
             type="submit"

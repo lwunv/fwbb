@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Link2, Check } from "lucide-react";
 
@@ -10,6 +11,7 @@ interface CopyLinkButtonProps {
 
 export function CopyLinkButton({ sessionId }: CopyLinkButtonProps) {
   const [copied, setCopied] = useState(false);
+  const t = useTranslations("sessions");
 
   async function handleCopy() {
     const url = `${window.location.origin}/vote/${sessionId}`;
@@ -32,20 +34,20 @@ export function CopyLinkButton({ sessionId }: CopyLinkButtonProps) {
 
   return (
     <Button
-      variant="outline"
-      size="sm"
+      variant="default"
+      size="default"
       onClick={handleCopy}
-      className="gap-1.5"
+      className="gap-1.5 font-semibold shadow-sm hover:shadow-md"
     >
       {copied ? (
         <>
           <Check className="h-3.5 w-3.5" />
-          Da copy
+          {t("linkCopied")}
         </>
       ) : (
         <>
           <Link2 className="h-3.5 w-3.5" />
-          Copy link
+          {t("copyLink")}
         </>
       )}
     </Button>

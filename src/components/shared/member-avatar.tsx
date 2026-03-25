@@ -1,44 +1,66 @@
 "use client";
 
-const AVATARS = [
-  // Animals
-  "🐱", "🐶", "🐰", "🦊", "🐻", "🐼", "🐨", "🦁", "🐯", "🐸",
-  "🐧", "🐦", "🦋", "🐝", "🐞", "🦄", "🐬", "🐳", "🦈", "🐙",
-  "🦉", "🐿️", "🦩", "🦜", "🐹",
-  // Flowers & Plants
-  "🌸", "🌺", "🌻", "🌷", "🌹", "🍀", "🌿", "🌴", "🌵", "🎋",
-  "🍁", "🌾", "🪻", "💐", "🌼",
-  // Vehicles & Objects
-  "🚗", "🚕", "🏎️", "🚀", "🛸", "⛵", "🎈", "🎪", "🎠", "🎡",
-];
-
-const COLORS = [
-  ["#FFE0E6", "#D63864"], // pink
-  ["#E0F0FF", "#2563EB"], // blue
-  ["#E6FFE0", "#16A34A"], // green
-  ["#FFF3E0", "#EA580C"], // orange
-  ["#F3E8FF", "#9333EA"], // purple
-  ["#FEF9C3", "#CA8A04"], // yellow
-  ["#E0FFFE", "#0891B2"], // cyan
-  ["#FFE4E6", "#E11D48"], // rose
-  ["#ECFDF5", "#059669"], // emerald
-  ["#FDF4FF", "#C026D3"], // fuchsia
-];
-
-function getAvatarForId(id: number) {
-  const emoji = AVATARS[id % AVATARS.length];
-  const color = COLORS[id % COLORS.length];
-  return { emoji, bg: color[0], border: color[1] };
-}
+import { getBrandPreset } from "@/lib/member-avatar-presets";
+import {
+  getEmojiAvatarByIndex,
+  getEmojiAvatarForMemberId,
+  parseEmojiAvatarKey,
+} from "@/lib/member-avatar-emoji";
 
 interface MemberAvatarProps {
   memberId: number;
+  /** Brand key, `emoji:n`, hoặc null/undefined → emoji theo memberId */
+  avatarKey?: string | null;
   size?: number;
   className?: string;
 }
 
-export function MemberAvatar({ memberId, size = 40, className = "" }: MemberAvatarProps) {
-  const { emoji, bg, border } = getAvatarForId(memberId);
+export function MemberAvatar({
+  memberId,
+  avatarKey,
+  size = 40,
+  className = "",
+}: MemberAvatarProps) {
+  const preset = avatarKey ? getBrandPreset(avatarKey) : null;
+  if (preset) {
+    const mono = preset.monogram;
+    const fontSize = size * (mono.length > 1 ? 0.26 : 0.42);
+    return (
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        className={className}
+        role="img"
+        aria-label={preset.label}
+      >
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={size / 2 - 1}
+          fill={preset.bg}
+          stroke={preset.border}
+          strokeWidth="1.5"
+        />
+        <text
+          x="50%"
+          y="50%"
+          textAnchor="middle"
+          dominantBaseline="central"
+          fill={preset.fg}
+          fontSize={fontSize}
+          fontWeight="700"
+          fontFamily="system-ui, sans-serif"
+        >
+          {mono}
+        </text>
+      </svg>
+    );
+  }
+
+  const emojiIdx = avatarKey ? parseEmojiAvatarKey(avatarKey) : null;
+  const { emoji, bg, border } =
+    emojiIdx !== null ? getEmojiAvatarByIndex(emojiIdx) : getEmojiAvatarForMemberId(memberId);
   const fontSize = size * 0.5;
 
   return (
@@ -71,8 +93,20 @@ export function MemberAvatar({ memberId, size = 40, className = "" }: MemberAvat
   );
 }
 
-export function getMemberAvatarSvgString(memberId: number, size = 40): string {
-  const { emoji, bg, border } = getAvatarForId(memberId);
+export function getMemberAvatarSvgString(
+  memberId: number,
+  size = 40,
+  avatarKey?: string | null,
+): string {
+  const preset = avatarKey ? getBrandPreset(avatarKey) : null;
+  if (preset) {
+    const mono = preset.monogram;
+    const fontSize = size * (mono.length > 1 ? 0.26 : 0.42);
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 1}" fill="${preset.bg}" stroke="${preset.border}" stroke-width="1.5"/><text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" fill="${preset.fg}" font-size="${fontSize}" font-weight="700" font-family="system-ui,sans-serif">${mono}</text></svg>`;
+  }
+  const emojiIdx = avatarKey ? parseEmojiAvatarKey(avatarKey) : null;
+  const { emoji, bg, border } =
+    emojiIdx !== null ? getEmojiAvatarByIndex(emojiIdx) : getEmojiAvatarForMemberId(memberId);
   const fontSize = size * 0.5;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 1}" fill="${bg}" stroke="${border}" stroke-width="1.5"/><text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" font-size="${fontSize}">${emoji}</text></svg>`;
 }

@@ -10,12 +10,12 @@ export default async function StatsPage({
 }: {
   searchParams: Promise<{ period?: string; expenseGroup?: string }>;
 }) {
-  const { period = "all", expenseGroup = "month" } = await searchParams;
+  const { period = "all", expenseGroup = "week" } = await searchParams;
 
   const [activeMembers, monthlyExpenses, attendance] = await Promise.all([
     getActiveMembersStats(period),
     getMonthlyExpenses(period, expenseGroup),
-    getAttendanceTrend(period),
+    getAttendanceTrend(),
   ]);
 
   return (

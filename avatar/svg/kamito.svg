@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Kamito bird/phoenix - three sweeping feathers + bird head -->
+  <!-- Bottom feather (longest sweep from lower-left up) -->
+  <path d="
+    M 6 92
+    C 14 80, 30 64, 50 50
+    C 62 42, 70 40, 72 44
+    C 64 46, 44 58, 26 74
+    C 16 82, 10 90, 10 94
+    Z
+  " fill="#E31B23"/>
+  <!-- Middle feather -->
+  <path d="
+    M 16 74
+    C 24 60, 40 44, 56 34
+    C 64 30, 72 28, 74 32
+    C 66 34, 50 44, 36 58
+    C 26 66, 20 74, 20 78
+    Z
+  " fill="#E31B23"/>
+  <!-- Top feather (shortest, highest) -->
+  <path d="
+    M 28 56
+    C 36 42, 50 30, 62 22
+    C 68 18, 74 16, 76 20
+    C 70 22, 56 32, 44 44
+    C 36 52, 32 56, 32 60
+    Z
+  " fill="#E31B23"/>
+  <!-- Bird head pointing upper-right -->
+  <path d="
+    M 72 18
+    C 74 14, 78 10, 90 6
+    L 86 10
+    L 80 14
+    C 76 18, 74 22, 74 24
+    C 72 22, 70 20, 72 18
+    Z
+  " fill="#E31B23"/>
+  <!-- Connecting body mass between feathers -->
+  <path d="
+    M 50 50
+    C 58 42, 66 34, 72 26
+    L 76 20
+    C 74 16, 76 20, 74 24
+    C 70 32, 62 42, 52 52
+    C 44 60, 36 66, 28 72
+    L 16 82
+    C 14 84, 12 88, 10 92
+    C 12 88, 18 78, 28 68
+    C 38 58, 46 52, 50 50
+    Z
+  " fill="#E31B23"/>
+</svg>

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { createCourt, updateCourt, toggleCourtActive } from "@/actions/courts";
-import { formatVND } from "@/lib/utils";
+import { formatK } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +16,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Edit, MapPin, ToggleLeft, ToggleRight, ExternalLink } from "lucide-react";
+import { Plus, Edit, MapPin, ToggleLeft, ToggleRight, Navigation } from "lucide-react";
+import { usePolling } from "@/lib/use-polling";
 import type { InferSelectModel } from "drizzle-orm";
 import type { courts as courtsTable } from "@/db/schema";
 
@@ -27,6 +28,7 @@ export function CourtList({ courts }: { courts: Court[] }) {
   const [editingCourt, setEditingCourt] = useState<Court | null>(null);
   const t = useTranslations("adminCourts");
   const tCommon = useTranslations("common");
+  usePolling();
 
   async function handleSubmit(formData: FormData) {
     if (editingCourt) {
@@ -39,26 +41,29 @@ export function CourtList({ courts }: { courts: Court[] }) {
   }
 
   return (
-    <div>
+    <div className="pb-20">
       <div className="flex justify-between items-center mb-4">
         <p className="text-muted-foreground">{t("count", { count: courts.length })}</p>
-        <Dialog
-          open={dialogOpen}
-          onOpenChange={(open) => {
-            setDialogOpen(open);
-            if (!open) setEditingCourt(null);
-          }}
-        >
-          <DialogTrigger render={<Button />}>
+      </div>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setEditingCourt(null);
+        }}
+      >
+        <div className="fixed bottom-0 left-0 right-0 lg:left-60 z-30 p-3 bg-background/95 backdrop-blur border-t">
+          <DialogTrigger render={<Button className="w-full" size="lg" />}>
             <Plus className="h-4 w-4 mr-2" /> {t("addCourt")}
           </DialogTrigger>
+        </div>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
                 {editingCourt ? t("editCourt") : t("addNewCourt")}
               </DialogTitle>
             </DialogHeader>
-            <form action={handleSubmit} className="space-y-4">
+            <form key={editingCourt?.id ?? "new"} action={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="name">{t("courtName")}</Label>
                 <Input
@@ -101,8 +106,7 @@ export function CourtList({ courts }: { courts: Court[] }) {
               </Button>
             </form>
           </DialogContent>
-        </Dialog>
-      </div>
+      </Dialog>
 
       <div className="grid gap-3">
         {courts.map((court) => (
@@ -121,10 +125,10 @@ export function CourtList({ courts }: { courts: Court[] }) {
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="text-primary hover:text-primary/80"
-                        title={t("openMap")}
+                        className="inline-flex items-center gap-0.5 text-xs text-primary hover:text-primary/80 no-underline"
                       >
-                        <ExternalLink className="h-3.5 w-3.5" />
+                        <Navigation className="h-3 w-3" />
+                        {t("openMap")}
                       </a>
                     )}
                   </div>
@@ -132,7 +136,7 @@ export function CourtList({ courts }: { courts: Court[] }) {
                     <p className="text-sm text-muted-foreground">{court.address}</p>
                   )}
                   <p className="text-sm font-medium text-primary">
-                    {formatVND(court.pricePerSession)}{t("perSession")}
+                    {formatK(court.pricePerSession)}{t("perSession")}
                   </p>
                 </div>
               </div>
