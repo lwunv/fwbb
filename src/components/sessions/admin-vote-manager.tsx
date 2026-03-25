@@ -83,8 +83,23 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
     return v && (v.willPlay || v.willDine);
   });
 
-  const playerCount = activeMembers.filter((m) => getVote(m.id)?.willPlay).length;
-  const dinerCount = activeMembers.filter((m) => getVote(m.id)?.willDine).length;
+  /** Thành viên (không tính khách) đang play / dine */
+  const memberPlayerCount = activeMembers.filter((m) => getVote(m.id)?.willPlay).length;
+  const memberDinerCount = activeMembers.filter((m) => getVote(m.id)?.willDine).length;
+
+  /** Khách cộng từ vote — bỏ member đã remove khỏi danh sách */
+  const totalGuestPlay = votes.reduce((s, v) => {
+    if (removedMembers.has(v.memberId)) return s;
+    return s + (v.guestPlayCount ?? 0);
+  }, 0);
+  const totalGuestDine = votes.reduce((s, v) => {
+    if (removedMembers.has(v.memberId)) return s;
+    return s + (v.guestDineCount ?? 0);
+  }, 0);
+
+  /** Tổng “mạng” play/dine — khớp logic finalize (cost-calculator) */
+  const playerCount = memberPlayerCount + totalGuestPlay;
+  const dinerCount = memberDinerCount + totalGuestDine;
 
   // Fire-and-forget with rollback on error
   function fireAsync(fn: () => Promise<{ error?: string; success?: boolean }>, rollback: () => void) {
@@ -161,46 +176,104 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
   function filterMembers(list: Member[], q: string) {
     if (!q) return list;
     const lower = q.toLowerCase();
-    return list.filter((m) => m.name.toLowerCase().includes(lower) || m.phone.includes(q));
+    return list.filter((m) => m.name.toLowerCase().includes(lower));
+  }
+
+  const sc = sessionCosts;
+  const shuttlecockCost = sc ? sc.shuttlecocks.reduce((sum, s) => sum + Math.round(s.quantity * s.pricePerTube / 12), 0) : 0;
+  const playCost = sc ? sc.courtPrice + shuttlecockCost : 0;
+  const playPerHead = playerCount > 0 ? Math.ceil(playCost / playerCount / 1000) * 1000 : 0;
+  const dinePerHead = dinerCount > 0 && sc ? Math.ceil(sc.diningBill / dinerCount / 1000) * 1000 : 0;
+  const totalExpense = sc ? playCost + sc.diningBill : 0;
+  const paidAmount = Object.entries(debtMap).filter(([mid]) => getDebtConfirmed(Number(mid))).reduce((sum, [, d]) => sum + d.amount, 0);
+  const totalDebtAmount = Object.values(debtMap).reduce((sum, d) => sum + d.amount, 0);
+  const totalOwed = totalDebtAmount - paidAmount;
+
+  function getVoteRow(memberId: number) {
+    return votes.find((v) => v.memberId === memberId);
+  }
+
+  /** Ưu tiên nợ đã finalize; không thì ước lượng theo play/dine + khách */
+  function displayMemberAmount(memberId: number): number | null {
+    const debt = debtMap[memberId];
+    if (debt && sc?.isCompleted) {
+      return debt.amount;
+    }
+    if (!sc) return debt?.amount ?? null;
+    const v = getVote(memberId);
+    if (!v) return debt?.amount ?? null;
+    const row = getVoteRow(memberId);
+    const gp = row?.guestPlayCount ?? 0;
+    const gd = row?.guestDineCount ?? 0;
+    const playPart =
+      (v.willPlay ? playPerHead : 0) + gp * playPerHead;
+    const dinePart =
+      (v.willDine ? dinePerHead : 0) + gd * dinePerHead;
+    const est = playPart + dinePart;
+    if (est > 0) return est;
+    return debt?.amount ?? null;
   }
 
   return (
-    <Card className="bg-amber-50/30 border-amber-200/40 dark:bg-amber-950/10 dark:border-amber-900/20">
-      <CardContent className="p-3 space-y-2">
-        {/* Error toast */}
-        {error && (
-          <div className="rounded-md bg-destructive/10 text-destructive text-xs p-2 text-center">
-            {error}
-          </div>
-        )}
-
-        {/* Header — live recalculation from optimistic state */}
-        {(() => {
-          const sc = sessionCosts;
-          const shuttlecockCost = sc ? sc.shuttlecocks.reduce((sum, s) => sum + Math.round(s.quantity * s.pricePerTube / 12), 0) : 0;
-          const playCost = sc ? sc.courtPrice + shuttlecockCost : 0;
-          const playPerHead = playerCount > 0 ? Math.ceil(playCost / playerCount / 1000) * 1000 : 0;
-          const dinePerHead = dinerCount > 0 && sc ? Math.ceil(sc.diningBill / dinerCount / 1000) * 1000 : 0;
-          const paidAmount = Object.entries(debtMap).filter(([mid]) => getDebtConfirmed(Number(mid))).reduce((sum, [, d]) => sum + d.amount, 0);
-          const totalDebtAmount = Object.values(debtMap).reduce((sum, d) => sum + d.amount, 0);
-          const totalOwed = totalDebtAmount - paidAmount;
-
-          return (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm">
-                <span>🏸 <strong>{playerCount}</strong>{sc?.isCompleted && playPerHead > 0 && <span className="text-muted-foreground text-xs"> · {formatK(playPerHead)}/ng</span>}</span>
-                <span>🍻 <strong>{dinerCount}</strong>{sc?.isCompleted && dinePerHead > 0 && <span className="text-muted-foreground text-xs"> · {formatK(dinePerHead)}/ng</span>}</span>
-              </div>
-              {sc?.isCompleted && totalOwed > 0 && (
-                <span className="text-xs font-bold text-red-500">nợ {formatK(totalOwed)}</span>
-              )}
-              {sc?.isCompleted && totalOwed <= 0 && totalDebtAmount > 0 && (
-                <span className="text-xs font-bold text-green-600">✓ Hết nợ</span>
-              )}
+    <div className="space-y-3">
+      {/* Info card — blue tint */}
+      {sc && (
+        <Card className="bg-blue-50/40 border-blue-200/40 dark:bg-blue-950/20 dark:border-blue-900/30 !py-2">
+          <CardContent className="px-3 py-0 space-y-1.5">
+            <div className="flex items-center text-sm">
+              <span className="inline-block w-6 text-center">⏰</span> <span className="ml-1">{sc.startTime} - {sc.endTime}</span>
             </div>
-          );
-        })()}
-        <div className="flex items-center justify-between">
+            {sc.isCompleted && (
+              <div className="space-y-0.5 text-sm">
+                {sc.shuttlecocks.length > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground"><span className="inline-block w-6 text-center">🏸</span> Cầu</span>
+                    <span className="font-medium">{sc.shuttlecocks.map((s, i) => <span key={i}>{i > 0 && ", "}<strong>{s.quantity}</strong> quả {s.brandName}</span>)} · <span className="text-primary">{formatK(shuttlecockCost)}</span></span>
+                  </div>
+                )}
+                {sc.courtPrice > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground"><span className="inline-block w-6 text-center">🏟</span> {sc.courtName ?? "Sân"}</span>
+                    <span className="font-medium text-primary">{formatK(sc.courtPrice)}</span>
+                  </div>
+                )}
+                {sc.diningBill > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground"><span className="inline-block w-6 text-center">🍻</span> Nhậu</span>
+                    <span className="font-medium text-orange-500 dark:text-orange-400">{formatK(sc.diningBill)}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between font-bold">
+                  <span><span className="inline-block w-6 text-center">💰</span> Tổng chi</span>
+                  <span>
+                    <span className="text-primary">{formatK(totalExpense)}</span>
+                    {totalOwed > 0 && <span className="text-red-600 dark:text-red-400"> (nợ {formatK(totalOwed)})</span>}
+                    {totalOwed <= 0 && totalDebtAmount > 0 && <span className="text-green-600 dark:text-green-400"> (✓ hết nợ)</span>}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-1">
+                    <span>🏸Cầu <strong className="text-primary">{playerCount}</strong></span>
+                    {playPerHead > 0 && <span>· <strong className="text-primary">{formatK(playPerHead)}</strong>/mạng</span>}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span>🍻Nhậu <strong className="text-orange-500 dark:text-orange-400">{dinerCount}</strong></span>
+                    {dinePerHead > 0 && <span>· <strong className="text-orange-500 dark:text-orange-400">{formatK(dinePerHead)}</strong>/mạng</span>}
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Member list card — amber tint */}
+      <Card className="bg-amber-50/30 border-amber-200/40 dark:bg-amber-950/10 dark:border-amber-900/20 !py-0">
+        <CardContent className="px-3 py-0 space-y-2">
+          {error && (
+            <div className="rounded-md bg-destructive/10 text-destructive text-xs p-2 text-center">{error}</div>
+          )}
+          <div className="flex items-center justify-between">
           {!readOnly && (
             <Button
               variant="outline"
@@ -220,62 +293,87 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
             const debt = debtMap[member.id];
             const isConfirmed = getDebtConfirmed(member.id);
 
+            const amountShown = displayMemberAmount(member.id);
+
             return (
-              <div key={member.id} className="grid grid-cols-[28px_1fr_40px_40px_40px_auto_20px] gap-x-1 items-center gap-x-2 py-2">
-                <MemberAvatar memberId={member.id} size={28} />
-                <span className="text-sm font-medium truncate" title={member.name}>{member.name}</span>
+              <div
+                key={member.id}
+                className="flex items-center gap-2 py-2 min-h-[2.75rem]"
+              >
+                <MemberAvatar memberId={member.id} avatarKey={member.avatarKey} size={28} />
+                <span className="text-sm font-medium truncate min-w-0 flex-1" title={member.name}>
+                  {member.name}
+                </span>
 
-                {/* Cầu */}
-                <button
-                  onClick={() => toggleTag(member.id, "play")}
-                  className={`inline-flex items-center justify-center rounded-lg border px-1 py-1 text-base transition-all w-10 h-10 cursor-pointer hover:opacity-80 ${
-                    v.willPlay
-                      ? "bg-green-100 text-green-700 border-green-300 dark:bg-green-900/40 dark:text-green-300 dark:border-green-700"
-                      : "bg-muted text-muted-foreground border-transparent opacity-40"
-                  }`}
-                >
-                  🏸
-                </button>
-
-                {/* Nhậu */}
-                <button
-                  onClick={() => toggleTag(member.id, "dine")}
-                  className={`inline-flex items-center justify-center rounded-lg border px-1 py-1 text-base transition-all w-10 h-10 cursor-pointer hover:opacity-80 ${
-                    v.willDine
-                      ? "bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-700"
-                      : "bg-muted text-muted-foreground border-transparent opacity-40"
-                  }`}
-                >
-                  🍻
-                </button>
-
-                {/* Hết nợ */}
-                {debt ? (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Cầu */}
                   <button
-                    onClick={() => togglePayment(member.id)}
-                    className={`inline-flex items-center justify-center rounded-lg border px-1 py-1 text-base transition-all w-10 h-10cursor-pointer hover:opacity-80 ${
-                      isConfirmed
+                    type="button"
+                    title="Cầu lông"
+                    disabled={readOnly}
+                    onClick={() => toggleTag(member.id, "play")}
+                    className={`inline-flex shrink-0 items-center justify-center rounded-lg border text-base transition-all w-10 h-10 cursor-pointer hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 ${
+                      v.willPlay
                         ? "bg-green-100 text-green-700 border-green-300 dark:bg-green-900/40 dark:text-green-300 dark:border-green-700"
                         : "bg-muted text-muted-foreground border-transparent opacity-40"
                     }`}
                   >
-                    🪙
+                    🏸
                   </button>
-                ) : <span />}
 
-                {/* Amount */}
-                {debt ? (
-                  <span className={`text-xs font-bold tabular-nums text-right ${isConfirmed ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-                    {formatK(debt.amount)}
-                  </span>
-                ) : <span />}
+                  {/* Nhậu */}
+                  <button
+                    type="button"
+                    title="Nhậu"
+                    disabled={readOnly}
+                    onClick={() => toggleTag(member.id, "dine")}
+                    className={`inline-flex shrink-0 items-center justify-center rounded-lg border text-base transition-all w-10 h-10 cursor-pointer hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 ${
+                      v.willDine
+                        ? "bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-700"
+                        : "bg-muted text-muted-foreground border-transparent opacity-40"
+                    }`}
+                  >
+                    🍻
+                  </button>
 
-                {/* Remove */}
-                <div className="flex items-center justify-end">
+                  {/* Đã thanh toán */}
+                  {debt ? (
+                    <button
+                      type="button"
+                      title={isConfirmed ? "Đã thanh toán" : "Chưa thanh toán"}
+                      onClick={() => togglePayment(member.id)}
+                      className={`inline-flex shrink-0 items-center justify-center rounded-lg border text-base transition-all w-10 h-10 cursor-pointer hover:opacity-80 ${
+                        isConfirmed
+                          ? "bg-green-100 text-green-700 border-green-300 dark:bg-green-900/40 dark:text-green-300 dark:border-green-700"
+                          : "bg-muted text-muted-foreground border-transparent opacity-40"
+                      }`}
+                    >
+                      🪙
+                    </button>
+                  ) : (
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center" aria-hidden />
+                  )}
+                </div>
+
+                <div className="flex min-w-[3.25rem] items-center justify-end gap-1 shrink-0">
+                  {amountShown != null && (
+                    <span
+                      className={`text-xs font-bold tabular-nums ${
+                        debt
+                          ? isConfirmed
+                            ? "text-green-600 dark:text-green-400"
+                            : "text-red-600 dark:text-red-400"
+                          : "text-foreground"
+                      }`}
+                    >
+                      {formatK(amountShown)}
+                    </span>
+                  )}
                   {!readOnly && (
                     <button
+                      type="button"
                       onClick={() => setRemoveTarget({ memberId: member.id, name: member.name })}
-                      className="text-muted-foreground hover:text-destructive transition-colors p-0.5"
+                      className="text-muted-foreground hover:text-destructive transition-colors p-0.5 shrink-0"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -321,7 +419,7 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
                     }`}>
                       {isIn && <Check className="h-3 w-3 text-primary-foreground" />}
                     </div>
-                    <MemberAvatar memberId={m.id} size={20} />
+                    <MemberAvatar memberId={m.id} avatarKey={m.avatarKey} size={20} />
                     <span>{m.name}</span>
                   </button>
                 );
@@ -339,5 +437,6 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
         onConfirm={handleRemoveConfirm}
       />
     </Card>
+    </div>
   );
 }
