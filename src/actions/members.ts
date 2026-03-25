@@ -38,7 +38,9 @@ export async function createMember(formData: FormData) {
     return { error: parsed.error.issues[0].message };
   }
   const nickname = (formData.get("nickname") as string)?.trim() || null;
-  await db.insert(members).values({ ...parsed.data, nickname });
+  // Admin-created members get a placeholder facebookId (will be replaced on first FB login)
+  const facebookId = `admin_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  await db.insert(members).values({ ...parsed.data, nickname, facebookId });
   revalidatePath("/admin/members");
   return { success: true };
 }
