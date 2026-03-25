@@ -11,10 +11,12 @@ import {
 } from "@/db/schema";
 import { eq, and, gte, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { getUserFromCookie } from "@/lib/user-identity";
 import {
   calculateSessionCosts,
   type AttendeeInput,
 } from "@/lib/cost-calculator";
+import { sendGroupMessage, buildDebtReminderMessage } from "@/lib/messenger";
 
 export interface FinalizeAttendee {
   memberId: number | null;
@@ -126,6 +128,11 @@ export async function finalizeSession(
     })
     .where(eq(sessions.id, sessionId));
 
+  // Non-blocking Messenger notification
+  const totalDebts = breakdown.memberDebts.reduce((sum, d) => sum + d.totalAmount, 0);
+  const link = `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/my-debts`;
+  sendGroupMessage(buildDebtReminderMessage(session.date, totalDebts, link));
+
   revalidatePath("/admin/sessions");
   revalidatePath(`/admin/sessions/${sessionId}`);
   revalidatePath("/admin/finance");
@@ -134,10 +141,17 @@ export async function finalizeSession(
 }
 
 export async function confirmPaymentByMember(debtId: number) {
+  const user = await getUserFromCookie();
+  if (!user) return { error: "Vui lòng xác định danh tính trước" };
+
   const debt = await db.query.sessionDebts.findFirst({
     where: eq(sessionDebts.id, debtId),
   });
   if (!debt) return { error: "Khong tim thay cong no" };
+  if (debt.memberId !== user.memberId) {
+    return { error: "Không thể xác nhận thay người khác" };
+  }
+  if (debt.memberConfirmed) return { success: true };
 
   await db
     .update(sessionDebts)
@@ -150,6 +164,8 @@ export async function confirmPaymentByMember(debtId: number) {
 
   revalidatePath("/my-debts");
   revalidatePath("/admin/finance");
+  revalidatePath("/history");
+  revalidatePath("/");
   return { success: true };
 }
 
@@ -171,6 +187,7 @@ export async function confirmPaymentByAdmin(debtId: number) {
   revalidatePath("/my-debts");
   revalidatePath("/admin/finance");
   revalidatePath("/admin/sessions");
+  revalidatePath("/admin/members");
   return { success: true };
 }
 
@@ -183,6 +200,8 @@ export async function undoPaymentByAdmin(debtId: number) {
   await db
     .update(sessionDebts)
     .set({
+      memberConfirmed: false,
+      memberConfirmedAt: null,
       adminConfirmed: false,
       adminConfirmedAt: null,
       updatedAt: new Date().toISOString(),
@@ -192,6 +211,7 @@ export async function undoPaymentByAdmin(debtId: number) {
   revalidatePath("/my-debts");
   revalidatePath("/admin/finance");
   revalidatePath("/admin/sessions");
+  revalidatePath("/admin/members");
   return { success: true };
 }
 
@@ -219,6 +239,7 @@ export async function getDebtsForMember(
     where: eq(sessionDebts.memberId, memberId),
     with: {
       session: true,
+      member: true,
     },
     orderBy: [desc(sessionDebts.id)],
   });
