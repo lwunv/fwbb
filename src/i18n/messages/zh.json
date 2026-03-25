@@ -45,6 +45,10 @@
     "createSession": "创建活动",
     "createSessionTitle": "创建新活动",
     "date": "日期",
+    "startTime": "开始时间",
+    "endTime": "结束时间",
+    "court": "场地",
+    "noCourt": "稍后选择",
     "create": "创建",
     "pleaseSelectDate": "请选择日期",
     "noSessions": "暂无活动",
@@ -56,7 +60,10 @@
     "shuttlecockUsage": "羽毛球使用",
     "done": "完成",
     "play": "打球",
-    "dine": "聚餐"
+    "dine": "聚餐",
+    "copyLink": "复制链接",
+    "linkCopied": "已复制",
+    "directions": "导航"
   },
   "voting": {
     "play": "队1 - 羽毛球",
@@ -66,18 +73,20 @@
     "addGuest": "添加嘉宾",
     "willPlay": "将参加",
     "willDine": "将聚餐",
-    "guestPlay": "嘉宾打球",
-    "guestDine": "嘉宾聚餐",
+    "guestPlay": "嘉宾",
+    "guestDine": "嘉宾",
     "badmintonShort": "羽毛球",
     "diningShort": "聚餐",
     "notGoing": "不参加",
     "notVoted": "未投票",
-    "noMembers": "暂无成员"
+    "noMembers": "暂无成员",
+    "guestSummaryPlayTail": "位打球嘉宾",
+    "guestSummaryDineTail": "位聚餐嘉宾"
   },
   "finance": {
     "debts": "债务",
     "unpaid": "未付款",
-    "waitingAdmin": "等待确认",
+    "waitingAdmin": "已付款，待确认",
     "adminConfirmed": "已确认",
     "paid": "已付款",
     "totalAmount": "总金额",
@@ -109,7 +118,9 @@
     "memberReported": "成员已报告",
     "undo": "撤销",
     "undoLabel": "未收款",
-    "notReceived": "未收款"
+    "notReceived": "未收款",
+    "confirmed": "已确认",
+    "allStatus": "全部"
   },
   "inventory": {
     "inventory": "库存",
@@ -122,16 +133,20 @@
     "purchaseHistory": "采购记录",
     "noPurchases": "暂无采购记录。",
     "usageHistory": "使用记录",
-    "noUsage": "暂无使用记录。"
+    "noUsage": "暂无使用记录。",
+    "save": "保存",
+    "cancel": "取消",
+    "edit": "编辑"
   },
   "stats": {
     "activeMembers": "活跃成员",
-    "monthlyCost": "月度费用",
+    "monthlyCost": "费用统计",
     "attendanceTrend": "出勤趋势",
     "quickStats": "快速统计",
     "sessionsPlayed": "参加活动",
     "sessionsDined": "参加聚餐",
     "totalSpent": "总支出",
+    "outstandingDebt": "待付",
     "noData": "暂无数据",
     "court": "场地",
     "shuttlecock": "羽毛球",
@@ -184,10 +199,27 @@
     "pink": "粉色"
   },
   "me": {
-    "switchUser": "切换用户",
+    "signOut": "退出登录",
     "appearance": "外观",
+    "appearanceLanguage": "外观与语言",
     "profile": "个人资料",
-    "settings": "设置"
+    "settings": "设置",
+    "nameLabel": "姓名",
+    "legalNameLabel": "姓名",
+    "nicknameLabel": "昵称",
+    "nicknameOptional": "（选填）",
+    "nicknamePlaceholder": "如：小明",
+    "nicknameTooLong": "昵称最多 40 个字符。",
+    "saveProfile": "保存",
+    "savingProfile": "保存中...",
+    "profileNotSignedIn": "请先完成身份确认。",
+    "profileInvalid": "数据无效。",
+    "changeAvatar": "更换头像",
+    "avatarPickerTitle": "选择头像",
+    "avatarAutoTitle": "自动",
+    "avatarEmojiTitle": "预设图标",
+    "avatarBrandTitle": "球拍品牌",
+    "avatarDefault": "默认"
   },
   "dashboard": {
     "overview": "概览",
@@ -195,12 +227,16 @@
     "sessionsThisMonth": "本月活动",
     "upcomingSession": "即将到来的活动",
     "noUpcoming": "暂无即将到来的活动。",
-    "latestSession": "最近一次活动",
+    "latestSession": "最近一场活动",
+    "homeDebtVoteWarning": "您仍有未确认的欠款。若已转账，请点击“已付款”。",
+    "homeTotalOwed": "待付总额",
     "courtNotSelected": "未选择场地",
     "manageSession": "管理活动",
     "manageSessions": "管理活动",
     "financeLink": "财务",
-    "quickLinks": "快捷入口"
+    "quickLinks": "快捷入口",
+    "appName": "应用名称",
+    "appNameSaved": "已保存"
   },
   "passwordChange": {
     "title": "修改密码",
@@ -221,18 +257,34 @@
     "current": "主题：{theme}",
     "switchTo": "点击切换到{theme}"
   },
-  "identify": {
-    "selectNameAndPhone": "选择您的名字并输入电话号码继续",
-    "selectYourName": "选择您的名字",
-    "pleaseSelectName": "请选择名字",
-    "noMembers": "暂无成员",
-    "phone": "电话号码",
-    "confirming": "确认中...",
-    "confirm": "确认"
+  "fbLogin": {
+    "checking": "正在检查登录状态...",
+    "signInPrompt": "登录以继续",
+    "continueWithFacebook": "继续使用 Facebook",
+    "signInWithFacebook": "使用 Facebook 登录",
+    "loginCancelled": "已取消登录",
+    "sdkLoadFailed": "无法加载 Facebook，请重试。",
+    "retry": "重试"
   },
   "history": {
     "completed": "已完成",
     "cancelled": "已取消",
+    "yourShare": "我的费用",
+    "playCost": "打球",
+    "dineCost": "聚餐",
+    "totalShort": "合计",
+    "noDebt": "无欠款",
+    "signInToSeeShare": "请先确认身份以查看您的费用。",
+    "ariaPlay": "羽毛球",
+    "ariaDine": "聚餐",
+    "ariaPay": "付款",
+    "participatedYes": "参加",
+    "participatedNo": "未参加",
+    "detailPayNoMember": "无欠款记录（嘉宾或未结算）。",
+    "paidStatus": "已付款",
+    "unpaidStatus": "未付款",
+    "markPaidButton": "我已付款",
+    "waitingAdminShort": "等待管理员确认",
     "play": "打球",
     "dine": "聚餐",
     "costBreakdown": "费用",
@@ -242,7 +294,13 @@
     "total": "总计",
     "participants": "参与者",
     "guest": "嘉宾",
-    "sessionCancelled": "此活动已被取消。"
+    "sessionCancelled": "此活动已被取消。",
+    "paginationNav": "历史分页",
+    "pageOf": "第 {current} / {total} 页",
+    "prevPage": "上一页",
+    "nextPage": "下一页",
+    "prevMonth": "上一月",
+    "nextMonth": "下一月"
   },
   "finalize": {
     "players": "参加者",
@@ -292,10 +350,18 @@
     "editMember": "编辑成员",
     "addNewMember": "添加新成员",
     "name": "姓名",
-    "phone": "电话",
+    "nickname": "昵称",
     "update": "更新",
     "active": "活跃",
-    "inactive": "停用"
+    "inactive": "停用",
+    "searchPlaceholder": "搜索名称...",
+    "pageOf": "第 {current} / {total} 页",
+    "lock": "锁定",
+    "unlock": "解锁",
+    "all": "全部",
+    "filterActive": "活跃",
+    "filterLocked": "已锁定",
+    "filterHasDebt": "有欠款"
   },
   "adminCourts": {
     "count": "{count} 个场地",
@@ -308,7 +374,7 @@
     "perSession": "/场",
     "mapLink": "谷歌地图链接",
     "mapLinkPlaceholder": "https://maps.google.com/...",
-    "openMap": "打开地图",
+    "openMap": "导航",
     "update": "更新",
     "active": "活跃",
     "inactive": "停用"

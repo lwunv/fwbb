@@ -45,6 +45,10 @@
     "createSession": "Create session",
     "createSessionTitle": "Create new session",
     "date": "Date",
+    "startTime": "Start time",
+    "endTime": "End time",
+    "court": "Court",
+    "noCourt": "Select later",
     "create": "Create",
     "pleaseSelectDate": "Please select a date",
     "noSessions": "No sessions yet",
@@ -56,7 +60,10 @@
     "shuttlecockUsage": "Shuttlecock usage",
     "done": "Done",
     "play": "Badminton",
-    "dine": "Dining"
+    "dine": "Dining",
+    "copyLink": "Copy link",
+    "linkCopied": "Copied",
+    "directions": "Directions"
   },
   "voting": {
     "play": "Team 1 - Badminton",
@@ -66,18 +73,20 @@
     "addGuest": "Add guest",
     "willPlay": "Will play",
     "willDine": "Will dine",
-    "guestPlay": "Guest play",
-    "guestDine": "Guest dine",
+    "guestPlay": "Guest",
+    "guestDine": "Guest",
     "badmintonShort": "Badminton",
     "diningShort": "Dining",
     "notGoing": "Not going",
     "notVoted": "Not voted",
-    "noMembers": "No members yet"
+    "noMembers": "No members yet",
+    "guestSummaryPlayTail": "{count, plural, one {badminton guest} other {badminton guests}}",
+    "guestSummaryDineTail": "{count, plural, one {dining guest} other {dining guests}}"
   },
   "finance": {
     "debts": "Debts",
     "unpaid": "Unpaid",
-    "waitingAdmin": "Waiting admin",
+    "waitingAdmin": "Paid — awaiting confirmation",
     "adminConfirmed": "Confirmed",
     "paid": "Paid",
     "totalAmount": "Total amount",
@@ -109,7 +118,9 @@
     "memberReported": "Member reported",
     "undo": "Undo",
     "undoLabel": "Not received",
-    "notReceived": "Not received"
+    "notReceived": "Not received",
+    "confirmed": "Confirmed",
+    "allStatus": "All"
   },
   "inventory": {
     "inventory": "Inventory",
@@ -122,16 +133,20 @@
     "purchaseHistory": "Purchase history",
     "noPurchases": "No purchase history.",
     "usageHistory": "Usage history",
-    "noUsage": "No usage history."
+    "noUsage": "No usage history.",
+    "save": "Save",
+    "cancel": "Cancel",
+    "edit": "Edit"
   },
   "stats": {
     "activeMembers": "Active members",
-    "monthlyCost": "Monthly cost",
+    "monthlyCost": "Expense stats",
     "attendanceTrend": "Attendance trend",
     "quickStats": "Quick stats",
     "sessionsPlayed": "Sessions played",
     "sessionsDined": "Sessions dined",
     "totalSpent": "Total spent",
+    "outstandingDebt": "Outstanding",
     "noData": "No data yet",
     "court": "Court",
     "shuttlecock": "Shuttle",
@@ -184,10 +199,27 @@
     "pink": "Pink"
   },
   "me": {
-    "switchUser": "Switch user",
+    "signOut": "Log out",
     "appearance": "Appearance",
+    "appearanceLanguage": "Appearance & language",
     "profile": "Profile",
-    "settings": "Settings"
+    "settings": "Settings",
+    "nameLabel": "Name",
+    "legalNameLabel": "Full name",
+    "nicknameLabel": "Nickname",
+    "nicknameOptional": "(optional)",
+    "nicknamePlaceholder": "e.g. Susu",
+    "nicknameTooLong": "Nickname must be at most 40 characters.",
+    "saveProfile": "Save",
+    "savingProfile": "Saving...",
+    "profileNotSignedIn": "Please identify yourself first.",
+    "profileInvalid": "Invalid data.",
+    "changeAvatar": "Change avatar",
+    "avatarPickerTitle": "Choose avatar",
+    "avatarAutoTitle": "Automatic",
+    "avatarEmojiTitle": "Preset icons",
+    "avatarBrandTitle": "Racket brands",
+    "avatarDefault": "Default"
   },
   "dashboard": {
     "overview": "Overview",
@@ -195,12 +227,16 @@
     "sessionsThisMonth": "Sessions this month",
     "upcomingSession": "Upcoming session",
     "noUpcoming": "No upcoming sessions.",
-    "latestSession": "Latest session",
+    "latestSession": "Recent session",
+    "homeDebtVoteWarning": "You still have unpaid debts. Tap Paid if you have already transferred the money.",
+    "homeTotalOwed": "Total to pay",
     "courtNotSelected": "Court not selected",
     "manageSession": "Manage session",
     "manageSessions": "Manage sessions",
     "financeLink": "Finance",
-    "quickLinks": "Quick links"
+    "quickLinks": "Quick links",
+    "appName": "App name",
+    "appNameSaved": "Saved"
   },
   "passwordChange": {
     "title": "Change password",
@@ -221,18 +257,34 @@
     "current": "Theme: {theme}",
     "switchTo": "Click to switch to {theme}"
   },
-  "identify": {
-    "selectNameAndPhone": "Select your name and enter your phone number to continue",
-    "selectYourName": "Select your name",
-    "pleaseSelectName": "Please select a name",
-    "noMembers": "No members yet",
-    "phone": "Phone number",
-    "confirming": "Confirming...",
-    "confirm": "Confirm"
+  "fbLogin": {
+    "checking": "Checking login status...",
+    "signInPrompt": "Sign in to continue",
+    "continueWithFacebook": "Continue with Facebook",
+    "signInWithFacebook": "Sign in with Facebook",
+    "loginCancelled": "Login cancelled",
+    "sdkLoadFailed": "Could not load Facebook. Please try again.",
+    "retry": "Retry"
   },
   "history": {
     "completed": "Done",
     "cancelled": "Cancelled",
+    "yourShare": "Your share",
+    "playCost": "Badminton",
+    "dineCost": "Dining",
+    "totalShort": "Total",
+    "noDebt": "No balance",
+    "signInToSeeShare": "Identify yourself to see your share.",
+    "ariaPlay": "Badminton",
+    "ariaDine": "Dining",
+    "ariaPay": "Payment",
+    "participatedYes": "Participating",
+    "participatedNo": "Not participating",
+    "detailPayNoMember": "No debt record (guest or not finalized).",
+    "paidStatus": "Paid",
+    "unpaidStatus": "Not paid yet",
+    "markPaidButton": "Mark as paid",
+    "waitingAdminShort": "Waiting for admin confirmation",
     "play": "play",
     "dine": "dine",
     "costBreakdown": "Costs",
@@ -242,7 +294,13 @@
     "total": "Total",
     "participants": "Participants",
     "guest": "guest",
-    "sessionCancelled": "This session was cancelled."
+    "sessionCancelled": "This session was cancelled.",
+    "paginationNav": "History pagination",
+    "pageOf": "Page {current} of {total}",
+    "prevPage": "Previous",
+    "nextPage": "Next",
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month"
   },
   "finalize": {
     "players": "Players",
@@ -292,10 +350,18 @@
     "editMember": "Edit member",
     "addNewMember": "Add new member",
     "name": "Name",
-    "phone": "Phone",
+    "nickname": "Nickname",
     "update": "Update",
     "active": "Active",
-    "inactive": "Inactive"
+    "inactive": "Inactive",
+    "searchPlaceholder": "Search name...",
+    "pageOf": "Page {current} / {total}",
+    "lock": "Lock",
+    "unlock": "Unlock",
+    "all": "All",
+    "filterActive": "Active",
+    "filterLocked": "Locked",
+    "filterHasDebt": "Has debt"
   },
   "adminCourts": {
     "count": "{count} courts",
@@ -308,7 +374,7 @@
     "perSession": "/session",
     "mapLink": "Google Maps link",
     "mapLinkPlaceholder": "https://maps.google.com/...",
-    "openMap": "Open map",
+    "openMap": "Directions",
     "update": "Update",
     "active": "Active",
     "inactive": "Inactive"
