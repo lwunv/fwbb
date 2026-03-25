@@ -48,17 +48,22 @@ export default async function MePage() {
   });
 
   const totalSpent = debts.reduce((sum, d) => sum + d.totalAmount, 0);
+  const outstandingDebt = debts
+    .filter((d) => !d.adminConfirmed && !d.memberConfirmed)
+    .reduce((sum, d) => sum + d.totalAmount, 0);
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold">{t("me")}</h1>
       <MeClient
+        key={`${member.id}-${member.name}-${member.nickname ?? ""}-${member.avatarKey ?? ""}`}
         memberId={member.id}
+        avatarKey={member.avatarKey ?? null}
         memberName={member.name}
-        memberPhone={member.phone}
+        memberNickname={member.nickname ?? null}
         totalPlayed={totalPlayed}
         totalDined={totalDined}
         totalSpent={totalSpent}
+        outstandingDebt={outstandingDebt}
       />
     </div>
   );
