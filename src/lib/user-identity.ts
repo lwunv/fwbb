@@ -8,33 +8,33 @@ function sign(data: string): string {
   return createHmac("sha256", SECRET).update(data).digest("hex");
 }
 
-export function createUserCookieValue(memberId: number, phone: string): string {
-  const data = `${memberId}:${phone}`;
+export function createUserCookieValue(memberId: number, facebookId: string): string {
+  const data = `${memberId}:${facebookId}`;
   const signature = sign(data);
   return `${data}:${signature}`;
 }
 
-export function parseUserCookie(value: string): { memberId: number; phone: string } | null {
+export function parseUserCookie(value: string): { memberId: number; facebookId: string } | null {
   const parts = value.split(":");
   if (parts.length !== 3) return null;
-  const [memberIdStr, phone, signature] = parts;
-  const data = `${memberIdStr}:${phone}`;
+  const [memberIdStr, facebookId, signature] = parts;
+  const data = `${memberIdStr}:${facebookId}`;
   if (sign(data) !== signature) return null;
-  return { memberId: parseInt(memberIdStr, 10), phone };
+  return { memberId: parseInt(memberIdStr, 10), facebookId };
 }
 
-export async function setUserCookie(memberId: number, phone: string) {
+export async function setUserCookie(memberId: number, facebookId: string) {
   const cookieStore = await cookies();
-  cookieStore.set(USER_COOKIE, createUserCookieValue(memberId, phone), {
+  cookieStore.set(USER_COOKIE, createUserCookieValue(memberId, facebookId), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 365, // 365 days
+    maxAge: 60 * 60 * 24 * 365,
     path: "/",
   });
 }
 
-export async function getUserFromCookie(): Promise<{ memberId: number; phone: string } | null> {
+export async function getUserFromCookie(): Promise<{ memberId: number; facebookId: string } | null> {
   const cookieStore = await cookies();
   const value = cookieStore.get(USER_COOKIE)?.value;
   if (!value) return null;
