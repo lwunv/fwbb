@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { sessions, courts, sessionShuttlecocks, shuttlecockBrands, sessionDebts, sessionAttendees, votes } from "@/db/schema";
 import { eq, desc, and, gte, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { sendGroupMessage, buildNewSessionMessage, buildConfirmedMessage } from "@/lib/messenger";
 
 export async function getSessions() {
   return db.query.sessions.findMany({
@@ -155,6 +156,14 @@ export async function confirmSession(sessionId: number) {
     updatedAt: new Date().toISOString(),
   }).where(eq(sessions.id, sessionId));
 
+  // Count voters for notification
+  const sessionVotes = await db.query.votes.findMany({
+    where: eq(votes.sessionId, sessionId),
+  });
+  const playCount = sessionVotes.filter((v) => v.willPlay).length;
+  const dineCount = sessionVotes.filter((v) => v.willDine).length;
+  sendGroupMessage(buildConfirmedMessage(session.date, playCount, dineCount));
+
   revalidatePath("/admin/sessions");
   revalidatePath(`/admin/sessions/${sessionId}`);
   return { success: true };
@@ -190,15 +199,42 @@ export async function deleteSession(sessionId: number) {
   return { success: true };
 }
 
-export async function createSessionManually(date: string) {
+export async function createSessionManually(
+  date: string,
+  startTime?: string,
+  endTime?: string,
+  courtId?: number,
+) {
   // Check if session already exists for this date
   const existing = await db.query.sessions.findFirst({
     where: eq(sessions.date, date),
   });
   if (existing) return { error: "Da co buoi choi vao ngay nay" };
 
-  await db.insert(sessions).values({ date, status: "voting" });
+  let courtPrice: number | null = null;
+  if (courtId) {
+    const court = await db.query.courts.findFirst({ where: eq(courts.id, courtId) });
+    if (court) courtPrice = court.pricePerSession;
+  }
+
+  await db.insert(sessions).values({
+    date,
+    status: "voting",
+    startTime: startTime || "20:30",
+    endTime: endTime || "22:30",
+    courtId: courtId || null,
+    courtPrice,
+  });
   revalidatePath("/admin/sessions");
+  revalidatePath("/");
+
+  // Non-blocking Messenger notification
+  const court = courtId
+    ? await db.query.courts.findFirst({ where: eq(courts.id, courtId) })
+    : null;
+  const link = `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/vote/${date}`;
+  sendGroupMessage(buildNewSessionMessage(date, court?.name ?? null, link));
+
   return { success: true };
 }
 
