@@ -31,6 +31,7 @@
 | Field | Before | After |
 |---|---|---|
 | `phone` | `text NOT NULL UNIQUE` | **Remove** |
+| `nickname` | `text` (optional) | **Keep** — user-editable display name independent of FB name |
 | `facebookId` | — | **Add** `text UNIQUE NOT NULL` |
 | `avatarUrl` | — | **Add** `text` (FB profile picture URL) |
 | `avatarKey` | emoji brand code | **Keep** — fallback if FB avatar fails to load |
@@ -43,19 +44,37 @@ To: `memberId:facebookId:signature`
 
 Same HMAC-SHA256 signing mechanism in `src/lib/user-identity.ts`.
 
+All consumers of `getUserFromCookie()` that access `.phone` must be updated to use `.facebookId`:
+- `src/lib/user-identity.ts` — `parseUserCookie` returns `{ memberId, facebookId }` instead of `{ memberId, phone }`
+- `src/actions/members.ts` — `updateMyProfile` uses `user.phone` for comparison and cookie re-signing → update to `user.facebookId`
+- `src/actions/identify.ts` — deleted entirely (replaced by `fb-auth.ts`)
+
 ### Migration
 
-- Drop all existing member rows (user confirmed old data is discarded)
-- Alter `members` table: remove `phone`, add `facebookId`, `avatarUrl`, `email`
-- Foreign key references from `votes`, `sessionDebts`, `sessionAttendees` will cascade (rows referencing deleted members get cleaned up)
+**Important:** No `ON DELETE CASCADE` exists on foreign keys in the current schema, and SQLite does not enforce FK constraints by default. The migration must delete child rows explicitly in dependency order:
+
+1. Delete all rows from `sessionDebts`
+2. Delete all rows from `sessionAttendees`
+3. Delete all rows from `votes`
+4. Delete all rows from `sessionShuttlecocks`
+5. Delete all rows from `members`
+6. Alter `members` table: remove `phone`, add `facebookId` (text, unique, not null), `avatarUrl` (text), `email` (text)
+
+Also delete all rows from `sessions` to avoid orphaned session records with no attendees/votes/debts.
+
+This is a destructive migration — all historical data will be removed. User confirmed this is acceptable.
 
 ---
 
 ## Section 2: Auth Flow
 
+### Session strategy
+
+The HMAC-signed cookie is the **sole session mechanism**. The FB access token is used only once during login to verify identity via Graph API, then discarded. The cookie (365-day TTL) maintains the session. No FB token is stored server-side.
+
 ### FB JS SDK integration
 
-- Load SDK via `<Script>` tag in `src/app/layout.tsx`
+- Load SDK via `<Script>` tag in `src/app/(public)/layout.tsx` (public layout only, not root — admin doesn't need it)
 - SDK helpers in `src/lib/facebook-sdk.ts`: `initFacebookSDK()`, `checkLoginStatus()`, `loginWithFacebook()`, `isInFacebookBrowser()`
 
 ### Login flow (replaces identify-gate)
@@ -73,11 +92,20 @@ User opens link
   → Calls server action facebookLogin(accessToken)
     → Server verifies token via Graph API (GET /me?fields=id,name,email,picture&access_token=...)
     → Find member by facebookId
-      → Found → update name/avatarUrl if changed → set cookie
+      → Found + isActive=true → update name/avatarUrl if changed → set cookie
+      → Found + isActive=false → return error "Account deactivated, contact admin"
       → Not found → insert new member → set cookie
     → revalidatePath("/")
   → Layout re-renders → user enters app
 ```
+
+### Logout flow
+
+1. Clear HMAC cookie (same as current `clearUserCookie()`)
+2. Do NOT call `FB.logout()` — this would log the user out of Facebook entirely, which is undesirable
+3. Redirect to login gate
+4. In IAB: next visit will auto-login via `getLoginStatus()` (FB session still active)
+5. In browser: user will need to click "Sign in with Facebook" again
 
 ### Security
 
@@ -91,33 +119,51 @@ User opens link
 |---|---|
 | `src/app/(public)/identify-gate.tsx` | **Delete** → replaced by `facebook-login-gate.tsx` |
 | `src/app/(public)/facebook-login-gate.tsx` | **New** — client component with FB Login UI |
-| `src/app/(public)/layout.tsx` | Render `<FacebookLoginGate>` instead of `<IdentifyGate>` |
+| `src/app/(public)/layout.tsx` | Render `<FacebookLoginGate>` instead of `<IdentifyGate>`, add FB SDK `<Script>` |
 | `src/actions/identify.ts` | **Delete** → replaced by `src/actions/fb-auth.ts` |
 | `src/actions/fb-auth.ts` | **New** — server action: verify token, upsert member, set cookie |
-| `src/lib/user-identity.ts` | Update cookie format: `memberId:facebookId:signature` |
+| `src/actions/members.ts` | Update `updateMyProfile`: remove phone logic, use `facebookId` for cookie. Remove phone from create/update member |
+| `src/lib/user-identity.ts` | Update cookie format: `memberId:facebookId:signature`, return type `{ memberId, facebookId }` |
 | `src/lib/facebook-sdk.ts` | **New** — SDK helpers: init, login, check status, detect IAB |
-| `src/app/layout.tsx` | Add `<Script>` to load FB JS SDK |
+| `src/lib/validators.ts` | Update `memberSchema` (remove phone, add facebookId). Remove `myProfilePhoneSchema`. Remove `identifySchema` |
+| `src/app/(public)/me/page.tsx` | Remove `memberPhone` prop, remove `member.phone` from component key |
+| `src/app/(public)/me/me-client.tsx` | Remove phone input field. Keep nickname editing only |
+| `src/app/(admin)/admin/members/member-list.tsx` | Remove phone display, phone search, phone in create/edit forms. Show facebookId (read-only) |
+| `src/app/(admin)/admin/finance/page.tsx` | Remove `memberPhones` map construction |
+| `src/app/(admin)/admin/finance/finance-client.tsx` | Remove `memberPhones` prop usage, update search to use name only |
+| `src/app/api/reset-identity/route.ts` | **Keep** — already just clears cookie and redirects, works as-is for new flow |
+| `src/components/sessions/admin-vote-manager.tsx` | Remove phone-based filtering |
+| `src/i18n/messages/{en,vi,zh}.json` | Remove `identify.*` keys. Add FB login keys. Remove phone-related keys from `me.*` |
 
 ### Environment variables (new)
 
 ```
 NEXT_PUBLIC_FB_APP_ID=<facebook-app-id>
-FB_APP_SECRET=<facebook-app-secret>
 ```
+
+Note: `FB_APP_SECRET` is not needed for the current design — the token verification call (`GET /me?access_token=...`) doesn't require it. Can be added later if `appsecret_proof` hardening is desired.
 
 ---
 
 ## Section 3: Messenger Group Chat Notifications
 
-### Mechanism
+### Phase separation
 
-Server-side Graph API calls to send messages to a Messenger group chat. A Facebook Page acts as the "sender" (Page must be added to the group).
+**Important:** The Messenger Platform Send API is designed for Page-to-user 1:1 messaging. Sending to group threads is not a well-supported, stable API. This section is implemented as **Phase 2** — separate from the SSO login work.
 
-### Helper
+### Approach: investigation spike first
 
-`src/lib/messenger.ts` — `sendGroupMessage(message: string)` wrapper around Graph API.
+Before implementing, a spike is needed to determine the viable approach:
 
-### Auto triggers
+1. **Option A: Messenger Group API** — Test if the Page can send to a group thread ID via Send API. This may work if the Page is a member of the group, but is undocumented/unstable.
+2. **Option B: Facebook Group post** — If the club uses a Facebook Group (not Messenger group), the Graph API `/{group-id}/feed` endpoint IS supported and can post to the group wall.
+3. **Option C: Messenger chatbot 1:1** — Page sends notifications to each member individually (contradicts non-goals, but may be the only stable option).
+
+### Provisional design (pending spike results)
+
+Helper: `src/lib/messenger.ts` — `sendNotification(message: string)` wrapper.
+
+### Auto triggers (unchanged regardless of delivery method)
 
 | Trigger | When | Message content |
 |---|---|---|
@@ -133,16 +179,14 @@ Server-side Graph API calls to send messages to a Messenger group chat. A Facebo
 | `src/actions/sessions.ts` | On status update to "confirmed" → send vote confirmed notification |
 | `src/actions/finance.ts` | On finalize debts → send debt reminder notification |
 
-### Environment variables (new)
+### Environment variables (added after spike)
 
 ```
 FB_PAGE_ACCESS_TOKEN=EAAxxxxxx...
-FB_MESSENGER_GROUP_THREAD_ID=t_xxxxx...
+FB_MESSENGER_GROUP_THREAD_ID=t_xxxxx...  (or FB_GROUP_ID for Option B)
 ```
 
-### Fallback note
-
-Messenger Group API is currently limited. If Graph API doesn't support sending to group threads directly, the fallback approach is: Page gets added to the group → users send a message to the Page in the group to activate → Page can then send messages to the group.
+Notifications are **non-blocking** — if send fails, log error and continue the main action.
 
 ---
 
@@ -152,10 +196,11 @@ Messenger Group API is currently limited. If Graph API doesn't support sending t
 |---|---|
 | FB SDK fails to load | Show retry button + manual error message |
 | Token verification fails | Show "Login failed, try again" + clear any partial state |
+| Deactivated member tries to login | Return error "Account deactivated, contact admin" — do NOT create new member |
 | FB API rate limit | Log error, skip notification (non-blocking), retry on next trigger |
-| Group message send fails | Log error, don't block the main action (session create/confirm/finalize) |
-| User revokes FB permission | Next request detects invalid cookie → redirect to login gate |
-| Token expired | Client-side: `getLoginStatus()` to refresh; Server-side: return 401 → client re-triggers login |
+| Notification send fails | Log error, don't block the main action (session create/confirm/finalize) |
+| User revokes FB permission | Next visit: cookie still valid (cookie-based session). On logout + re-login: FB will ask for permission again |
+| Cookie expired (365 days) | Redirect to login gate, user re-authenticates via FB |
 
 ## Testing Plan
 
@@ -163,6 +208,9 @@ Messenger Group API is currently limited. If Graph API doesn't support sending t
 2. **Browser flow**: Open in Chrome/Safari → verify redirect flow works
 3. **First-time user**: Login with new FB account → verify member created in DB
 4. **Returning user**: Login again → verify same member, name/avatar updated if changed
-5. **Messenger notifications**: Create session, confirm, finalize → verify messages appear in group chat
-6. **Token expiry**: Wait for token to expire → verify re-login works smoothly
-7. **Error cases**: Block FB SDK loading, use invalid token → verify graceful error handling
+5. **Deactivated user**: Admin deactivates member → verify login returns error, no duplicate created
+6. **Logout + re-login**: Logout → verify cookie cleared → re-login works in both IAB and browser
+7. **Me page**: Verify nickname editing works, phone field gone
+8. **Admin member list**: Verify phone removed from display/search/forms
+9. **Messenger notifications** (Phase 2): Create session, confirm, finalize → verify messages delivered
+10. **Error cases**: Block FB SDK loading, use invalid token → verify graceful error handling
