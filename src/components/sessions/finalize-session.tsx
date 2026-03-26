@@ -320,7 +320,7 @@ export function FinalizeSession({
                     onChange={() => togglePlayer(m.id)}
                     className="h-4 w-4 rounded accent-primary"
                   />
-                  <MemberAvatar memberId={m.id} avatarKey={m.avatarKey} size={32} />
+                  <MemberAvatar memberId={m.id} avatarKey={m.avatarKey} avatarUrl={m.avatarUrl} size={32} />
                   <span className="text-sm font-medium">{m.name}</span>
                   {votedPlayerIds.has(m.id) && (
                     <Badge variant="outline" className="ml-auto text-xs">
@@ -354,7 +354,7 @@ export function FinalizeSession({
                     onChange={() => toggleDiner(m.id)}
                     className="h-4 w-4 rounded accent-primary"
                   />
-                  <MemberAvatar memberId={m.id} avatarKey={m.avatarKey} size={32} />
+                  <MemberAvatar memberId={m.id} avatarKey={m.avatarKey} avatarUrl={m.avatarUrl} size={32} />
                   <span className="text-sm font-medium">{m.name}</span>
                   {votedDinerIds.has(m.id) && (
                     <Badge variant="outline" className="ml-auto text-xs">
@@ -549,6 +549,7 @@ export function FinalizeSession({
                       <MemberAvatar
                         memberId={debt.memberId}
                         avatarKey={member?.avatarKey}
+                        avatarUrl={member?.avatarUrl}
                         size={32}
                       />
                       <div className="flex-1 min-w-0">

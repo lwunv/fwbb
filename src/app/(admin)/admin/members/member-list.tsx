@@ -209,7 +209,7 @@ export function MemberList({
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <MemberAvatar memberId={member.id} avatarKey={member.avatarKey} size={36} />
+                    <MemberAvatar memberId={member.id} avatarKey={member.avatarKey} avatarUrl={member.avatarUrl} size={36} />
                     <div>
                       <p className="font-medium">
                         {member.name}

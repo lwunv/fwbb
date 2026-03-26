@@ -9,6 +9,7 @@ export default async function AdminFinancePage() {
     sessionId: d.sessionId,
     memberId: d.memberId,
     memberAvatarKey: d.member.avatarKey ?? null,
+    memberAvatarUrl: d.member.avatarUrl ?? null,
     memberName: d.member.name,
     sessionDate: d.session.date,
     playAmount: d.playAmount ?? 0,

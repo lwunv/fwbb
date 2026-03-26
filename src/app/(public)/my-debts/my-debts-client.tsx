@@ -12,7 +12,7 @@ import { usePolling } from "@/lib/use-polling";
 interface MyDebtsClientProps {
   debts: (DebtCardData & { memberName?: string })[];
   outstandingTotal: number;
-  members: { id: number; name: string; avatarKey: string | null }[];
+  members: { id: number; name: string; avatarKey: string | null; avatarUrl: string | null }[];
   currentUserId: number;
   selectedMemberId: number | "all";
 }
@@ -58,8 +58,14 @@ export function MyDebtsClient({
     selectedMemberId === "all"
       ? null
       : members.find((m) => m.id === selectedMemberId)?.avatarKey ?? null;
+  const selectedAvatarUrl =
+    selectedMemberId === "all"
+      ? null
+      : members.find((m) => m.id === selectedMemberId)?.avatarUrl ?? null;
   const currentUserAvatarKey =
     members.find((m) => m.id === currentUserId)?.avatarKey ?? null;
+  const currentUserAvatarUrl =
+    members.find((m) => m.id === currentUserId)?.avatarUrl ?? null;
 
   const isOwnView = selectedMemberId === currentUserId;
 
@@ -76,6 +82,7 @@ export function MyDebtsClient({
               <MemberAvatar
                 memberId={selectedMemberId as number}
                 avatarKey={selectedAvatarKey}
+                avatarUrl={selectedAvatarUrl}
                 size={24}
               />
             )}
@@ -105,7 +112,7 @@ export function MyDebtsClient({
                   isOwnView ? "bg-accent font-medium" : ""
                 }`}
               >
-                <MemberAvatar memberId={currentUserId} avatarKey={currentUserAvatarKey} size={24} />
+                <MemberAvatar memberId={currentUserId} avatarKey={currentUserAvatarKey} avatarUrl={currentUserAvatarUrl} size={24} />
                 <span>{members.find((m) => m.id === currentUserId)?.name ?? t("mine")}</span>
               </button>
 
@@ -137,7 +144,7 @@ export function MyDebtsClient({
                       selectedMemberId === m.id ? "bg-accent font-medium" : ""
                     }`}
                   >
-                    <MemberAvatar memberId={m.id} avatarKey={m.avatarKey} size={24} />
+                    <MemberAvatar memberId={m.id} avatarKey={m.avatarKey} avatarUrl={m.avatarUrl} size={24} />
                     <span>{m.name}</span>
                   </button>
                 ))}

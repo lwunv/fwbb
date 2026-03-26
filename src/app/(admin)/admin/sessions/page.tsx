@@ -31,6 +31,7 @@ export default async function SessionsPage() {
       memberId: d.memberId,
       memberName: d.member.name,
       memberAvatarKey: d.member.avatarKey ?? null,
+      memberAvatarUrl: d.member.avatarUrl ?? null,
       amount: d.totalAmount,
     }));
     const shuttlecockInfo = s.shuttlecocks.map((sc) => ({

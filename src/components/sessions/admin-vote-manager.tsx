@@ -300,7 +300,7 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
                 key={member.id}
                 className="flex items-center gap-2 py-2 min-h-[2.75rem]"
               >
-                <MemberAvatar memberId={member.id} avatarKey={member.avatarKey} size={28} />
+                <MemberAvatar memberId={member.id} avatarKey={member.avatarKey} avatarUrl={member.avatarUrl} size={28} />
                 <span className="text-sm font-medium truncate min-w-0 flex-1" title={member.name}>
                   {member.name}
                 </span>
@@ -419,7 +419,7 @@ export function AdminVoteManager({ sessionId, votes, members, debtMap = {}, read
                     }`}>
                       {isIn && <Check className="h-3 w-3 text-primary-foreground" />}
                     </div>
-                    <MemberAvatar memberId={m.id} avatarKey={m.avatarKey} size={20} />
+                    <MemberAvatar memberId={m.id} avatarKey={m.avatarKey} avatarUrl={m.avatarUrl} size={20} />
                     <span>{m.name}</span>
                   </button>
                 );

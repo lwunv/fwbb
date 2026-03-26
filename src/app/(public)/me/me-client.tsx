@@ -11,7 +11,6 @@ import { useTranslations } from "next-intl";
 import { formatK } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { MemberAvatar } from "@/components/shared/member-avatar";
-import { AvatarPickerDialog } from "@/components/shared/avatar-picker-dialog";
 import { LanguageCardPicker } from "@/components/shared/language-selector";
 import { updateMyProfile } from "@/actions/members";
 import { usePolling } from "@/lib/use-polling";
@@ -61,6 +60,7 @@ function inferThemeFromHtml(): ThemeKey {
 interface MeClientProps {
   memberId: number;
   avatarKey: string | null;
+  avatarUrl: string | null;
   memberName: string;
   memberNickname: string | null;
   totalPlayed: number;
@@ -72,6 +72,7 @@ interface MeClientProps {
 export function MeClient({
   memberId,
   avatarKey,
+  avatarUrl,
   memberName,
   memberNickname,
   totalPlayed,
@@ -81,7 +82,6 @@ export function MeClient({
 }: MeClientProps) {
   const { setTheme } = useTheme();
   const [activeTheme, setActiveTheme] = useState<ThemeKey>("light");
-  const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
 
   const syncThemeFromDom = useCallback(() => {
     setActiveTheme(inferThemeFromHtml());
@@ -124,24 +124,13 @@ export function MeClient({
 
   return (
     <div className="space-y-4 max-w-lg mx-auto">
-      <AvatarPickerDialog
-        memberId={memberId}
-        currentAvatarKey={avatarKey}
-        open={avatarPickerOpen}
-        onOpenChange={setAvatarPickerOpen}
-      />
       {/* Profile Card */}
       <Card>
         <CardContent className="space-y-4">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-            <button
-              type="button"
-              onClick={() => setAvatarPickerOpen(true)}
-              className="rounded-full ring-offset-background shrink-0 transition-[box-shadow,transform] hover:ring-2 hover:ring-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
-              aria-label={tMe("changeAvatar")}
-            >
-              <MemberAvatar memberId={memberId} avatarKey={avatarKey} size={48} />
-            </button>
+            <div className="shrink-0">
+              <MemberAvatar memberId={memberId} avatarKey={avatarKey} avatarUrl={avatarUrl} size={48} />
+            </div>
             <p
               className="min-w-0 flex-1 truncate text-xl font-medium text-foreground"
               aria-label={tMe("legalNameLabel")}

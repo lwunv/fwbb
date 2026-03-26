@@ -45,6 +45,7 @@ export default async function HistoryPage() {
         name: a.isGuest ? a.guestName || "Guest" : a.member?.name || "Unknown",
         memberId: a.memberId,
         memberAvatarKey: a.member?.avatarKey ?? null,
+        memberAvatarUrl: a.member?.avatarUrl ?? null,
         isGuest: a.isGuest ?? false,
         attendsPlay: a.attendsPlay ?? false,
         attendsDine: a.attendsDine ?? false,

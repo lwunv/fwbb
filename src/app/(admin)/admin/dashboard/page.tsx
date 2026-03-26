@@ -26,6 +26,7 @@ export default async function DashboardPage() {
     memberId: number;
     memberName: string;
     memberAvatarKey: string | null;
+    memberAvatarUrl: string | null;
     totalOwed: number;
     debts: { id: number; sessionDate: string; totalAmount: number; memberConfirmed: boolean; adminConfirmed: boolean; playAmount: number; dineAmount: number; guestPlayAmount: number; guestDineAmount: number }[];
   }>();
@@ -35,6 +36,7 @@ export default async function DashboardPage() {
         memberId: d.memberId,
         memberName: d.member.name,
         memberAvatarKey: d.member.avatarKey ?? null,
+        memberAvatarUrl: d.member.avatarUrl ?? null,
         totalOwed: 0,
         debts: [],
       });
@@ -69,6 +71,7 @@ export default async function DashboardPage() {
     id: d.id,
     memberId: d.memberId,
     memberAvatarKey: d.member.avatarKey ?? null,
+    memberAvatarUrl: d.member.avatarUrl ?? null,
     memberName: d.member.name,
     sessionDate: d.session.date,
     amount: d.totalAmount,

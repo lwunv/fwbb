@@ -23,6 +23,7 @@ async function mapOutstandingDebtsForUser(memberId: number) {
       sessionId: d.sessionId,
       memberId: d.memberId,
       memberAvatarKey: d.member?.avatarKey ?? null,
+      memberAvatarUrl: d.member?.avatarUrl ?? null,
       sessionDate: d.session.date,
       playAmount: d.playAmount ?? 0,
       dineAmount: d.dineAmount ?? 0,

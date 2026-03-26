@@ -63,6 +63,7 @@ export default async function MyDebtsPage({
       memberId: d.memberId,
       memberName: d.member?.name ?? "Unknown",
       memberAvatarKey: d.member?.avatarKey ?? null,
+      memberAvatarUrl: d.member?.avatarUrl ?? null,
       sessionDate: d.session.date,
       playAmount: d.playAmount ?? 0,
       dineAmount: d.dineAmount ?? 0,
@@ -81,6 +82,7 @@ export default async function MyDebtsPage({
       memberId: d.memberId,
       memberName: memberInfo?.name ?? "Unknown",
       memberAvatarKey: d.member?.avatarKey ?? memberInfo?.avatarKey ?? null,
+      memberAvatarUrl: d.member?.avatarUrl ?? memberInfo?.avatarUrl ?? null,
       sessionDate: d.session.date,
       playAmount: d.playAmount ?? 0,
       dineAmount: d.dineAmount ?? 0,
@@ -114,6 +116,7 @@ export default async function MyDebtsPage({
           id: m.id,
           name: m.name,
           avatarKey: m.avatarKey ?? null,
+          avatarUrl: m.avatarUrl ?? null,
         }))}
         currentUserId={user.memberId}
         selectedMemberId={selectedMemberId}

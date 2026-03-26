@@ -58,6 +58,7 @@ export default async function MePage() {
         key={`${member.id}-${member.name}-${member.nickname ?? ""}-${member.avatarKey ?? ""}`}
         memberId={member.id}
         avatarKey={member.avatarKey ?? null}
+        avatarUrl={member.avatarUrl ?? null}
         memberName={member.name}
         memberNickname={member.nickname ?? null}
         totalPlayed={totalPlayed}

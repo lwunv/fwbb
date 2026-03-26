@@ -11,6 +11,8 @@ interface MemberAvatarProps {
   memberId: number;
   /** Brand key, `emoji:n`, hoặc null/undefined → emoji theo memberId */
   avatarKey?: string | null;
+  /** URL ảnh đại diện từ Facebook — ưu tiên hiển thị khi có */
+  avatarUrl?: string | null;
   size?: number;
   className?: string;
 }
@@ -18,9 +20,24 @@ interface MemberAvatarProps {
 export function MemberAvatar({
   memberId,
   avatarKey,
+  avatarUrl,
   size = 40,
   className = "",
 }: MemberAvatarProps) {
+  if (avatarUrl) {
+    return (
+      <img
+        src={avatarUrl}
+        alt="Avatar"
+        width={size}
+        height={size}
+        className={`rounded-full object-cover ${className}`}
+        style={{ width: size, height: size }}
+        referrerPolicy="no-referrer"
+      />
+    );
+  }
+
   const preset = avatarKey ? getBrandPreset(avatarKey) : null;
   if (preset) {
     const mono = preset.monogram;

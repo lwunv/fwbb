@@ -34,6 +34,7 @@ interface MemberGroup {
   memberId: number;
   memberName: string;
   memberAvatarKey: string | null;
+  memberAvatarUrl: string | null;
   totalOwed: number;
   debts: DebtWithConfirmedAt[];
 }
@@ -61,6 +62,7 @@ export function AdminFinanceClient({ debts, totalOutstanding }: AdminFinanceClie
         memberId: d.memberId,
         memberName: d.memberName ?? "",
         memberAvatarKey: d.memberAvatarKey ?? null,
+        memberAvatarUrl: d.memberAvatarUrl ?? null,
         totalOwed: 0,
         debts: [],
       });
@@ -176,7 +178,7 @@ export function AdminFinanceClient({ debts, totalOutstanding }: AdminFinanceClie
                     <CardContent className="p-3 space-y-2">
                       {/* Member info + total */}
                       <div className="flex items-center gap-3">
-                        <MemberAvatar memberId={group.memberId} avatarKey={group.memberAvatarKey} size={32} />
+                        <MemberAvatar memberId={group.memberId} avatarKey={group.memberAvatarKey} avatarUrl={group.memberAvatarUrl} size={32} />
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium truncate">{group.memberName}</div>
                           <div className="text-xs text-muted-foreground">
@@ -292,7 +294,7 @@ export function AdminFinanceClient({ debts, totalOutstanding }: AdminFinanceClie
             pagedPaid.map((debt) => (
               <Card key={debt.id} size="sm">
                 <CardContent className="p-3 flex items-center gap-3">
-                  <MemberAvatar memberId={debt.memberId} avatarKey={debt.memberAvatarKey} size={28} />
+                  <MemberAvatar memberId={debt.memberId} avatarKey={debt.memberAvatarKey} avatarUrl={debt.memberAvatarUrl} size={28} />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium truncate">{debt.memberName}</div>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">

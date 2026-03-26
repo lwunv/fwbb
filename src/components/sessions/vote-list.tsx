@@ -47,7 +47,7 @@ export function VoteList({
             const vote = voteMap.get(member.id)!;
             return (
               <div key={member.id} className="flex items-center gap-3 py-2">
-                <MemberAvatar memberId={member.id} avatarKey={member.avatarKey} size={32} />
+                <MemberAvatar memberId={member.id} avatarKey={member.avatarKey} avatarUrl={member.avatarUrl} size={32} />
                 <div>
                   <p className="font-medium text-sm">{member.name}</p>
                   <div className="flex flex-wrap gap-1.5 mt-0.5">
@@ -79,7 +79,7 @@ export function VoteList({
               key={member.id}
               className="flex items-center gap-3 py-2 opacity-50"
             >
-              <MemberAvatar memberId={member.id} avatarKey={member.avatarKey} size={32} />
+              <MemberAvatar memberId={member.id} avatarKey={member.avatarKey} avatarUrl={member.avatarUrl} size={32} />
               <p className="font-medium text-sm">{member.name}</p>
             </div>
           ))}

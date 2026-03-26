@@ -42,6 +42,7 @@ interface SessionAttendee {
   name: string;
   memberId: number | null;
   memberAvatarKey: string | null;
+  memberAvatarUrl: string | null;
   isGuest: boolean;
   attendsPlay: boolean;
   attendsDine: boolean;
@@ -550,7 +551,7 @@ function SessionDetailCard({
             {session.attendees.map((a) => (
               <div key={a.id} className="flex items-center gap-2 text-sm">
                 {a.memberId ? (
-                  <MemberAvatar memberId={a.memberId} avatarKey={a.memberAvatarKey} size={24} />
+                  <MemberAvatar memberId={a.memberId} avatarKey={a.memberAvatarKey} avatarUrl={a.memberAvatarUrl} size={24} />
                 ) : (
                   <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-[10px]">
                     K

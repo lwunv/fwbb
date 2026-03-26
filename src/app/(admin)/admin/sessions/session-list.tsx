@@ -29,6 +29,7 @@ interface UnpaidDebt {
   memberId: number;
   memberName: string;
   memberAvatarKey: string | null;
+  memberAvatarUrl: string | null;
   amount: number;
 }
 
@@ -284,7 +285,7 @@ export function SessionList({ sessions, courts = [] }: { sessions: SessionCard[]
                         {session.unpaidDebts.map((d) => (
                           <div key={d.memberId} className="flex items-center justify-between pb-1.5 mt-1.5 text-xs">
                             <div className="flex items-center gap-2">
-                              <MemberAvatar memberId={d.memberId} avatarKey={d.memberAvatarKey} size={20} />
+                              <MemberAvatar memberId={d.memberId} avatarKey={d.memberAvatarKey} avatarUrl={d.memberAvatarUrl} size={20} />
                               <span>{d.memberName}</span>
                             </div>
                             <div className="flex items-center gap-2">

@@ -17,6 +17,8 @@ export interface DebtCardData {
   memberId: number;
   /** null/undefined: emoji theo memberId */
   memberAvatarKey?: string | null;
+  /** URL ảnh đại diện từ Facebook */
+  memberAvatarUrl?: string | null;
   memberName?: string;
   sessionDate: string;
   playAmount: number;
@@ -75,7 +77,7 @@ export function DebtCard({
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             {showMemberInfo && (
-              <MemberAvatar memberId={debt.memberId} avatarKey={debt.memberAvatarKey} size={28} />
+              <MemberAvatar memberId={debt.memberId} avatarKey={debt.memberAvatarKey} avatarUrl={debt.memberAvatarUrl} size={28} />
             )}
             <div className="min-w-0">
               {showMemberInfo && debt.memberName && (

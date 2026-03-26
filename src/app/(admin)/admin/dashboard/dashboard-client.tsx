@@ -54,6 +54,7 @@ interface RecentPayment {
   id: number;
   memberId: number;
   memberAvatarKey: string | null;
+  memberAvatarUrl: string | null;
   memberName: string;
   sessionDate: string;
   amount: number;
@@ -78,6 +79,7 @@ interface UnpaidGroup {
   memberId: number;
   memberName: string;
   memberAvatarKey: string | null;
+  memberAvatarUrl: string | null;
   totalOwed: number;
   debts: UnpaidDebt[];
 }
@@ -396,7 +398,7 @@ export function DashboardClient({
                     className="flex items-center justify-between gap-2 py-1.5 border-b last:border-0"
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <MemberAvatar memberId={p.memberId} avatarKey={p.memberAvatarKey} size={24} />
+                      <MemberAvatar memberId={p.memberId} avatarKey={p.memberAvatarKey} avatarUrl={p.memberAvatarUrl} size={24} />
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">
                           {p.memberName}
@@ -439,7 +441,7 @@ export function DashboardClient({
                     <div key={group.memberId} className="border rounded-lg p-3 space-y-2">
                       {/* Member row */}
                       <div className="flex items-center gap-3">
-                        <MemberAvatar memberId={group.memberId} avatarKey={group.memberAvatarKey} size={32} />
+                        <MemberAvatar memberId={group.memberId} avatarKey={group.memberAvatarKey} avatarUrl={group.memberAvatarUrl} size={32} />
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium truncate">{group.memberName}</div>
                           <div className="text-xs text-muted-foreground">
