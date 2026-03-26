@@ -60,7 +60,7 @@ export function loginWithFacebook(): Promise<{ accessToken: string; userID: stri
           reject(new Error("User cancelled login"));
         }
       },
-      { scope: "public_profile,email" },
+      { scope: "public_profile" },
     );
   });
 }

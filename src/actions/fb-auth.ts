@@ -9,7 +9,6 @@ import { revalidatePath } from "next/cache";
 interface FacebookUserInfo {
   id: string;
   name: string;
-  email?: string;
   picture?: { data?: { url?: string } };
 }
 
@@ -18,7 +17,7 @@ export async function facebookLogin(accessToken: string) {
   let fbUser: FacebookUserInfo;
   try {
     const res = await fetch(
-      `https://graph.facebook.com/me?fields=id,name,email,picture.type(large)&access_token=${accessToken}`,
+      `https://graph.facebook.com/me?fields=id,name,picture.type(large)&access_token=${accessToken}`,
     );
     if (!res.ok) {
       return { error: "Facebook verification failed" };
@@ -45,11 +44,10 @@ export async function facebookLogin(accessToken: string) {
 
     // Update name/avatar if changed
     const avatarUrl = fbUser.picture?.data?.url ?? null;
-    if (existing.name !== fbUser.name || existing.avatarUrl !== avatarUrl || existing.email !== (fbUser.email ?? null)) {
+    if (existing.name !== fbUser.name || existing.avatarUrl !== avatarUrl) {
       await db.update(members).set({
         name: fbUser.name,
         avatarUrl,
-        email: fbUser.email ?? null,
       }).where(eq(members.id, existing.id));
     }
 
@@ -64,7 +62,6 @@ export async function facebookLogin(accessToken: string) {
     name: fbUser.name,
     facebookId: fbUser.id,
     avatarUrl,
-    email: fbUser.email ?? null,
   }).returning();
 
   await setUserCookie(newMember.id, newMember.facebookId);
