@@ -1,14 +1,10 @@
 "use server";
 
 import { db } from "@/db";
-import {
-  sessions,
-  sessionAttendees,
-  sessionShuttlecocks,
-  sessionDebts,
-  members,
-} from "@/db/schema";
-import { eq, and, gte, desc, sql, inArray } from "drizzle-orm";
+import { sessions, sessionShuttlecocks, sessionDebts } from "@/db/schema";
+import { eq, inArray } from "drizzle-orm";
+import { calculateExactShuttlecockCost } from "@/lib/cost-calculator";
+import { roundToThousand } from "@/lib/utils";
 
 function getDateFilterStart(filter: string): string | null {
   const now = new Date();
@@ -39,7 +35,7 @@ export interface ActiveMemberStat {
 }
 
 export async function getActiveMembersStats(
-  filter: string = "all"
+  filter: string = "all",
 ): Promise<ActiveMemberStat[]> {
   const dateStart = getDateFilterStart(filter);
 
@@ -153,11 +149,15 @@ export async function getMonthlyExpenses(
     groupMap[key].courtCost += session.courtPrice || 0;
     groupMap[key].diningCost += session.diningBill || 0;
 
+    // Sum exact (float) per row, round once at the end of the session.
+    let sessionShuttleExact = 0;
     for (const sc of session.shuttlecocks) {
-      groupMap[key].shuttlecockCost += Math.round(
-        (sc.quantityUsed * sc.pricePerTube) / 12
+      sessionShuttleExact += calculateExactShuttlecockCost(
+        sc.quantityUsed,
+        sc.pricePerTube,
       );
     }
+    groupMap[key].shuttlecockCost += roundToThousand(sessionShuttleExact);
   }
 
   return Object.entries(groupMap)
@@ -193,20 +193,27 @@ async function getMonthlyExpensesForMember(
 
   // Load shuttlecocks separately to avoid relying on nested with
   const sessionIds = [...new Set(filtered.map((d) => d.sessionId))];
-  const allShuttlecocks = sessionIds.length > 0
-    ? await db.query.sessionShuttlecocks.findMany({
-        where: inArray(sessionShuttlecocks.sessionId, sessionIds),
-      })
-    : [];
+  const allShuttlecocks =
+    sessionIds.length > 0
+      ? await db.query.sessionShuttlecocks.findMany({
+          where: inArray(sessionShuttlecocks.sessionId, sessionIds),
+        })
+      : [];
 
   // Build a map of sessionId → shuttlecock cost
-  const shuttleCostBySession = new Map<number, number>();
+  // Build exact (float) total per session, round at the end so multi-brand
+  // sessions don't accumulate rounding drift.
+  const exactBySession = new Map<number, number>();
   for (const sc of allShuttlecocks) {
-    const prev = shuttleCostBySession.get(sc.sessionId) ?? 0;
-    shuttleCostBySession.set(
+    const prev = exactBySession.get(sc.sessionId) ?? 0;
+    exactBySession.set(
       sc.sessionId,
-      prev + Math.round((sc.quantityUsed * sc.pricePerTube) / 12),
+      prev + calculateExactShuttlecockCost(sc.quantityUsed, sc.pricePerTube),
     );
+  }
+  const shuttleCostBySession = new Map<number, number>();
+  for (const [sid, exact] of exactBySession) {
+    shuttleCostBySession.set(sid, roundToThousand(exact));
   }
 
   const groupMap: Record<
@@ -219,10 +226,8 @@ async function getMonthlyExpensesForMember(
     if (!groupMap[key]) {
       groupMap[key] = { courtCost: 0, shuttlecockCost: 0, diningCost: 0 };
     }
-    const playShare =
-      (debt.playAmount ?? 0) + (debt.guestPlayAmount ?? 0);
-    const dineShare =
-      (debt.dineAmount ?? 0) + (debt.guestDineAmount ?? 0);
+    const playShare = (debt.playAmount ?? 0) + (debt.guestPlayAmount ?? 0);
+    const dineShare = (debt.dineAmount ?? 0) + (debt.guestDineAmount ?? 0);
 
     // Split playShare into court vs shuttle proportionally based on session totals
     const sessionCourtPrice = debt.session.courtPrice ?? 0;
@@ -231,8 +236,10 @@ async function getMonthlyExpensesForMember(
 
     if (sessionPlayTotal > 0) {
       const courtRatio = sessionCourtPrice / sessionPlayTotal;
-      groupMap[key].courtCost += Math.round(playShare * courtRatio);
-      groupMap[key].shuttlecockCost += Math.round(playShare * (1 - courtRatio));
+      groupMap[key].courtCost += roundToThousand(playShare * courtRatio);
+      groupMap[key].shuttlecockCost += roundToThousand(
+        playShare * (1 - courtRatio),
+      );
     } else {
       groupMap[key].courtCost += playShare;
     }

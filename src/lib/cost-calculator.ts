@@ -41,13 +41,34 @@ export interface CostBreakdown {
 }
 
 /**
+ * Calculate cost of shuttlecocks based on quantity and price per tube (12 pieces).
+ * Rounded UP to nearest 1000 VND to avoid admin loss if needed,
+ * but since we sum first, we'll return the exact float,
+ * and round at the very end or where needed.
+ * Actually, to be perfectly safe, we should round up the total shuttlecock cost per session.
+ */
+export function calculateShuttlecockCost(
+  quantityUsed: number,
+  pricePerTube: number,
+): number {
+  return roundToThousand((quantityUsed * pricePerTube) / 12);
+}
+
+export function calculateExactShuttlecockCost(
+  quantityUsed: number,
+  pricePerTube: number,
+): number {
+  return (quantityUsed * pricePerTube) / 12;
+}
+
+/**
  * Pure cost calculation function.
  *
  * Algorithm (from spec 5.5):
  * 1. Count all players (members + guests) and diners (members + guests)
  * 2. play_cost_per_head = (court_price + total_shuttlecock_cost) / total_players
  * 3. dine_cost_per_head = dining_bill / total_diners
- * 4. Round per-head costs to nearest 1000 VND
+ * 4. Round per-head costs up to the next 1000 VND
  * 5. For each member: own play + own dine + (guests_play * play_cost) + (guests_dine * dine_cost)
  *
  * Shuttlecock cost = SUM(quantity_used * price_per_tube / 12) per brand
@@ -65,17 +86,19 @@ export function calculateSessionCosts(
   const totalDiners = allDiners.length;
 
   // 2. Calculate shuttlecock cost: each qua costs price_per_tube / 12
-  const totalShuttlecockCost = shuttlecocks.reduce((sum, s) => {
-    const costPerQua = s.pricePerTube / 12;
-    return sum + s.quantityUsed * costPerQua;
+  const totalShuttlecockCostExact = shuttlecocks.reduce((sum, s) => {
+    return sum + calculateExactShuttlecockCost(s.quantityUsed, s.pricePerTube);
   }, 0);
+  const totalShuttlecockCost = roundToThousand(totalShuttlecockCostExact);
 
   // 3. Calculate per-head costs
   const totalPlayCost = session.courtPrice + totalShuttlecockCost;
-  const rawPlayCostPerHead = totalPlayers > 0 ? totalPlayCost / totalPlayers : 0;
-  const rawDineCostPerHead = totalDiners > 0 ? session.diningBill / totalDiners : 0;
+  const rawPlayCostPerHead =
+    totalPlayers > 0 ? totalPlayCost / totalPlayers : 0;
+  const rawDineCostPerHead =
+    totalDiners > 0 ? session.diningBill / totalDiners : 0;
 
-  // 4. Round to nearest 1000 VND
+  // 4. Round up to the next 1000 VND so the admin is not underpaid.
   const playCostPerHead = roundToThousand(rawPlayCostPerHead);
   const dineCostPerHead = roundToThousand(rawDineCostPerHead);
 
@@ -112,7 +135,8 @@ export function calculateSessionCosts(
     const dineAmount = memberDines ? dineCostPerHead : 0;
     const guestPlayAmount = guestsPlay * playCostPerHead;
     const guestDineAmount = guestsDine * dineCostPerHead;
-    const totalAmount = playAmount + dineAmount + guestPlayAmount + guestDineAmount;
+    const totalAmount =
+      playAmount + dineAmount + guestPlayAmount + guestDineAmount;
 
     if (totalAmount > 0) {
       memberDebts.push({

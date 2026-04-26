@@ -1,21 +1,18 @@
 import { getUserFromCookie } from "@/lib/user-identity";
 import { db } from "@/db";
-import { members, sessionAttendees, sessionDebts, sessions } from "@/db/schema";
+import { members, sessionAttendees, sessionDebts } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { redirect } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getFundBalance, isFundMember } from "@/lib/fund-calculator";
 import { MeClient } from "./me-client";
 
 export default async function MePage() {
   const user = await getUserFromCookie();
   if (!user) redirect("/");
 
-  const [member, t] = await Promise.all([
-    db.query.members.findFirst({
-      where: eq(members.id, user.memberId),
-    }),
-    getTranslations("nav"),
-  ]);
+  const member = await db.query.members.findFirst({
+    where: eq(members.id, user.memberId),
+  });
 
   if (!member) redirect("/");
 
@@ -24,7 +21,7 @@ export default async function MePage() {
   const attendances = await db.query.sessionAttendees.findMany({
     where: and(
       eq(sessionAttendees.memberId, user.memberId),
-      eq(sessionAttendees.isGuest, false)
+      eq(sessionAttendees.isGuest, false),
     ),
     with: {
       session: true,
@@ -32,15 +29,11 @@ export default async function MePage() {
   });
 
   const completedAttendances = attendances.filter(
-    (a) => a.session.status === "completed"
+    (a) => a.session.status === "completed",
   );
 
-  const totalPlayed = completedAttendances.filter(
-    (a) => a.attendsPlay
-  ).length;
-  const totalDined = completedAttendances.filter(
-    (a) => a.attendsDine
-  ).length;
+  const totalPlayed = completedAttendances.filter((a) => a.attendsPlay).length;
+  const totalDined = completedAttendances.filter((a) => a.attendsDine).length;
 
   // Total spent
   const debts = await db.query.sessionDebts.findMany({
@@ -51,6 +44,11 @@ export default async function MePage() {
   const outstandingDebt = debts
     .filter((d) => !d.adminConfirmed && !d.memberConfirmed)
     .reduce((sum, d) => sum + d.totalAmount, 0);
+
+  const isInFund = await isFundMember(user.memberId);
+  const fundBalance = isInFund
+    ? (await getFundBalance(user.memberId)).balance
+    : null;
 
   return (
     <div className="space-y-6">
@@ -65,6 +63,7 @@ export default async function MePage() {
         totalDined={totalDined}
         totalSpent={totalSpent}
         outstandingDebt={outstandingDebt}
+        fundBalance={fundBalance}
       />
     </div>
   );

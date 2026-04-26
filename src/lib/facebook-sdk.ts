@@ -1,8 +1,34 @@
 declare global {
   interface Window {
-    FB: any;
+    FB: FacebookSDK;
     fbAsyncInit: () => void;
   }
+}
+
+interface FacebookAuthResponse {
+  accessToken: string;
+  userID: string;
+}
+
+interface FacebookLoginStatusResponse {
+  status: string;
+  authResponse?: FacebookAuthResponse;
+}
+
+interface FacebookSDK {
+  init: (options: {
+    appId: string | undefined;
+    cookie: boolean;
+    xfbml: boolean;
+    version: string;
+  }) => void;
+  getLoginStatus: (
+    callback: (response: FacebookLoginStatusResponse) => void,
+  ) => void;
+  login: (
+    callback: (response: { authResponse?: FacebookAuthResponse }) => void,
+    options: { scope: string },
+  ) => void;
 }
 
 const SDK_TIMEOUT_MS = 10_000;
@@ -42,18 +68,24 @@ export function initFacebookSDK(): Promise<void> {
   });
 }
 
-export function checkLoginStatus(): Promise<{ status: string; authResponse?: { accessToken: string; userID: string } }> {
+export function checkLoginStatus(): Promise<{
+  status: string;
+  authResponse?: { accessToken: string; userID: string };
+}> {
   return new Promise((resolve) => {
-    window.FB.getLoginStatus((response: any) => {
+    window.FB.getLoginStatus((response) => {
       resolve(response);
     });
   });
 }
 
-export function loginWithFacebook(): Promise<{ accessToken: string; userID: string }> {
+export function loginWithFacebook(): Promise<{
+  accessToken: string;
+  userID: string;
+}> {
   return new Promise((resolve, reject) => {
     window.FB.login(
-      (response: any) => {
+      (response) => {
         if (response.authResponse) {
           resolve(response.authResponse);
         } else {

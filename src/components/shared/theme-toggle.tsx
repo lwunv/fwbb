@@ -20,6 +20,7 @@ export function ThemeToggle() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- next-themes value is only stable after client hydration.
     setMounted(true);
   }, []);
 
@@ -50,9 +51,7 @@ export function ThemeToggle() {
       title={`${t(currentTheme)} → ${t(nextTheme)}`}
     >
       <Icon className="h-4 w-4" />
-      <span className="sr-only">
-        {t(nextTheme)}
-      </span>
+      <span className="sr-only">{t(nextTheme)}</span>
     </Button>
   );
 }

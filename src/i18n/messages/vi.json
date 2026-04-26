@@ -14,6 +14,7 @@
     "shuttlecocks": "Hãng cầu",
     "inventory": "Tồn kho",
     "finance": "Tài chính",
+    "fund": "Quỹ",
     "stats": "Thống kê",
     "logout": "Đăng xuất"
   },
@@ -25,7 +26,7 @@
   },
   "sessions": {
     "voting": "Đang vote",
-    "confirmed": "Đã xác nhận",
+    "confirmed": "Đang vote",
     "completed": "Hoàn thành",
     "cancelled": "Đã hủy",
     "selectCourt": "Chọn sân",
@@ -48,7 +49,7 @@
     "startTime": "Giờ bắt đầu",
     "endTime": "Giờ kết thúc",
     "court": "Sân",
-    "noCourt": "Chọn sau",
+    "noCourt": "Chọn sân...",
     "create": "Tạo",
     "pleaseSelectDate": "Vui lòng chọn ngày",
     "noSessions": "Chưa có buổi chơi nào",
@@ -63,7 +64,9 @@
     "dine": "Ăn nhậu",
     "copyLink": "Sao chép link",
     "linkCopied": "Đã copy",
-    "directions": "Chỉ đường"
+    "directions": "Chỉ đường",
+    "adminGuests": "Khách Admin",
+    "addAdminGuest": "+ Khách Admin"
   },
   "voting": {
     "play": "Tăng 1 - Cầu lông",
@@ -119,8 +122,21 @@
     "undo": "Hoàn tác",
     "undoLabel": "Chưa nhận",
     "notReceived": "Chưa nhận",
-    "confirmed": "Đã xác nhận",
-    "allStatus": "Tất cả"
+    "confirmed": "Đang vote",
+    "allStatus": "Tất cả",
+    "fundBalance": "Số dư quỹ",
+    "memberSummaryTitle": "Công nợ theo thành viên",
+    "backToFinance": "Về tài chính",
+    "searchMemberPlaceholder": "Tìm theo tên...",
+    "colStillOwed": "Còn nợ",
+    "colAwaitingAdmin": "Chờ xác nhận",
+    "colCollected": "Đã thu (đã xác nhận)",
+    "memberCount": "{count} thành viên",
+    "noMemberMatch": "Không có thành viên nào khớp tìm kiếm.",
+    "peopleStillOwed": "{count} người còn nợ",
+    "notFound": "Không tìm thấy",
+    "stillShort": "Còn thiếu",
+    "owedSessionCount": "{count} buổi"
   },
   "inventory": {
     "inventory": "Tồn kho",
@@ -219,7 +235,10 @@
     "avatarAutoTitle": "Tự động",
     "avatarEmojiTitle": "Icon có sẵn",
     "avatarBrandTitle": "Hãng vợt",
-    "avatarDefault": "Mặc định"
+    "avatarDefault": "Mặc định",
+    "fundBalance": "Số dư quỹ",
+    "manageFund": "Quản lý số dư, nạp thêm và lịch sử giao dịch",
+    "myFund": "Quỹ của tôi"
   },
   "dashboard": {
     "overview": "Tổng quan",
@@ -390,5 +409,23 @@
     "update": "Cập nhật",
     "active": "Hoạt động",
     "inactive": "Ngừng"
+  },
+  "myFundClient": {
+    "myFund": "Quỹ của tôi",
+    "currentBalance": "Số dư hiện tại",
+    "contributed": "Đã đóng",
+    "deducted": "Đã trừ",
+    "topUp": "Nạp thêm vào quỹ",
+    "amountPlaceholder": "500000",
+    "getQR": "Lấy mã QR",
+    "history": "Lịch sử giao dịch",
+    "txCount": "{count} GD",
+    "noTransactions": "Chưa có giao dịch nào.",
+    "txContribution": "Đóng quỹ",
+    "txDeduction": "Trừ quỹ (Nợ buổi chơi)",
+    "txRefund": "Hoàn quỹ",
+    "session": "Buổi {date}",
+    "qrTitle": "Nạp quỹ",
+    "qrDescription": "Chuyển khoản để nạp thêm vào quỹ nhóm"
   }
 }

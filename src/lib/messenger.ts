@@ -14,7 +14,9 @@ interface SendResult {
  */
 export async function sendGroupMessage(message: string): Promise<SendResult> {
   if (!PAGE_ACCESS_TOKEN || !GROUP_THREAD_ID) {
-    console.warn("[Messenger] Missing FB_PAGE_ACCESS_TOKEN or FB_MESSENGER_GROUP_THREAD_ID — skipping notification");
+    console.warn(
+      "[Messenger] Missing FB_PAGE_ACCESS_TOKEN or FB_MESSENGER_GROUP_THREAD_ID — skipping notification",
+    );
     return { success: false, error: "Missing configuration" };
   }
 
@@ -31,7 +33,10 @@ export async function sendGroupMessage(message: string): Promise<SendResult> {
     const data = await res.json();
 
     if (!res.ok || data.error) {
-      console.error("[Messenger] Send failed:", data.error?.message ?? res.statusText);
+      console.error(
+        "[Messenger] Send failed:",
+        data.error?.message ?? res.statusText,
+      );
       return { success: false, error: data.error?.message ?? "Unknown error" };
     }
 
@@ -45,7 +50,11 @@ export async function sendGroupMessage(message: string): Promise<SendResult> {
 /**
  * Build notification message for a new voting session.
  */
-export function buildNewSessionMessage(date: string, courtName: string | null, link: string): string {
+export function buildNewSessionMessage(
+  date: string,
+  courtName: string | null,
+  link: string,
+): string {
   const court = courtName ? ` tại ${courtName}` : "";
   return `📋 Session mới ngày ${date}${court}! Vào vote: ${link}`;
 }
@@ -53,14 +62,24 @@ export function buildNewSessionMessage(date: string, courtName: string | null, l
 /**
  * Build notification message for a confirmed session.
  */
-export function buildConfirmedMessage(date: string, playCount: number, dineCount: number): string {
+export function buildConfirmedMessage(
+  date: string,
+  playCount: number,
+  dineCount: number,
+): string {
   return `✅ Session ${date} confirmed! ${playCount} người chơi, ${dineCount} người ăn`;
 }
 
 /**
  * Build notification message for debt reminder.
  */
-export function buildDebtReminderMessage(date: string, totalAmount: number, link: string): string {
-  const amountK = Math.round(totalAmount / 1000);
+export function buildDebtReminderMessage(
+  date: string,
+  totalAmount: number,
+  link: string,
+): string {
+  // Round UP (ceil) to align with project policy: admin should never appear
+  // to be owed less than reality.
+  const amountK = Math.ceil(totalAmount / 1000);
   return `💰 Session ${date} đã kết thúc. Tổng chi ${amountK}k. Xem nợ: ${link}`;
 }

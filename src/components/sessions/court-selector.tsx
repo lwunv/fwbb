@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { selectCourt } from "@/actions/sessions";
+import { fireAction } from "@/lib/optimistic-action";
 import { formatK } from "@/lib/utils";
-import { MapPin, Check, Minus, Plus, ExternalLink } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { ChevronDown } from "lucide-react";
 import type { InferSelectModel } from "drizzle-orm";
 import type { courts as courtsTable } from "@/db/schema";
 
@@ -21,130 +23,162 @@ export function CourtSelector({
   currentCourtId: number | null;
   currentCourtQuantity?: number;
 }) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [localCourtId, setLocalCourtId] = useState(currentCourtId);
   const [quantity, setQuantity] = useState(currentCourtQuantity);
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
 
-  async function handleSelect(courtId: number) {
-    setIsLoading(true);
-    setError("");
-    const result = await selectCourt(sessionId, courtId, quantity);
-    if (result.error) {
-      setError(result.error);
+  useEffect(() => {
+    setLocalCourtId(currentCourtId);
+  }, [currentCourtId]);
+  useEffect(() => {
+    setQuantity(currentCourtQuantity);
+  }, [currentCourtQuantity]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
     }
-    setIsLoading(false);
+    function handleClickOutside(e: MouseEvent) {
+      const target = e.target as Node;
+      if (
+        triggerRef.current?.contains(target) ||
+        dropdownRef.current?.contains(target)
+      )
+        return;
+      setOpen(false);
+    }
+    function handleScroll() {
+      if (triggerRef.current) {
+        const rect = triggerRef.current.getBoundingClientRect();
+        setPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("scroll", handleScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("scroll", handleScroll, true);
+    };
+  }, [open]);
+
+  function handleSelect(courtId: number) {
+    const prevCourtId = localCourtId;
+    setLocalCourtId(courtId);
+    setOpen(false);
+    fireAction(
+      () => selectCourt(sessionId, courtId, quantity),
+      () => {
+        setLocalCourtId(prevCourtId);
+      },
+    );
   }
 
-  async function handleQuantityChange(newQty: number) {
-    const q = Math.max(1, newQty);
-    setQuantity(q);
-    if (currentCourtId) {
-      setIsLoading(true);
-      await selectCourt(sessionId, currentCourtId, q);
-      setIsLoading(false);
+  function handleToggleDouble(checked: boolean) {
+    const newQty = checked ? 2 : 1;
+    const prevQty = quantity;
+    setQuantity(newQty);
+    if (localCourtId) {
+      fireAction(
+        () => selectCourt(sessionId, localCourtId, newQty),
+        () => {
+          setQuantity(prevQty);
+        },
+      );
     }
   }
 
   if (courts.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Chưa có sân nào. Vui lòng thêm sân trước.
-      </p>
-    );
+    return <p className="text-muted-foreground text-sm">Chưa có sân nào.</p>;
   }
 
-  const selectedCourt = courts.find((c) => c.id === currentCourtId);
-  const totalPrice = selectedCourt ? selectedCourt.pricePerSession * quantity : 0;
+  const selectedCourt = courts.find((c) => c.id === localCourtId);
+  const totalPrice = selectedCourt
+    ? selectedCourt.pricePerSession * quantity
+    : 0;
 
   return (
-    <div className="space-y-3">
-      {/* Court quantity */}
-      <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
-        <span className="text-sm font-medium">Số lượng sân</span>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => handleQuantityChange(quantity - 1)}
-            disabled={quantity <= 1 || isLoading}
-          >
-            <Minus className="h-3 w-3" />
-          </Button>
-          <span className="w-8 text-center font-bold">{quantity}</span>
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => handleQuantityChange(quantity + 1)}
-            disabled={isLoading}
-          >
-            <Plus className="h-3 w-3" />
-          </Button>
-        </div>
-      </div>
+    <div>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={cn(
+          "bg-background flex h-12 w-full items-center justify-between rounded-xl border px-4 text-base transition-colors",
+          open && "border-primary",
+        )}
+      >
+        <span
+          className={cn("truncate", !selectedCourt && "text-muted-foreground")}
+        >
+          {selectedCourt
+            ? `${selectedCourt.name} · ${quantity > 1 ? `${quantity} sân · ` : ""}${formatK(totalPrice)}`
+            : "Chọn sân..."}
+        </span>
+        <ChevronDown
+          className={cn(
+            "text-muted-foreground h-4 w-4 shrink-0 transition-transform",
+            open && "rotate-180",
+          )}
+        />
+      </button>
 
-      {/* Court list */}
-      <div className="grid gap-2">
-        {courts.map((court) => {
-          const isSelected = court.id === currentCourtId;
-          const courtTotal = court.pricePerSession * quantity;
-          return (
-            <button
-              key={court.id}
-              onClick={() => handleSelect(court.id)}
-              disabled={isLoading}
-              className={`flex items-center justify-between p-3 rounded-lg border text-left transition-colors ${
-                isSelected
-                  ? "border-primary bg-primary/5"
-                  : "border-border hover:bg-accent"
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <MapPin className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <div className="flex items-center gap-1">
-                    <p className="font-medium text-sm">{court.name}</p>
-                    {court.mapLink && (
-                      <a
-                        href={court.mapLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-primary hover:text-primary/80"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
+      {open &&
+        createPortal(
+          <div
+            ref={dropdownRef}
+            style={{
+              position: "fixed",
+              top: pos.top,
+              left: pos.left,
+              width: pos.width,
+            }}
+            className="bg-popover animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 z-[9999] overflow-hidden rounded-xl border shadow-lg"
+          >
+            {/* Double court checkbox */}
+            <label className="hover:bg-muted/50 flex cursor-pointer items-center gap-3 border-b px-4 py-3 transition-colors">
+              <input
+                type="checkbox"
+                checked={quantity >= 2}
+                onChange={(e) => handleToggleDouble(e.target.checked)}
+                className="accent-primary h-5 w-5 rounded"
+              />
+              <span className="text-base">Thuê 2 sân</span>
+            </label>
+
+            {/* Court list */}
+            <div className="max-h-60 overflow-auto py-1">
+              {courts.map((court) => {
+                const isSelected = court.id === localCourtId;
+                const courtTotal = court.pricePerSession * quantity;
+                return (
+                  <button
+                    key={court.id}
+                    type="button"
+                    onClick={() => handleSelect(court.id)}
+                    className={cn(
+                      "mx-1 flex w-full items-center justify-between gap-3 rounded-lg px-4 py-3 text-left text-base transition-colors first:mt-1 last:mb-1",
+                      isSelected
+                        ? "bg-primary/15 font-medium"
+                        : "hover:bg-muted/50",
                     )}
-                  </div>
-                  {court.address && (
-                    <p className="text-xs text-muted-foreground">{court.address}</p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    {formatK(court.pricePerSession)}/sân
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-primary">
-                  {formatK(courtTotal)}
-                </span>
-                {isSelected && <Check className="h-4 w-4 text-primary" />}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Total price */}
-      {selectedCourt && (
-        <div className="flex items-center justify-between text-sm p-2 rounded bg-primary/10">
-          <span>Tổng tiền sân:</span>
-          <span className="font-bold text-primary">{formatK(totalPrice)}</span>
-        </div>
-      )}
-
-      {error && <p className="text-sm text-destructive">{error}</p>}
+                    style={{ width: "calc(100% - 0.5rem)" }}
+                  >
+                    <span className="truncate">{court.name}</span>
+                    <span className="text-primary shrink-0 text-sm font-medium">
+                      {formatK(courtTotal)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

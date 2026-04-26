@@ -1,10 +1,28 @@
 "use server";
 
 import { db } from "@/db";
-import { sessions, courts, sessionShuttlecocks, shuttlecockBrands, sessionDebts, sessionAttendees, votes } from "@/db/schema";
+import {
+  sessions,
+  courts,
+  sessionShuttlecocks,
+  shuttlecockBrands,
+  sessionDebts,
+  sessionAttendees,
+  votes,
+} from "@/db/schema";
 import { eq, desc, and, gte, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { sendGroupMessage, buildNewSessionMessage, buildConfirmedMessage } from "@/lib/messenger";
+import {
+  sendGroupMessage,
+  buildNewSessionMessage,
+  buildConfirmedMessage,
+} from "@/lib/messenger";
+import { requireAdmin } from "@/lib/auth";
+import {
+  selectCourtSchema,
+  addShuttlecockSchema,
+  adminGuestCountSchema,
+} from "@/lib/validators";
 
 export async function getSessions() {
   return db.query.sessions.findMany({
@@ -69,10 +87,20 @@ export async function getNextSession() {
   let targetDate = dateStr;
   if (existingForDate) {
     // Skip to next session day
-    const skip = dayOfWeek <= 1 ? 4 : dayOfWeek <= 5 ? (7 - dayOfWeek + 1) : 2;
     const altDate = new Date(now);
-    altDate.setDate(now.getDate() + daysUntilNext + (daysUntilNext === 0 && dayOfWeek === 1 ? 4 : daysUntilNext === 0 && dayOfWeek === 5 ? 3 : 0));
-    if (existingForDate.status === "completed" || existingForDate.status === "cancelled") {
+    altDate.setDate(
+      now.getDate() +
+        daysUntilNext +
+        (daysUntilNext === 0 && dayOfWeek === 1
+          ? 4
+          : daysUntilNext === 0 && dayOfWeek === 5
+            ? 3
+            : 0),
+    );
+    if (
+      existingForDate.status === "completed" ||
+      existingForDate.status === "cancelled"
+    ) {
       // Find next available Mon/Fri
       const d = new Date(dateStr + "T00:00:00");
       for (let i = 1; i <= 7; i++) {
@@ -80,7 +108,9 @@ export async function getNextSession() {
         const dow = d.getDay();
         if (dow === 1 || dow === 5) {
           targetDate = d.toISOString().split("T")[0];
-          const check = await db.query.sessions.findFirst({ where: eq(sessions.date, targetDate) });
+          const check = await db.query.sessions.findFirst({
+            where: eq(sessions.date, targetDate),
+          });
           if (!check) break;
         }
       }
@@ -93,10 +123,13 @@ export async function getNextSession() {
     }
   }
 
-  const [newSession] = await db.insert(sessions).values({
-    date: targetDate,
-    status: "voting",
-  }).returning();
+  const [newSession] = await db
+    .insert(sessions)
+    .values({
+      date: targetDate,
+      status: "voting",
+    })
+    .returning();
 
   return db.query.sessions.findFirst({
     where: eq(sessions.id, newSession.id),
@@ -122,27 +155,54 @@ export async function getLatestCompletedSession() {
   });
 }
 
-export async function selectCourt(sessionId: number, courtId: number, courtQuantity: number = 1) {
-  const court = await db.query.courts.findFirst({ where: eq(courts.id, courtId) });
+export async function selectCourt(
+  sessionId: number,
+  courtId: number,
+  courtQuantity: number = 1,
+) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
+  const parsed = selectCourtSchema.safeParse({
+    sessionId,
+    courtId,
+    courtQuantity,
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
+  }
+  const data = parsed.data;
+
+  const court = await db.query.courts.findFirst({
+    where: eq(courts.id, data.courtId),
+  });
   if (!court) return { error: "San khong ton tai" };
 
-  const qty = Math.max(1, courtQuantity);
-  await db.update(sessions).set({
-    courtId,
-    courtQuantity: qty,
-    courtPrice: court.pricePerSession * qty,
-    updatedAt: new Date().toISOString(),
-  }).where(eq(sessions.id, sessionId));
+  await db
+    .update(sessions)
+    .set({
+      courtId: data.courtId,
+      courtQuantity: data.courtQuantity,
+      courtPrice: court.pricePerSession * data.courtQuantity,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(sessions.id, data.sessionId));
 
   revalidatePath("/admin/sessions");
-  revalidatePath(`/admin/sessions/${sessionId}`);
+  revalidatePath(`/admin/sessions/${data.sessionId}`);
   return { success: true };
 }
 
 export async function confirmSession(sessionId: number) {
-  const session = await db.query.sessions.findFirst({ where: eq(sessions.id, sessionId) });
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
+  const session = await db.query.sessions.findFirst({
+    where: eq(sessions.id, sessionId),
+  });
   if (!session) return { error: "Khong tim thay buoi choi" };
-  if (session.status !== "voting") return { error: "Buoi choi khong o trang thai voting" };
+  if (session.status !== "voting")
+    return { error: "Buoi choi khong o trang thai voting" };
   if (!session.courtId) return { error: "Chua chon san" };
 
   // Check shuttlecocks are configured
@@ -151,10 +211,13 @@ export async function confirmSession(sessionId: number) {
   });
   if (shuttles.length === 0) return { error: "Chua chon cau" };
 
-  await db.update(sessions).set({
-    status: "confirmed",
-    updatedAt: new Date().toISOString(),
-  }).where(eq(sessions.id, sessionId));
+  await db
+    .update(sessions)
+    .set({
+      status: "confirmed",
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(sessions.id, sessionId));
 
   // Count voters for notification
   const sessionVotes = await db.query.votes.findMany({
@@ -170,14 +233,23 @@ export async function confirmSession(sessionId: number) {
 }
 
 export async function cancelSession(sessionId: number) {
-  const session = await db.query.sessions.findFirst({ where: eq(sessions.id, sessionId) });
-  if (!session) return { error: "Khong tim thay buoi choi" };
-  if (session.status === "completed") return { error: "Khong the huy buoi da hoan thanh" };
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
 
-  await db.update(sessions).set({
-    status: "cancelled",
-    updatedAt: new Date().toISOString(),
-  }).where(eq(sessions.id, sessionId));
+  const session = await db.query.sessions.findFirst({
+    where: eq(sessions.id, sessionId),
+  });
+  if (!session) return { error: "Khong tim thay buoi choi" };
+  if (session.status === "completed")
+    return { error: "Khong the huy buoi da hoan thanh" };
+
+  await db
+    .update(sessions)
+    .set({
+      status: "cancelled",
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(sessions.id, sessionId));
 
   revalidatePath("/admin/sessions");
   revalidatePath(`/admin/sessions/${sessionId}`);
@@ -185,13 +257,22 @@ export async function cancelSession(sessionId: number) {
 }
 
 export async function deleteSession(sessionId: number) {
-  const session = await db.query.sessions.findFirst({ where: eq(sessions.id, sessionId) });
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
+  const session = await db.query.sessions.findFirst({
+    where: eq(sessions.id, sessionId),
+  });
   if (!session) return { error: "Không tìm thấy buổi chơi" };
 
   // Delete related data first (FK constraints)
   await db.delete(sessionDebts).where(eq(sessionDebts.sessionId, sessionId));
-  await db.delete(sessionAttendees).where(eq(sessionAttendees.sessionId, sessionId));
-  await db.delete(sessionShuttlecocks).where(eq(sessionShuttlecocks.sessionId, sessionId));
+  await db
+    .delete(sessionAttendees)
+    .where(eq(sessionAttendees.sessionId, sessionId));
+  await db
+    .delete(sessionShuttlecocks)
+    .where(eq(sessionShuttlecocks.sessionId, sessionId));
   await db.delete(votes).where(eq(votes.sessionId, sessionId));
   await db.delete(sessions).where(eq(sessions.id, sessionId));
 
@@ -205,6 +286,9 @@ export async function createSessionManually(
   endTime?: string,
   courtId?: number,
 ) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
   // Check if session already exists for this date
   const existing = await db.query.sessions.findFirst({
     where: eq(sessions.date, date),
@@ -213,7 +297,9 @@ export async function createSessionManually(
 
   let courtPrice: number | null = null;
   if (courtId) {
-    const court = await db.query.courts.findFirst({ where: eq(courts.id, courtId) });
+    const court = await db.query.courts.findFirst({
+      where: eq(courts.id, courtId),
+    });
     if (court) courtPrice = court.pricePerSession;
   }
 
@@ -243,38 +329,58 @@ export async function addSessionShuttlecocks(
   brandId: number,
   quantityUsed: number,
 ) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
+  const parsed = addShuttlecockSchema.safeParse({
+    sessionId,
+    brandId,
+    quantityUsed,
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
+  }
+  const data = parsed.data;
+
   const brand = await db.query.shuttlecockBrands.findFirst({
-    where: eq(shuttlecockBrands.id, brandId),
+    where: eq(shuttlecockBrands.id, data.brandId),
   });
   if (!brand) return { error: "Khong tim thay hang cau" };
 
   // Check if this brand already exists for this session
   const existing = await db.query.sessionShuttlecocks.findFirst({
     where: and(
-      eq(sessionShuttlecocks.sessionId, sessionId),
-      eq(sessionShuttlecocks.brandId, brandId),
+      eq(sessionShuttlecocks.sessionId, data.sessionId),
+      eq(sessionShuttlecocks.brandId, data.brandId),
     ),
   });
 
   if (existing) {
-    await db.update(sessionShuttlecocks).set({
-      quantityUsed,
-      pricePerTube: brand.pricePerTube,
-    }).where(eq(sessionShuttlecocks.id, existing.id));
+    // CRITICAL: do NOT overwrite pricePerTube on existing rows.
+    // pricePerTube is a snapshot at the time the shuttle was first added to the
+    // session — overwriting it would back-date a brand price change onto a
+    // session that already used the old price. Only update quantityUsed.
+    await db
+      .update(sessionShuttlecocks)
+      .set({ quantityUsed: data.quantityUsed })
+      .where(eq(sessionShuttlecocks.id, existing.id));
   } else {
     await db.insert(sessionShuttlecocks).values({
-      sessionId,
-      brandId,
-      quantityUsed,
+      sessionId: data.sessionId,
+      brandId: data.brandId,
+      quantityUsed: data.quantityUsed,
       pricePerTube: brand.pricePerTube,
     });
   }
 
-  revalidatePath(`/admin/sessions/${sessionId}`);
+  revalidatePath(`/admin/sessions/${data.sessionId}`);
   return { success: true };
 }
 
 export async function removeSessionShuttlecock(id: number) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
   const record = await db.query.sessionShuttlecocks.findFirst({
     where: eq(sessionShuttlecocks.id, id),
   });
@@ -282,5 +388,38 @@ export async function removeSessionShuttlecock(id: number) {
 
   await db.delete(sessionShuttlecocks).where(eq(sessionShuttlecocks.id, id));
   revalidatePath(`/admin/sessions/${record.sessionId}`);
+  return { success: true };
+}
+
+export async function setAdminGuestCount(
+  sessionId: number,
+  guestPlayCount: number,
+  guestDineCount: number,
+) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
+  const parsed = adminGuestCountSchema.safeParse({
+    sessionId,
+    guestPlayCount,
+    guestDineCount,
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
+  }
+  const data = parsed.data;
+
+  await db
+    .update(sessions)
+    .set({
+      adminGuestPlayCount: data.guestPlayCount,
+      adminGuestDineCount: data.guestDineCount,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(sessions.id, data.sessionId));
+
+  revalidatePath(`/admin/sessions`);
+  revalidatePath(`/admin/sessions/${data.sessionId}`);
+  revalidatePath("/");
   return { success: true };
 }

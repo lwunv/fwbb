@@ -14,6 +14,7 @@
     "shuttlecocks": "Shuttlecocks",
     "inventory": "Inventory",
     "finance": "Finance",
+    "fund": "Fund",
     "stats": "Stats",
     "logout": "Log out"
   },
@@ -120,7 +121,20 @@
     "undoLabel": "Not received",
     "notReceived": "Not received",
     "confirmed": "Confirmed",
-    "allStatus": "All"
+    "allStatus": "All",
+    "fundBalance": "Fund balance",
+    "memberSummaryTitle": "Balances by member",
+    "backToFinance": "Back to finance",
+    "searchMemberPlaceholder": "Search by name...",
+    "colStillOwed": "Still owed",
+    "colAwaitingAdmin": "Awaiting confirmation",
+    "colCollected": "Collected (confirmed)",
+    "memberCount": "{count, plural, one {# member} other {# members}}",
+    "noMemberMatch": "No members match your search.",
+    "peopleStillOwed": "{count, plural, one {# person owes} other {# people owe}}",
+    "notFound": "Not found",
+    "stillShort": "Still owed",
+    "owedSessionCount": "{count, plural, one {# session} other {# sessions}}"
   },
   "inventory": {
     "inventory": "Inventory",
@@ -219,7 +233,10 @@
     "avatarAutoTitle": "Automatic",
     "avatarEmojiTitle": "Preset icons",
     "avatarBrandTitle": "Racket brands",
-    "avatarDefault": "Default"
+    "avatarDefault": "Default",
+    "fundBalance": "Fund balance",
+    "manageFund": "Manage balance, top up and transaction history",
+    "myFund": "My fund"
   },
   "dashboard": {
     "overview": "Overview",
@@ -390,5 +407,23 @@
     "update": "Update",
     "active": "Active",
     "inactive": "Inactive"
+  },
+  "myFundClient": {
+    "myFund": "My fund",
+    "currentBalance": "Current balance",
+    "contributed": "Contributed",
+    "deducted": "Deducted",
+    "topUp": "Top up the fund",
+    "amountPlaceholder": "500000",
+    "getQR": "Get QR code",
+    "history": "Transaction history",
+    "txCount": "{count} txs",
+    "noTransactions": "No transactions yet.",
+    "txContribution": "Contribution",
+    "txDeduction": "Deduction (session debt)",
+    "txRefund": "Refund",
+    "session": "Session {date}",
+    "qrTitle": "Top up fund",
+    "qrDescription": "Transfer to top up the group fund"
   }
 }

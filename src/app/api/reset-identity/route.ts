@@ -1,13 +1,16 @@
 import { clearUserCookie } from "@/lib/user-identity";
-import { headers } from "next/headers";
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 
-export async function POST() {
+/**
+ * POST /api/reset-identity — clear the user cookie and redirect home.
+ *
+ * Hardened: always redirect to a same-origin URL derived from the request URL,
+ * never trust the Origin/Referer headers (which can be attacker-controlled and
+ * would create an open-redirect vector).
+ */
+export async function POST(request: NextRequest) {
   await clearUserCookie();
-  const headersList = await headers();
-  const origin = headersList.get("origin") || headersList.get("referer") || "http://localhost:3000";
-  const baseUrl = new URL(origin).origin;
-  return NextResponse.redirect(new URL("/", baseUrl), {
-    status: 303,
-  });
+  // request.url is set by Next based on the incoming request; new URL("/", base)
+  // strips any client-supplied path/search and pins the redirect to the same origin.
+  return NextResponse.redirect(new URL("/", request.url), { status: 303 });
 }

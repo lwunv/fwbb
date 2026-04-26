@@ -14,7 +14,7 @@ export function formatVND(amount: number): string {
 }
 
 export function roundToThousand(amount: number): number {
-  return Math.round(amount / 1000) * 1000;
+  return Math.ceil(amount / 1000) * 1000;
 }
 
 /** Format amount as short: 214000 → "214k", 1558333 → "1559k", 24555 → "25k" (rounds up to nearest k) */

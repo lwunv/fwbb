@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
+const JWT_SECRET_RAW = process.env.JWT_SECRET;
+if (!JWT_SECRET_RAW || JWT_SECRET_RAW.length < 32) {
+  throw new Error(
+    "JWT_SECRET env var is required and must be at least 32 characters.",
+  );
+}
+const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_RAW);
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

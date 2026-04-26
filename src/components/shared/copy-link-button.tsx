@@ -41,12 +41,12 @@ export function CopyLinkButton({ sessionId }: CopyLinkButtonProps) {
     >
       {copied ? (
         <>
-          <Check className="h-3.5 w-3.5" />
+          <Check className="h-4 w-4" />
           {t("linkCopied")}
         </>
       ) : (
         <>
-          <Link2 className="h-3.5 w-3.5" />
+          <Link2 className="h-4 w-4" />
           {t("copyLink")}
         </>
       )}

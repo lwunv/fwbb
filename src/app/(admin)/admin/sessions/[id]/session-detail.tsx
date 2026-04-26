@@ -1,22 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { confirmSession, cancelSession } from "@/actions/sessions";
-import { formatK } from "@/lib/utils";
+import { cancelSession } from "@/actions/sessions";
+import { fireAction } from "@/lib/optimistic-action";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { CourtSelector } from "@/components/sessions/court-selector";
 import { ShuttlecockSelector } from "@/components/sessions/shuttlecock-selector";
-import { VoteList } from "@/components/sessions/vote-list";
 import { AdminVoteManager } from "@/components/sessions/admin-vote-manager";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { usePolling } from "@/lib/use-polling";
-import { ArrowLeft, Calendar, Clock, MapPin, CheckCircle, XCircle } from "lucide-react";
-import { format } from "date-fns";
-import { vi } from "date-fns/locale";
+import { ArrowLeft, XCircle } from "lucide-react";
+import { formatSessionDate } from "@/lib/date-format";
+import { StatusBadge } from "@/components/shared/status-badge";
 import type { InferSelectModel } from "drizzle-orm";
 import type {
   sessions as sessionsTable,
@@ -55,83 +53,68 @@ export function SessionDetail({
   courts: Court[];
   brands: Brand[];
   members: Member[];
-  debtMap?: Record<number, { amount: number; adminConfirmed: boolean; debtId: number }>;
+  debtMap?: Record<
+    number,
+    { amount: number; adminConfirmed: boolean; debtId: number }
+  >;
 }) {
-  const [actionError, setActionError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [localStatus, setLocalStatus] = useState(session.status);
   const t = useTranslations("sessions");
-  const tDetail = useTranslations("sessionDetail");
-  const tCommon = useTranslations("common");
   usePolling();
 
-  const statusConfig: Record<string, { labelKey: "voting" | "confirmed" | "completed" | "cancelled"; badgeBg: string; badgeText: string }> = {
-    voting: { labelKey: "voting", badgeBg: "bg-green-100 dark:bg-green-900/40", badgeText: "text-green-700 dark:text-green-300" },
-    confirmed: { labelKey: "confirmed", badgeBg: "bg-green-100 dark:bg-green-900/40", badgeText: "text-green-700 dark:text-green-300" },
-    completed: { labelKey: "completed", badgeBg: "bg-blue-100 dark:bg-blue-900/40", badgeText: "text-blue-700 dark:text-blue-300" },
-    cancelled: { labelKey: "cancelled", badgeBg: "bg-red-100 dark:bg-red-900/40", badgeText: "text-red-700 dark:text-red-300" },
-  };
+  // Sync localStatus when server prop changes (after revalidation)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- local optimistic state must resync after server revalidation.
+    setLocalStatus(session.status);
+  }, [session.status]);
 
-  const status = statusConfig[session.status ?? "voting"];
-
-  function formatSessionDate(dateStr: string) {
-    try {
-      const date = new Date(dateStr + "T00:00:00");
-      return format(date, "EEEE, dd/MM/yyyy", { locale: vi });
-    } catch {
-      return dateStr;
-    }
-  }
-
-  async function handleConfirm() {
-    setIsLoading(true);
-    setActionError("");
-    const result = await confirmSession(session.id);
-    if (result.error) {
-      setActionError(result.error);
-    }
-    setIsLoading(false);
-  }
+  type SessionStatus = "voting" | "confirmed" | "completed" | "cancelled";
+  const statusKey = (
+    ["voting", "confirmed", "completed", "cancelled"].includes(
+      localStatus ?? "",
+    )
+      ? localStatus
+      : "voting"
+  ) as SessionStatus;
 
   const [showCancelDialog, setShowCancelDialog] = useState(false);
 
-  async function handleCancelConfirm() {
-    setIsLoading(true);
-    setActionError("");
-    const result = await cancelSession(session.id);
-    if (result.error) {
-      setActionError(result.error);
-    }
-    setIsLoading(false);
+  function handleCancelConfirm() {
+    const prev = localStatus;
+    setLocalStatus("cancelled");
+    setShowCancelDialog(false);
+    fireAction(
+      () => cancelSession(session.id),
+      () => setLocalStatus(prev),
+    );
   }
-
-  const playingCount = votes.filter((v) => v.willPlay).length;
-  const diningCount = votes.filter((v) => v.willDine).length;
-  const totalGuestPlay = votes.reduce((sum, v) => sum + (v.guestPlayCount ?? 0), 0);
-  const totalGuestDine = votes.reduce((sum, v) => sum + (v.guestDineCount ?? 0), 0);
 
   return (
     <div className="space-y-3">
       {/* Header — date + status on same line */}
       <div className="flex items-center gap-2">
         <Link href="/admin/sessions">
-          <Button variant="ghost" size="icon" className="h-8 w-8">
+          <Button variant="ghost" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <h1 className="text-lg font-bold capitalize flex-1">
-          {formatSessionDate(session.date)}
-        </h1>
-        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${status.badgeBg} ${status.badgeText}`}>
-          {t(status.labelKey)}
-        </span>
+        <div className="min-w-0 flex-1">
+          <h1 className="flex flex-wrap items-center gap-2 text-base font-bold capitalize">
+            {formatSessionDate(session.date, "weekdayLong")}
+            {(session.startTime || session.endTime) && (
+              <span className="text-muted-foreground text-sm font-medium whitespace-nowrap">
+                ⏰ {session.startTime ?? "—"} – {session.endTime ?? "—"}
+              </span>
+            )}
+          </h1>
+        </div>
+        <StatusBadge variant={statusKey}>{t(statusKey)}</StatusBadge>
       </div>
 
-
       {/* Court Selector (only for voting status) */}
-      {(session.status === "voting" || session.status === "confirmed") && (
+      {(localStatus === "voting" || localStatus === "confirmed") && (
         <Card>
           <CardContent className="p-4">
-            <h2 className="font-semibold mb-3">{t("selectCourt")}</h2>
             <CourtSelector
               sessionId={session.id}
               courts={courts}
@@ -143,10 +126,9 @@ export function SessionDetail({
       )}
 
       {/* Shuttlecock Selector (only for voting/confirmed status) */}
-      {(session.status === "voting" || session.status === "confirmed") && (
+      {(localStatus === "voting" || localStatus === "confirmed") && (
         <Card>
           <CardContent className="p-4">
-            <h2 className="font-semibold mb-3">{t("shuttlecockUsage")}</h2>
             <ShuttlecockSelector
               sessionId={session.id}
               brands={brands}
@@ -162,7 +144,7 @@ export function SessionDetail({
         votes={votes}
         members={members}
         debtMap={debtMap}
-        readOnly={session.status === "completed" || session.status === "cancelled"}
+        readOnly={localStatus === "completed" || localStatus === "cancelled"}
         sessionCosts={{
           courtPrice: session.courtPrice ?? 0,
           courtName: session.court?.name ?? null,
@@ -174,36 +156,23 @@ export function SessionDetail({
           })),
           startTime: session.startTime ?? "20:30",
           endTime: session.endTime ?? "22:30",
-          isCompleted: session.status === "completed",
+          isCompleted: localStatus === "completed",
         }}
       />
 
-      {/* Action Buttons — sticky bottom */}
-      {(session.status === "voting" || session.status === "confirmed") && (
-        <div className="sticky bottom-0 bg-background/95 backdrop-blur border-t p-3 -mx-4 md:-mx-6 flex gap-3">
-          {session.status === "voting" && (
-            <Button
-              onClick={handleConfirm}
-              disabled={isLoading}
-              className="flex-1"
-            >
-              <CheckCircle className="h-4 w-4 mr-2" />
-              {tCommon("confirm")}
-            </Button>
-          )}
+      {/* Action Button — sticky bottom: only cancel */}
+      {(localStatus === "voting" || localStatus === "confirmed") && (
+        <div className="bg-background/95 fixed right-0 bottom-0 left-0 z-30 border-t p-4 backdrop-blur lg:left-60">
           <Button
             variant="destructive"
+            size="lg"
             onClick={() => setShowCancelDialog(true)}
-            disabled={isLoading}
+            className="h-13 w-full rounded-xl text-base"
           >
-            <XCircle className="h-4 w-4 mr-2" />
+            <XCircle className="mr-2 h-5 w-5" />
             {t("cancelSession")}
           </Button>
         </div>
-      )}
-
-      {actionError && (
-        <p className="text-sm text-destructive">{actionError}</p>
       )}
 
       <ConfirmDialog
@@ -212,7 +181,6 @@ export function SessionDetail({
         title={t("cancelSession")}
         description={t("cancelConfirm")}
         onConfirm={handleCancelConfirm}
-        loading={isLoading}
       />
     </div>
   );

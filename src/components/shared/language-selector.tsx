@@ -4,7 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { LocaleFlag, type LocaleFlagCountry } from "@/components/shared/locale-flag";
+import {
+  LocaleFlag,
+  type LocaleFlagCountry,
+} from "@/components/shared/locale-flag";
 
 export const LOCALE_CODES = ["vi", "en", "zh"] as const;
 export type LocaleCode = (typeof LOCALE_CODES)[number];
@@ -39,17 +42,22 @@ export function LanguageCardPicker({ className }: { className?: string }) {
   const [locale, setLocale] = useState<string>("vi");
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- cookie locale is only readable on the client after hydration.
     setMounted(true);
     setLocale(getLocaleFromCookie());
   }, []);
 
   if (!mounted) {
     return (
-      <div className={cn("flex gap-2", className)} role="group" aria-label={t("label")}>
+      <div
+        className={cn("flex gap-2", className)}
+        role="group"
+        aria-label={t("label")}
+      >
         {LANG_CARDS.map((item) => (
           <div
             key={item.code}
-            className="flex-1 h-[4.25rem] rounded-lg animate-pulse bg-muted/60"
+            className="bg-muted/60 h-[4.25rem] flex-1 animate-pulse rounded-lg"
             aria-hidden
           />
         ))}
@@ -58,7 +66,11 @@ export function LanguageCardPicker({ className }: { className?: string }) {
   }
 
   return (
-    <div className={cn("flex gap-2", className)} role="radiogroup" aria-label={t("label")}>
+    <div
+      className={cn("flex gap-2", className)}
+      role="radiogroup"
+      aria-label={t("label")}
+    >
       {LANG_CARDS.map(({ code, country }) => {
         const isActive = locale === code;
         return (
@@ -71,14 +83,17 @@ export function LanguageCardPicker({ className }: { className?: string }) {
               if (code !== locale) setLocaleCookie(code);
             }}
             className={cn(
-              "flex-1 flex flex-col items-center justify-center gap-1 rounded-xl border-2 px-1.5 py-2.5 text-xs font-medium transition-colors min-h-[4.25rem]",
+              "flex min-h-[4.25rem] flex-1 flex-col items-center justify-center gap-1 rounded-xl border-2 px-1.5 py-2.5 text-xs font-medium transition-colors",
               isActive
-                ? "border-primary ring-2 ring-primary/35 ring-offset-2 ring-offset-background text-primary"
+                ? "border-primary ring-primary/35 ring-offset-background text-primary ring-2 ring-offset-2"
                 : "border-border text-muted-foreground hover:border-primary/40",
             )}
           >
-            <LocaleFlag country={country} className="h-7 w-[42px] border border-black/10 dark:border-white/15" />
-            <span className="leading-tight text-center">{t(code)}</span>
+            <LocaleFlag
+              country={country}
+              className="h-7 w-[42px] border border-black/10 dark:border-white/15"
+            />
+            <span className="text-center leading-tight">{t(code)}</span>
           </button>
         );
       })}
@@ -99,6 +114,7 @@ export function LanguageSelector({ className }: LanguageSelectorProps) {
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- cookie locale is only readable on the client after hydration.
     setMounted(true);
     setLocale(getLocaleFromCookie());
   }, []);
@@ -124,7 +140,10 @@ export function LanguageSelector({ className }: LanguageSelectorProps) {
   if (!mounted) {
     return (
       <div
-        className={cn("h-9 w-[8.25rem] rounded-xl animate-pulse bg-muted/60", className)}
+        className={cn(
+          "bg-muted/60 h-9 w-[8.25rem] animate-pulse rounded-xl",
+          className,
+        )}
         aria-hidden
       />
     );
@@ -133,7 +152,10 @@ export function LanguageSelector({ className }: LanguageSelectorProps) {
   return (
     <div
       ref={rootRef}
-      className={cn("relative w-[min(11rem,calc(100vw-8.5rem))] shrink-0", className)}
+      className={cn(
+        "relative w-[min(11rem,calc(100vw-8.5rem))] shrink-0",
+        className,
+      )}
     >
       <button
         type="button"
@@ -143,8 +165,8 @@ export function LanguageSelector({ className }: LanguageSelectorProps) {
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          "flex h-9 w-full items-center justify-between gap-1.5 rounded-xl border border-border bg-card px-2.5 text-left text-sm font-medium text-foreground shadow-sm",
-          "outline-none transition-colors hover:bg-muted/60 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40",
+          "border-border bg-card text-foreground flex h-9 w-full items-center justify-between gap-1.5 rounded-xl border px-2.5 text-left text-sm font-medium shadow-sm",
+          "hover:bg-muted/60 focus-visible:border-ring focus-visible:ring-ring/40 transition-colors outline-none focus-visible:ring-2",
           open && "border-primary/50 bg-muted/40",
         )}
       >
@@ -153,12 +175,13 @@ export function LanguageSelector({ className }: LanguageSelectorProps) {
             country={countryForLocale(locale)}
             className="h-4 w-6 border border-black/10 dark:border-white/15"
           />
-          <span className="truncate">
-            {t(locale as LocaleCode)}
-          </span>
+          <span className="truncate">{t(locale as LocaleCode)}</span>
         </span>
         <ChevronDown
-          className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")}
+          className={cn(
+            "text-muted-foreground h-4 w-4 shrink-0 transition-transform",
+            open && "rotate-180",
+          )}
           aria-hidden
         />
       </button>
@@ -168,7 +191,7 @@ export function LanguageSelector({ className }: LanguageSelectorProps) {
           role="listbox"
           aria-labelledby="header-language-trigger"
           className={cn(
-            "absolute left-0 right-0 top-[calc(100%+6px)] z-[100] overflow-hidden rounded-xl border border-border bg-popover py-1 text-popover-foreground shadow-lg",
+            "border-border bg-popover text-popover-foreground absolute top-[calc(100%+6px)] right-0 left-0 z-[100] overflow-hidden rounded-xl border py-1 shadow-lg",
             "animate-in fade-in-0 zoom-in-95 slide-in-from-top-1 duration-150",
           )}
         >

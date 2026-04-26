@@ -59,7 +59,7 @@ export default async function HomePage() {
     const latestSession = await getLatestCompletedSession();
 
     return (
-      <div className="space-y-6 max-w-lg mx-auto">
+      <div className="mx-auto max-w-lg space-y-6">
         <AutoRefresh />
         <div className="space-y-4">
           <h1 className="text-lg font-bold">{tDashboard("latestSession")}</h1>
@@ -78,27 +78,35 @@ export default async function HomePage() {
               guestDineCount={0}
             />
           ) : (
-            <p className="text-sm text-muted-foreground">{tDashboard("noUpcoming")}</p>
+            <p className="text-muted-foreground text-sm">
+              {tDashboard("noUpcoming")}
+            </p>
           )}
         </div>
 
         <Card className="border-destructive/30 bg-destructive/5">
-          <CardContent className="p-4 space-y-3">
-            <p className="text-center text-sm text-muted-foreground">{tDashboard("homeDebtVoteWarning")}</p>
-            <div className="flex items-center justify-center gap-2 flex-wrap text-center">
-              <span className="text-sm text-muted-foreground">{tDashboard("homeTotalOwed")}</span>
-              <span className="font-bold text-destructive text-lg tabular-nums">{formatK(outstandingTotal)}</span>
+          <CardContent className="space-y-3 p-4">
+            <p className="text-muted-foreground text-center text-sm">
+              {tDashboard("homeDebtVoteWarning")}
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-2 text-center">
+              <span className="text-muted-foreground text-sm">
+                {tDashboard("homeTotalOwed")}
+              </span>
+              <span className="text-destructive text-lg font-bold tabular-nums">
+                {formatK(outstandingTotal)}
+              </span>
             </div>
-            <div className="grid grid-cols-2 gap-2 w-full">
+            <div className="grid w-full grid-cols-2 gap-2">
               <Link
                 href="/my-debts"
-                className="flex min-h-10 w-full items-center justify-center rounded-lg border border-transparent bg-primary px-2 py-2 text-sm font-medium leading-snug text-primary-foreground hover:bg-primary/80 text-center"
+                className="bg-primary text-primary-foreground hover:bg-primary/80 flex min-h-11 w-full items-center justify-center rounded-xl border border-transparent px-3 py-2 text-center text-base leading-snug font-medium"
               >
                 {tFinance("paid")}
               </Link>
               <Link
                 href="/my-debts"
-                className="flex min-h-10 w-full items-center justify-center rounded-lg border border-border bg-background px-2 py-2 text-sm font-medium leading-snug hover:bg-muted/80 text-center"
+                className="border-border bg-background hover:bg-muted/80 flex min-h-11 w-full items-center justify-center rounded-xl border px-3 py-2 text-center text-base leading-snug font-medium"
               >
                 {tFinance("detail")}
               </Link>
@@ -113,34 +121,39 @@ export default async function HomePage() {
   if (nextSession) {
     const votes = await getSessionVotes(nextSession.id);
 
-    const isVotingOpen = nextSession.status === "voting" || nextSession.status === "confirmed";
+    const isVotingOpen =
+      nextSession.status === "voting" || nextSession.status === "confirmed";
 
     const showDebtBanner =
       user && hasOutstandingDebt && isWithinHomeVoteWindow(nextSession.date);
 
     return (
-      <div className="space-y-4 max-w-lg mx-auto">
+      <div className="mx-auto max-w-lg space-y-4">
         <AutoRefresh />
         {showDebtBanner && (
           <Card className="border-amber-500/40 bg-amber-500/10 dark:bg-amber-500/15">
-            <CardContent className="p-4 space-y-3">
+            <CardContent className="space-y-3 p-4">
               <p className="text-center text-sm text-amber-950 dark:text-amber-100">
                 {tDashboard("homeDebtVoteWarning")}
               </p>
-              <div className="rounded-lg bg-background/80 dark:bg-background/60 p-3 flex items-center justify-center gap-2 flex-wrap text-center">
-                <span className="text-sm text-muted-foreground">{tDashboard("homeTotalOwed")}</span>
-                <span className="font-bold text-destructive text-lg tabular-nums">{formatK(outstandingTotal)}</span>
+              <div className="bg-background/80 dark:bg-background/60 flex flex-wrap items-center justify-center gap-2 rounded-lg p-3 text-center">
+                <span className="text-muted-foreground text-sm">
+                  {tDashboard("homeTotalOwed")}
+                </span>
+                <span className="text-destructive text-lg font-bold tabular-nums">
+                  {formatK(outstandingTotal)}
+                </span>
               </div>
-              <div className="grid grid-cols-2 gap-2 w-full">
+              <div className="grid w-full grid-cols-2 gap-2">
                 <Link
                   href="/my-debts"
-                  className="flex min-h-10 w-full items-center justify-center rounded-lg border border-transparent bg-primary px-2 py-2 text-sm font-medium leading-snug text-primary-foreground hover:bg-primary/80 text-center"
+                  className="bg-primary text-primary-foreground hover:bg-primary/80 flex min-h-11 w-full items-center justify-center rounded-xl border border-transparent px-3 py-2 text-center text-base leading-snug font-medium"
                 >
                   {tFinance("paid")}
                 </Link>
                 <Link
                   href="/my-debts"
-                  className="flex min-h-10 w-full items-center justify-center rounded-lg border border-border bg-background px-2 py-2 text-sm font-medium leading-snug hover:bg-muted/80 text-center"
+                  className="border-border bg-background hover:bg-muted/80 flex min-h-11 w-full items-center justify-center rounded-xl border px-3 py-2 text-center text-base leading-snug font-medium"
                 >
                   {tFinance("detail")}
                 </Link>
@@ -177,7 +190,7 @@ export default async function HomePage() {
   const latestSession = await getLatestCompletedSession();
 
   return (
-    <div className="space-y-6 max-w-lg mx-auto">
+    <div className="mx-auto max-w-lg space-y-6">
       <AutoRefresh />
       {latestSession ? (
         <div className="space-y-4">
@@ -197,7 +210,7 @@ export default async function HomePage() {
           />
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center py-8 space-y-4">
+        <div className="flex flex-col items-center justify-center space-y-4 py-8">
           <div className="text-4xl">🏸</div>
           <h2 className="text-xl font-bold">{tDashboard("noUpcoming")}</h2>
         </div>
@@ -207,7 +220,10 @@ export default async function HomePage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold">{tFinance("debts")}</h2>
-            <Link href="/my-debts" className="text-sm text-primary hover:underline">
+            <Link
+              href="/my-debts"
+              className="text-primary text-sm hover:underline"
+            >
               {tFinance("viewAll")} →
             </Link>
           </div>

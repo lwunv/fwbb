@@ -1,7 +1,10 @@
 "use client";
 
+import { motion, AnimatePresence } from "framer-motion";
+import { Receipt } from "lucide-react";
 import { DebtCard, type DebtCardData } from "./debt-card";
 import { formatK } from "@/lib/utils";
+import { EmptyState } from "@/components/shared/empty-state";
 
 interface DebtListProps {
   debts: DebtCardData[];
@@ -22,11 +25,7 @@ export function DebtList({
   actionLoadingId,
 }: DebtListProps) {
   if (debts.length === 0) {
-    return (
-      <div className="text-center py-8 text-muted-foreground text-sm">
-        Không có công nợ nào.
-      </div>
-    );
+    return <EmptyState icon={Receipt} title="Không có công nợ nào." />;
   }
 
   const totalUnpaid =
@@ -35,32 +34,40 @@ export function DebtList({
       .filter((d) => !d.adminConfirmed && !d.memberConfirmed)
       .reduce((sum, d) => sum + d.totalAmount, 0);
 
-  const totalPaid = debts
-    .filter((d) => d.adminConfirmed)
-    .reduce((sum, d) => sum + d.totalAmount, 0);
-
   return (
     <div className="space-y-4">
       {/* Summary — only show unpaid */}
       {totalUnpaid > 0 && (
-        <div className="rounded-lg bg-destructive/10 p-3 text-center">
-          <div className="text-xs text-muted-foreground">Còn nợ</div>
-          <div className="font-bold text-destructive">{formatK(totalUnpaid)}</div>
+        <div className="bg-destructive/10 rounded-lg p-3 text-center">
+          <div className="text-muted-foreground text-sm">Còn nợ</div>
+          <div className="text-destructive text-base font-bold">
+            {formatK(totalUnpaid)}
+          </div>
         </div>
       )}
 
-      {/* Debt cards */}
+      {/* Debt cards with smooth reorder/exit animation */}
       <div className="space-y-3">
-        {debts.map((debt) => (
-          <DebtCard
-            key={debt.id}
-            debt={debt}
-            showMemberInfo={showMemberInfo}
-            onPayAction={onPayAction}
-            actionLabel={actionLabel}
-            actionLoading={actionLoadingId === debt.id}
-          />
-        ))}
+        <AnimatePresence initial={false}>
+          {debts.map((debt) => (
+            <motion.div
+              key={debt.id}
+              layout
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, x: -16 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+            >
+              <DebtCard
+                debt={debt}
+                showMemberInfo={showMemberInfo}
+                onPayAction={onPayAction}
+                actionLabel={actionLabel}
+                actionLoading={actionLoadingId === debt.id}
+              />
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     </div>
   );

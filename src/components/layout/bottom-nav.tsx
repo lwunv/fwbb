@@ -19,7 +19,7 @@ export function BottomNav() {
   const t = useTranslations("nav");
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <nav className="bg-background/95 supports-[backdrop-filter]:bg-background/60 fixed right-0 bottom-0 left-0 z-40 border-t backdrop-blur">
       <div className="flex h-16 items-center justify-around">
         {navItems.map((item) => {
           const isActive =
@@ -32,13 +32,15 @@ export function BottomNav() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-col items-center gap-1 px-3 py-2 text-xs font-medium transition-colors",
+                "flex flex-col items-center gap-1 px-3 py-2 text-sm font-medium transition-colors",
                 isActive
                   ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <item.icon className={cn("h-5 w-5", isActive && "text-primary")} />
+              <item.icon
+                className={cn("h-5 w-5", isActive && "text-primary")}
+              />
               <span>{t(item.labelKey)}</span>
             </Link>
           );

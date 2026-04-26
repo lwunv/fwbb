@@ -1,11 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { addSessionShuttlecocks, removeSessionShuttlecock } from "@/actions/sessions";
+import { useState, useEffect } from "react";
+import {
+  addSessionShuttlecocks,
+  removeSessionShuttlecock,
+} from "@/actions/sessions";
+import { fireAction } from "@/lib/optimistic-action";
 import { formatK } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { CircleDot, Plus, Trash2 } from "lucide-react";
+import { calculateShuttlecockCost } from "@/lib/cost-calculator";
+import { NumberStepper } from "@/components/ui/number-stepper";
+import { CustomSelect } from "@/components/ui/custom-select";
+import { X } from "lucide-react";
 import type { InferSelectModel } from "drizzle-orm";
 import type {
   shuttlecockBrands as brandsTable,
@@ -26,119 +31,126 @@ export function ShuttlecockSelector({
   brands: Brand[];
   currentShuttlecocks: SessionShuttlecock[];
 }) {
-  const [selectedBrandId, setSelectedBrandId] = useState<number | "">(
-    brands.length > 0 ? brands[0].id : ""
-  );
-  const [quantity, setQuantity] = useState<number>(1);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [items, setItems] = useState<SessionShuttlecock[]>(currentShuttlecocks);
 
-  async function handleAdd() {
-    if (!selectedBrandId || quantity <= 0) return;
-    setIsLoading(true);
-    setError("");
-    const result = await addSessionShuttlecocks(sessionId, Number(selectedBrandId), quantity);
-    if (result.error) {
-      setError(result.error);
-    }
-    setIsLoading(false);
+  useEffect(() => {
+    setItems(currentShuttlecocks);
+  }, [currentShuttlecocks]);
+
+  // Brands already in use
+  const usedBrandIds = new Set(items.map((s) => s.brandId));
+  const availableBrands = brands.filter((b) => !usedBrandIds.has(b.id));
+
+  function handleQuantityChange(item: SessionShuttlecock, newQty: number) {
+    const prevItems = items;
+    setItems((prev) =>
+      prev.map((s) => (s.id === item.id ? { ...s, quantityUsed: newQty } : s)),
+    );
+    fireAction(
+      () => addSessionShuttlecocks(sessionId, item.brandId, newQty),
+      () => {
+        setItems(prevItems);
+      },
+    );
   }
 
-  async function handleRemove(id: number) {
-    setIsLoading(true);
-    const result = await removeSessionShuttlecock(id);
-    if (result.error) {
-      setError(result.error);
-    }
-    setIsLoading(false);
+  function handleRemove(item: SessionShuttlecock) {
+    const prevItems = items;
+    setItems((prev) => prev.filter((s) => s.id !== item.id));
+    fireAction(
+      () => removeSessionShuttlecock(item.id),
+      () => {
+        setItems(prevItems);
+      },
+    );
   }
 
-  const totalCost = currentShuttlecocks.reduce(
-    (sum, s) => sum + Math.round(s.quantityUsed * s.pricePerTube / 12),
-    0
+  function handleAddBrand(val: string) {
+    const brandId = Number(val);
+    const brand = brands.find((b) => b.id === brandId);
+    if (!brand) return;
+
+    const optimisticEntry = {
+      id: -Date.now(),
+      sessionId,
+      brandId,
+      quantityUsed: 1,
+      pricePerTube: brand.pricePerTube,
+      brand,
+    } as SessionShuttlecock;
+
+    const prevItems = items;
+    setItems((prev) => [...prev, optimisticEntry]);
+    fireAction(
+      () => addSessionShuttlecocks(sessionId, brandId, 1),
+      () => {
+        setItems(prevItems);
+      },
+    );
+  }
+
+  if (brands.length === 0) {
+    return (
+      <p className="text-muted-foreground text-sm">Chưa có hãng cầu nào.</p>
+    );
+  }
+
+  const totalCost = items.reduce(
+    (sum, s) => sum + calculateShuttlecockCost(s.quantityUsed, s.pricePerTube),
+    0,
   );
 
   return (
-    <div className="space-y-4">
-      {/* Current shuttlecocks */}
-      {currentShuttlecocks.length > 0 && (
-        <div className="space-y-2">
-          {currentShuttlecocks.map((sc) => (
-            <div
-              key={sc.id}
-              className="flex items-center justify-between p-3 rounded-lg border"
-            >
-              <div className="flex items-center gap-3">
-                <CircleDot className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="font-medium text-sm">{sc.brand.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {sc.quantityUsed} quả x {formatK(Math.round(sc.pricePerTube / 12))}/quả = {formatK(Math.round(sc.quantityUsed * sc.pricePerTube / 12))}
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleRemove(sc.id)}
-                disabled={isLoading}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
-          <div className="text-sm font-medium text-right pt-2 border-t">
-            Tổng: {formatK(totalCost)}
-          </div>
-        </div>
-      )}
-
-      {/* Add new shuttlecock */}
-      {brands.length > 0 ? (
-        <div className="flex items-end gap-2">
-          <div className="flex-1">
-            <label className="text-xs text-muted-foreground mb-1 block sr-only">
-              Hãng cầu
-            </label>
-            <select
-              value={selectedBrandId}
-              onChange={(e) => setSelectedBrandId(Number(e.target.value))}
-              className="w-full h-8 rounded-lg border border-border bg-background px-2 text-sm"
-            >
-              {brands.map((brand) => (
-                <option key={brand.id} value={brand.id}>
-                  {brand.name} - {formatK(brand.pricePerTube)}/ống
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="w-20">
-            <label className="text-xs text-muted-foreground mb-1 block">
-              Số quả
-            </label>
-            <Input
-              type="number"
-              min={1}
-              value={quantity}
-              onChange={(e) => setQuantity(Number(e.target.value))}
-              className="h-8"
-            />
-          </div>
-          <Button
-            size="default"
-            onClick={handleAdd}
-            disabled={isLoading}
+    <div className="space-y-2">
+      {/* Each brand = 1 row */}
+      {items.map((sc) => (
+        <div key={sc.id} className="flex items-center gap-2">
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">
+            🏸 {sc.brand.name}
+            <span className="text-muted-foreground ml-1 text-xs">
+              {formatK(
+                calculateShuttlecockCost(sc.quantityUsed, sc.pricePerTube),
+              )}
+            </span>
+          </span>
+          <NumberStepper
+            value={sc.quantityUsed}
+            onChange={(v) => handleQuantityChange(sc, v)}
+            min={1}
+            max={99}
+          />
+          <button
+            type="button"
+            onClick={() => handleRemove(sc)}
+            className="border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors"
           >
-            <Plus className="h-4 w-4" />
-          </Button>
+            <X className="h-4 w-4" />
+          </button>
         </div>
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          Chưa có hãng cầu nào. Vui lòng thêm hãng cầu trước.
-        </p>
-      )}
+      ))}
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {/* Add new brand + Total on same row */}
+      <div className="flex items-center gap-3">
+        {availableBrands.length > 0 && (
+          <CustomSelect
+            value=""
+            onChange={handleAddBrand}
+            placeholder={
+              items.length === 0 ? "Chọn hãng cầu..." : "+ Thêm hãng cầu..."
+            }
+            className="min-w-0 flex-1"
+            options={availableBrands.map((b) => ({
+              value: String(b.id),
+              label: `${b.name} — ${formatK(b.pricePerTube)}/ống`,
+            }))}
+          />
+        )}
+        {totalCost > 0 && (
+          <span className="shrink-0 text-sm font-medium">
+            Tổng: <span className="text-primary">{formatK(totalCost)}</span>
+          </span>
+        )}
+      </div>
     </div>
   );
 }

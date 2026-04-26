@@ -2,19 +2,30 @@ import { cookies } from "next/headers";
 import { createHmac } from "crypto";
 
 const USER_COOKIE = "fwbb-user";
-const SECRET = process.env.USER_COOKIE_SECRET || "fallback-secret";
+const SECRET_RAW = process.env.USER_COOKIE_SECRET;
+if (!SECRET_RAW || SECRET_RAW.length < 16) {
+  throw new Error(
+    "USER_COOKIE_SECRET env var is required and must be at least 16 characters. Refusing to start with a weak/missing cookie HMAC secret.",
+  );
+}
+const SECRET: string = SECRET_RAW;
 
 function sign(data: string): string {
   return createHmac("sha256", SECRET).update(data).digest("hex");
 }
 
-export function createUserCookieValue(memberId: number, facebookId: string): string {
+export function createUserCookieValue(
+  memberId: number,
+  facebookId: string,
+): string {
   const data = `${memberId}:${facebookId}`;
   const signature = sign(data);
   return `${data}:${signature}`;
 }
 
-export function parseUserCookie(value: string): { memberId: number; facebookId: string } | null {
+export function parseUserCookie(
+  value: string,
+): { memberId: number; facebookId: string } | null {
   const parts = value.split(":");
   if (parts.length !== 3) return null;
   const [memberIdStr, facebookId, signature] = parts;
@@ -34,7 +45,10 @@ export async function setUserCookie(memberId: number, facebookId: string) {
   });
 }
 
-export async function getUserFromCookie(): Promise<{ memberId: number; facebookId: string } | null> {
+export async function getUserFromCookie(): Promise<{
+  memberId: number;
+  facebookId: string;
+} | null> {
   const cookieStore = await cookies();
   const value = cookieStore.get(USER_COOKIE)?.value;
   if (!value) return null;

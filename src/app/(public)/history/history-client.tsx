@@ -125,14 +125,22 @@ export function HistoryClient({
   usePolling();
 
   const [viewMonth, setViewMonth] = useState(() =>
-    sessions[0] ? startOfMonth(parseISO(sessions[0].date)) : startOfMonth(new Date()),
+    sessions[0]
+      ? startOfMonth(parseISO(sessions[0].date))
+      : startOfMonth(new Date()),
   );
-  const [selectedId, setSelectedId] = useState<number | null>(() => sessions[0]?.id ?? null);
+  const [selectedId, setSelectedId] = useState<number | null>(
+    () => sessions[0]?.id ?? null,
+  );
 
-  const [detail, setDetail] = useState<{ title: string; description: string } | null>(null);
+  const [detail, setDetail] = useState<{
+    title: string;
+    description: string;
+  } | null>(null);
 
   useEffect(() => {
     if (sessions.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- keep selection valid when refreshed data becomes empty.
       setSelectedId(null);
       return;
     }
@@ -192,11 +200,15 @@ export function HistoryClient({
 
       if (kind === "play") {
         heading = tVoting("badmintonShort");
-        lines.push(opts.attendsPlay ? t("participatedYes") : t("participatedNo"));
+        lines.push(
+          opts.attendsPlay ? t("participatedYes") : t("participatedNo"),
+        );
         lines.push(`${t("playCost")}: ${formatK(opts.debt?.playAmount ?? 0)}`);
       } else {
         heading = tVoting("diningShort");
-        lines.push(opts.attendsDine ? t("participatedYes") : t("participatedNo"));
+        lines.push(
+          opts.attendsDine ? t("participatedYes") : t("participatedNo"),
+        );
         lines.push(`${t("dineCost")}: ${formatK(opts.debt?.dineAmount ?? 0)}`);
       }
 
@@ -219,7 +231,7 @@ export function HistoryClient({
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>{detail?.title}</DialogTitle>
-            <DialogDescription className="whitespace-pre-line text-left">
+            <DialogDescription className="text-left whitespace-pre-line">
               {detail?.description}
             </DialogDescription>
           </DialogHeader>
@@ -227,16 +239,16 @@ export function HistoryClient({
       </Dialog>
 
       {/* Lịch */}
-      <Card className="overflow-hidden border-border/80 py-2 gap-2">
+      <Card className="border-border/80 gap-2 overflow-hidden py-2">
         <CardContent className="px-3 !py-0 sm:px-3">
-          <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="mb-2 flex items-center justify-between gap-2">
             <button
               type="button"
               onClick={() => setViewMonth((m) => addMonths(m, -1))}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background hover:bg-muted/80 transition-colors"
+              className="border-border bg-background hover:bg-muted/80 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-colors"
               aria-label={t("prevMonth")}
             >
-              <ChevronLeft className="h-3.5 w-3.5" />
+              <ChevronLeft className="h-4 w-4" />
             </button>
             <span className="text-xs font-semibold capitalize tabular-nums sm:text-sm">
               {format(viewMonth, "LLLL yyyy", { locale: dfLocale })}
@@ -244,14 +256,14 @@ export function HistoryClient({
             <button
               type="button"
               onClick={() => setViewMonth((m) => addMonths(m, 1))}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background hover:bg-muted/80 transition-colors"
+              className="border-border bg-background hover:bg-muted/80 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-colors"
               aria-label={t("nextMonth")}
             >
-              <ChevronRight className="h-3.5 w-3.5" />
+              <ChevronRight className="h-4 w-4" />
             </button>
           </div>
 
-          <div className="mb-1.5 grid grid-cols-7 gap-1.5 text-center text-[10px] font-medium text-muted-foreground sm:text-[11px]">
+          <div className="text-muted-foreground mb-1.5 grid grid-cols-7 gap-1.5 text-center text-xs font-medium sm:text-xs">
             {weekdayLabels.map((w, i) => {
               const isClubDayColumn = i === 0 || i === 4;
               return (
@@ -260,7 +272,7 @@ export function HistoryClient({
                   className={cn(
                     "truncate rounded px-0 py-0.5 leading-tight",
                     isClubDayColumn &&
-                      "bg-primary/12 text-foreground font-semibold dark:bg-primary/20",
+                      "bg-primary/12 text-foreground dark:bg-primary/20 font-semibold",
                   )}
                 >
                   {w}
@@ -277,10 +289,13 @@ export function HistoryClient({
               const hasSession = !!list?.length;
               const hasUnpaidSession =
                 isIdentified &&
-                !!list?.some((s) => s.mySummary && mySummaryIsUnpaid(s.mySummary));
+                !!list?.some(
+                  (s) => s.mySummary && mySummaryIsUnpaid(s.mySummary),
+                );
               const userPlayed =
                 isIdentified && !!list?.some((s) => s.mySummary?.attendsPlay);
-              const userDined = isIdentified && !!list?.some((s) => s.mySummary?.attendsDine);
+              const userDined =
+                isIdentified && !!list?.some((s) => s.mySummary?.attendsDine);
               const isSelected =
                 !!selectedSession && selectedSession.date === key && hasSession;
               const dow = day.getDay();
@@ -294,34 +309,37 @@ export function HistoryClient({
                   disabled={!hasSession}
                   onClick={() => onDayClick(day)}
                   className={cn(
-                    "relative min-h-[2rem] rounded-md py-0.5 text-[11px] font-medium transition-colors overflow-hidden sm:min-h-[2.25rem] sm:text-xs",
+                    "relative min-h-[2rem] overflow-hidden rounded-md py-0.5 text-xs font-medium transition-colors sm:min-h-[2.25rem] sm:text-xs",
                     !onMonth && "opacity-35",
                     !hasSession && "cursor-default opacity-50",
                     hasSession &&
                       hasUnpaidSession &&
-                      "border border-destructive/50 bg-destructive/20 text-destructive dark:bg-destructive/30 dark:text-red-200",
+                      "border-destructive/50 bg-destructive/20 text-destructive dark:bg-destructive/30 border dark:text-red-200",
                     hasSession &&
                       !hasUnpaidSession &&
                       !userPlayed &&
-                      "bg-[var(--color-hist-play-bg)] border border-[var(--color-hist-play-border)] text-[var(--color-hist-play-fg)]",
+                      "border border-[var(--color-hist-play-border)] bg-[var(--color-hist-play-bg)] text-[var(--color-hist-play-fg)]",
                     hasSession &&
                       !hasUnpaidSession &&
                       userPlayed &&
-                      "bg-[var(--color-hist-play-bg-strong)] border border-[var(--color-hist-play-border)] text-[var(--color-hist-play-fg)]",
+                      "border border-[var(--color-hist-play-border)] bg-[var(--color-hist-play-bg-strong)] text-[var(--color-hist-play-fg)]",
                     isClubDayColumn &&
                       !hasUnpaidSession &&
-                      "before:pointer-events-none before:absolute before:inset-0 before:rounded-[inherit] before:bg-primary/[0.11] dark:before:bg-primary/[0.14]",
+                      "before:bg-primary/[0.11] dark:before:bg-primary/[0.14] before:pointer-events-none before:absolute before:inset-0 before:rounded-[inherit]",
                     today &&
                       !isSelected &&
-                      "ring-2 ring-sky-500/70 ring-offset-1 ring-offset-background dark:ring-sky-400/65 font-semibold",
+                      "ring-offset-background font-semibold ring-2 ring-sky-500/70 ring-offset-1 dark:ring-sky-400/65",
                     today && isSelected && "font-semibold",
-                    isSelected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
+                    isSelected &&
+                      "ring-primary ring-offset-background ring-2 ring-offset-1",
                   )}
                 >
-                  <span className="relative z-[1] tabular-nums leading-none">{format(day, "d")}</span>
+                  <span className="relative z-[1] leading-none tabular-nums">
+                    {format(day, "d")}
+                  </span>
                   {hasSession && userDined && (
                     <span
-                      className="absolute bottom-0.5 right-0.5 block h-1 w-1 rounded-full bg-orange-500 dark:bg-orange-400 shadow-sm sm:h-1.5 sm:w-1.5"
+                      className="absolute right-0.5 bottom-0.5 block h-1 w-1 rounded-full bg-orange-500 shadow-sm sm:h-1.5 sm:w-1.5 dark:bg-orange-400"
                       aria-hidden
                     />
                   )}
@@ -333,7 +351,7 @@ export function HistoryClient({
       </Card>
 
       {!isIdentified && (
-        <p className="text-xs text-muted-foreground">{t("signInToSeeShare")}</p>
+        <p className="text-muted-foreground text-xs">{t("signInToSeeShare")}</p>
       )}
 
       {/* Chi tiết buổi */}
@@ -386,30 +404,33 @@ function SessionDetailCard({
       )}
     >
       <CardContent className="space-y-4">
-        <div className="flex items-start justify-between gap-2 flex-wrap">
-          <div className="space-y-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-semibold capitalize text-[var(--color-hist-play-fg)]">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0 space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-semibold text-[var(--color-hist-play-fg)] capitalize">
                 {formatDateLabel(session.date, dateLocale)}
               </span>
-              <Badge variant={isCompleted ? "secondary" : "destructive"} className="text-[10px]">
+              <Badge
+                variant={isCompleted ? "secondary" : "destructive"}
+                className="text-xs"
+              >
                 {isCompleted ? t("completed") : t("cancelled")}
               </Badge>
             </div>
-            <p className="text-xs text-muted-foreground">{session.courtName}</p>
+            <p className="text-muted-foreground text-xs">{session.courtName}</p>
           </div>
         </div>
 
         {isIdentified && my && currentMemberId != null && (
           <div
-            className="rounded-lg border border-[var(--color-hist-play-border)]/50 bg-background/60 dark:bg-background/40 p-3 flex flex-col gap-3"
+            className="bg-background/60 dark:bg-background/40 flex flex-col gap-3 rounded-lg border border-[var(--color-hist-play-border)]/50 p-3"
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.stopPropagation()}
           >
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground leading-none">
+            <p className="text-muted-foreground text-xs leading-none font-semibold tracking-wide uppercase">
               {t("yourShare")}
             </p>
-            <div className="flex min-w-0 w-full flex-wrap items-center gap-x-2 gap-y-1">
+            <div className="flex w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
               <HistoryActivityIcons
                 attendsPlay={my.attendsPlay}
                 attendsDine={my.attendsDine}
@@ -427,24 +448,30 @@ function SessionDetailCard({
               )}
             </div>
             {isCompleted && (
-              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs text-left w-full">
+              <div className="flex w-full flex-wrap items-baseline gap-x-4 gap-y-1 text-left text-xs">
                 <span className="inline-flex items-baseline gap-1 whitespace-nowrap">
-                  <span className="text-muted-foreground">{t("playCost")}:</span>
-                  <strong className="tabular-nums text-sm text-[var(--color-hist-play-fg)]">
+                  <span className="text-muted-foreground">
+                    {t("playCost")}:
+                  </span>
+                  <strong className="text-sm text-[var(--color-hist-play-fg)] tabular-nums">
                     {formatK(my.playShare)}
                   </strong>
                 </span>
                 <span className="inline-flex items-baseline gap-1 whitespace-nowrap">
-                  <span className="text-muted-foreground">{t("dineCost")}:</span>
-                  <strong className="tabular-nums text-sm text-[var(--color-hist-dine-fg)]">
+                  <span className="text-muted-foreground">
+                    {t("dineCost")}:
+                  </span>
+                  <strong className="text-sm text-[var(--color-hist-dine-fg)] tabular-nums">
                     {formatK(my.dineShare)}
                   </strong>
                 </span>
                 <span className="inline-flex items-baseline gap-1 whitespace-nowrap">
-                  <span className="text-muted-foreground">{t("totalShort")}:</span>
+                  <span className="text-muted-foreground">
+                    {t("totalShort")}:
+                  </span>
                   <strong
                     className={cn(
-                      "tabular-nums font-semibold text-sm",
+                      "text-sm font-semibold tabular-nums",
                       shareHasDebt && !sharePaid
                         ? "text-destructive"
                         : sharePaid
@@ -462,29 +489,35 @@ function SessionDetailCard({
 
         <div className={cn(isCompleted && "space-y-2")}>
           {isCompleted && (
-            <h4 className="text-[10px] font-semibold uppercase text-muted-foreground">
+            <h4 className="text-muted-foreground text-xs font-semibold uppercase">
               {t("costBreakdown")}
-              <span className="tabular-nums text-primary pl-2 text-sm">{formatK(session.totalCost)}</span>
+              <span className="text-primary pl-2 text-sm tabular-nums">
+                {formatK(session.totalCost)}
+              </span>
             </h4>
           )}
-          <div className="grid gap-2 sm:grid-cols-2 items-stretch">
+          <div className="grid items-stretch gap-2 sm:grid-cols-2">
             <div
               className={cn(
-                "rounded-lg border px-3 py-2 text-sm flex flex-col gap-2 h-full min-h-0",
+                "flex h-full min-h-0 flex-col gap-2 rounded-lg border px-3 py-2 text-sm",
                 "border-[var(--color-hist-play-border)] bg-[var(--color-hist-play-bg)]",
               )}
             >
               {isCompleted && (
                 <div className="space-y-1">
                   <div className="flex justify-between gap-2">
-                    <span className="text-muted-foreground text-xs">{t("court")}</span>
-                    <span className="tabular-nums text-[var(--color-hist-play-fg)]">
+                    <span className="text-muted-foreground text-xs">
+                      {t("court")}
+                    </span>
+                    <span className="text-[var(--color-hist-play-fg)] tabular-nums">
                       {formatK(session.courtPrice)}
                     </span>
                   </div>
                   <div className="flex justify-between gap-2">
-                    <span className="text-muted-foreground text-xs">{t("shuttlecock")}</span>
-                    <span className="tabular-nums text-[var(--color-hist-play-fg)]">
+                    <span className="text-muted-foreground text-xs">
+                      {t("shuttlecock")}
+                    </span>
+                    <span className="text-[var(--color-hist-play-fg)] tabular-nums">
                       {formatK(session.shuttlecockCost)}
                     </span>
                   </div>
@@ -493,31 +526,36 @@ function SessionDetailCard({
               <div
                 className={cn(
                   "mt-auto flex min-h-10 items-baseline gap-2 text-xs font-medium text-[var(--color-hist-play-fg)]",
-                  isCompleted && "border-t border-[var(--color-hist-play-border)]/35 pt-2",
+                  isCompleted &&
+                    "border-t border-[var(--color-hist-play-border)]/35 pt-2",
                 )}
               >
                 <span
-                  className="text-base leading-none shrink-0 opacity-90 select-none"
+                  className="shrink-0 text-base leading-none opacity-90 select-none"
                   aria-hidden
                 >
                   🏸
                 </span>
                 <span>
                   {t("play")}{" "}
-                  <strong className="tabular-nums text-base leading-none">{session.playerCount}</strong>
+                  <strong className="text-base leading-none tabular-nums">
+                    {session.playerCount}
+                  </strong>
                 </span>
               </div>
             </div>
             <div
               className={cn(
-                "rounded-lg border px-3 py-2 text-sm flex flex-col gap-2 h-full min-h-0",
+                "flex h-full min-h-0 flex-col gap-2 rounded-lg border px-3 py-2 text-sm",
                 "border-[var(--color-hist-dine-border)] bg-[var(--color-hist-dine-bg)]",
               )}
             >
               {isCompleted && (
                 <div className="flex justify-between gap-2">
-                  <span className="text-muted-foreground text-xs">{t("dining")}</span>
-                  <span className="tabular-nums text-[var(--color-hist-dine-fg)]">
+                  <span className="text-muted-foreground text-xs">
+                    {t("dining")}
+                  </span>
+                  <span className="text-[var(--color-hist-dine-fg)] tabular-nums">
                     {formatK(session.diningBill)}
                   </span>
                 </div>
@@ -525,18 +563,21 @@ function SessionDetailCard({
               <div
                 className={cn(
                   "mt-auto flex min-h-10 items-baseline gap-2 text-xs font-medium text-[var(--color-hist-dine-fg)]",
-                  isCompleted && "border-t border-[var(--color-hist-dine-border)]/35 pt-2",
+                  isCompleted &&
+                    "border-t border-[var(--color-hist-dine-border)]/35 pt-2",
                 )}
               >
                 <span
-                  className="text-base leading-none shrink-0 opacity-90 select-none"
+                  className="shrink-0 text-base leading-none opacity-90 select-none"
                   aria-hidden
                 >
                   🍻
                 </span>
                 <span>
                   {t("dine")}{" "}
-                  <strong className="tabular-nums text-base leading-none">{session.dinerCount}</strong>
+                  <strong className="text-base leading-none tabular-nums">
+                    {session.dinerCount}
+                  </strong>
                 </span>
               </div>
             </div>
@@ -544,23 +585,28 @@ function SessionDetailCard({
         </div>
 
         <div className="space-y-2">
-          <h4 className="text-[10px] font-semibold uppercase text-muted-foreground">
+          <h4 className="text-muted-foreground text-xs font-semibold uppercase">
             {t("participants")}
           </h4>
           <div className="space-y-2">
             {session.attendees.map((a) => (
               <div key={a.id} className="flex items-center gap-2 text-sm">
                 {a.memberId ? (
-                  <MemberAvatar memberId={a.memberId} avatarKey={a.memberAvatarKey} avatarUrl={a.memberAvatarUrl} size={24} />
+                  <MemberAvatar
+                    memberId={a.memberId}
+                    avatarKey={a.memberAvatarKey}
+                    avatarUrl={a.memberAvatarUrl}
+                    size={24}
+                  />
                 ) : (
-                  <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-[10px]">
+                  <div className="bg-muted flex h-6 w-6 items-center justify-center rounded-full text-xs">
                     K
                   </div>
                 )}
                 <span
                   className={cn(
                     "min-w-0 flex-1 truncate",
-                    a.isGuest && "italic text-muted-foreground",
+                    a.isGuest && "text-muted-foreground italic",
                   )}
                 >
                   {a.name}
@@ -585,7 +631,7 @@ function SessionDetailCard({
         </div>
 
         {!isCompleted && (
-          <p className="text-sm text-muted-foreground border-t border-border/60 pt-3">
+          <p className="text-muted-foreground border-border/60 border-t pt-3 text-sm">
             {t("sessionCancelled")}
           </p>
         )}

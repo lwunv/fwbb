@@ -3,10 +3,12 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { createCourt, updateCourt, toggleCourtActive } from "@/actions/courts";
+import { fireAction } from "@/lib/optimistic-action";
 import { formatK } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NumberStepper } from "@/components/ui/number-stepper";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -16,7 +18,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Edit, MapPin, ToggleLeft, ToggleRight, Navigation } from "lucide-react";
+import { Plus, Edit, MapPin, ToggleLeft, X, Navigation } from "lucide-react";
 import { usePolling } from "@/lib/use-polling";
 import type { InferSelectModel } from "drizzle-orm";
 import type { courts as courtsTable } from "@/db/schema";
@@ -26,25 +28,40 @@ type Court = InferSelectModel<typeof courtsTable>;
 export function CourtList({ courts }: { courts: Court[] }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCourt, setEditingCourt] = useState<Court | null>(null);
+  const [price, setPrice] = useState(0);
+  const [toggledCourts, setToggledCourts] = useState<Record<number, boolean>>(
+    {},
+  );
   const t = useTranslations("adminCourts");
   const tCommon = useTranslations("common");
   usePolling();
 
-  async function handleSubmit(formData: FormData) {
-    if (editingCourt) {
-      await updateCourt(editingCourt.id, formData);
-    } else {
-      await createCourt(formData);
-    }
+  function handleToggle(courtId: number, currentActive: boolean) {
+    setToggledCourts((prev) => ({ ...prev, [courtId]: !currentActive }));
+    fireAction(
+      () => toggleCourtActive(courtId),
+      () => setToggledCourts((prev) => ({ ...prev, [courtId]: currentActive })),
+    );
+  }
+
+  function handleSubmit(formData: FormData) {
+    const wasEditing = editingCourt;
     setDialogOpen(false);
     setEditingCourt(null);
+    fireAction(
+      () =>
+        wasEditing
+          ? updateCourt(wasEditing.id, formData)
+          : createCourt(formData),
+      () => {
+        setEditingCourt(wasEditing);
+        setDialogOpen(true);
+      },
+    );
   }
 
   return (
-    <div className="pb-20">
-      <div className="flex justify-between items-center mb-4">
-        <p className="text-muted-foreground">{t("count", { count: courts.length })}</p>
-      </div>
+    <div className="">
       <Dialog
         open={dialogOpen}
         onOpenChange={(open) => {
@@ -52,121 +69,151 @@ export function CourtList({ courts }: { courts: Court[] }) {
           if (!open) setEditingCourt(null);
         }}
       >
-        <div className="fixed bottom-0 left-0 right-0 lg:left-60 z-30 p-3 bg-background/95 backdrop-blur border-t">
+        <div className="bg-background/95 fixed right-0 bottom-0 left-0 z-30 border-t p-3 backdrop-blur lg:left-60">
           <DialogTrigger render={<Button className="w-full" size="lg" />}>
-            <Plus className="h-4 w-4 mr-2" /> {t("addCourt")}
+            <Plus className="mr-2 h-4 w-4" /> {t("addCourt")}
           </DialogTrigger>
         </div>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {editingCourt ? t("editCourt") : t("addNewCourt")}
-              </DialogTitle>
-            </DialogHeader>
-            <form key={editingCourt?.id ?? "new"} action={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">{t("courtName")}</Label>
-                <Input
-                  id="name"
-                  name="name"
-                  defaultValue={editingCourt?.name ?? ""}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="address">{t("address")}</Label>
-                <Input
-                  id="address"
-                  name="address"
-                  defaultValue={editingCourt?.address ?? ""}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="mapLink">{t("mapLink")}</Label>
-                <Input
-                  id="mapLink"
-                  name="mapLink"
-                  type="url"
-                  placeholder={t("mapLinkPlaceholder")}
-                  defaultValue={editingCourt?.mapLink ?? ""}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="pricePerSession">{t("pricePerSession")}</Label>
-                <Input
-                  id="pricePerSession"
-                  name="pricePerSession"
-                  type="number"
-                  defaultValue={editingCourt?.pricePerSession ?? ""}
-                  required
-                />
-              </div>
-              <Button type="submit" className="w-full">
-                {editingCourt ? t("update") : tCommon("add")}
-              </Button>
-            </form>
-          </DialogContent>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingCourt ? t("editCourt") : t("addNewCourt")}
+            </DialogTitle>
+          </DialogHeader>
+          <form
+            key={editingCourt?.id ?? "new"}
+            action={handleSubmit}
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="name">{t("courtName")}</Label>
+              <Input
+                id="name"
+                name="name"
+                defaultValue={editingCourt?.name ?? ""}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="address">{t("address")}</Label>
+              <Input
+                id="address"
+                name="address"
+                defaultValue={editingCourt?.address ?? ""}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="mapLink">{t("mapLink")}</Label>
+              <Input
+                id="mapLink"
+                name="mapLink"
+                type="url"
+                placeholder={t("mapLinkPlaceholder")}
+                defaultValue={editingCourt?.mapLink ?? ""}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pricePerSession">{t("pricePerSession")}</Label>
+              <NumberStepper
+                value={price}
+                onChange={setPrice}
+                name="pricePerSession"
+                min={0}
+                step={10000}
+              />
+            </div>
+            <Button type="submit" className="w-full">
+              {editingCourt ? t("update") : tCommon("add")}
+            </Button>
+          </form>
+        </DialogContent>
       </Dialog>
 
       <div className="grid gap-3">
-        {courts.map((court) => (
-          <Card key={court.id}>
-            <CardContent className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center w-9 h-9 rounded-full bg-accent">
-                  <MapPin className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-1">
-                    <p className="font-medium">{court.name}</p>
+        {[...courts]
+          .sort((a, b) => {
+            const aActive = toggledCourts[a.id] ?? a.isActive;
+            const bActive = toggledCourts[b.id] ?? b.isActive;
+            if (aActive === bActive) return 0;
+            return aActive ? -1 : 1;
+          })
+          .map((court) => {
+            const isActive = toggledCourts[court.id] ?? court.isActive;
+            return (
+              <Card key={court.id}>
+                <CardContent className="space-y-3 p-4">
+                  {/* Info */}
+                  <div className="flex items-start gap-3">
+                    <div className="bg-accent flex h-11 w-11 shrink-0 items-center justify-center rounded-xl">
+                      <MapPin className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-base font-semibold">{court.name}</p>
+                      {court.address && (
+                        <p className="text-muted-foreground text-sm">
+                          {court.address}
+                        </p>
+                      )}
+                      <p className="text-primary text-base font-medium">
+                        {formatK(court.pricePerSession)}
+                        {t("perSession")}
+                      </p>
+                    </div>
                     {court.mapLink && (
                       <a
                         href={court.mapLink}
                         target="_blank"
                         rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-0.5 text-xs text-primary hover:text-primary/80 no-underline"
+                        className="text-primary hover:text-primary/80 inline-flex shrink-0 items-center gap-1 text-sm"
                       >
-                        <Navigation className="h-3 w-3" />
+                        <Navigation className="h-4 w-4" />
                         {t("openMap")}
                       </a>
                     )}
                   </div>
-                  {court.address && (
-                    <p className="text-sm text-muted-foreground">{court.address}</p>
-                  )}
-                  <p className="text-sm font-medium text-primary">
-                    {formatK(court.pricePerSession)}{t("perSession")}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant={court.isActive ? "default" : "secondary"}>
-                  {court.isActive ? t("active") : t("inactive")}
-                </Badge>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setEditingCourt(court);
-                    setDialogOpen(true);
-                  }}
-                >
-                  <Edit className="h-4 w-4" />
-                </Button>
-                <form action={async () => { await toggleCourtActive(court.id); }}>
-                  <Button variant="ghost" size="icon" type="submit">
-                    {court.isActive ? (
-                      <ToggleRight className="h-4 w-4" />
-                    ) : (
-                      <ToggleLeft className="h-4 w-4" />
-                    )}
-                  </Button>
-                </form>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                  {/* Actions */}
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant={isActive ? "default" : "secondary"}
+                      className="px-3 py-1 text-sm"
+                    >
+                      {isActive ? t("active") : t("inactive")}
+                    </Badge>
+                    <div className="flex-1" />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setEditingCourt(court);
+                        setPrice(court.pricePerSession);
+                        setDialogOpen(true);
+                      }}
+                    >
+                      <Edit className="mr-1.5 h-4 w-4" />
+                      Sửa
+                    </Button>
+                    <Button
+                      variant={isActive ? "destructive" : "default"}
+                      size="sm"
+                      onClick={() => handleToggle(court.id, isActive)}
+                    >
+                      {isActive ? (
+                        <>
+                          <X className="mr-1.5 h-4 w-4" />
+                          Xóa
+                        </>
+                      ) : (
+                        <>
+                          <ToggleLeft className="mr-1.5 h-4 w-4" />
+                          Bật
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
       </div>
     </div>
   );

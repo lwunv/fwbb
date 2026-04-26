@@ -14,6 +14,7 @@ import {
   CircleDot,
   Package,
   DollarSign,
+  Wallet,
   BarChart3,
   LogOut,
 } from "lucide-react";
@@ -24,13 +25,22 @@ import { LanguageSelector } from "@/components/shared/language-selector";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 
 const navItems = [
-  { href: "/admin/dashboard", labelKey: "dashboard" as const, icon: LayoutDashboard },
+  {
+    href: "/admin/dashboard",
+    labelKey: "dashboard" as const,
+    icon: LayoutDashboard,
+  },
   { href: "/admin/sessions", labelKey: "sessions" as const, icon: Calendar },
   { href: "/admin/members", labelKey: "members" as const, icon: Users },
   { href: "/admin/courts", labelKey: "courts" as const, icon: MapPin },
-  { href: "/admin/shuttlecocks", labelKey: "shuttlecocks" as const, icon: CircleDot },
+  {
+    href: "/admin/shuttlecocks",
+    labelKey: "shuttlecocks" as const,
+    icon: CircleDot,
+  },
   { href: "/admin/inventory", labelKey: "inventory" as const, icon: Package },
   { href: "/admin/finance", labelKey: "finance" as const, icon: DollarSign },
+  { href: "/admin/fund", labelKey: "fund" as const, icon: Wallet },
   { href: "/admin/stats", labelKey: "stats" as const, icon: BarChart3 },
 ];
 
@@ -40,29 +50,27 @@ export function AdminMobileNav({ appName = "FWBB" }: { appName?: string }) {
   const t = useTranslations("adminNav");
 
   return (
-    <div className="lg:hidden flex items-center justify-between p-4 border-b bg-card">
+    <div className="bg-card flex items-center justify-between border-b p-4 lg:hidden">
       <h1 className="text-lg font-bold">{appName} Admin</h1>
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetTrigger
-          render={<Button variant="ghost" size="icon" />}
-        >
+        <SheetTrigger render={<Button variant="ghost" size="icon" />}>
           <Menu className="h-5 w-5" />
         </SheetTrigger>
         <SheetContent side="left" className="w-64 p-0">
-          <div className="p-6 border-b">
+          <div className="border-b p-6">
             <h2 className="text-lg font-bold">{appName} Admin</h2>
           </div>
-          <nav className="flex-1 px-3 py-4 space-y-1">
+          <nav className="flex-1 space-y-1 px-3 py-4">
             {navItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={() => setOpen(false)}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                   pathname.startsWith(item.href)
                     ? "bg-primary text-primary-foreground"
-                    : "hover:bg-accent"
+                    : "hover:bg-accent",
                 )}
               >
                 <item.icon className="h-4 w-4" />
@@ -70,7 +78,7 @@ export function AdminMobileNav({ appName = "FWBB" }: { appName?: string }) {
               </Link>
             ))}
           </nav>
-          <div className="p-3 border-t space-y-2">
+          <div className="space-y-2 border-t p-3">
             <div className="flex items-center gap-2 px-1">
               <LanguageSelector className="flex-1" />
               <ThemeToggle />
@@ -78,7 +86,7 @@ export function AdminMobileNav({ appName = "FWBB" }: { appName?: string }) {
             <form action={logout}>
               <button
                 type="submit"
-                className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium w-full hover:bg-accent"
+                className="hover:bg-accent flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium"
               >
                 <LogOut className="h-4 w-4" />
                 {t("logout")}

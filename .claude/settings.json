@@ -73,7 +73,11 @@
       "Bash(node -e \"const en = require\\(''./src/i18n/messages/en.json''\\); console.log\\(JSON.stringify\\(en.identify, null, 2\\)\\)\")",
       "Bash(ls \"d:/Lwcifer/LW/FWBB/src/app/\\(public\\)/\")",
       "Bash(ssh-keygen -t ed25519 -C \"fwbb-deploy\" -f ~/.ssh/fwbb_deploy -N \"\")",
-      "Bash(ssh -T git@github-fwbb)"
+      "Bash(ssh -T git@github-fwbb)",
+      "Bash(sed -i 's/className=\"\"pb-20\"\"/className=\"\"\"\"/g' src/app/\\\\\\(admin\\\\\\)/admin/courts/court-list.tsx src/app/\\\\\\(admin\\\\\\)/admin/shuttlecocks/brand-list.tsx src/app/\\\\\\(admin\\\\\\)/admin/sessions/session-list.tsx src/app/\\\\\\(admin\\\\\\)/admin/members/member-list.tsx)",
+      "Bash(sed -i 's/className=\"\"space-y-3 pb-20\"\"/className=\"\"space-y-3\"\"/g' src/app/\\\\\\(admin\\\\\\)/admin/sessions/[id]/session-detail.tsx)",
+      "Bash(ls d:/Lwcifer/LW/FWBB/src/middleware*)",
+      "Bash(ls d:/Lwcifer/LW/FWBB/middleware*)"
     ],
     "additionalDirectories": [
       "d:\\Lwcifer\\LW\\fwbb-temp",

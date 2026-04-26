@@ -1,7 +1,13 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
+const JWT_SECRET_RAW = process.env.JWT_SECRET;
+if (!JWT_SECRET_RAW || JWT_SECRET_RAW.length < 32) {
+  throw new Error(
+    "JWT_SECRET env var is required and must be at least 32 characters. Refusing to start with a weak/missing JWT secret.",
+  );
+}
+const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_RAW);
 const ADMIN_COOKIE = "fwbb-admin-token";
 
 export async function signAdminToken(adminId: number): Promise<string> {
@@ -37,6 +43,14 @@ export async function getAdminFromCookie() {
   const token = cookieStore.get(ADMIN_COOKIE)?.value;
   if (!token) return null;
   return verifyAdminToken(token);
+}
+
+export async function requireAdmin() {
+  const admin = await getAdminFromCookie();
+  if (!admin || admin.role !== "admin") {
+    return { error: "Không có quyền admin" };
+  }
+  return { admin };
 }
 
 export async function clearAdminCookie() {

@@ -4,6 +4,7 @@ import { ThemeProvider } from "next-themes";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
+import { Providers } from "@/components/providers";
 import "./globals.css";
 
 /** vi/en: Roboto. zh: stack dùng Geist + font hệ thống Hán (`globals.css` html[lang="zh"]) */
@@ -43,7 +44,7 @@ export default async function RootLayout({
       className={`${roboto.variable} ${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">
+      <body className="flex min-h-full flex-col">
         <NextIntlClientProvider messages={messages}>
           <NuqsAdapter>
             <ThemeProvider
@@ -53,7 +54,7 @@ export default async function RootLayout({
               enableSystem={false}
               disableTransitionOnChange
             >
-              {children}
+              <Providers>{children}</Providers>
             </ThemeProvider>
           </NuqsAdapter>
         </NextIntlClientProvider>

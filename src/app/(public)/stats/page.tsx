@@ -4,7 +4,6 @@ import {
   getAttendanceTrend,
 } from "@/actions/stats";
 import { StatsClient } from "@/app/(admin)/admin/stats/stats-client";
-import { getTranslations } from "next-intl/server";
 import { getUserFromCookie } from "@/lib/user-identity";
 
 export default async function PublicStatsPage({
@@ -13,7 +12,6 @@ export default async function PublicStatsPage({
   searchParams: Promise<{ period?: string; expenseGroup?: string }>;
 }) {
   const { period = "all", expenseGroup = "week" } = await searchParams;
-  const t = await getTranslations("nav");
   const user = await getUserFromCookie();
 
   const [activeMembers, monthlyExpenses, attendance] = await Promise.all([
@@ -23,7 +21,7 @@ export default async function PublicStatsPage({
   ]);
 
   return (
-    <div className="max-w-lg mx-auto space-y-4">
+    <div className="mx-auto max-w-lg space-y-4">
       <StatsClient
         activeMembers={activeMembers}
         monthlyExpenses={monthlyExpenses}

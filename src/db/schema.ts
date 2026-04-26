@@ -1,10 +1,20 @@
-import { sqliteTable, text, integer, uniqueIndex, index } from "drizzle-orm/sqlite-core";
+import {
+  sqliteTable,
+  text,
+  integer,
+  uniqueIndex,
+  index,
+} from "drizzle-orm/sqlite-core";
 import { sql, relations } from "drizzle-orm";
 
 export const admins = sqliteTable("admins", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   username: text("username").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
+  // Explicit pointer to the admin's own member record. Replaces the fragile
+  // `members.name === admins.username` matching previously used to identify
+  // admin's debts. Nullable so admins without a member row don't break.
+  memberId: integer("member_id"),
   createdAt: text("created_at").default(sql`(current_timestamp)`),
 });
 
@@ -16,6 +26,7 @@ export const members = sqliteTable("members", {
   facebookId: text("facebook_id").notNull().unique(),
   avatarUrl: text("avatar_url"),
   email: text("email"),
+  bankAccountNo: text("bank_account_no"),
   isActive: integer("is_active", { mode: "boolean" }).default(true),
   createdAt: text("created_at").default(sql`(current_timestamp)`),
 });
@@ -37,40 +48,56 @@ export const shuttlecockBrands = sqliteTable("shuttlecock_brands", {
   stockAdjustQua: integer("stock_adjust_qua").default(0),
 });
 
-export const sessions = sqliteTable("sessions", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  date: text("date").notNull(),
-  startTime: text("start_time").default("20:30"),
-  endTime: text("end_time").default("22:30"),
-  courtId: integer("court_id").references(() => courts.id),
-  courtQuantity: integer("court_quantity").default(1),
-  courtPrice: integer("court_price"),
-  status: text("status", { enum: ["voting", "confirmed", "completed", "cancelled"] }).default("voting"),
-  diningBill: integer("dining_bill"),
-  notes: text("notes"),
-  createdAt: text("created_at").default(sql`(current_timestamp)`),
-  updatedAt: text("updated_at").default(sql`(current_timestamp)`),
-}, (table) => [
-  index("idx_sessions_date").on(table.date),
-]);
+export const sessions = sqliteTable(
+  "sessions",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    date: text("date").notNull(),
+    startTime: text("start_time").default("20:30"),
+    endTime: text("end_time").default("22:30"),
+    courtId: integer("court_id").references(() => courts.id),
+    courtQuantity: integer("court_quantity").default(1),
+    courtPrice: integer("court_price"),
+    status: text("status", {
+      enum: ["voting", "confirmed", "completed", "cancelled"],
+    }).default("voting"),
+    diningBill: integer("dining_bill"),
+    adminGuestPlayCount: integer("admin_guest_play_count").default(0),
+    adminGuestDineCount: integer("admin_guest_dine_count").default(0),
+    notes: text("notes"),
+    createdAt: text("created_at").default(sql`(current_timestamp)`),
+    updatedAt: text("updated_at").default(sql`(current_timestamp)`),
+  },
+  (table) => [index("idx_sessions_date").on(table.date)],
+);
 
-export const votes = sqliteTable("votes", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  sessionId: integer("session_id").notNull().references(() => sessions.id),
-  memberId: integer("member_id").notNull().references(() => members.id),
-  willPlay: integer("will_play", { mode: "boolean" }).default(false),
-  willDine: integer("will_dine", { mode: "boolean" }).default(false),
-  guestPlayCount: integer("guest_play_count").default(0),
-  guestDineCount: integer("guest_dine_count").default(0),
-  createdAt: text("created_at").default(sql`(current_timestamp)`),
-  updatedAt: text("updated_at").default(sql`(current_timestamp)`),
-}, (table) => [
-  uniqueIndex("votes_session_member_idx").on(table.sessionId, table.memberId),
-]);
+export const votes = sqliteTable(
+  "votes",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    sessionId: integer("session_id")
+      .notNull()
+      .references(() => sessions.id),
+    memberId: integer("member_id")
+      .notNull()
+      .references(() => members.id),
+    willPlay: integer("will_play", { mode: "boolean" }).default(false),
+    willDine: integer("will_dine", { mode: "boolean" }).default(false),
+    guestPlayCount: integer("guest_play_count").default(0),
+    guestDineCount: integer("guest_dine_count").default(0),
+    createdAt: text("created_at").default(sql`(current_timestamp)`),
+    updatedAt: text("updated_at").default(sql`(current_timestamp)`),
+  },
+  (table) => [
+    uniqueIndex("votes_session_member_idx").on(table.sessionId, table.memberId),
+  ],
+);
 
 export const sessionAttendees = sqliteTable("session_attendees", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  sessionId: integer("session_id").notNull().references(() => sessions.id),
+  sessionId: integer("session_id")
+    .notNull()
+    .references(() => sessions.id),
   memberId: integer("member_id").references(() => members.id),
   guestName: text("guest_name"),
   invitedById: integer("invited_by_id").references(() => members.id),
@@ -81,15 +108,21 @@ export const sessionAttendees = sqliteTable("session_attendees", {
 
 export const sessionShuttlecocks = sqliteTable("session_shuttlecocks", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  sessionId: integer("session_id").notNull().references(() => sessions.id),
-  brandId: integer("brand_id").notNull().references(() => shuttlecockBrands.id),
+  sessionId: integer("session_id")
+    .notNull()
+    .references(() => sessions.id),
+  brandId: integer("brand_id")
+    .notNull()
+    .references(() => shuttlecockBrands.id),
   quantityUsed: integer("quantity_used").notNull(),
   pricePerTube: integer("price_per_tube").notNull(),
 });
 
 export const inventoryPurchases = sqliteTable("inventory_purchases", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  brandId: integer("brand_id").notNull().references(() => shuttlecockBrands.id),
+  brandId: integer("brand_id")
+    .notNull()
+    .references(() => shuttlecockBrands.id),
   tubes: integer("tubes").notNull(),
   pricePerTube: integer("price_per_tube").notNull(),
   totalPrice: integer("total_price").notNull(),
@@ -98,23 +131,35 @@ export const inventoryPurchases = sqliteTable("inventory_purchases", {
   createdAt: text("created_at").default(sql`(current_timestamp)`),
 });
 
-export const sessionDebts = sqliteTable("session_debts", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  sessionId: integer("session_id").notNull().references(() => sessions.id),
-  memberId: integer("member_id").notNull().references(() => members.id),
-  playAmount: integer("play_amount").default(0),
-  dineAmount: integer("dine_amount").default(0),
-  guestPlayAmount: integer("guest_play_amount").default(0),
-  guestDineAmount: integer("guest_dine_amount").default(0),
-  totalAmount: integer("total_amount").notNull(),
-  memberConfirmed: integer("member_confirmed", { mode: "boolean" }).default(false),
-  memberConfirmedAt: text("member_confirmed_at"),
-  adminConfirmed: integer("admin_confirmed", { mode: "boolean" }).default(false),
-  adminConfirmedAt: text("admin_confirmed_at"),
-  updatedAt: text("updated_at").default(sql`(current_timestamp)`),
-}, (table) => [
-  uniqueIndex("debts_session_member_idx").on(table.sessionId, table.memberId),
-]);
+export const sessionDebts = sqliteTable(
+  "session_debts",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    sessionId: integer("session_id")
+      .notNull()
+      .references(() => sessions.id),
+    memberId: integer("member_id")
+      .notNull()
+      .references(() => members.id),
+    playAmount: integer("play_amount").default(0),
+    dineAmount: integer("dine_amount").default(0),
+    guestPlayAmount: integer("guest_play_amount").default(0),
+    guestDineAmount: integer("guest_dine_amount").default(0),
+    totalAmount: integer("total_amount").notNull(),
+    memberConfirmed: integer("member_confirmed", { mode: "boolean" }).default(
+      false,
+    ),
+    memberConfirmedAt: text("member_confirmed_at"),
+    adminConfirmed: integer("admin_confirmed", { mode: "boolean" }).default(
+      false,
+    ),
+    adminConfirmedAt: text("admin_confirmed_at"),
+    updatedAt: text("updated_at").default(sql`(current_timestamp)`),
+  },
+  (table) => [
+    uniqueIndex("debts_session_member_idx").on(table.sessionId, table.memberId),
+  ],
+);
 
 // Relations
 
@@ -127,31 +172,68 @@ export const sessionsRelations = relations(sessions, ({ one, many }) => ({
 }));
 
 export const votesRelations = relations(votes, ({ one }) => ({
-  session: one(sessions, { fields: [votes.sessionId], references: [sessions.id] }),
+  session: one(sessions, {
+    fields: [votes.sessionId],
+    references: [sessions.id],
+  }),
   member: one(members, { fields: [votes.memberId], references: [members.id] }),
 }));
 
-export const sessionAttendeesRelations = relations(sessionAttendees, ({ one }) => ({
-  session: one(sessions, { fields: [sessionAttendees.sessionId], references: [sessions.id] }),
-  member: one(members, { fields: [sessionAttendees.memberId], references: [members.id], relationName: "attendeeMember" }),
-  invitedBy: one(members, { fields: [sessionAttendees.invitedById], references: [members.id], relationName: "invitedByMember" }),
-}));
+export const sessionAttendeesRelations = relations(
+  sessionAttendees,
+  ({ one }) => ({
+    session: one(sessions, {
+      fields: [sessionAttendees.sessionId],
+      references: [sessions.id],
+    }),
+    member: one(members, {
+      fields: [sessionAttendees.memberId],
+      references: [members.id],
+      relationName: "attendeeMember",
+    }),
+    invitedBy: one(members, {
+      fields: [sessionAttendees.invitedById],
+      references: [members.id],
+      relationName: "invitedByMember",
+    }),
+  }),
+);
 
-export const sessionShuttlecocksRelations = relations(sessionShuttlecocks, ({ one }) => ({
-  session: one(sessions, { fields: [sessionShuttlecocks.sessionId], references: [sessions.id] }),
-  brand: one(shuttlecockBrands, { fields: [sessionShuttlecocks.brandId], references: [shuttlecockBrands.id] }),
-}));
+export const sessionShuttlecocksRelations = relations(
+  sessionShuttlecocks,
+  ({ one }) => ({
+    session: one(sessions, {
+      fields: [sessionShuttlecocks.sessionId],
+      references: [sessions.id],
+    }),
+    brand: one(shuttlecockBrands, {
+      fields: [sessionShuttlecocks.brandId],
+      references: [shuttlecockBrands.id],
+    }),
+  }),
+);
 
 export const sessionDebtsRelations = relations(sessionDebts, ({ one }) => ({
-  session: one(sessions, { fields: [sessionDebts.sessionId], references: [sessions.id] }),
-  member: one(members, { fields: [sessionDebts.memberId], references: [members.id] }),
+  session: one(sessions, {
+    fields: [sessionDebts.sessionId],
+    references: [sessions.id],
+  }),
+  member: one(members, {
+    fields: [sessionDebts.memberId],
+    references: [members.id],
+  }),
 }));
 
-export const membersRelations = relations(members, ({ many }) => ({
+export const membersRelations = relations(members, ({ many, one }) => ({
   votes: many(votes),
   debts: many(sessionDebts),
   attendances: many(sessionAttendees, { relationName: "attendeeMember" }),
   guestsInvited: many(sessionAttendees, { relationName: "invitedByMember" }),
+  fundMembership: one(fundMembers, {
+    fields: [members.id],
+    references: [fundMembers.memberId],
+  }),
+  financialTransactions: many(financialTransactions),
 }));
 
 export const appSettings = sqliteTable("app_settings", {
@@ -163,11 +245,120 @@ export const courtsRelations = relations(courts, ({ many }) => ({
   sessions: many(sessions),
 }));
 
-export const shuttlecockBrandsRelations = relations(shuttlecockBrands, ({ many }) => ({
-  sessionShuttlecocks: many(sessionShuttlecocks),
-  purchases: many(inventoryPurchases),
+export const shuttlecockBrandsRelations = relations(
+  shuttlecockBrands,
+  ({ many }) => ({
+    sessionShuttlecocks: many(sessionShuttlecocks),
+    purchases: many(inventoryPurchases),
+  }),
+);
+
+export const inventoryPurchasesRelations = relations(
+  inventoryPurchases,
+  ({ one }) => ({
+    brand: one(shuttlecockBrands, {
+      fields: [inventoryPurchases.brandId],
+      references: [shuttlecockBrands.id],
+    }),
+  }),
+);
+
+// ─── Fund (Quỹ nhóm) ───
+
+export const fundMembers = sqliteTable("fund_members", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  memberId: integer("member_id")
+    .notNull()
+    .unique()
+    .references(() => members.id),
+  isActive: integer("is_active", { mode: "boolean" }).default(true),
+  joinedAt: text("joined_at").default(sql`(current_timestamp)`),
+  leftAt: text("left_at"),
+});
+
+export const financialTransactions = sqliteTable(
+  "financial_transactions",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    type: text("type", {
+      enum: [
+        "fund_contribution",
+        "fund_deduction",
+        "fund_refund",
+        "debt_created",
+        "debt_member_confirmed",
+        "debt_admin_confirmed",
+        "debt_undo",
+        "inventory_purchase",
+        "manual_adjustment",
+        "bank_payment_received",
+      ],
+    }).notNull(),
+    direction: text("direction", { enum: ["in", "out", "neutral"] }).notNull(),
+    amount: integer("amount").notNull(),
+    memberId: integer("member_id").references(() => members.id),
+    sessionId: integer("session_id").references(() => sessions.id),
+    debtId: integer("debt_id").references(() => sessionDebts.id),
+    paymentNotificationId: integer("payment_notification_id"),
+    inventoryPurchaseId: integer("inventory_purchase_id").references(
+      () => inventoryPurchases.id,
+    ),
+    reversalOfId: integer("reversal_of_id"),
+    description: text("description"),
+    metadataJson: text("metadata_json"),
+    createdAt: text("created_at").default(sql`(current_timestamp)`),
+  },
+  (table) => [
+    index("idx_financial_transactions_member").on(table.memberId),
+    index("idx_financial_transactions_session").on(table.sessionId),
+    index("idx_financial_transactions_debt").on(table.debtId),
+    index("idx_financial_transactions_type").on(table.type),
+  ],
+);
+
+export const fundMembersRelations = relations(fundMembers, ({ one }) => ({
+  member: one(members, {
+    fields: [fundMembers.memberId],
+    references: [members.id],
+  }),
 }));
 
-export const inventoryPurchasesRelations = relations(inventoryPurchases, ({ one }) => ({
-  brand: one(shuttlecockBrands, { fields: [inventoryPurchases.brandId], references: [shuttlecockBrands.id] }),
-}));
+export const financialTransactionsRelations = relations(
+  financialTransactions,
+  ({ one }) => ({
+    member: one(members, {
+      fields: [financialTransactions.memberId],
+      references: [members.id],
+    }),
+    session: one(sessions, {
+      fields: [financialTransactions.sessionId],
+      references: [sessions.id],
+    }),
+    debt: one(sessionDebts, {
+      fields: [financialTransactions.debtId],
+      references: [sessionDebts.id],
+    }),
+    inventoryPurchase: one(inventoryPurchases, {
+      fields: [financialTransactions.inventoryPurchaseId],
+      references: [inventoryPurchases.id],
+    }),
+  }),
+);
+
+// ─── Payment Notifications (Gmail Pub/Sub) ───
+
+export const paymentNotifications = sqliteTable("payment_notifications", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  gmailMessageId: text("gmail_message_id").notNull().unique(),
+  senderBank: text("sender_bank"),
+  amount: integer("amount"),
+  transferContent: text("transfer_content"),
+  senderAccountNo: text("sender_account_no"),
+  matchedDebtId: integer("matched_debt_id").references(() => sessionDebts.id),
+  matchedTransactionId: integer("matched_transaction_id"),
+  status: text("status", {
+    enum: ["pending", "matched", "ignored", "failed"],
+  }).default("pending"),
+  rawSnippet: text("raw_snippet"),
+  receivedAt: text("received_at").default(sql`(current_timestamp)`),
+});

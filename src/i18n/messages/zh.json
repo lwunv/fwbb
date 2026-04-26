@@ -14,6 +14,7 @@
     "shuttlecocks": "羽毛球品牌",
     "inventory": "库存",
     "finance": "财务",
+    "fund": "基金",
     "stats": "统计",
     "logout": "退出登录"
   },
@@ -120,7 +121,20 @@
     "undoLabel": "未收款",
     "notReceived": "未收款",
     "confirmed": "已确认",
-    "allStatus": "全部"
+    "allStatus": "全部",
+    "fundBalance": "基金余额",
+    "memberSummaryTitle": "按成员汇总",
+    "backToFinance": "返回财务",
+    "searchMemberPlaceholder": "按姓名搜索...",
+    "colStillOwed": "未付",
+    "colAwaitingAdmin": "待确认",
+    "colCollected": "已收款（已确认）",
+    "memberCount": "{count} 位成员",
+    "noMemberMatch": "没有匹配的成员。",
+    "peopleStillOwed": "{count} 人仍欠款",
+    "notFound": "未找到",
+    "stillShort": "仍欠",
+    "owedSessionCount": "{count} 场"
   },
   "inventory": {
     "inventory": "库存",
@@ -219,7 +233,10 @@
     "avatarAutoTitle": "自动",
     "avatarEmojiTitle": "预设图标",
     "avatarBrandTitle": "球拍品牌",
-    "avatarDefault": "默认"
+    "avatarDefault": "默认",
+    "fundBalance": "基金余额",
+    "manageFund": "管理余额、充值和交易记录",
+    "myFund": "我的基金"
   },
   "dashboard": {
     "overview": "概览",
@@ -390,5 +407,23 @@
     "update": "更新",
     "active": "活跃",
     "inactive": "停用"
+  },
+  "myFundClient": {
+    "myFund": "我的资金",
+    "currentBalance": "当前余额",
+    "contributed": "已贡献",
+    "deducted": "已扣除",
+    "topUp": "充值资金",
+    "amountPlaceholder": "500000",
+    "getQR": "获取二维码",
+    "history": "交易历史",
+    "txCount": "{count} 笔",
+    "noTransactions": "暂无交易。",
+    "txContribution": "充值",
+    "txDeduction": "扣除（场次欠款）",
+    "txRefund": "退款",
+    "session": "场次 {date}",
+    "qrTitle": "充值资金",
+    "qrDescription": "转账以增加群组资金"
   }
 }

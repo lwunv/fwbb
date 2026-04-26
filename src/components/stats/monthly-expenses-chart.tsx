@@ -43,9 +43,10 @@ function formatLabel(key: string, group: string): string {
   }
 }
 
-const DATA_KEYS = ["courtCost", "shuttlecockCost", "diningCost"] as const;
-
-export function MonthlyExpensesChart({ data, groupBy }: MonthlyExpensesChartProps) {
+export function MonthlyExpensesChart({
+  data,
+  groupBy,
+}: MonthlyExpensesChartProps) {
   const t = useTranslations("stats");
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -87,7 +88,7 @@ export function MonthlyExpensesChart({ data, groupBy }: MonthlyExpensesChartProp
   return (
     <div className="space-y-3">
       {/* Group filter */}
-      <div className="flex gap-1 rounded-lg bg-muted p-1">
+      <div className="bg-muted flex gap-1 rounded-lg p-1">
         {GROUP_OPTIONS.map((g) => (
           <button
             key={g}
@@ -104,7 +105,7 @@ export function MonthlyExpensesChart({ data, groupBy }: MonthlyExpensesChartProp
       </div>
 
       {chartData.length === 0 ? (
-        <div className="flex items-center justify-center h-[300px] text-muted-foreground text-sm">
+        <div className="text-muted-foreground flex h-[300px] items-center justify-center text-sm">
           {t("noData")}
         </div>
       ) : (
@@ -131,18 +132,49 @@ export function MonthlyExpensesChart({ data, groupBy }: MonthlyExpensesChartProp
                 borderRadius: "8px",
                 color: "var(--color-popover-foreground, #1e293b)",
               }}
-              formatter={(value, name) => [formatK(Number(value)), labels[String(name)] || String(name)]}
+              formatter={(value, name) => [
+                formatK(Number(value)),
+                labels[String(name)] || String(name),
+              ]}
             />
             <Legend
-              onClick={(e) => { if (e.dataKey) toggleSeries(String(e.dataKey)); }}
+              onClick={(e) => {
+                if (e.dataKey) toggleSeries(String(e.dataKey));
+              }}
               formatter={(value: string) => {
                 const isHidden = hidden.has(value);
-                return <span style={{ color: isHidden ? "#999" : undefined, textDecoration: isHidden ? "line-through" : undefined, cursor: "pointer" }}>{labels[value] || value}</span>;
+                return (
+                  <span
+                    style={{
+                      color: isHidden ? "#999" : undefined,
+                      textDecoration: isHidden ? "line-through" : undefined,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {labels[value] || value}
+                  </span>
+                );
               }}
             />
-            <Bar dataKey="courtCost" stackId="a" fill="var(--color-chart-1, #6366f1)" hide={hidden.has("courtCost")} />
-            <Bar dataKey="shuttlecockCost" stackId="a" fill="var(--color-chart-2, #8b5cf6)" hide={hidden.has("shuttlecockCost")} />
-            <Bar dataKey="diningCost" stackId="a" fill="var(--color-chart-3, #10b981)" radius={[4, 4, 0, 0]} hide={hidden.has("diningCost")} />
+            <Bar
+              dataKey="courtCost"
+              stackId="a"
+              fill="var(--color-chart-1, #6366f1)"
+              hide={hidden.has("courtCost")}
+            />
+            <Bar
+              dataKey="shuttlecockCost"
+              stackId="a"
+              fill="var(--color-chart-2, #8b5cf6)"
+              hide={hidden.has("shuttlecockCost")}
+            />
+            <Bar
+              dataKey="diningCost"
+              stackId="a"
+              fill="var(--color-chart-3, #10b981)"
+              radius={[4, 4, 0, 0]}
+              hide={hidden.has("diningCost")}
+            />
           </BarChart>
         </ResponsiveContainer>
       )}

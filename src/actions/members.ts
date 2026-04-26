@@ -6,30 +6,59 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { getUserFromCookie } from "@/lib/user-identity";
+import { requireAdmin } from "@/lib/auth";
 import { memberSchema } from "@/lib/validators";
 import { AVATAR_BRAND_KEYS } from "@/lib/member-avatar-presets";
 import { AVATAR_EMOJI_COUNT } from "@/lib/member-avatar-emoji";
 import { z } from "zod";
 
-export type UpdateMyProfileState =
-  | null
-  | { success: true }
-  | { error: string };
+export type UpdateMyProfileState = null | { success: true } | { error: string };
 
+/**
+ * Admin-only: full member rows including sensitive fields (facebookId, email, bankAccountNo).
+ * Returns [] if caller is not admin.
+ */
 export async function getMembers() {
+  const auth = await requireAdmin();
+  if ("error" in auth) return [];
   return db.query.members.findMany({
     orderBy: (m, { asc }) => [asc(m.name)],
   });
 }
 
+/**
+ * Public-safe member list. Returns the full Member shape so existing component
+ * prop types still resolve, but PII fields (facebookId / email / bankAccountNo)
+ * are scrubbed at the action boundary. Admin pages should use `getMembers()`
+ * for the real values.
+ */
 export async function getActiveMembers() {
-  return db.query.members.findMany({
+  const rows = await db.query.members.findMany({
     where: eq(members.isActive, true),
     orderBy: (m, { asc }) => [asc(m.name)],
+    // Do not load PII columns from the DB at all (public pickers / home / vote).
+    columns: {
+      id: true,
+      name: true,
+      nickname: true,
+      avatarKey: true,
+      avatarUrl: true,
+      isActive: true,
+      createdAt: true,
+    },
   });
+  return rows.map((m) => ({
+    ...m,
+    facebookId: "",
+    email: null,
+    bankAccountNo: null,
+  }));
 }
 
 export async function createMember(formData: FormData) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
   const raw = {
     name: formData.get("name") as string,
   };
@@ -58,7 +87,9 @@ const avatarStorageSchema = z.union([avatarBrandSchema, avatarEmojiSchema]);
 export type UpdateMyAvatarState = { success: true } | { error: string };
 
 /** Đặt avatar: hãng vợt, `emoji:n`, hoặc `null` = emoji tự động theo id */
-export async function updateMyAvatar(avatarKey: string | null): Promise<UpdateMyAvatarState> {
+export async function updateMyAvatar(
+  avatarKey: string | null,
+): Promise<UpdateMyAvatarState> {
   const t = await getTranslations("me");
   const user = await getUserFromCookie();
   if (!user) {
@@ -74,7 +105,10 @@ export async function updateMyAvatar(avatarKey: string | null): Promise<UpdateMy
     next = p.data;
   }
 
-  await db.update(members).set({ avatarKey: next }).where(eq(members.id, user.memberId));
+  await db
+    .update(members)
+    .set({ avatarKey: next })
+    .where(eq(members.id, user.memberId));
 
   revalidatePath("/me");
   revalidatePath("/");
@@ -118,6 +152,9 @@ export async function updateMyProfile(
 }
 
 export async function updateMember(id: number, formData: FormData) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
   const raw = {
     name: formData.get("name") as string,
   };
@@ -126,15 +163,26 @@ export async function updateMember(id: number, formData: FormData) {
     return { error: parsed.error.issues[0].message };
   }
   const nickname = (formData.get("nickname") as string)?.trim() || null;
-  await db.update(members).set({ ...parsed.data, nickname }).where(eq(members.id, id));
+  await db
+    .update(members)
+    .set({ ...parsed.data, nickname })
+    .where(eq(members.id, id));
   revalidatePath("/admin/members");
   return { success: true };
 }
 
 export async function toggleMemberActive(id: number) {
-  const member = await db.query.members.findFirst({ where: eq(members.id, id) });
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
+  const member = await db.query.members.findFirst({
+    where: eq(members.id, id),
+  });
   if (!member) return { error: "Khong tim thay thanh vien" };
-  await db.update(members).set({ isActive: !member.isActive }).where(eq(members.id, id));
+  await db
+    .update(members)
+    .set({ isActive: !member.isActive })
+    .where(eq(members.id, id));
   revalidatePath("/admin/members");
   return { success: true };
 }

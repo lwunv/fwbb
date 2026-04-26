@@ -7,6 +7,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { NumberStepper } from "@/components/ui/number-stepper";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { formatK } from "@/lib/utils";
 import {
@@ -16,6 +18,7 @@ import {
   type CostBreakdown,
 } from "@/lib/cost-calculator";
 import { finalizeSession, type FinalizeAttendee } from "@/actions/finance";
+import { fireAction } from "@/lib/optimistic-action";
 import {
   CheckCircle,
   ChevronRight,
@@ -79,10 +82,16 @@ export function FinalizeSession({
   const tCommon = useTranslations("common");
 
   // Initialize from votes
-  const votedPlayerIds = new Set(votes.filter((v) => v.willPlay).map((v) => v.memberId));
-  const votedDinerIds = new Set(votes.filter((v) => v.willDine).map((v) => v.memberId));
+  const votedPlayerIds = new Set(
+    votes.filter((v) => v.willPlay).map((v) => v.memberId),
+  );
+  const votedDinerIds = new Set(
+    votes.filter((v) => v.willDine).map((v) => v.memberId),
+  );
 
-  const [playerIds, setPlayerIds] = useState<Set<number>>(new Set(votedPlayerIds));
+  const [playerIds, setPlayerIds] = useState<Set<number>>(
+    new Set(votedPlayerIds),
+  );
   const [dinerIds, setDinerIds] = useState<Set<number>>(new Set(votedDinerIds));
   const [guests, setGuests] = useState<GuestEntry[]>(() => {
     // Initialize guests from votes with guestPlayCount/guestDineCount
@@ -125,7 +134,9 @@ export function FinalizeSession({
 
   // New guest form
   const [newGuestName, setNewGuestName] = useState("");
-  const [newGuestInviterId, setNewGuestInviterId] = useState<number | null>(null);
+  const [newGuestInviterId, setNewGuestInviterId] = useState<number | null>(
+    null,
+  );
   const [newGuestPlays, setNewGuestPlays] = useState(true);
   const [newGuestDines, setNewGuestDines] = useState(false);
 
@@ -235,7 +246,7 @@ export function FinalizeSession({
     );
   }, [step, attendeeList, shuttlecocks, courtPrice, diningBill]);
 
-  async function handleFinalize() {
+  function handleFinalize() {
     setIsLoading(true);
     setError("");
 
@@ -248,19 +259,37 @@ export function FinalizeSession({
       attendsDine: a.attendsDine,
     }));
 
-    const result = await finalizeSession(sessionId, finalAttendees, diningBill);
-    if (result.error) {
-      setError(result.error);
-    }
-    setIsLoading(false);
+    fireAction(
+      () => finalizeSession(sessionId, finalAttendees, diningBill),
+      () => {
+        setIsLoading(false);
+      },
+      { retry: false },
+    );
   }
 
   const steps: { key: Step; label: string; icon: React.ReactNode }[] = [
-    { key: "players", label: t("players"), icon: <Users className="h-4 w-4" /> },
-    { key: "diners", label: t("diners"), icon: <UtensilsCrossed className="h-4 w-4" /> },
+    {
+      key: "players",
+      label: t("players"),
+      icon: <Users className="h-4 w-4" />,
+    },
+    {
+      key: "diners",
+      label: t("diners"),
+      icon: <UtensilsCrossed className="h-4 w-4" />,
+    },
     { key: "guests", label: t("guests"), icon: <Plus className="h-4 w-4" /> },
-    { key: "dining-bill", label: t("diningBill"), icon: <Calculator className="h-4 w-4" /> },
-    { key: "preview", label: t("confirm"), icon: <CheckCircle className="h-4 w-4" /> },
+    {
+      key: "dining-bill",
+      label: t("diningBill"),
+      icon: <Calculator className="h-4 w-4" />,
+    },
+    {
+      key: "preview",
+      label: t("confirm"),
+      icon: <CheckCircle className="h-4 w-4" />,
+    },
   ];
 
   const currentStepIndex = steps.findIndex((s) => s.key === step);
@@ -279,13 +308,13 @@ export function FinalizeSession({
 
   return (
     <div className="space-y-4">
-      {/* Step indicator */}
+      {/* Step indicator — 44px tap target */}
       <div className="flex items-center gap-1 overflow-x-auto pb-2">
         {steps.map((s, i) => (
           <button
             key={s.key}
             onClick={() => setStep(s.key)}
-            className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
+            className={`flex min-h-11 items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors ${
               i === currentStepIndex
                 ? "bg-primary text-primary-foreground"
                 : i < currentStepIndex
@@ -294,8 +323,7 @@ export function FinalizeSession({
             }`}
           >
             {s.icon}
-            <span className="hidden sm:inline">{s.label}</span>
-            <span className="sm:hidden">{i + 1}</span>
+            <span>{s.label}</span>
           </button>
         ))}
       </div>
@@ -303,24 +331,30 @@ export function FinalizeSession({
       {/* Step: Players */}
       {step === "players" && (
         <Card>
-          <CardContent className="p-4 space-y-3">
-            <h3 className="font-semibold flex items-center gap-2">
+          <CardContent className="space-y-3 p-4">
+            <h3 className="flex items-center gap-2 font-semibold">
               <Users className="h-4 w-4" />
               {t("selectPlayers")} ({playerIds.size})
             </h3>
-            <div className="space-y-2 max-h-80 overflow-y-auto">
+            <div className="max-h-80 space-y-2 overflow-y-auto">
               {members.map((m) => (
                 <label
                   key={m.id}
-                  className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted cursor-pointer"
+                  className="hover:bg-muted flex min-h-11 cursor-pointer items-center gap-3 rounded-lg p-2"
                 >
                   <input
                     type="checkbox"
                     checked={playerIds.has(m.id)}
                     onChange={() => togglePlayer(m.id)}
-                    className="h-4 w-4 rounded accent-primary"
+                    className="accent-primary h-6 w-6 rounded"
+                    aria-label={m.name}
                   />
-                  <MemberAvatar memberId={m.id} avatarKey={m.avatarKey} avatarUrl={m.avatarUrl} size={32} />
+                  <MemberAvatar
+                    memberId={m.id}
+                    avatarKey={m.avatarKey}
+                    avatarUrl={m.avatarUrl}
+                    size={32}
+                  />
                   <span className="text-sm font-medium">{m.name}</span>
                   {votedPlayerIds.has(m.id) && (
                     <Badge variant="outline" className="ml-auto text-xs">
@@ -337,24 +371,30 @@ export function FinalizeSession({
       {/* Step: Diners */}
       {step === "diners" && (
         <Card>
-          <CardContent className="p-4 space-y-3">
-            <h3 className="font-semibold flex items-center gap-2">
+          <CardContent className="space-y-3 p-4">
+            <h3 className="flex items-center gap-2 font-semibold">
               <UtensilsCrossed className="h-4 w-4" />
               {t("selectDiners")} ({dinerIds.size})
             </h3>
-            <div className="space-y-2 max-h-80 overflow-y-auto">
+            <div className="max-h-80 space-y-2 overflow-y-auto">
               {members.map((m) => (
                 <label
                   key={m.id}
-                  className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted cursor-pointer"
+                  className="hover:bg-muted flex min-h-11 cursor-pointer items-center gap-3 rounded-lg p-2"
                 >
                   <input
                     type="checkbox"
                     checked={dinerIds.has(m.id)}
                     onChange={() => toggleDiner(m.id)}
-                    className="h-4 w-4 rounded accent-primary"
+                    className="accent-primary h-6 w-6 rounded"
+                    aria-label={m.name}
                   />
-                  <MemberAvatar memberId={m.id} avatarKey={m.avatarKey} avatarUrl={m.avatarUrl} size={32} />
+                  <MemberAvatar
+                    memberId={m.id}
+                    avatarKey={m.avatarKey}
+                    avatarUrl={m.avatarUrl}
+                    size={32}
+                  />
                   <span className="text-sm font-medium">{m.name}</span>
                   {votedDinerIds.has(m.id) && (
                     <Badge variant="outline" className="ml-auto text-xs">
@@ -371,8 +411,8 @@ export function FinalizeSession({
       {/* Step: Guests */}
       {step === "guests" && (
         <Card>
-          <CardContent className="p-4 space-y-4">
-            <h3 className="font-semibold flex items-center gap-2">
+          <CardContent className="space-y-4 p-4">
+            <h3 className="flex items-center gap-2 font-semibold">
               <Plus className="h-4 w-4" />
               {t("guestExchange")} ({guests.length})
             </h3>
@@ -383,7 +423,7 @@ export function FinalizeSession({
                 {guests.map((g, i) => (
                   <div
                     key={i}
-                    className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 text-sm"
+                    className="bg-muted/50 flex items-center gap-2 rounded-lg p-2 text-sm"
                   >
                     <span className="flex-1 font-medium">{g.name}</span>
                     <span className="text-muted-foreground text-xs">
@@ -391,17 +431,21 @@ export function FinalizeSession({
                     </span>
                     <div className="flex gap-1">
                       {g.attendsPlay && (
-                        <Badge variant="outline" className="text-xs">{t("play")}</Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {t("play")}
+                        </Badge>
                       )}
                       {g.attendsDine && (
-                        <Badge variant="outline" className="text-xs">{t("dine")}</Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {t("dine")}
+                        </Badge>
                       )}
                     </div>
                     <button
                       onClick={() => removeGuest(i)}
                       className="text-destructive hover:text-destructive/80 p-1"
                     >
-                      <Trash2 className="h-3 w-3" />
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
                 ))}
@@ -412,7 +456,7 @@ export function FinalizeSession({
             <div className="space-y-3 border-t pt-3">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <Label className="text-xs">{t("guestName")}</Label>
+                  <Label>{t("guestName")}</Label>
                   <Input
                     value={newGuestName}
                     onChange={(e) => setNewGuestName(e.target.value)}
@@ -420,19 +464,16 @@ export function FinalizeSession({
                   />
                 </div>
                 <div>
-                  <Label className="text-xs">{t("invitedBy")}</Label>
-                  <select
-                    value={newGuestInviterId ?? ""}
-                    onChange={(e) => setNewGuestInviterId(Number(e.target.value) || null)}
-                    className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
-                  >
-                    <option value="">{t("select")}</option>
-                    {members.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name}
-                      </option>
-                    ))}
-                  </select>
+                  <Label>{t("invitedBy")}</Label>
+                  <CustomSelect
+                    value={String(newGuestInviterId ?? "")}
+                    onChange={(v) => setNewGuestInviterId(Number(v) || null)}
+                    placeholder={t("select")}
+                    options={members.map((m) => ({
+                      value: String(m.id),
+                      label: m.name,
+                    }))}
+                  />
                 </div>
               </div>
               <div className="flex gap-4">
@@ -441,7 +482,7 @@ export function FinalizeSession({
                     type="checkbox"
                     checked={newGuestPlays}
                     onChange={(e) => setNewGuestPlays(e.target.checked)}
-                    className="h-4 w-4 rounded accent-primary"
+                    className="accent-primary h-4 w-4 rounded"
                   />
                   {t("playBadminton")}
                 </label>
@@ -450,7 +491,7 @@ export function FinalizeSession({
                     type="checkbox"
                     checked={newGuestDines}
                     onChange={(e) => setNewGuestDines(e.target.checked)}
-                    className="h-4 w-4 rounded accent-primary"
+                    className="accent-primary h-4 w-4 rounded"
                   />
                   {t("dineOut")}
                 </label>
@@ -461,7 +502,7 @@ export function FinalizeSession({
                 size="sm"
                 variant="outline"
               >
-                <Plus className="h-3 w-3 mr-1" />
+                <Plus className="mr-1 h-4 w-4" />
                 {t("addGuest")}
               </Button>
             </div>
@@ -472,28 +513,26 @@ export function FinalizeSession({
       {/* Step: Dining Bill */}
       {step === "dining-bill" && (
         <Card>
-          <CardContent className="p-4 space-y-3">
-            <h3 className="font-semibold flex items-center gap-2">
+          <CardContent className="space-y-3 p-4">
+            <h3 className="flex items-center gap-2 font-semibold">
               <Calculator className="h-4 w-4" />
               {t("diningBillTitle")}
             </h3>
             <div>
               <Label>{t("totalDiningVND")}</Label>
-              <Input
-                type="number"
-                value={diningBill || ""}
-                onChange={(e) => setDiningBill(Number(e.target.value) || 0)}
-                placeholder="0"
+              <NumberStepper
+                value={diningBill}
+                onChange={setDiningBill}
                 min={0}
-                step={1000}
+                step={50000}
               />
               {diningBill > 0 && (
-                <p className="text-sm text-muted-foreground mt-1">
+                <p className="text-muted-foreground mt-1 text-sm">
                   {formatK(diningBill)}
                 </p>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               {t("enterZeroIfNone")}
             </p>
           </CardContent>
@@ -505,29 +544,53 @@ export function FinalizeSession({
         <div className="space-y-4">
           {/* Summary */}
           <Card>
-            <CardContent className="p-4 space-y-3">
+            <CardContent className="space-y-3 p-4">
               <h3 className="font-semibold">{t("costSummary")}</h3>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <span className="text-muted-foreground">{t("courtCost")}:</span>
-                <span className="text-right font-medium">{formatK(preview.courtPrice)}</span>
-                <span className="text-muted-foreground">{t("shuttlecockCost")}:</span>
-                <span className="text-right font-medium">{formatK(preview.totalShuttlecockCost)}</span>
-                <span className="text-muted-foreground">{t("diningCost")}:</span>
-                <span className="text-right font-medium">{formatK(preview.diningBill)}</span>
+              <div className="grid grid-cols-2 gap-2 text-base">
+                <span className="text-muted-foreground text-sm">
+                  {t("courtCost")}:
+                </span>
+                <span className="text-right font-semibold">
+                  {formatK(preview.courtPrice)}
+                </span>
+                <span className="text-muted-foreground text-sm">
+                  {t("shuttlecockCost")}:
+                </span>
+                <span className="text-right font-semibold">
+                  {formatK(preview.totalShuttlecockCost)}
+                </span>
+                <span className="text-muted-foreground text-sm">
+                  {t("diningCost")}:
+                </span>
+                <span className="text-right font-semibold">
+                  {formatK(preview.diningBill)}
+                </span>
               </div>
-              <div className="border-t pt-2 grid grid-cols-2 gap-2 text-sm">
-                <span className="text-muted-foreground">{t("playerCount")}:</span>
-                <span className="text-right font-medium">{preview.totalPlayers}</span>
-                <span className="text-muted-foreground">{t("dinerCount")}:</span>
-                <span className="text-right font-medium">{preview.totalDiners}</span>
+              <div className="grid grid-cols-2 gap-2 border-t pt-2 text-base">
+                <span className="text-muted-foreground text-sm">
+                  {t("playerCount")}:
+                </span>
+                <span className="text-right font-semibold">
+                  {preview.totalPlayers}
+                </span>
+                <span className="text-muted-foreground text-sm">
+                  {t("dinerCount")}:
+                </span>
+                <span className="text-right font-semibold">
+                  {preview.totalDiners}
+                </span>
               </div>
-              <div className="border-t pt-2 grid grid-cols-2 gap-2 text-sm">
-                <span className="text-muted-foreground">{t("costPerPlayer")}:</span>
-                <span className="text-right font-medium text-primary">
+              <div className="grid grid-cols-2 gap-2 border-t pt-2 text-base">
+                <span className="text-muted-foreground text-sm">
+                  {t("costPerPlayer")}:
+                </span>
+                <span className="text-primary text-right font-semibold">
                   {formatK(preview.playCostPerHead)}
                 </span>
-                <span className="text-muted-foreground">{t("costPerDiner")}:</span>
-                <span className="text-right font-medium text-primary">
+                <span className="text-muted-foreground text-sm">
+                  {t("costPerDiner")}:
+                </span>
+                <span className="text-primary text-right font-semibold">
                   {formatK(preview.dineCostPerHead)}
                 </span>
               </div>
@@ -536,7 +599,7 @@ export function FinalizeSession({
 
           {/* Per-member breakdown */}
           <Card>
-            <CardContent className="p-4 space-y-3">
+            <CardContent className="space-y-3 p-4">
               <h3 className="font-semibold">{t("debtDetail")}</h3>
               <div className="space-y-3">
                 {preview.memberDebts.map((debt) => {
@@ -544,7 +607,7 @@ export function FinalizeSession({
                   return (
                     <div
                       key={debt.memberId}
-                      className="flex items-start gap-3 p-2 rounded-lg bg-muted/50"
+                      className="bg-muted/50 flex items-start gap-3 rounded-lg p-2"
                     >
                       <MemberAvatar
                         memberId={debt.memberId}
@@ -552,26 +615,34 @@ export function FinalizeSession({
                         avatarUrl={member?.avatarUrl}
                         size={32}
                       />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-base font-semibold">
                           {member?.name ?? `ID ${debt.memberId}`}
                         </div>
-                        <div className="text-xs text-muted-foreground space-y-0.5 mt-1">
+                        <div className="text-muted-foreground mt-1 space-y-0.5 text-sm">
                           {debt.playAmount > 0 && (
-                            <div>{t("play")}: {formatK(debt.playAmount)}</div>
+                            <div>
+                              {t("play")}: {formatK(debt.playAmount)}
+                            </div>
                           )}
                           {debt.dineAmount > 0 && (
-                            <div>{t("dine")}: {formatK(debt.dineAmount)}</div>
+                            <div>
+                              {t("dine")}: {formatK(debt.dineAmount)}
+                            </div>
                           )}
                           {debt.guestPlayAmount > 0 && (
-                            <div>{t("guestPlay")}: {formatK(debt.guestPlayAmount)}</div>
+                            <div>
+                              {t("guestPlay")}: {formatK(debt.guestPlayAmount)}
+                            </div>
                           )}
                           {debt.guestDineAmount > 0 && (
-                            <div>{t("guestDine")}: {formatK(debt.guestDineAmount)}</div>
+                            <div>
+                              {t("guestDine")}: {formatK(debt.guestDineAmount)}
+                            </div>
                           )}
                         </div>
                       </div>
-                      <div className="text-sm font-bold text-primary">
+                      <div className="text-primary text-sm font-bold">
                         {formatK(debt.totalAmount)}
                       </div>
                     </div>
@@ -584,32 +655,36 @@ export function FinalizeSession({
       )}
 
       {/* Navigation buttons */}
-      <div className="flex gap-3">
-        {currentStepIndex > 0 && (
-          <Button variant="outline" onClick={goPrev} className="flex-1">
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            {t("back")}
-          </Button>
-        )}
-        {currentStepIndex < steps.length - 1 && (
-          <Button onClick={goNext} className="flex-1">
-            {t("next")}
-            <ChevronRight className="h-4 w-4 ml-1" />
-          </Button>
-        )}
-        {step === "preview" && (
-          <Button
-            onClick={handleFinalize}
-            disabled={isLoading}
-            className="flex-1"
-          >
-            <CheckCircle className="h-4 w-4 mr-2" />
-            {isLoading ? tCommon("processing") : t("completeSession")}
-          </Button>
-        )}
+      <div className="bg-background/95 fixed right-0 bottom-0 left-0 z-30 border-t p-4 backdrop-blur sm:relative sm:border-t-0 sm:bg-transparent sm:p-0">
+        <div className="mx-auto flex max-w-lg gap-3">
+          {currentStepIndex > 0 && (
+            <Button variant="outline" onClick={goPrev} className="flex-1">
+              <ChevronLeft className="mr-1 h-4 w-4" />
+              {t("back")}
+            </Button>
+          )}
+          {currentStepIndex < steps.length - 1 && (
+            <Button onClick={goNext} className="flex-1">
+              {t("next")}
+              <ChevronRight className="ml-1 h-4 w-4" />
+            </Button>
+          )}
+          {step === "preview" && (
+            <Button
+              onClick={handleFinalize}
+              disabled={isLoading}
+              className="flex-1"
+            >
+              <CheckCircle className="mr-2 h-4 w-4" />
+              {isLoading ? tCommon("processing") : t("completeSession")}
+            </Button>
+          )}
+        </div>
       </div>
+      {/* Spacer for mobile to not hide content under sticky bar */}
+      <div className="h-16 sm:hidden" />
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p className="text-destructive text-sm">{error}</p>}
     </div>
   );
 }

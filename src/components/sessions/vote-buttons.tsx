@@ -43,9 +43,14 @@ function GuestStepper({
   }
 
   return (
-    <div className="flex items-center gap-1.5 shrink-0">
-      <span className={cn("text-xs whitespace-nowrap", labelCls)}>{label}</span>
-      <div className={cn("inline-flex h-8 items-stretch overflow-hidden rounded-lg border bg-background", borderOuter)}>
+    <div className="flex shrink-0 items-center gap-2">
+      <span className={cn("text-sm whitespace-nowrap", labelCls)}>{label}</span>
+      <div
+        className={cn(
+          "bg-background inline-flex h-11 items-stretch overflow-hidden rounded-xl border",
+          borderOuter,
+        )}
+      >
         <button
           type="button"
           id={`${id}-dec`}
@@ -56,9 +61,9 @@ function GuestStepper({
             set(value - 1);
           }}
           className={cn(
-            "flex w-8 items-center justify-center border-r transition-colors disabled:opacity-40",
+            "flex w-11 items-center justify-center border-r transition-colors disabled:opacity-40",
             borderSeg,
-            stepBtn
+            stepBtn,
           )}
         >
           <Minus className="h-3.5 w-3.5" />
@@ -77,8 +82,8 @@ function GuestStepper({
             set(raw);
           }}
           className={cn(
-            "w-9 min-w-0 border-0 bg-transparent py-0 text-center text-sm tabular-nums outline-none focus-visible:ring-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
-            inputCls
+            "w-11 min-w-0 [appearance:textfield] border-0 bg-transparent py-0 text-center text-base font-semibold tabular-nums outline-none focus-visible:ring-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+            inputCls,
           )}
         />
         <button
@@ -91,9 +96,9 @@ function GuestStepper({
             set(value + 1);
           }}
           className={cn(
-            "flex w-8 items-center justify-center border-l transition-colors disabled:opacity-40",
+            "flex w-11 items-center justify-center border-l transition-colors disabled:opacity-40",
             borderSeg,
-            stepBtn
+            stepBtn,
           )}
         >
           <Plus className="h-3.5 w-3.5" />
@@ -134,11 +139,17 @@ export function VoteButtons({
   const t = useTranslations("voting");
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- optimistic controls must resync when server props revalidate.
     setWillPlay(currentWillPlay);
     setWillDine(currentWillDine);
     setGuestPlayCount(currentGuestPlayCount);
     setGuestDineCount(currentGuestDineCount);
-  }, [currentWillPlay, currentWillDine, currentGuestPlayCount, currentGuestDineCount]);
+  }, [
+    currentWillPlay,
+    currentWillDine,
+    currentGuestPlayCount,
+    currentGuestDineCount,
+  ]);
 
   function fireVote(
     play: boolean,
@@ -177,27 +188,15 @@ export function VoteButtons({
     setWillPlay(newPlay);
     if (!newPlay) {
       setGuestPlayCount(0);
-      fireVote(
-        false,
-        willDine,
-        0,
-        guestDineCount,
-        () => {
-          setWillPlay(prevPlay);
-          setGuestPlayCount(prevGuestPlay);
-        },
-      );
+      fireVote(false, willDine, 0, guestDineCount, () => {
+        setWillPlay(prevPlay);
+        setGuestPlayCount(prevGuestPlay);
+      });
     } else {
-      fireVote(
-        true,
-        willDine,
-        guestPlayCount,
-        guestDineCount,
-        () => {
-          setWillPlay(prevPlay);
-          setGuestPlayCount(prevGuestPlay);
-        },
-      );
+      fireVote(true, willDine, guestPlayCount, guestDineCount, () => {
+        setWillPlay(prevPlay);
+        setGuestPlayCount(prevGuestPlay);
+      });
     }
   }
 
@@ -209,45 +208,33 @@ export function VoteButtons({
     setWillDine(newDine);
     if (!newDine) {
       setGuestDineCount(0);
-      fireVote(
-        willPlay,
-        false,
-        guestPlayCount,
-        0,
-        () => {
-          setWillDine(prevDine);
-          setGuestDineCount(prevGuestDine);
-        },
-      );
+      fireVote(willPlay, false, guestPlayCount, 0, () => {
+        setWillDine(prevDine);
+        setGuestDineCount(prevGuestDine);
+      });
     } else {
-      fireVote(
-        willPlay,
-        true,
-        guestPlayCount,
-        guestDineCount,
-        () => {
-          setWillDine(prevDine);
-          setGuestDineCount(prevGuestDine);
-        },
-      );
+      fireVote(willPlay, true, guestPlayCount, guestDineCount, () => {
+        setWillDine(prevDine);
+        setGuestDineCount(prevGuestDine);
+      });
     }
   }
 
   return (
-    <div className="space-y-3 rounded-xl border border-border/80 bg-muted/45 p-3 dark:bg-muted/25">
+    <div className="border-border/80 bg-muted/45 dark:bg-muted/25 space-y-3 rounded-xl border p-3">
       {/* Card: Play */}
       <div
         className={cn(
-          "rounded-xl border-2 overflow-hidden transition-[border-color,box-shadow,background-color] duration-150",
+          "overflow-hidden rounded-xl border-2 transition-[border-color,box-shadow,background-color] duration-150",
           willPlay
             ? "border-primary bg-primary/[0.07] dark:bg-primary/10"
-            : "border-border/90 bg-background/80 hover:border-primary/45 hover:bg-primary/[0.04] dark:hover:border-primary/40 dark:hover:bg-primary/[0.06]"
+            : "border-border/90 bg-background/80 hover:border-primary/45 hover:bg-primary/[0.04] dark:hover:border-primary/40 dark:hover:bg-primary/[0.06]",
         )}
       >
         <div
           className={cn(
-            "flex flex-nowrap items-stretch min-w-0 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-            disabled && "opacity-50"
+            "flex min-w-0 flex-nowrap items-stretch overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+            disabled && "opacity-50",
           )}
         >
           <div
@@ -266,29 +253,32 @@ export function VoteButtons({
               }
             }}
             className={cn(
-              "flex min-w-0 flex-1 items-center gap-2 px-3.5 py-3.5 pr-2 text-left transition-all self-stretch rounded-none outline-none select-none",
-              "focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+              "flex min-w-0 flex-1 items-center gap-2 self-stretch rounded-none px-3.5 py-3.5 pr-2 text-left transition-all outline-none select-none",
+              "focus-visible:ring-primary focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2",
               !disabled && "cursor-pointer",
               disabled && "cursor-not-allowed",
             )}
           >
             <div
               className={cn(
-                "flex-shrink-0 h-5 w-5 rounded border-2 flex items-center justify-center transition-all",
+                "flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2 transition-all",
                 willPlay
                   ? "border-primary bg-primary text-primary-foreground"
-                  : "border-muted-foreground/40 bg-background"
+                  : "border-muted-foreground/40 bg-background",
               )}
             >
-              {willPlay && <Check className="h-3.5 w-3.5" />}
+              {willPlay && <Check className="h-4 w-4" />}
             </div>
-            <span className="text-xl leading-none shrink-0 select-none" aria-hidden>
+            <span
+              className="shrink-0 text-xl leading-none select-none"
+              aria-hidden
+            >
               🏸
             </span>
             <span
               className={cn(
-                "text-sm font-medium truncate",
-                willPlay ? "text-primary" : "text-muted-foreground"
+                "truncate text-sm font-medium",
+                willPlay ? "text-primary" : "text-muted-foreground",
               )}
             >
               {t("play")}
@@ -310,7 +300,9 @@ export function VoteButtons({
                 if (!willPlay) return;
                 const prev = guestPlayCount;
                 setGuestPlayCount(v);
-                fireVote(true, willDine, v, guestDineCount, () => setGuestPlayCount(prev));
+                fireVote(true, willDine, v, guestDineCount, () =>
+                  setGuestPlayCount(prev),
+                );
               }}
             />
           </div>
@@ -320,16 +312,16 @@ export function VoteButtons({
       {/* Nhậu (Tăng 2): luôn theme cam — không dùng primary */}
       <div
         className={cn(
-          "rounded-xl border-2 overflow-hidden transition-[border-color,box-shadow,background-color] duration-150",
+          "overflow-hidden rounded-xl border-2 transition-[border-color,box-shadow,background-color] duration-150",
           willDine
             ? "border-orange-500 bg-orange-500/[0.08] dark:bg-orange-950/25"
-            : "border-border/90 bg-background/80 hover:border-orange-500/45 hover:bg-orange-500/[0.04] dark:hover:border-orange-400/35 dark:hover:bg-orange-500/[0.06]"
+            : "border-border/90 bg-background/80 hover:border-orange-500/45 hover:bg-orange-500/[0.04] dark:hover:border-orange-400/35 dark:hover:bg-orange-500/[0.06]",
         )}
       >
         <div
           className={cn(
-            "flex flex-nowrap items-stretch min-w-0 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-            disabled && "opacity-50"
+            "flex min-w-0 flex-nowrap items-stretch overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+            disabled && "opacity-50",
           )}
         >
           <div
@@ -348,29 +340,34 @@ export function VoteButtons({
               }
             }}
             className={cn(
-              "flex min-w-0 flex-1 items-center gap-2 px-3.5 py-3.5 pr-2 text-left transition-all self-stretch rounded-none outline-none select-none",
-              "focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+              "flex min-w-0 flex-1 items-center gap-2 self-stretch rounded-none px-3.5 py-3.5 pr-2 text-left transition-all outline-none select-none",
+              "focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2",
               !disabled && "cursor-pointer",
               disabled && "cursor-not-allowed",
             )}
           >
             <div
               className={cn(
-                "flex-shrink-0 h-5 w-5 rounded border-2 flex items-center justify-center transition-all",
+                "flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2 transition-all",
                 willDine
                   ? "border-orange-500 bg-orange-500 text-white"
-                  : "border-muted-foreground/40 bg-background"
+                  : "border-muted-foreground/40 bg-background",
               )}
             >
-              {willDine && <Check className="h-3.5 w-3.5" />}
+              {willDine && <Check className="h-4 w-4" />}
             </div>
-            <span className="text-xl leading-none shrink-0 select-none" aria-hidden>
+            <span
+              className="shrink-0 text-xl leading-none select-none"
+              aria-hidden
+            >
               🍺
             </span>
             <span
               className={cn(
-                "text-sm font-medium truncate",
-                willDine ? "text-orange-600 dark:text-orange-400" : "text-muted-foreground"
+                "truncate text-sm font-medium",
+                willDine
+                  ? "text-orange-600 dark:text-orange-400"
+                  : "text-muted-foreground",
               )}
             >
               {t("dine")}
@@ -392,16 +389,16 @@ export function VoteButtons({
                 if (!willDine) return;
                 const prev = guestDineCount;
                 setGuestDineCount(v);
-                fireVote(willPlay, true, guestPlayCount, v, () => setGuestDineCount(prev));
+                fireVote(willPlay, true, guestPlayCount, v, () =>
+                  setGuestDineCount(prev),
+                );
               }}
             />
           </div>
         </div>
       </div>
 
-      {error && (
-        <p className="text-sm text-destructive pt-0.5">{error}</p>
-      )}
+      {error && <p className="text-destructive pt-0.5 text-sm">{error}</p>}
     </div>
   );
 }

@@ -1,8 +1,11 @@
 "use client";
 
+import { motion, AnimatePresence } from "framer-motion";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { Badge } from "@/components/ui/badge";
 import { useTranslations } from "next-intl";
+import { EmptyState } from "@/components/shared/empty-state";
+import { Users } from "lucide-react";
 import type { InferSelectModel } from "drizzle-orm";
 import type { votes as votesTable, members as membersTable } from "@/db/schema";
 
@@ -43,53 +46,78 @@ export function VoteList({
     <div className="space-y-4">
       {votedSorted.length > 0 && (
         <div className="space-y-2">
-          {votedSorted.map((member) => {
-            const vote = voteMap.get(member.id)!;
-            return (
-              <div key={member.id} className="flex items-center gap-3 py-2">
-                <MemberAvatar memberId={member.id} avatarKey={member.avatarKey} avatarUrl={member.avatarUrl} size={32} />
-                <div>
-                  <p className="font-medium text-sm">{member.name}</p>
-                  <div className="flex flex-wrap gap-1.5 mt-0.5">
-                    {vote.willPlay && (
-                      <Badge variant="votePlay" className="text-xs">
-                        🏸 {t("badmintonShort")}
-                      </Badge>
-                    )}
-                    {vote.willDine && (
-                      <Badge variant="voteDine" className="text-xs">
-                        🍻 {t("diningShort")}
-                      </Badge>
-                    )}
+          <AnimatePresence initial={false}>
+            {votedSorted.map((member) => {
+              const vote = voteMap.get(member.id)!;
+              return (
+                <motion.div
+                  key={member.id}
+                  layout
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                  className="flex items-center gap-3 py-2"
+                >
+                  <MemberAvatar
+                    memberId={member.id}
+                    avatarKey={member.avatarKey}
+                    avatarUrl={member.avatarUrl}
+                    size={36}
+                  />
+                  <div>
+                    <p className="text-base font-medium">{member.name}</p>
+                    <div className="mt-0.5 flex flex-wrap gap-1.5">
+                      {vote.willPlay && (
+                        <Badge variant="votePlay" className="text-xs">
+                          🏸 {t("badmintonShort")}
+                        </Badge>
+                      )}
+                      {vote.willDine && (
+                        <Badge variant="voteDine" className="text-xs">
+                          🍻 {t("diningShort")}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </div>
-            );
-          })}
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
         </div>
       )}
 
       {notVotedMembers.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+          <p className="text-muted-foreground text-sm font-medium tracking-wider uppercase">
             {t("notVoted")} ({notVotedMembers.length})
           </p>
-          {notVotedMembers.map((member) => (
-            <div
-              key={member.id}
-              className="flex items-center gap-3 py-2 opacity-50"
-            >
-              <MemberAvatar memberId={member.id} avatarKey={member.avatarKey} avatarUrl={member.avatarUrl} size={32} />
-              <p className="font-medium text-sm">{member.name}</p>
-            </div>
-          ))}
+          <AnimatePresence initial={false}>
+            {notVotedMembers.map((member) => (
+              <motion.div
+                key={member.id}
+                layout
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.5 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="flex items-center gap-3 py-2"
+              >
+                <MemberAvatar
+                  memberId={member.id}
+                  avatarKey={member.avatarKey}
+                  avatarUrl={member.avatarUrl}
+                  size={36}
+                />
+                <p className="text-base font-medium">{member.name}</p>
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
       )}
 
       {members.length === 0 && (
-        <p className="text-sm text-muted-foreground text-center py-4">
-          {t("noMembers")}
-        </p>
+        <EmptyState icon={Users} title={t("noMembers")} />
       )}
     </div>
   );

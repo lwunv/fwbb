@@ -1,6 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useLayoutEffect, useState, useCallback } from "react";
+import {
+  useActionState,
+  useEffect,
+  useLayoutEffect,
+  useState,
+  useCallback,
+} from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,27 +28,30 @@ import {
   Moon,
   Heart,
   Banknote,
+  PiggyBank,
+  ChevronRight,
 } from "lucide-react";
+import Link from "next/link";
 
 /** Đồng bộ `globals.css` — nền full thẻ + màu chữ/icon khi chưa chọn */
 const THEME_CARD = {
   light: {
-    bg: "#FFFFFF",
-    fg: "#1E293B",
-    primary: "#6366F1",
-    border: "#E2E8F0",
+    bg: "var(--theme-preview-light-bg)",
+    fg: "var(--theme-preview-light-fg)",
+    primary: "var(--theme-preview-light-primary)",
+    border: "var(--theme-preview-light-border)",
   },
   dark: {
-    bg: "#0F172A",
-    fg: "#F1F5F9",
-    primary: "#818CF8",
-    border: "#334155",
+    bg: "var(--theme-preview-dark-bg)",
+    fg: "var(--theme-preview-dark-fg)",
+    primary: "var(--theme-preview-dark-primary)",
+    border: "var(--theme-preview-dark-border)",
   },
   pink: {
-    bg: "#FFF0F5",
-    fg: "#831843",
-    primary: "#EC4899",
-    border: "#FBCFE8",
+    bg: "var(--theme-preview-pink-bg)",
+    fg: "var(--theme-preview-pink-fg)",
+    primary: "var(--theme-preview-pink-primary)",
+    border: "var(--theme-preview-pink-border)",
   },
 } as const;
 
@@ -67,6 +76,7 @@ interface MeClientProps {
   totalDined: number;
   totalSpent: number;
   outstandingDebt: number;
+  fundBalance: number | null;
 }
 
 export function MeClient({
@@ -79,6 +89,7 @@ export function MeClient({
   totalDined,
   totalSpent,
   outstandingDebt,
+  fundBalance,
 }: MeClientProps) {
   const { setTheme } = useTheme();
   const [activeTheme, setActiveTheme] = useState<ThemeKey>("light");
@@ -88,6 +99,7 @@ export function MeClient({
   }, []);
 
   useLayoutEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- DOM class is the source of truth for next-themes hydration.
     syncThemeFromDom();
   }, [syncThemeFromDom]);
 
@@ -123,22 +135,36 @@ export function MeClient({
   ] as const;
 
   return (
-    <div className="space-y-4 max-w-lg mx-auto">
+    <div className="mx-auto max-w-lg space-y-4">
       {/* Profile Card */}
       <Card>
         <CardContent className="space-y-4">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <div className="shrink-0">
-              <MemberAvatar memberId={memberId} avatarKey={avatarKey} avatarUrl={avatarUrl} size={48} />
+              <MemberAvatar
+                memberId={memberId}
+                avatarKey={avatarKey}
+                avatarUrl={avatarUrl}
+                size={48}
+              />
             </div>
             <p
-              className="min-w-0 flex-1 truncate text-xl font-medium text-foreground"
+              className="text-foreground min-w-0 flex-1 truncate text-xl font-medium"
               aria-label={tMe("legalNameLabel")}
             >
               {memberName}
             </p>
-            <form action="/api/reset-identity" method="POST" className="shrink-0">
-              <Button type="submit" variant="outline" size="sm" className="whitespace-nowrap gap-1">
+            <form
+              action="/api/reset-identity"
+              method="POST"
+              className="shrink-0"
+            >
+              <Button
+                type="submit"
+                variant="outline"
+                size="sm"
+                className="gap-1 whitespace-nowrap"
+              >
                 <LogOut className="h-4 w-4 shrink-0" />
                 {tMe("signOut")}
               </Button>
@@ -147,8 +173,7 @@ export function MeClient({
 
           <form action={profileAction} className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="me-nickname">
-                {tMe("nicknameLabel")}</Label>
+              <Label htmlFor="me-nickname">{tMe("nicknameLabel")}</Label>
               <Input
                 id="me-nickname"
                 name="nickname"
@@ -161,7 +186,7 @@ export function MeClient({
               />
             </div>
             {profileState && "error" in profileState && (
-              <p className="text-sm text-destructive">{profileState.error}</p>
+              <p className="text-destructive text-sm">{profileState.error}</p>
             )}
             <Button type="submit" className="w-full" disabled={profilePending}>
               {profilePending ? tMe("savingProfile") : tMe("saveProfile")}
@@ -172,7 +197,11 @@ export function MeClient({
 
       <Card className="overflow-visible">
         <CardContent className="space-y-4">
-          <div className="flex gap-2" role="radiogroup" aria-label={tMe("appearance")}>
+          <div
+            className="flex gap-2"
+            role="radiogroup"
+            aria-label={tMe("appearance")}
+          >
             {themes.map((th) => {
               const Icon = th.icon;
               const isActive = activeTheme === th.key;
@@ -188,9 +217,9 @@ export function MeClient({
                     setActiveTheme(th.key);
                   }}
                   className={cn(
-                    "flex-1 flex flex-col items-center justify-center gap-1 rounded-xl border-2 px-1.5 py-2.5 text-xs font-medium transition-colors min-h-[4.25rem]",
+                    "flex min-h-[4.25rem] flex-1 flex-col items-center justify-center gap-1 rounded-xl border-2 px-2 py-2.5 text-sm font-medium transition-colors",
                     isActive
-                      ? "border-primary ring-2 ring-primary/35 ring-offset-2 ring-offset-background text-primary"
+                      ? "border-primary ring-primary/35 ring-offset-background text-primary ring-2 ring-offset-2"
                       : "text-muted-foreground hover:border-primary/40",
                   )}
                   style={{
@@ -203,7 +232,7 @@ export function MeClient({
                     style={{ color: isActive ? undefined : s.primary }}
                   />
                   <span
-                    className="leading-tight text-center"
+                    className="text-center leading-tight"
                     style={{ color: isActive ? undefined : s.fg }}
                   >
                     {th.label}
@@ -221,26 +250,26 @@ export function MeClient({
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 sm:gap-3">
             <div className="flex flex-col items-center gap-1.5 text-center">
               <div
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xl leading-none select-none"
+                className="bg-primary/10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl leading-none select-none"
                 aria-hidden
               >
                 🏸
               </div>
-              <p className="text-lg font-bold tabular-nums leading-none text-violet-600 dark:text-violet-400">
+              <p className="text-lg leading-none font-bold text-violet-600 tabular-nums dark:text-violet-400">
                 {totalPlayed}
               </p>
-              <p className="min-h-8 max-w-[7rem] text-[11px] leading-snug text-muted-foreground">
+              <p className="text-muted-foreground min-h-8 max-w-[7rem] text-xs leading-snug">
                 {tStats("sessionsPlayed")}
               </p>
             </div>
             <div className="flex flex-col items-center gap-1.5 text-center">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10">
+              <div className="bg-accent/10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
                 <Beer className="h-5 w-5 text-amber-500 dark:text-amber-400" />
               </div>
-              <p className="text-lg font-bold tabular-nums leading-none text-orange-600 dark:text-orange-400">
+              <p className="text-lg leading-none font-bold text-orange-600 tabular-nums dark:text-orange-400">
                 {totalDined}
               </p>
-              <p className="min-h-8 max-w-[7rem] text-[11px] leading-snug text-muted-foreground">
+              <p className="text-muted-foreground min-h-8 max-w-[7rem] text-xs leading-snug">
                 {tStats("sessionsDined")}
               </p>
             </div>
@@ -248,20 +277,20 @@ export function MeClient({
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-yellow-500/15 dark:bg-yellow-500/20">
                 <Wallet className="h-5 w-5 shrink-0 text-yellow-600 dark:text-yellow-400" />
               </div>
-              <p className="text-lg font-bold tabular-nums leading-none text-yellow-600 dark:text-yellow-400">
+              <p className="text-lg leading-none font-bold text-yellow-600 tabular-nums dark:text-yellow-400">
                 {formatK(totalSpent)}
               </p>
-              <p className="min-h-8 max-w-[7rem] text-[11px] font-medium leading-snug text-yellow-700 dark:text-yellow-400/90">
+              <p className="min-h-8 max-w-[7rem] text-xs leading-snug font-medium text-yellow-700 dark:text-yellow-400/90">
                 {tStats("totalSpent")}
               </p>
             </div>
             <div className="flex flex-col items-center gap-1.5 text-center">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-destructive/15">
-                <Banknote className="h-5 w-5 shrink-0 text-destructive" />
+              <div className="bg-destructive/15 flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
+                <Banknote className="text-destructive h-5 w-5 shrink-0" />
               </div>
               <p
                 className={cn(
-                  "text-lg font-bold tabular-nums leading-none",
+                  "text-lg leading-none font-bold tabular-nums",
                   outstandingDebt > 0
                     ? "text-destructive"
                     : "text-destructive/50 dark:text-destructive/60",
@@ -269,13 +298,38 @@ export function MeClient({
               >
                 {formatK(outstandingDebt)}
               </p>
-              <p className="min-h-8 max-w-[7rem] text-[11px] font-medium leading-snug text-destructive">
+              <p className="text-destructive min-h-8 max-w-[7rem] text-xs leading-snug font-medium">
                 {tStats("outstandingDebt")}
               </p>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      <Link href="/my-fund" className="block">
+        <Card className="hover:bg-accent/50 transition-colors">
+          <CardContent className="flex items-center justify-between p-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-primary/10 text-primary rounded-xl p-2">
+                <PiggyBank className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-foreground font-medium">{tMe("myFund")}</h3>
+                {fundBalance !== null ? (
+                  <p className="text-primary text-sm font-semibold">
+                    {tMe("fundBalance")}: {formatK(fundBalance)}
+                  </p>
+                ) : (
+                  <p className="text-muted-foreground text-xs">
+                    {tMe("manageFund")}
+                  </p>
+                )}
+              </div>
+            </div>
+            <ChevronRight className="text-muted-foreground h-5 w-5 shrink-0" />
+          </CardContent>
+        </Card>
+      </Link>
     </div>
   );
 }

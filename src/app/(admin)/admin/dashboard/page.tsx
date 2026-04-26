@@ -5,14 +5,11 @@ import { getAllDebts } from "@/actions/finance";
 import { checkLowStock } from "@/actions/inventory";
 import { getNextSession } from "@/actions/sessions";
 import { getSessionVotes } from "@/actions/votes";
-import { getTranslations } from "next-intl/server";
 import { DashboardClient } from "./dashboard-client";
 import { PasswordChangeForm } from "./password-change-form";
 import { getAppName } from "@/actions/settings";
 
 export default async function DashboardPage() {
-  const tInv = await getTranslations("inventory");
-
   // 1. All debts (reuse the same function as finance page)
   const allDebts = await getAllDebts("all");
 
@@ -21,15 +18,30 @@ export default async function DashboardPage() {
     .reduce((sum, d) => sum + d.totalAmount, 0);
 
   // Build unpaid debts grouped by member
-  const unpaidDebtsRaw = allDebts.filter((d) => !d.adminConfirmed && !d.memberConfirmed);
-  const debtGroupMap = new Map<number, {
-    memberId: number;
-    memberName: string;
-    memberAvatarKey: string | null;
-    memberAvatarUrl: string | null;
-    totalOwed: number;
-    debts: { id: number; sessionDate: string; totalAmount: number; memberConfirmed: boolean; adminConfirmed: boolean; playAmount: number; dineAmount: number; guestPlayAmount: number; guestDineAmount: number }[];
-  }>();
+  const unpaidDebtsRaw = allDebts.filter(
+    (d) => !d.adminConfirmed && !d.memberConfirmed,
+  );
+  const debtGroupMap = new Map<
+    number,
+    {
+      memberId: number;
+      memberName: string;
+      memberAvatarKey: string | null;
+      memberAvatarUrl: string | null;
+      totalOwed: number;
+      debts: {
+        id: number;
+        sessionDate: string;
+        totalAmount: number;
+        memberConfirmed: boolean;
+        adminConfirmed: boolean;
+        playAmount: number;
+        dineAmount: number;
+        guestPlayAmount: number;
+        guestDineAmount: number;
+      }[];
+    }
+  >();
   for (const d of unpaidDebtsRaw) {
     if (!debtGroupMap.has(d.memberId)) {
       debtGroupMap.set(d.memberId, {
@@ -55,7 +67,9 @@ export default async function DashboardPage() {
       guestDineAmount: d.guestDineAmount ?? 0,
     });
   }
-  const unpaidGroups = Array.from(debtGroupMap.values()).sort((a, b) => b.totalOwed - a.totalOwed);
+  const unpaidGroups = Array.from(debtGroupMap.values()).sort(
+    (a, b) => b.totalOwed - a.totalOwed,
+  );
 
   // Recent payments: paid/waiting debts sorted by waiting first
   const paidDebts = allDebts
@@ -64,7 +78,9 @@ export default async function DashboardPage() {
       const aWaiting = a.memberConfirmed && !a.adminConfirmed ? 0 : 1;
       const bWaiting = b.memberConfirmed && !b.adminConfirmed ? 0 : 1;
       if (aWaiting !== bWaiting) return aWaiting - bWaiting;
-      return (b.adminConfirmedAt ?? b.session.date).localeCompare(a.adminConfirmedAt ?? a.session.date);
+      return (b.adminConfirmedAt ?? b.session.date).localeCompare(
+        a.adminConfirmedAt ?? a.session.date,
+      );
     });
 
   const recentPaymentCards = paidDebts.slice(0, 10).map((d) => ({
@@ -125,14 +141,16 @@ export default async function DashboardPage() {
       endTime: nextSession.endTime || "22:30",
       playerCount: sessionVotes.filter((v) => v.willPlay).length,
       dinerCount: sessionVotes.filter((v) => v.willDine).length,
-      guestPlayCount: sessionVotes.reduce((s, v) => s + (v.guestPlayCount ?? 0), 0),
-      guestDineCount: sessionVotes.reduce((s, v) => s + (v.guestDineCount ?? 0), 0),
+      guestPlayCount: sessionVotes.reduce(
+        (s, v) => s + (v.guestPlayCount ?? 0),
+        0,
+      ),
+      guestDineCount: sessionVotes.reduce(
+        (s, v) => s + (v.guestDineCount ?? 0),
+        0,
+      ),
     };
   }
-
-  const lowStockWarning = lowStockResult.isLow
-    ? `${tInv("totalStock")}: ${lowStockResult.totalQua} ${tInv("piece")}`
-    : null;
 
   const appName = await getAppName();
 

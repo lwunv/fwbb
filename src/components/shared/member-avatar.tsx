@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { getBrandPreset } from "@/lib/member-avatar-presets";
 import {
   getEmojiAvatarByIndex,
@@ -26,11 +27,12 @@ export function MemberAvatar({
 }: MemberAvatarProps) {
   if (avatarUrl) {
     return (
-      <img
+      <Image
         src={avatarUrl}
         alt="Avatar"
         width={size}
         height={size}
+        unoptimized
         className={`rounded-full object-cover ${className}`}
         style={{ width: size, height: size }}
         referrerPolicy="no-referrer"
@@ -77,7 +79,9 @@ export function MemberAvatar({
 
   const emojiIdx = avatarKey ? parseEmojiAvatarKey(avatarKey) : null;
   const { emoji, bg, border } =
-    emojiIdx !== null ? getEmojiAvatarByIndex(emojiIdx) : getEmojiAvatarForMemberId(memberId);
+    emojiIdx !== null
+      ? getEmojiAvatarByIndex(emojiIdx)
+      : getEmojiAvatarForMemberId(memberId);
   const fontSize = size * 0.5;
 
   return (
@@ -123,7 +127,9 @@ export function getMemberAvatarSvgString(
   }
   const emojiIdx = avatarKey ? parseEmojiAvatarKey(avatarKey) : null;
   const { emoji, bg, border } =
-    emojiIdx !== null ? getEmojiAvatarByIndex(emojiIdx) : getEmojiAvatarForMemberId(memberId);
+    emojiIdx !== null
+      ? getEmojiAvatarByIndex(emojiIdx)
+      : getEmojiAvatarForMemberId(memberId);
   const fontSize = size * 0.5;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 1}" fill="${bg}" stroke="${border}" stroke-width="1.5"/><text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" font-size="${fontSize}">${emoji}</text></svg>`;
 }
