@@ -358,9 +358,12 @@ export function DashboardClient({
         </Card>
       )}
 
-      {/* Upcoming Session — wrap in LED border when in voting state */}
+      {/* Upcoming Session — wrap in LED border when in voting state.
+       * Card MUST keep an opaque bg (bg-card) so the rotating conic-gradient
+       * sweep of .led-border doesn't leak through. Translucent tints
+       * (bg-violet-50/40) cause the bright wedge to bleed across the card. */}
       <div className={cn(upcomingSession?.status === "voting" && "led-border")}>
-        <Card className="border-violet-200/50 bg-violet-50/40 dark:border-violet-900/40 dark:bg-violet-950/20">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span>{td("upcomingSession")}</span>
@@ -648,103 +651,15 @@ export function DashboardClient({
         </CardContent>
       </Card>
 
-      {/* Tồn kho cầu — amber tint */}
-      <Card className="border-amber-200/50 bg-amber-50/40 dark:border-amber-900/40 dark:bg-amber-950/20">
-        <CardHeader className="flex-row items-center justify-between gap-3 pb-3">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-              Tồn kho cầu
-            </CardTitle>
-            <div className="text-muted-foreground mt-1 flex items-baseline gap-2 text-sm">
-              <span>tổng</span>
-              <strong
-                className={cn(
-                  "text-2xl font-bold tabular-nums",
-                  totalStockQua < 12
-                    ? "text-red-600 dark:text-red-400"
-                    : totalStockQua <= 40
-                      ? "text-amber-600 dark:text-amber-400"
-                      : "text-emerald-600 dark:text-emerald-400",
-                )}
-              >
-                {totalStockQua}
-              </strong>
-              <span>quả</span>
-              {lowStockBrandCount > 0 && (
-                <Badge
-                  variant="outline"
-                  className="border-red-500/50 text-red-600 dark:text-red-400"
-                >
-                  {lowStockBrandCount} hãng sắp hết
-                </Badge>
-              )}
-            </div>
-          </div>
-          <Link href="/admin/inventory">
-            <Button variant="outline" size="sm">
-              Quản lý
-              <ArrowRight className="ml-1 h-4 w-4" />
-            </Button>
-          </Link>
-        </CardHeader>
-        <CardContent className="pb-4">
-          {inventoryByBrand.length === 0 ? (
-            <p className="text-muted-foreground py-2 text-center text-sm">
-              Chưa có hãng cầu nào
-            </p>
-          ) : (
-            <ul className="space-y-2">
-              {inventoryByBrand.map((b) => {
-                const stockColor = b.isLowStock
-                  ? "text-red-600 dark:text-red-400"
-                  : b.currentStockQua <= 24
-                    ? "text-amber-600 dark:text-amber-400"
-                    : "text-emerald-600 dark:text-emerald-400";
-                return (
-                  <li
-                    key={b.brandId}
-                    className="bg-background/60 dark:bg-background/40 flex items-center gap-3 rounded-xl p-3"
-                  >
-                    <Package className={cn("h-5 w-5 shrink-0", stockColor)} />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-base font-semibold">
-                        {b.brandName}
-                      </div>
-                      <div className="text-muted-foreground text-xs tabular-nums">
-                        {formatK(b.pricePerTube)}/ống
-                      </div>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <div
-                        className={cn(
-                          "text-lg font-bold tabular-nums",
-                          stockColor,
-                        )}
-                      >
-                        {b.currentStockQua} quả
-                      </div>
-                      <div className="text-muted-foreground text-xs tabular-nums">
-                        {b.ong} ống {b.qua > 0 ? `+${b.qua}` : ""}
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Members owing — top 5 — destructive tint */}
-      <Card className="border-rose-200/50 bg-rose-50/40 dark:border-rose-900/40 dark:bg-rose-950/20">
-        <CardHeader className="flex-row items-center justify-between gap-3 pb-3">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="text-destructive h-5 w-5" />
-              Thành viên còn nợ quỹ
-            </CardTitle>
-            {owingCount > 0 && (
+      {/* Members owing — top 5 — destructive tint. Ẩn nếu không có ai nợ. */}
+      {topOwingMembers.length > 0 && (
+        <Card className="border-rose-200/50 bg-rose-50/40 dark:border-rose-900/40 dark:bg-rose-950/20">
+          <CardHeader className="flex-row items-center justify-between gap-3 pb-3">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="text-destructive h-5 w-5" />
+                Thành viên còn nợ quỹ
+              </CardTitle>
               <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-base">
                 <span className="text-muted-foreground">
                   <strong className="text-destructive tabular-nums">
@@ -756,21 +671,15 @@ export function DashboardClient({
                   {formatK(totalOutstanding)}
                 </strong>
               </div>
-            )}
-          </div>
-          <Link href="/admin/fund">
-            <Button variant="outline" size="sm">
-              Xem tất cả
-              <ArrowRight className="ml-1 h-4 w-4" />
-            </Button>
-          </Link>
-        </CardHeader>
-        <CardContent className="pb-4">
-          {topOwingMembers.length === 0 ? (
-            <p className="text-muted-foreground py-4 text-center text-sm">
-              Cả nhóm đang không nợ — quỹ ổn 🎉
-            </p>
-          ) : (
+            </div>
+            <Link href="/admin/fund">
+              <Button variant="outline" size="sm">
+                Xem tất cả
+                <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent className="pb-4">
             <ul className="bg-background/60 dark:bg-background/40 divide-y rounded-xl">
               {topOwingMembers.map((m) => (
                 <li
@@ -792,9 +701,9 @@ export function DashboardClient({
                 </li>
               ))}
             </ul>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Recent transactions — slate tint */}
       <Card className="border-slate-200/50 bg-slate-50/40 dark:border-slate-800/40 dark:bg-slate-950/30">
