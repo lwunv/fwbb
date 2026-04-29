@@ -90,7 +90,7 @@ export function SessionDetail({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 pb-28">
       {/* Header — date + status on same line */}
       <div className="flex items-center gap-2">
         <Link href="/admin/sessions">

@@ -105,15 +105,15 @@ export function ShuttlecockSelector({
       {/* Each brand = 1 row */}
       {items.map((sc) => (
         <div key={sc.id} className="flex items-center gap-2">
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-base font-semibold">
+          <div className="flex min-w-0 flex-1 items-baseline gap-2">
+            <span className="truncate text-base font-semibold">
               🏸 {sc.brand.name}
-            </div>
-            <div className="text-primary text-base font-bold tabular-nums">
+            </span>
+            <span className="text-primary shrink-0 text-base font-bold tabular-nums">
               {formatK(
                 calculateShuttlecockCost(sc.quantityUsed, sc.pricePerTube),
               )}
-            </div>
+            </span>
           </div>
           <NumberStepper
             value={sc.quantityUsed}
