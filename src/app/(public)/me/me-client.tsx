@@ -1,11 +1,11 @@
 "use client";
 
 import {
-  useActionState,
   useEffect,
   useLayoutEffect,
   useState,
   useCallback,
+  type FormEvent,
 } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,11 +18,11 @@ import { formatK } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { LanguageCardPicker } from "@/components/shared/language-selector";
-import { updateMyProfile } from "@/actions/members";
+import { updateMyProfile, type UpdateMyProfileState } from "@/actions/members";
+import { fireAction } from "@/lib/optimistic-action";
 import { usePolling } from "@/lib/use-polling";
 import {
   LogOut,
-  Beer,
   Wallet,
   Sun,
   Moon,
@@ -72,9 +72,7 @@ interface MeClientProps {
   avatarUrl: string | null;
   memberName: string;
   memberNickname: string | null;
-  totalPlayed: number;
-  totalDined: number;
-  totalSpent: number;
+  totalSpentThisMonth: number;
   outstandingDebt: number;
   fundBalance: number | null;
 }
@@ -85,9 +83,7 @@ export function MeClient({
   avatarUrl,
   memberName,
   memberNickname,
-  totalPlayed,
-  totalDined,
-  totalSpent,
+  totalSpentThisMonth,
   outstandingDebt,
   fundBalance,
 }: MeClientProps) {
@@ -117,16 +113,31 @@ export function MeClient({
 
   usePolling();
 
-  const [profileState, profileAction, profilePending] = useActionState(
-    updateMyProfile,
-    null,
-  );
+  // "Adjusting state on a prop change" pattern from React docs — avoids the
+  // cascade-render warning of doing setState inside useEffect. We compare the
+  // previous prop value during render and reset draft synchronously when it
+  // changes.
+  const [nicknameDraft, setNicknameDraft] = useState(memberNickname ?? "");
+  const [prevMemberNickname, setPrevMemberNickname] = useState(memberNickname);
+  if (memberNickname !== prevMemberNickname) {
+    setPrevMemberNickname(memberNickname);
+    setNicknameDraft(memberNickname ?? "");
+  }
 
-  useEffect(() => {
-    if (profileState && "success" in profileState && profileState.success) {
-      router.refresh();
-    }
-  }, [profileState, router]);
+  function handleProfileSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData();
+    fd.set("nickname", nicknameDraft);
+    fireAction(
+      async () => {
+        const r: UpdateMyProfileState = await updateMyProfile(null, fd);
+        if (r && "error" in r) return { error: r.error };
+        return { success: true as const };
+      },
+      () => setNicknameDraft(memberNickname ?? ""),
+      { onSuccess: () => router.refresh() },
+    );
+  }
 
   const themes = [
     { key: "light", label: tThemes("light"), icon: Sun },
@@ -171,25 +182,22 @@ export function MeClient({
             </form>
           </div>
 
-          <form action={profileAction} className="space-y-3">
+          <form onSubmit={handleProfileSubmit} className="space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor="me-nickname">{tMe("nicknameLabel")}</Label>
               <Input
                 id="me-nickname"
                 name="nickname"
                 type="text"
-                defaultValue={memberNickname ?? ""}
+                value={nicknameDraft}
+                onChange={(e) => setNicknameDraft(e.target.value)}
                 autoComplete="nickname"
                 placeholder={tMe("nicknamePlaceholder")}
                 maxLength={40}
-                disabled={profilePending}
               />
             </div>
-            {profileState && "error" in profileState && (
-              <p className="text-destructive text-sm">{profileState.error}</p>
-            )}
-            <Button type="submit" className="w-full" disabled={profilePending}>
-              {profilePending ? tMe("savingProfile") : tMe("saveProfile")}
+            <Button type="submit" className="w-full">
+              {tMe("saveProfile")}
             </Button>
           </form>
         </CardContent>
@@ -247,44 +255,39 @@ export function MeClient({
 
       <Card>
         <CardContent>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 sm:gap-3">
-            <div className="flex flex-col items-center gap-1.5 text-center">
-              <div
-                className="bg-primary/10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl leading-none select-none"
-                aria-hidden
-              >
-                🏸
-              </div>
-              <p className="text-lg leading-none font-bold text-violet-600 tabular-nums dark:text-violet-400">
-                {totalPlayed}
-              </p>
-              <p className="text-muted-foreground min-h-8 max-w-[7rem] text-xs leading-snug">
-                {tStats("sessionsPlayed")}
-              </p>
-            </div>
-            <div className="flex flex-col items-center gap-1.5 text-center">
-              <div className="bg-accent/10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
-                <Beer className="h-5 w-5 text-amber-500 dark:text-amber-400" />
-              </div>
-              <p className="text-lg leading-none font-bold text-orange-600 tabular-nums dark:text-orange-400">
-                {totalDined}
-              </p>
-              <p className="text-muted-foreground min-h-8 max-w-[7rem] text-xs leading-snug">
-                {tStats("sessionsDined")}
-              </p>
-            </div>
-            <div className="flex flex-col items-center gap-1.5 text-center">
+          <div className="grid grid-cols-3 gap-3 sm:gap-4">
+            <div className="grid grid-rows-[2.5rem_1.5rem_2.5rem] place-items-center gap-1.5 text-center">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-yellow-500/15 dark:bg-yellow-500/20">
                 <Wallet className="h-5 w-5 shrink-0 text-yellow-600 dark:text-yellow-400" />
               </div>
               <p className="text-lg leading-none font-bold text-yellow-600 tabular-nums dark:text-yellow-400">
-                {formatK(totalSpent)}
+                {formatK(totalSpentThisMonth)}
               </p>
-              <p className="min-h-8 max-w-[7rem] text-xs leading-snug font-medium text-yellow-700 dark:text-yellow-400/90">
-                {tStats("totalSpent")}
+              <p className="max-w-[7rem] text-xs leading-snug font-medium text-yellow-700 dark:text-yellow-400/90">
+                {tStats("totalSpentThisMonth")}
               </p>
             </div>
-            <div className="flex flex-col items-center gap-1.5 text-center">
+            <Link
+              href="/my-fund"
+              className="hover:bg-accent/40 grid grid-rows-[2.5rem_1.5rem_2.5rem] place-items-center gap-1.5 rounded-lg text-center transition-colors active:scale-[0.98]"
+              aria-label={tMe("myFund")}
+            >
+              <div className="bg-primary/10 text-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
+                <PiggyBank className="h-5 w-5 shrink-0" />
+              </div>
+              <p className="text-primary text-lg leading-none font-bold tabular-nums">
+                {formatK(fundBalance ?? 0)}
+              </p>
+              <p className="text-primary/80 inline-flex max-w-[7rem] items-center justify-center gap-0.5 text-xs leading-snug font-medium">
+                {tMe("myFund")}
+                <ChevronRight className="h-3 w-3 shrink-0" aria-hidden />
+              </p>
+            </Link>
+            <Link
+              href="/my-fund"
+              className="hover:bg-accent/40 grid grid-rows-[2.5rem_1.5rem_2.5rem] place-items-center gap-1.5 rounded-lg text-center transition-colors active:scale-[0.98]"
+              aria-label={tStats("outstandingDebt")}
+            >
               <div className="bg-destructive/15 flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
                 <Banknote className="text-destructive h-5 w-5 shrink-0" />
               </div>
@@ -298,38 +301,14 @@ export function MeClient({
               >
                 {formatK(outstandingDebt)}
               </p>
-              <p className="text-destructive min-h-8 max-w-[7rem] text-xs leading-snug font-medium">
+              <p className="text-destructive inline-flex max-w-[7rem] items-center justify-center gap-0.5 text-xs leading-snug font-medium">
                 {tStats("outstandingDebt")}
+                <ChevronRight className="h-3 w-3 shrink-0" aria-hidden />
               </p>
-            </div>
+            </Link>
           </div>
         </CardContent>
       </Card>
-
-      <Link href="/my-fund" className="block">
-        <Card className="hover:bg-accent/50 transition-colors">
-          <CardContent className="flex items-center justify-between p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-primary/10 text-primary rounded-xl p-2">
-                <PiggyBank className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="text-foreground font-medium">{tMe("myFund")}</h3>
-                {fundBalance !== null ? (
-                  <p className="text-primary text-sm font-semibold">
-                    {tMe("fundBalance")}: {formatK(fundBalance)}
-                  </p>
-                ) : (
-                  <p className="text-muted-foreground text-xs">
-                    {tMe("manageFund")}
-                  </p>
-                )}
-              </div>
-            </div>
-            <ChevronRight className="text-muted-foreground h-5 w-5 shrink-0" />
-          </CardContent>
-        </Card>
-      </Link>
     </div>
   );
 }

@@ -9,12 +9,10 @@ import { useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { StatusBadge } from "@/components/shared/status-badge";
 import { StatCard } from "@/components/shared/stat-card";
 import { Input } from "@/components/ui/input";
 import { formatK } from "@/lib/utils";
 import { MemberAvatar } from "@/components/shared/member-avatar";
-import { PaymentActions } from "@/components/finance/payment-actions";
 import { updateAppName } from "@/actions/settings";
 import { fireAction } from "@/lib/optimistic-action";
 import { usePolling } from "@/lib/use-polling";
@@ -30,9 +28,6 @@ import {
   Package,
   Pencil,
   Check,
-  Calendar,
-  ChevronDown,
-  ChevronUp,
 } from "lucide-react";
 
 interface UpcomingSession {
@@ -49,75 +44,45 @@ interface UpcomingSession {
   guestDineCount: number;
 }
 
-interface RecentPayment {
-  id: number;
+interface OwingMember {
   memberId: number;
+  memberName: string;
   memberAvatarKey: string | null;
   memberAvatarUrl: string | null;
-  memberName: string;
-  sessionDate: string;
   amount: number;
-  confirmedAt: string;
-  memberConfirmed: boolean;
-  adminConfirmed: boolean;
 }
-
-interface UnpaidDebt {
-  id: number;
-  sessionDate: string;
-  totalAmount: number;
-  memberConfirmed: boolean;
-  adminConfirmed: boolean;
-  playAmount: number;
-  dineAmount: number;
-  guestPlayAmount: number;
-  guestDineAmount: number;
-}
-
-interface UnpaidGroup {
-  memberId: number;
-  memberName: string;
-  memberAvatarKey: string | null;
-  memberAvatarUrl: string | null;
-  totalOwed: number;
-  debts: UnpaidDebt[];
-}
-
-type FinanceTab = "recent" | "unpaid";
 
 interface DashboardClientProps {
   appName?: string;
   totalOutstanding: number;
+  owingCount: number;
+  topOwingMembers: OwingMember[];
   totalStockQua: number;
   activeMembersCount: number;
   sessionsThisMonth: number;
   upcomingSession: UpcomingSession | null;
-  recentPayments: RecentPayment[];
-  unpaidGroups: UnpaidGroup[];
 }
 
 export function DashboardClient({
   appName = "FWBB",
   totalOutstanding,
+  owingCount,
+  topOwingMembers,
   totalStockQua,
   activeMembersCount,
   sessionsThisMonth,
   upcomingSession,
-  recentPayments,
-  unpaidGroups,
 }: DashboardClientProps) {
   const tf = useTranslations("finance");
   const td = useTranslations("dashboard");
   const ts = useTranslations("sessions");
+  const tInv = useTranslations("inventory");
   const locale = useLocale() as AppLocale;
-  const formatDateShort = (d: string) => formatSessionDate(d, "short", locale);
   const formatDateFull = (d: string) =>
     formatSessionDate(d, "weekdayLong", locale);
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(appName);
   const [saved, setSaved] = useState(false);
-  const [financeTab, setFinanceTab] = useState<FinanceTab>("recent");
-  const [expandedMember, setExpandedMember] = useState<number | null>(null);
   usePolling();
 
   return (
@@ -175,7 +140,7 @@ export function DashboardClient({
           iconClassName="bg-destructive/10 text-destructive"
           label={tf("outstandingDebt")}
           value={formatK(totalOutstanding)}
-          href="/admin/finance"
+          href="/admin/fund"
         />
 
         <StatCard
@@ -198,7 +163,7 @@ export function DashboardClient({
                     : "text-green-600"
               }
             >
-              {totalStockQua} quả
+              {totalStockQua} {tInv("piece")}
             </span>
           }
           href="/admin/inventory"
@@ -229,8 +194,7 @@ export function DashboardClient({
               <div className="flex items-center gap-3">
                 <AlertTriangle className="h-4 w-4 text-red-500" />
                 <span className="text-sm">
-                  ⚠ Cầu sắp hết! Còn <strong>{totalStockQua} quả</strong> — mua
-                  thêm cầu!
+                  {td("lowStockBanner", { count: totalStockQua })}
                 </span>
               </div>
               <Link href="/admin/inventory">
@@ -301,7 +265,7 @@ export function DashboardClient({
                       rel="noopener noreferrer"
                       className="text-primary inline-flex items-center gap-1 text-sm hover:underline"
                     >
-                      <Navigation className="h-4 w-4" /> Chỉ đường
+                      <Navigation className="h-4 w-4" /> {ts("directions")}
                     </a>
                   )}
                 </div>
@@ -349,209 +313,58 @@ export function DashboardClient({
         </CardContent>
       </Card>
 
-      {/* Finance — tabbed: Recent Payments + Unpaid */}
+      {/* Members owing — top 5 */}
       <Card>
-        <CardContent className="space-y-3">
-          {/* Tab switcher */}
-          <div className="bg-muted flex gap-1 rounded-xl p-1.5">
-            <button
-              onClick={() => setFinanceTab("recent")}
-              className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${
-                financeTab === "recent"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {tf("recentPayments")}
-            </button>
-            <button
-              onClick={() => setFinanceTab("unpaid")}
-              className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${
-                financeTab === "unpaid"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {tf("unpaid")} (
-              {unpaidGroups.reduce((s, g) => s + g.debts.length, 0)})
-            </button>
-          </div>
-
-          {/* Recent Payments tab */}
-          {financeTab === "recent" &&
-            (recentPayments.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                {tf("noPayments")}
+        <CardHeader className="flex-row items-center justify-between gap-3 pb-3">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="text-destructive h-5 w-5" />
+              Thành viên còn nợ quỹ
+            </CardTitle>
+            {owingCount > 0 && (
+              <p className="text-muted-foreground mt-1 text-sm">
+                <strong className="text-destructive tabular-nums">
+                  {owingCount}
+                </strong>{" "}
+                người · tổng{" "}
+                <strong className="text-destructive tabular-nums">
+                  {formatK(totalOutstanding)}
+                </strong>
               </p>
-            ) : (
-              <div className="space-y-2">
-                {recentPayments.map((p) => (
-                  <div
-                    key={p.id}
-                    className="flex items-center justify-between gap-2 border-b py-1.5 last:border-0"
-                  >
-                    <div className="flex min-w-0 items-center gap-2">
-                      <MemberAvatar
-                        memberId={p.memberId}
-                        avatarKey={p.memberAvatarKey}
-                        avatarUrl={p.memberAvatarUrl}
-                        size={32}
-                      />
-                      <div className="min-w-0">
-                        <p className="truncate text-base font-medium">
-                          {p.memberName}
-                        </p>
-                        <p className="text-muted-foreground text-sm">
-                          {tf("session")} {formatDateShort(p.sessionDate)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span
-                        className={`text-sm font-medium ${p.adminConfirmed ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}`}
-                      >
-                        {formatK(p.amount)}
-                      </span>
-                      {!p.adminConfirmed && (
-                        <StatusBadge variant="waiting">
-                          {tf("waitingAdmin")}
-                        </StatusBadge>
-                      )}
-                      <PaymentActions
-                        debtId={p.id}
-                        memberConfirmed={p.memberConfirmed}
-                        adminConfirmed={p.adminConfirmed}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ))}
-
-          {/* Unpaid tab */}
-          {financeTab === "unpaid" &&
-            (unpaidGroups.length === 0 ? (
-              <p className="text-muted-foreground text-sm">{tf("noDebts")}</p>
-            ) : (
-              <div className="space-y-2">
-                {unpaidGroups.map((group) => {
-                  const isExpanded = expandedMember === group.memberId;
-                  return (
-                    <div
-                      key={group.memberId}
-                      className="space-y-2 rounded-lg border p-3"
-                    >
-                      {/* Member row */}
-                      <div className="flex items-center gap-3">
-                        <MemberAvatar
-                          memberId={group.memberId}
-                          avatarKey={group.memberAvatarKey}
-                          avatarUrl={group.memberAvatarUrl}
-                          size={32}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-base font-medium">
-                            {group.memberName}
-                          </div>
-                          <div className="text-muted-foreground text-sm">
-                            {group.debts.length} buổi
-                          </div>
-                        </div>
-                        <span className="text-destructive text-sm font-bold">
-                          {formatK(group.totalOwed)}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setExpandedMember(
-                              isExpanded ? null : group.memberId,
-                            )
-                          }
-                          className="text-muted-foreground hover:bg-accent hover:text-foreground flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors"
-                        >
-                          {isExpanded ? (
-                            <ChevronUp className="h-5 w-5" />
-                          ) : (
-                            <ChevronDown className="h-5 w-5" />
-                          )}
-                        </button>
-                      </div>
-
-                      {/* Expanded: debt detail rows */}
-                      {isExpanded && (
-                        <div className="space-y-1.5 border-t pt-2">
-                          {group.debts.map((debt) => (
-                            <div key={debt.id}>
-                              <div className="flex items-center justify-between gap-2 py-1">
-                                <div className="flex min-w-0 items-center gap-2">
-                                  <div className="text-muted-foreground flex flex-shrink-0 items-center gap-1 text-xs">
-                                    <Calendar className="h-4 w-4" />
-                                    {formatDateShort(debt.sessionDate)}
-                                  </div>
-                                  <span className="text-primary text-base font-medium">
-                                    {formatK(debt.totalAmount)}
-                                  </span>
-                                  {debt.memberConfirmed ? (
-                                    <StatusBadge variant="waiting">
-                                      {tf("waitingAdmin")}
-                                    </StatusBadge>
-                                  ) : (
-                                    <StatusBadge variant="unpaid">
-                                      {tf("unpaid")}
-                                    </StatusBadge>
-                                  )}
-                                </div>
-                                <div className="flex-shrink-0">
-                                  <PaymentActions
-                                    debtId={debt.id}
-                                    memberConfirmed={debt.memberConfirmed}
-                                    adminConfirmed={debt.adminConfirmed}
-                                  />
-                                </div>
-                              </div>
-                              <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-sm">
-                                {debt.playAmount > 0 && (
-                                  <span>
-                                    🏸 cầu:{" "}
-                                    <strong className="text-primary">
-                                      {formatK(debt.playAmount)}
-                                    </strong>
-                                  </span>
-                                )}
-                                {debt.dineAmount > 0 && (
-                                  <span>
-                                    🍻 nhậu:{" "}
-                                    <strong className="text-orange-500 dark:text-orange-400">
-                                      {formatK(debt.dineAmount)}
-                                    </strong>
-                                  </span>
-                                )}
-                                {debt.guestPlayAmount > 0 && (
-                                  <span>
-                                    🏸 khách cầu:{" "}
-                                    <strong className="text-primary">
-                                      {formatK(debt.guestPlayAmount)}
-                                    </strong>
-                                  </span>
-                                )}
-                                {debt.guestDineAmount > 0 && (
-                                  <span>
-                                    🍻 khách nhậu:{" "}
-                                    <strong className="text-orange-500 dark:text-orange-400">
-                                      {formatK(debt.guestDineAmount)}
-                                    </strong>
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
+            )}
+          </div>
+          <Link href="/admin/fund">
+            <Button variant="outline" size="sm">
+              Xem tất cả
+              <ArrowRight className="ml-1 h-4 w-4" />
+            </Button>
+          </Link>
+        </CardHeader>
+        <CardContent className="pb-4">
+          {topOwingMembers.length === 0 ? (
+            <p className="text-muted-foreground py-4 text-center text-sm">
+              Cả nhóm đang không nợ — quỹ ổn 🎉
+            </p>
+          ) : (
+            <ul className="divide-y">
+              {topOwingMembers.map((m) => (
+                <li key={m.memberId} className="flex items-center gap-3 py-2.5">
+                  <MemberAvatar
+                    memberId={m.memberId}
+                    avatarKey={m.memberAvatarKey}
+                    avatarUrl={m.memberAvatarUrl}
+                    size={32}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-base font-medium">
+                    {m.memberName}
+                  </span>
+                  <span className="text-destructive shrink-0 text-base font-bold tabular-nums">
+                    −{formatK(m.amount)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </CardContent>
       </Card>
     </div>

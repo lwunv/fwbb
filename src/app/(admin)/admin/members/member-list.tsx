@@ -287,12 +287,12 @@ export function MemberList({
                         {memberIsActive ? (
                           <>
                             <Lock className="mr-1.5 h-4 w-4" />
-                            Khóa
+                            {t("lock")}
                           </>
                         ) : (
                           <>
                             <LockOpen className="mr-1.5 h-4 w-4" />
-                            Mở
+                            {t("unlock")}
                           </>
                         )}
                       </Button>
@@ -321,7 +321,7 @@ export function MemberList({
                           }
                         >
                           <Check className="mr-1.5 h-4 w-4" />
-                          Lưu
+                          {tCommon("save")}
                         </Button>
                         <Button
                           size="sm"
@@ -343,8 +343,10 @@ export function MemberList({
                         <Edit className="h-5 w-5 shrink-0" />
                         <span>
                           {member.nickname
-                            ? `Biệt danh: ${member.nickname}`
-                            : "Thêm biệt danh..."}
+                            ? t("nicknameDisplay", {
+                                nickname: member.nickname,
+                              })
+                            : t("addNickname")}
                         </span>
                       </button>
                     )}

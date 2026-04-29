@@ -12,7 +12,6 @@ import {
   Legend,
 } from "recharts";
 import { useTranslations } from "next-intl";
-import { useRouter, useSearchParams } from "next/navigation";
 import { formatK } from "@/lib/utils";
 import type { MonthlyExpense } from "@/actions/stats";
 
@@ -20,8 +19,6 @@ interface MonthlyExpensesChartProps {
   data: MonthlyExpense[];
   groupBy: string;
 }
-
-const GROUP_OPTIONS = ["session", "week", "month", "year"] as const;
 
 function formatLabel(key: string, group: string): string {
   switch (group) {
@@ -48,8 +45,6 @@ export function MonthlyExpensesChart({
   groupBy,
 }: MonthlyExpensesChartProps) {
   const t = useTranslations("stats");
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const [hidden, setHidden] = useState<Set<string>>(new Set());
 
   function toggleSeries(dataKey: string) {
@@ -59,19 +54,6 @@ export function MonthlyExpensesChart({
       else next.add(dataKey);
       return next;
     });
-  }
-
-  const groupLabels: Record<string, string> = {
-    session: t("perSession"),
-    week: t("perWeek"),
-    month: t("perMonth"),
-    year: t("perYear"),
-  };
-
-  function handleGroupChange(group: string) {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("expenseGroup", group);
-    router.push(`?${params.toString()}`, { scroll: false });
   }
 
   const chartData = data.map((item) => ({
@@ -87,23 +69,6 @@ export function MonthlyExpensesChart({
 
   return (
     <div className="space-y-3">
-      {/* Group filter */}
-      <div className="bg-muted flex gap-1 rounded-lg p-1">
-        {GROUP_OPTIONS.map((g) => (
-          <button
-            key={g}
-            onClick={() => handleGroupChange(g)}
-            className={`flex-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
-              groupBy === g
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {groupLabels[g]}
-          </button>
-        ))}
-      </div>
-
       {chartData.length === 0 ? (
         <div className="text-muted-foreground flex h-[300px] items-center justify-center text-sm">
           {t("noData")}

@@ -35,7 +35,7 @@ export async function login(
 
   // 5 attempts per IP+username per 5 minutes
   const ip = await getClientIp();
-  const rl = checkRateLimit(
+  const rl = await checkRateLimit(
     `login:${ip}:${parsed.data.username}`,
     5,
     5 * 60_000,

@@ -181,7 +181,11 @@ export interface StockByBrand {
   totalPurchasedQua: number;
   totalUsedQua: number;
   adjustQua: number;
+  /** Display-clamped stock (≥ 0) — what UI shows. */
   currentStockQua: number;
+  /** Real (un-clamped) stock — can be negative when usage > purchases.
+   * Useful for admin debugging "why is stock 0?" — keeps the actual delta. */
+  rawStockQua: number;
   ong: number; // tubes in stock
   qua: number; // remaining qua after full tubes
   isLowStock: boolean;
@@ -231,6 +235,7 @@ export async function getStockByBrand(): Promise<StockByBrand[]> {
       totalUsedQua,
       adjustQua,
       currentStockQua: Math.max(0, currentStockQua),
+      rawStockQua: currentStockQua,
       ong,
       qua,
       isLowStock: currentStockQua < 12, // less than 1 tube

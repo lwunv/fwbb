@@ -55,3 +55,45 @@ describe("formatK", () => {
     expect(formatK(0)).toBe("0k");
   });
 });
+
+describe("roundToThousand financial invariants", () => {
+  it("never rounds DOWN for positive amounts (admin-protective)", () => {
+    for (const v of [1, 999, 1001, 12345, 99999, 999_999, 1_234_567]) {
+      const rounded = roundToThousand(v);
+      expect(rounded).toBeGreaterThanOrEqual(v);
+      expect(rounded % 1000).toBe(0);
+    }
+  });
+
+  it("output is always an integer multiple of 1000", () => {
+    for (const v of [0, 1, 250000, 333333, 1_500_001]) {
+      const r = roundToThousand(v);
+      expect(Number.isInteger(r)).toBe(true);
+      expect(r % 1000).toBe(0);
+    }
+  });
+
+  it("idempotent: roundToThousand(roundToThousand(x)) === roundToThousand(x)", () => {
+    for (const v of [123, 1000, 1234, 99_999, 123_456]) {
+      expect(roundToThousand(roundToThousand(v))).toBe(roundToThousand(v));
+    }
+  });
+
+  it("matches expected discrete values", () => {
+    const cases: Array<[number, number]> = [
+      [0, 0],
+      [1, 1000],
+      [999, 1000],
+      [1000, 1000],
+      [1001, 2000],
+      [83_333, 84_000],
+      [83_500, 84_000],
+      [152_500, 153_000],
+      [200_000, 200_000],
+      [200_001, 201_000],
+    ];
+    for (const [input, expected] of cases) {
+      expect(roundToThousand(input)).toBe(expected);
+    }
+  });
+});

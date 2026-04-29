@@ -82,11 +82,13 @@ export function parseTimoEmail(
  * Used to determine if a payment is for fund contribution or session debt.
  */
 export interface MemoIntent {
-  type: "fund_contribution" | "session_debt" | "unknown";
+  type: "fund_contribution" | "session_debt" | "all_debts" | "unknown";
   /** Session date if found (e.g. "15/04") */
   sessionDate: string | null;
   /** Session ID if found (e.g. "S123") */
   sessionId: number | null;
+  /** Member ID if found (e.g. "FWBB NO 5" → 5) — only set for `all_debts` intent */
+  memberId: number | null;
   /** Raw memo for logging */
   rawMemo: string;
 }
@@ -94,12 +96,38 @@ export interface MemoIntent {
 export function parseMemoIntent(memo: string): MemoIntent {
   const upper = memo.toUpperCase();
 
-  // Fund contribution keywords
+  // Fund contribution với memberId: "FWBB QUY 5" hoặc "QUY 5"
+  const fundWithIdMatch = upper.match(/\bQUY\s+(\d{1,5})\b/);
+  if (fundWithIdMatch) {
+    return {
+      type: "fund_contribution",
+      sessionDate: null,
+      sessionId: null,
+      memberId: parseInt(fundWithIdMatch[1], 10),
+      rawMemo: memo,
+    };
+  }
+
+  // Fund contribution keywords (legacy, không có memberId)
   if (/\b(QUY|FUND|DONG\s*QUY|NOP\s*QUY|QUYFWBB)\b/.test(upper)) {
     return {
       type: "fund_contribution",
       sessionDate: null,
       sessionId: null,
+      memberId: null,
+      rawMemo: memo,
+    };
+  }
+
+  // Pay-all-debts pattern: "NO 5" / "FWBB NO 5" / "TRA NO 5" — must come before
+  // session-id check (S\d) so it doesn't get confused with bank reference codes.
+  const allDebtsMatch = upper.match(/\bNO\s+(\d{1,5})\b/);
+  if (allDebtsMatch) {
+    return {
+      type: "all_debts",
+      sessionDate: null,
+      sessionId: null,
+      memberId: parseInt(allDebtsMatch[1], 10),
       rawMemo: memo,
     };
   }
@@ -111,6 +139,7 @@ export function parseMemoIntent(memo: string): MemoIntent {
       type: "session_debt",
       sessionDate: null,
       sessionId: parseInt(sessionIdMatch[1], 10),
+      memberId: null,
       rawMemo: memo,
     };
   }
@@ -122,11 +151,18 @@ export function parseMemoIntent(memo: string): MemoIntent {
       type: "session_debt",
       sessionDate: `${dateMatch[1].padStart(2, "0")}/${dateMatch[2].padStart(2, "0")}`,
       sessionId: null,
+      memberId: null,
       rawMemo: memo,
     };
   }
 
-  return { type: "unknown", sessionDate: null, sessionId: null, rawMemo: memo };
+  return {
+    type: "unknown",
+    sessionDate: null,
+    sessionId: null,
+    memberId: null,
+    rawMemo: memo,
+  };
 }
 
 /**

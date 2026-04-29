@@ -29,7 +29,7 @@ export async function facebookLogin(accessToken: string) {
     h.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     h.get("x-real-ip") ||
     "unknown";
-  const rl = checkRateLimit(`fb-login:${ip}`, 10, 5 * 60_000);
+  const rl = await checkRateLimit(`fb-login:${ip}`, 10, 5 * 60_000);
   if (!rl.ok) {
     return {
       error: `Quá nhiều lần đăng nhập, thử lại sau ${rl.retryAfter ?? 60}s`,

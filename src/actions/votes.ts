@@ -21,7 +21,7 @@ export async function submitVote(
 
   // 60 vote-toggles per minute per member is plenty for normal use; spamming
   // the toggle (which writes to votes + revalidates) is rate-limited here.
-  const rl = checkRateLimit(`vote:${user.memberId}`, 60, 60_000);
+  const rl = await checkRateLimit(`vote:${user.memberId}`, 60, 60_000);
   if (!rl.ok) {
     return { error: `Quá nhiều thao tác, thử lại sau ${rl.retryAfter ?? 60}s` };
   }

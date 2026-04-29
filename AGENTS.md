@@ -90,16 +90,22 @@ Money logic in this app controls **real debt** between real people. Bugs cause t
    - Check session exists and is in valid status.
    - Check amounts are non-negative integers.
    - Recalculate totals server-side (never trust client-sent totals).
-6. **Double-entry confirmation:** Debts require both `memberConfirmed` AND `adminConfirmed` before being considered paid. Never auto-confirm both sides.
-7. **Idempotent finalization:** `finalizeSession` deletes old attendees/debts before inserting — safe to re-run. Preserve this pattern.
+6. **Merged Quỹ + Nợ model (current architecture):** "Còn nợ" và "còn quỹ" gộp làm một số duy nhất — balance của member trong ledger. Balance âm = đang nợ, dương = còn quỹ. Khi `finalizeSession` chốt sổ, nó **đồng thời** ghi `fund_deduction` cho từng member và set `sessionDebts.memberConfirmed=true, adminConfirmed=true` (cả hai cờ giờ chỉ có nghĩa "đã ghi vào ledger", không còn nghĩa "đã trả thật"). "Đã trả thật" = balance đủ ≥ 0. Không bao giờ set `memberConfirmed=true` mà KHÔNG đồng thời insert một entry vào ledger để cân bằng — nếu phá vỡ invariant này, [reconcile-fund.ts](src/actions/reconcile-fund.ts) (I8) sẽ báo error.
+7. **Idempotent finalization:** `finalizeSession` reverse các `fund_deduction` cũ qua `reversalOfId` rồi insert mới — safe để chạy lại. Preserve this pattern.
 8. **Never silently swallow errors** in financial flows. Always return `{ error: string }` and surface it to the user.
+9. **idempotencyKey BẮT BUỘC** trên các action ghi tiền (`recordContribution`, `recordRefund`, `confirmPayment*`). Client tự sinh UUID mỗi lần submit; DB UNIQUE INDEX trên `financial_transactions.idempotency_key` là last line of defence.
+10. **Bank-transfer = strong signal:** Khi webhook Gmail Pub/Sub ghi nhận tiền vào TK admin (qua `payment-matcher.ts`), set CẢ `memberConfirmed` và `adminConfirmed` = true. Tiền đã thật vào — không cần chờ admin bấm thêm.
+11. **deleteSession phải reverse fund_deductions** trước khi xóa session — nếu không, member liên quan mất tiền vĩnh viễn. Pattern: insert `fund_contribution` với `reversalOfId=originalDeduction.id`, sau đó NULL out FK refs trên ledger rows, rồi xóa session_debts/attendees/shuttlecocks/votes/sessions trong cùng `db.transaction`.
 
 ### ⛔ Forbidden in financial code:
 
 - `parseFloat()` or floating-point arithmetic on VND values.
 - Client-only calculations that bypass `cost-calculator.ts`.
-- Auto-confirming payment without explicit user action.
+- Setting `memberConfirmed`/`adminConfirmed` without inserting a corresponding ledger entry (breaks reconcile invariant I8).
 - Modifying debt records without `revalidatePath` on all affected routes.
+- Calling `recordContribution` / `recordRefund` / `confirmPayment*` without an `idempotencyKey`.
+- Reading balance outside a `db.transaction` then writing based on it (race-condition; `recordRefund` does it inside the tx for a reason).
+- Hard-deleting `sessions` without going through `deleteSession` (which reverses fund_deductions). Direct `DELETE FROM sessions` causes silent loss of member fund balance.
 
 ---
 

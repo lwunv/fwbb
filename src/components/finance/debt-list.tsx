@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslations } from "next-intl";
 import { Receipt } from "lucide-react";
 import { DebtCard, type DebtCardData } from "./debt-card";
 import { formatK } from "@/lib/utils";
@@ -24,8 +25,9 @@ export function DebtList({
   actionLabel,
   actionLoadingId,
 }: DebtListProps) {
+  const t = useTranslations("finance");
   if (debts.length === 0) {
-    return <EmptyState icon={Receipt} title="Không có công nợ nào." />;
+    return <EmptyState icon={Receipt} title={t("noDebts")} />;
   }
 
   const totalUnpaid =
@@ -39,7 +41,9 @@ export function DebtList({
       {/* Summary — only show unpaid */}
       {totalUnpaid > 0 && (
         <div className="bg-destructive/10 rounded-lg p-3 text-center">
-          <div className="text-muted-foreground text-sm">Còn nợ</div>
+          <div className="text-muted-foreground text-sm">
+            {t("colStillOwed")}
+          </div>
           <div className="text-destructive text-base font-bold">
             {formatK(totalUnpaid)}
           </div>

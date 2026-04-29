@@ -14,9 +14,14 @@ type ActionResult = { error?: string; success?: boolean } | void;
 export function fireAction(
   action: () => Promise<ActionResult>,
   rollback?: () => void,
-  options?: { retry?: boolean; successMsg?: string },
+  options?: { retry?: boolean; successMsg?: string; onSuccess?: () => void },
 ) {
-  const { retry = true, successMsg } = options ?? {};
+  const { retry = true, successMsg, onSuccess } = options ?? {};
+
+  const finishOk = () => {
+    onSuccess?.();
+    if (successMsg) toast.success(successMsg);
+  };
 
   action().then((result) => {
     const error = result && "error" in result ? result.error : undefined;
@@ -28,16 +33,16 @@ export function fireAction(
           if (err2) {
             rollback?.();
             toast.error(err2);
-          } else if (successMsg) {
-            toast.success(successMsg);
+          } else {
+            finishOk();
           }
         });
       } else {
         rollback?.();
         toast.error(error);
       }
-    } else if (successMsg) {
-      toast.success(successMsg);
+    } else {
+      finishOk();
     }
   });
 }

@@ -228,3 +228,82 @@
 .animate-border-pulse {
   animation: border-pulse 2s ease-in-out infinite;
 }
+
+/* LED running border — rotating conic gradient, used for sessions đang vote.
+ * Uses transform-rotation on an oversized pseudo-element so the bright sweep
+ * tracks the card's perimeter. Compatible with all evergreen browsers. */
+.led-border {
+  position: relative;
+  border-radius: 0.875rem;
+  padding: 2px;
+  overflow: hidden;
+  isolation: isolate;
+  background: transparent;
+}
+.led-border::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  width: 200%;
+  height: 200%;
+  top: -50%;
+  left: -50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 280deg,
+    #22c55e 320deg,
+    #4ade80 340deg,
+    #86efac 350deg,
+    #4ade80 358deg,
+    transparent 360deg
+  );
+  animation: led-rotate 3.5s linear infinite;
+  pointer-events: none;
+}
+.led-border::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  width: 200%;
+  height: 200%;
+  top: -50%;
+  left: -50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 280deg,
+    rgba(34, 197, 94, 0.5) 320deg,
+    rgba(74, 222, 128, 0.6) 340deg,
+    transparent 360deg
+  );
+  filter: blur(10px);
+  animation: led-rotate 3.5s linear infinite;
+  pointer-events: none;
+}
+.led-border > * {
+  position: relative;
+  z-index: 1;
+  border-radius: calc(0.875rem - 2px);
+}
+
+@keyframes led-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes led-dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(1.35);
+  }
+}
+.animate-led-dot {
+  animation: led-dot-pulse 1.4s ease-in-out infinite;
+}

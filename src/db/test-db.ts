@@ -11,14 +11,29 @@
 import { drizzle } from "drizzle-orm/libsql";
 import { createClient } from "@libsql/client";
 import * as schema from "./schema";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 const MIGRATIONS_DIR = join(__dirname, "migrations");
 
 export async function createTestDb() {
-  const client = createClient({ url: ":memory:" });
+  // libsql `:memory:` gives each connection its own database, so a
+  // `db.transaction()` (which opens a new connection) wouldn't see tables
+  // created on the outer connection. Use a unique on-disk file in tmpdir so
+  // all connections share state. Vitest worker process exits clean up tmpdir.
+  const dir = mkdtempSync(join(tmpdir(), "fwbb-test-"));
+  const dbPath = join(dir, "test.db");
+  const client = createClient({ url: `file:${dbPath.replace(/\\/g, "/")}` });
   const db = drizzle(client, { schema });
+  // Best-effort: remove the dir at process exit (in-memory was already best-effort).
+  process.once("exit", () => {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch {
+      /* ignore */
+    }
+  });
 
   // Apply migrations in lexical order (0000_, 0001_, ...).
   const sqlFiles = readdirSync(MIGRATIONS_DIR)

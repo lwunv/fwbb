@@ -7,6 +7,7 @@ import {
   sessionDebts,
   members,
   financialTransactions,
+  fundMembers,
 } from "@/db/schema";
 import { eq, desc, and, isNull, asc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -15,11 +16,7 @@ import {
   calculateSessionCosts,
   type AttendeeInput,
 } from "@/lib/cost-calculator";
-import {
-  getFundBalance,
-  isFundMember,
-  calculateFundDeduction,
-} from "@/lib/fund-calculator";
+import { isFundMember } from "@/lib/fund-calculator";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
 import { getAdminFromCookie, requireAdmin } from "@/lib/auth";
 import { sendGroupMessage, buildDebtReminderMessage } from "@/lib/messenger";
@@ -63,14 +60,55 @@ export async function finalizeSession(
   });
 
   if (!session) return { error: "Khong tim thay buoi choi" };
-  if (session.status === "completed")
-    return { error: "Buoi choi da hoan thanh" };
+  if (session.status === "cancelled")
+    return { error: "Buoi choi da bi huy — khong the chot so" };
   if (!session.courtPrice) return { error: "Chua thiet lap gia san" };
+  // Re-finalize a completed session (e.g., admin edited attendee list after
+  // initial close) is intentionally allowed: the tx below reverses old
+  // fund_deductions, nulls orphan debt-scoped ledger refs, deletes stale
+  // attendees/debts, then re-creates everything from the new payload.
 
   // Resolve admin's member record outside the tx (read-only).
   // Hardened: only auto-confirm if exactly ONE member matches the admin username,
   // to avoid confirming wrong member's debt when names collide.
   const adminMemberId = await resolveAdminMemberId();
+
+  // Always require admin to be linked to a member record when finalizing —
+  // otherwise the cost-distribution loop below treats admin's own row as a
+  // regular member and creates a debt + fund_deduction for them, effectively
+  // making admin "pay themselves". Failing fast here forces the admin to fix
+  // the linkage first.
+  if (adminMemberId === null) {
+    return {
+      error:
+        "Admin chưa được liên kết với member — vào /admin/members để gắn member của admin trước khi chốt sổ",
+    };
+  }
+
+  // Hard guard: admin set N guests on the session UI, but the finalize
+  // payload must include those N guest rows under the admin's invitedById.
+  // Without this check, `setAdminGuestCount` could silently drop guests from
+  // the cost-divisor → other members overpay.
+  const expectedAdminGuestPlay = session.adminGuestPlayCount ?? 0;
+  const expectedAdminGuestDine = session.adminGuestDineCount ?? 0;
+  if (expectedAdminGuestPlay > 0 || expectedAdminGuestDine > 0) {
+    const adminGuestPlayInPayload = data.attendeeList.filter(
+      (a) => a.isGuest && a.invitedById === adminMemberId && a.attendsPlay,
+    ).length;
+    const adminGuestDineInPayload = data.attendeeList.filter(
+      (a) => a.isGuest && a.invitedById === adminMemberId && a.attendsDine,
+    ).length;
+    if (adminGuestPlayInPayload < expectedAdminGuestPlay) {
+      return {
+        error: `Thiếu khách của admin: cần ${expectedAdminGuestPlay} người chơi, payload chỉ có ${adminGuestPlayInPayload}`,
+      };
+    }
+    if (adminGuestDineInPayload < expectedAdminGuestDine) {
+      return {
+        error: `Thiếu khách của admin: cần ${expectedAdminGuestDine} người ăn, payload chỉ có ${adminGuestDineInPayload}`,
+      };
+    }
+  }
 
   // Compute costs once
   const attendeeInputs: AttendeeInput[] = data.attendeeList.map((a) => ({
@@ -93,17 +131,15 @@ export async function finalizeSession(
 
   const now = new Date().toISOString();
 
-  // Pre-resolve fund eligibility and balances per member (read-only) so the
-  // transaction body stays focused on writes.
-  const fundContext = new Map<number, { inFund: boolean; balance: number }>();
+  // Merged Quỹ + Nợ model: every non-admin member is auto-enrolled in the fund
+  // and the FULL session debt is deducted via fund_deduction. Balance can go
+  // negative — that negative number is the unified "còn nợ".
+  const memberIdsToEnroll = new Set<number>();
   for (const debt of breakdown.memberDebts) {
-    const inFund = await isFundMember(debt.memberId);
-    let balance = 0;
-    if (inFund) {
-      const r = await getFundBalance(debt.memberId);
-      balance = r.balance;
+    if (debt.memberId !== adminMemberId) {
+      const inFund = await isFundMember(debt.memberId);
+      if (!inFund) memberIdsToEnroll.add(debt.memberId);
     }
-    fundContext.set(debt.memberId, { inFund, balance });
   }
 
   // === All mutating operations atomic via transaction ===
@@ -140,7 +176,15 @@ export async function finalizeSession(
         }
       }
 
-      // Wipe stale attendees + debts for clean re-finalize
+      // Wipe stale attendees + debts for clean re-finalize. Before deleting
+      // sessionDebts, NULL out `debtId` on any debt-scoped ledger rows
+      // pointing at them — otherwise we'd leave orphan refs (libsql doesn't
+      // enforce FK by default; reconcile invariant I7 would flag them and
+      // the audit trail becomes noisy).
+      await tx
+        .update(financialTransactions)
+        .set({ debtId: null })
+        .where(eq(financialTransactions.sessionId, data.sessionId));
       await tx
         .delete(sessionAttendees)
         .where(eq(sessionAttendees.sessionId, data.sessionId));
@@ -161,26 +205,22 @@ export async function finalizeSession(
         });
       }
 
-      // 4. Insert debt + ledger entries per member
+      // 3.5. Auto-enroll missing members into fund (merged model: everyone is
+      // a fund member; balance can go negative).
+      for (const memberId of memberIdsToEnroll) {
+        await tx
+          .insert(fundMembers)
+          .values({ memberId, isActive: true, joinedAt: now })
+          .onConflictDoNothing();
+      }
+
+      // 4. For each attendee: deduct FULL debt amount from fund. The session
+      // debt row is still recorded (audit) but immediately marked as confirmed
+      // — the unified "còn nợ" lives on the fund balance, not on per-session
+      // unpaid rows.
       for (const debt of breakdown.memberDebts) {
         const isAdminDebt = debt.memberId === adminMemberId;
-        const ctx = fundContext.get(debt.memberId)!;
-
-        let debtTotalAmount = debt.totalAmount;
-        let paidByFund = false;
-        let fundDeductionAmount = 0;
-
-        if (ctx.inFund && !isAdminDebt) {
-          const deduction = calculateFundDeduction(
-            ctx.balance,
-            debt.totalAmount,
-          );
-          if (deduction.deductedFromFund > 0) {
-            fundDeductionAmount = deduction.deductedFromFund;
-            debtTotalAmount = deduction.remainingDebt;
-            paidByFund = deduction.fullyPaidByFund;
-          }
-        }
+        const fundDeductionAmount = isAdminDebt ? 0 : debt.totalAmount;
 
         const [insertedDebt] = await tx
           .insert(sessionDebts)
@@ -191,11 +231,11 @@ export async function finalizeSession(
             dineAmount: debt.dineAmount,
             guestPlayAmount: debt.guestPlayAmount,
             guestDineAmount: debt.guestDineAmount,
-            totalAmount: debtTotalAmount,
-            memberConfirmed: isAdminDebt || paidByFund,
-            memberConfirmedAt: isAdminDebt || paidByFund ? now : null,
-            adminConfirmed: isAdminDebt || paidByFund,
-            adminConfirmedAt: isAdminDebt || paidByFund ? now : null,
+            totalAmount: debt.totalAmount,
+            memberConfirmed: true,
+            memberConfirmedAt: now,
+            adminConfirmed: true,
+            adminConfirmedAt: now,
           })
           .returning({ id: sessionDebts.id });
 
@@ -213,7 +253,6 @@ export async function finalizeSession(
               dineAmount: debt.dineAmount,
               guestPlayAmount: debt.guestPlayAmount,
               guestDineAmount: debt.guestDineAmount,
-              remainingDebt: debtTotalAmount,
             },
           },
           tx,
@@ -300,7 +339,11 @@ export async function confirmPaymentByMember(debtId: number) {
 
   // 30 confirm-payment attempts per member per minute (prevents ledger-spam
   // via repeated re-confirms even if the idempotent guard short-circuits).
-  const rl = checkRateLimit(`confirm-payment:${user.memberId}`, 30, 60_000);
+  const rl = await checkRateLimit(
+    `confirm-payment:${user.memberId}`,
+    30,
+    60_000,
+  );
   if (!rl.ok) {
     return { error: `Quá nhiều thao tác, thử lại sau ${rl.retryAfter ?? 60}s` };
   }
@@ -342,6 +385,9 @@ export async function confirmPaymentByMember(debtId: number) {
           sessionId: debt.sessionId,
           debtId,
           description: "Thành viên xác nhận đã chuyển khoản",
+          // Belt-and-suspenders against a parallel double-submit slipping past
+          // the early-return idempotent guard above.
+          idempotencyKey: `debt-member-confirm-${debtId}`,
         },
         tx,
       );
@@ -395,6 +441,7 @@ export async function confirmPaymentByAdmin(debtId: number) {
           sessionId: debt.sessionId,
           debtId,
           description: "Admin xác nhận đã nhận tiền",
+          idempotencyKey: `debt-admin-confirm-${debtId}`,
         },
         tx,
       );

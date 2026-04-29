@@ -24,11 +24,20 @@ vi.mock("@/db", () => {
   const updateImpl = vi.fn(() => ({
     set: vi.fn(() => ({ where: vi.fn() })),
   }));
+  // The tx object surface mirrors `db` because recordFinancialTransaction
+  // reads `tx.query.financialTransactions.findFirst` when an idempotencyKey
+  // is set, and processPayment now updates paymentNotifications inside the
+  // inner transaction.
   const txObj = {
     insert: insertImpl,
     update: updateImpl,
     query: {
-      sessionDebts: { findFirst: vi.fn() },
+      sessionDebts: { findFirst: vi.fn(), findMany: vi.fn() },
+      financialTransactions: { findFirst: vi.fn(), findMany: vi.fn() },
+      paymentNotifications: { findFirst: vi.fn() },
+      members: { findFirst: vi.fn() },
+      sessions: { findFirst: vi.fn(), findMany: vi.fn() },
+      fundMembers: { findFirst: vi.fn() },
     },
   };
   return {
@@ -36,9 +45,10 @@ vi.mock("@/db", () => {
       query: {
         paymentNotifications: { findFirst: vi.fn() },
         members: { findFirst: vi.fn() },
-        sessionDebts: { findFirst: vi.fn() },
-        sessions: { findMany: vi.fn() },
+        sessionDebts: { findFirst: vi.fn(), findMany: vi.fn() },
+        sessions: { findMany: vi.fn(), findFirst: vi.fn() },
         fundMembers: { findFirst: vi.fn() },
+        financialTransactions: { findFirst: vi.fn(), findMany: vi.fn() },
       },
       insert: insertImpl,
       update: updateImpl,
@@ -111,6 +121,10 @@ describe("processPayment", () => {
       id: 1,
       name: "Luu",
     } as never);
+    // matchSessionDebt now checks parent session.status before loading the debt
+    vi.mocked(db.query.sessions.findFirst).mockResolvedValueOnce({
+      status: "completed",
+    } as never);
     vi.mocked(db.query.sessionDebts.findFirst).mockResolvedValueOnce({
       id: 100,
       memberId: 1,
@@ -130,11 +144,15 @@ describe("processPayment", () => {
       id: 1,
       name: "Luu",
     } as never);
-    vi.mocked(db.query.sessionDebts.findFirst).mockResolvedValueOnce({
-      id: 55,
-      memberId: 1,
-      totalAmount: 100000,
-    } as never);
+    // matchOldestDebt now uses findMany + filters cancelled in JS
+    vi.mocked(db.query.sessionDebts.findMany).mockResolvedValueOnce([
+      {
+        id: 55,
+        memberId: 1,
+        totalAmount: 100000,
+        session: { status: "completed" },
+      },
+    ] as never);
     setInsertReturn([{ id: 778 }]);
 
     const result = await processPayment(payment, "msg-005");
@@ -149,11 +167,14 @@ describe("processPayment", () => {
       id: 1,
       name: "Luu",
     } as never);
-    vi.mocked(db.query.sessionDebts.findFirst).mockResolvedValueOnce({
-      id: 60,
-      memberId: 1,
-      totalAmount: 100000,
-    } as never);
+    vi.mocked(db.query.sessionDebts.findMany).mockResolvedValueOnce([
+      {
+        id: 60,
+        memberId: 1,
+        totalAmount: 100000,
+        session: { status: "completed" },
+      },
+    ] as never);
     setInsertReturn([{ id: 779 }]);
 
     const result = await processPayment(payment, "msg-006");
@@ -168,11 +189,14 @@ describe("processPayment", () => {
       id: 1,
       name: "Luu",
     } as never);
-    vi.mocked(db.query.sessionDebts.findFirst).mockResolvedValueOnce({
-      id: 70,
-      memberId: 1,
-      totalAmount: 100000,
-    } as never);
+    vi.mocked(db.query.sessionDebts.findMany).mockResolvedValueOnce([
+      {
+        id: 70,
+        memberId: 1,
+        totalAmount: 100000,
+        session: { status: "completed" },
+      },
+    ] as never);
 
     const result = await processPayment(payment, "msg-007");
     expect(result.status).toBe("pending");

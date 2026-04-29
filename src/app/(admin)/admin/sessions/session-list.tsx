@@ -42,7 +42,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { usePolling } from "@/lib/use-polling";
 import {
   formatSessionDate as fmtSessionDate,
-  getNextMondayOrFriday,
+  getNextSessionDay,
 } from "@/lib/date-format";
 import type { InferSelectModel } from "drizzle-orm";
 import type {
@@ -129,7 +129,7 @@ const statusStyles: Record<
   },
 };
 
-const DEFAULT_DATE = getNextMondayOrFriday().toISOString().split("T")[0];
+const DEFAULT_DATE = getNextSessionDay().toISOString().split("T")[0];
 
 export function SessionList({
   sessions,
@@ -148,6 +148,8 @@ export function SessionList({
     new Set(),
   );
   const [cancelTarget, setCancelTarget] = useState<number | null>(null);
+  const [cancelPassed, setCancelPassed] = useState(true);
+  const [cancelPassRevenue, setCancelPassRevenue] = useState<string>("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [adminGuestExpanded, setAdminGuestExpanded] = useState<number | null>(
     null,
@@ -159,6 +161,7 @@ export function SessionList({
   const t = useTranslations("sessions");
   const tF = useTranslations("finance");
   const tVoting = useTranslations("voting");
+  const tFundAdmin = useTranslations("fundAdmin");
   usePolling();
 
   function handleCreate(formData: FormData) {
@@ -185,10 +188,14 @@ export function SessionList({
   function handleCancelConfirm() {
     if (!cancelTarget) return;
     const id = cancelTarget;
+    const passed = cancelPassed;
+    const passRevenue = passed
+      ? Math.max(0, parseInt(cancelPassRevenue, 10) || 0)
+      : 0;
     setCancelledSessions((prev) => new Set(prev).add(id));
     setCancelTarget(null);
     fireAction(
-      () => cancelSession(id),
+      () => cancelSession(id, { passed, passRevenue }),
       () =>
         setCancelledSessions((prev) => {
           const next = new Set(prev);
@@ -361,7 +368,7 @@ export function SessionList({
                               className="text-primary inline-flex shrink-0 items-center gap-1"
                             >
                               <Navigation className="h-4 w-4" />
-                              Chỉ đường
+                              {t("directions")}
                             </span>
                           )}
                         </p>
@@ -378,6 +385,10 @@ export function SessionList({
                           onClick={(e) => {
                             e.stopPropagation();
                             setCancelTarget(session.id);
+                            setCancelPassed(true);
+                            setCancelPassRevenue(
+                              String(session.courtPrice ?? 200000),
+                            );
                           }}
                           className="border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 inline-flex h-10 w-10 items-center justify-center rounded-xl border transition-colors"
                         >
@@ -484,7 +495,7 @@ export function SessionList({
                           }}
                           className="border-muted-foreground/30 text-muted-foreground hover:text-foreground hover:border-primary/50 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed p-2.5 text-sm transition-colors"
                         >
-                          + Khách Admin
+                          {t("adminGuestButton")}
                           {hasAdminGuests && (
                             <span className="text-primary font-medium">
                               ({ag.play > 0 ? `🏸${ag.play}` : ""}
@@ -525,7 +536,9 @@ export function SessionList({
                           className="ml-auto inline-flex items-center gap-2 py-1 text-sm font-medium text-amber-600 dark:text-amber-400"
                         >
                           <AlertTriangle className="h-4 w-4" />
-                          Còn thiếu {formatK(unpaidAmount)}
+                          {t("stillOwingAmount", {
+                            amount: formatK(unpaidAmount),
+                          })}
                           <ChevronDown
                             className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`}
                           />
@@ -644,7 +657,46 @@ export function SessionList({
         title={t("cancelSession")}
         description={t("cancelConfirm")}
         onConfirm={handleCancelConfirm}
-      />
+        confirmLabel={t("cancelSession")}
+      >
+        <div className="space-y-3">
+          <label className="hover:bg-accent/40 flex cursor-pointer items-start gap-2 rounded-lg border p-3 transition-colors">
+            <input
+              type="checkbox"
+              checked={cancelPassed}
+              onChange={(e) => setCancelPassed(e.target.checked)}
+              className="mt-0.5 h-4 w-4"
+            />
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium">Pass được sân</div>
+              <div className="text-muted-foreground text-xs">
+                Tick nếu admin đã thu được tiền từ team khác. Tiền sẽ tự động
+                vào quỹ admin.
+              </div>
+            </div>
+          </label>
+          {cancelPassed && (
+            <div className="space-y-1.5">
+              <label className="text-muted-foreground text-xs font-medium">
+                Số tiền nhận lại (VND)
+              </label>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={cancelPassRevenue}
+                onChange={(e) => setCancelPassRevenue(e.target.value)}
+                min={0}
+                step={10000}
+                className="bg-background min-h-11 w-full rounded-xl border px-3 text-base"
+                placeholder={tFundAdmin("passRevenuePlaceholder")}
+              />
+              <p className="text-muted-foreground text-xs">
+                Mặc định = giá thuê sân của buổi. Có thể chỉnh nếu khác.
+              </p>
+            </div>
+          )}
+        </div>
+      </ConfirmDialog>
     </div>
   );
 }

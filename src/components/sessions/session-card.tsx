@@ -47,9 +47,10 @@ export function SessionCard({
       ? statusKey
       : "voting"
   ) as "voting" | "confirmed" | "completed" | "cancelled";
+  const isVoting = statusKey === "voting";
 
-  return (
-    <Card>
+  const card = (
+    <Card className={isVoting ? "ring-0" : ""}>
       <CardContent className="space-y-3 p-4">
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-bold capitalize">
@@ -124,4 +125,9 @@ export function SessionCard({
       </CardContent>
     </Card>
   );
+
+  if (isVoting) {
+    return <div className="led-border">{card}</div>;
+  }
+  return card;
 }

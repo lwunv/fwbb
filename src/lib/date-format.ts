@@ -32,14 +32,23 @@ export function formatSessionDate(
   return format(d, FORMATS[variant], { locale: getDateFnsLocale(locale) });
 }
 
-/** Returns next Monday or Friday from a reference date (defaults to today). */
-export function getNextMondayOrFriday(ref: Date = new Date()): Date {
+/**
+ * Returns the next session day (Mon/Wed/Fri schedule) from a reference date.
+ * If today IS a session day, returns today.
+ */
+export function getNextSessionDay(ref: Date = new Date()): Date {
   const dow = ref.getDay(); // 0=Sun..6=Sat
-  let days: number;
-  if (dow <= 1) days = 1 - dow;
-  else if (dow <= 5) days = 5 - dow;
-  else days = 2;
+  // Mon=1, Wed=3, Fri=5 are session days. Find next forward.
+  const sessionDays = [1, 3, 5];
+  let days = 7;
+  for (const sd of sessionDays) {
+    const diff = (sd - dow + 7) % 7;
+    if (diff < days) days = diff;
+  }
   const next = new Date(ref);
   next.setDate(ref.getDate() + days);
   return next;
 }
+
+/** @deprecated Use {@link getNextSessionDay}. Kept for backward compatibility. */
+export const getNextMondayOrFriday = getNextSessionDay;

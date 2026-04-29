@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Check } from "lucide-react";
+import { ChevronDown, Check, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface SelectOption {
@@ -19,6 +19,9 @@ interface CustomSelectProps {
   className?: string;
   /** Hidden input name for form submission */
   name?: string;
+  /** Show a search box at the top of the dropdown when option count exceeds this. */
+  searchable?: boolean;
+  searchPlaceholder?: string;
 }
 
 export function CustomSelect({
@@ -29,11 +32,38 @@ export function CustomSelect({
   disabled,
   className,
   name,
+  searchable,
+  searchPlaceholder = "Tìm...",
 }: CustomSelectProps) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+
+  const filteredOptions = useMemo(() => {
+    if (!searchable) return options;
+    const q = query.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter((o) => o.label.toLowerCase().includes(q));
+  }, [options, query, searchable]);
+
+  // Focus the search input when the dropdown opens. Don't reset `query` from
+  // an effect — that triggers cascading renders. Instead, callers that close
+  // the dropdown via `closeAndReset` below pass the reset through `setQuery`
+  // synchronously, so `query` is already cleared by the next render.
+  useEffect(() => {
+    if (open && searchable) {
+      const id = setTimeout(() => searchInputRef.current?.focus(), 0);
+      return () => clearTimeout(id);
+    }
+  }, [open, searchable]);
+
+  const closeAndReset = useCallback(() => {
+    setOpen(false);
+    setQuery("");
+  }, []);
 
   const updatePos = useCallback(() => {
     if (!triggerRef.current) return;
@@ -56,7 +86,7 @@ export function CustomSelect({
         dropdownRef.current?.contains(target)
       )
         return;
-      setOpen(false);
+      closeAndReset();
     }
 
     function handleScroll() {
@@ -71,7 +101,7 @@ export function CustomSelect({
       window.removeEventListener("scroll", handleScroll, true);
       window.removeEventListener("resize", updatePos);
     };
-  }, [open, updatePos]);
+  }, [open, updatePos, closeAndReset]);
 
   const selected = options.find((o) => o.value === value);
 
@@ -82,7 +112,10 @@ export function CustomSelect({
         ref={triggerRef}
         type="button"
         disabled={disabled}
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          if (open) closeAndReset();
+          else setOpen(true);
+        }}
         className={cn(
           "bg-background flex h-12 w-full items-center justify-between rounded-xl border px-4 text-base transition-colors",
           "disabled:pointer-events-none disabled:opacity-50",
@@ -112,8 +145,23 @@ export function CustomSelect({
             }}
             className="bg-popover animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 z-[9999] overflow-hidden rounded-xl border shadow-lg"
           >
+            {searchable && (
+              <div className="border-b p-2">
+                <div className="relative">
+                  <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder={searchPlaceholder}
+                    className="bg-background focus:ring-primary h-10 w-full rounded-lg border pr-3 pl-9 text-sm outline-none focus:ring-1"
+                  />
+                </div>
+              </div>
+            )}
             <div className="max-h-60 overflow-auto py-1">
-              {options.map((option) => {
+              {filteredOptions.map((option) => {
                 const isSelected = option.value === value;
                 return (
                   <button
@@ -121,7 +169,7 @@ export function CustomSelect({
                     type="button"
                     onClick={() => {
                       onChange(option.value);
-                      setOpen(false);
+                      closeAndReset();
                     }}
                     className={cn(
                       "flex w-full items-center gap-3 px-4 py-3 text-left text-base transition-colors",
@@ -137,9 +185,9 @@ export function CustomSelect({
                   </button>
                 );
               })}
-              {options.length === 0 && (
+              {filteredOptions.length === 0 && (
                 <p className="text-muted-foreground px-4 py-3 text-center text-sm">
-                  Không có lựa chọn
+                  {query ? "Không tìm thấy" : "Không có lựa chọn"}
                 </p>
               )}
             </div>

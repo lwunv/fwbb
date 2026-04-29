@@ -181,6 +181,28 @@ describe("parseMemoIntent", () => {
     expect(result.sessionDate).toBe("15/04");
   });
 
+  it("should detect pay-all-debts intent (NO {memberId})", () => {
+    const result = parseMemoIntent("FWBB NO 5");
+    expect(result.type).toBe("all_debts");
+    expect(result.memberId).toBe(5);
+  });
+
+  it("should prefer fund keyword over NO pattern", () => {
+    const result = parseMemoIntent("QUY NO 5");
+    expect(result.type).toBe("fund_contribution");
+  });
+
+  it("should detect NO pattern with multi-digit memberId", () => {
+    const result = parseMemoIntent("FWBB NO 123");
+    expect(result.type).toBe("all_debts");
+    expect(result.memberId).toBe(123);
+  });
+
+  it("should not confuse 'KHONG' or 'NOI' for NO intent", () => {
+    expect(parseMemoIntent("KHONG NO TIEN").type).not.toBe("all_debts");
+    expect(parseMemoIntent("NOI DUNG CK").type).toBe("unknown");
+  });
+
   it("should return unknown for generic memo", () => {
     const result = parseMemoIntent("chuyen tien");
     expect(result.type).toBe("unknown");

@@ -1,17 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { CircleDot } from "lucide-react";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { LanguageSelector } from "@/components/shared/language-selector";
 
 export function Header({ appName = "FWBB" }: { appName?: string }) {
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40 border-b backdrop-blur">
       <div className="flex h-14 items-center justify-between px-4">
         <Link href="/" className="flex items-center gap-2">
-          <CircleDot className="h-6 w-6 text-primary" />
-          <span className="font-bold text-lg">{appName}</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/fwbb.svg" alt={appName} className="h-8 w-auto" />
+          <span className="text-lg font-bold">{appName}</span>
         </Link>
         <div className="flex items-center gap-1">
           <LanguageSelector />

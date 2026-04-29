@@ -7,6 +7,7 @@ export default defineConfig({
     environment: "node",
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     exclude: ["node_modules", ".next"],
+    setupFiles: ["./vitest.setup.ts"],
   },
   resolve: {
     alias: {

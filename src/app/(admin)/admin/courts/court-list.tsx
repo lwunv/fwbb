@@ -29,6 +29,7 @@ export function CourtList({ courts }: { courts: Court[] }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCourt, setEditingCourt] = useState<Court | null>(null);
   const [price, setPrice] = useState(0);
+  const [retailPrice, setRetailPrice] = useState(0);
   const [toggledCourts, setToggledCourts] = useState<Record<number, boolean>>(
     {},
   );
@@ -74,7 +75,7 @@ export function CourtList({ courts }: { courts: Court[] }) {
             <Plus className="mr-2 h-4 w-4" /> {t("addCourt")}
           </DialogTrigger>
         </div>
-        <DialogContent>
+        <DialogContent className="p-6 sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {editingCourt ? t("editCourt") : t("addNewCourt")}
@@ -113,14 +114,37 @@ export function CourtList({ courts }: { courts: Court[] }) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="pricePerSession">{t("pricePerSession")}</Label>
+              <Label htmlFor="pricePerSession">
+                Giá thuê tháng (200k/2h cho sân chính)
+              </Label>
               <NumberStepper
                 value={price}
                 onChange={setPrice}
                 name="pricePerSession"
                 min={0}
                 step={10000}
+                className="flex w-full"
               />
+              <p className="text-muted-foreground text-xs">
+                Áp dụng khi đã ký hợp đồng tháng — sân chính của buổi.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pricePerSessionRetail">
+                Giá thuê lẻ (220k/2h cho sân thuê thêm)
+              </Label>
+              <NumberStepper
+                value={retailPrice}
+                onChange={setRetailPrice}
+                name="pricePerSessionRetail"
+                min={0}
+                step={10000}
+                className="flex w-full"
+              />
+              <p className="text-muted-foreground text-xs">
+                Áp dụng cho sân thứ 2 thuê thêm hoặc khi không có hợp đồng
+                tháng.
+              </p>
             </div>
             <Button type="submit" className="w-full">
               {editingCourt ? t("update") : tCommon("add")}
@@ -154,10 +178,24 @@ export function CourtList({ courts }: { courts: Court[] }) {
                           {court.address}
                         </p>
                       )}
-                      <p className="text-primary text-base font-medium">
-                        {formatK(court.pricePerSession)}
-                        {t("perSession")}
-                      </p>
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-sm">
+                        <span className="text-primary font-medium">
+                          Tháng:{" "}
+                          <strong className="tabular-nums">
+                            {formatK(court.pricePerSession)}
+                          </strong>
+                          {t("perSession")}
+                        </span>
+                        {court.pricePerSessionRetail != null && (
+                          <span className="text-muted-foreground">
+                            Lẻ:{" "}
+                            <strong className="tabular-nums">
+                              {formatK(court.pricePerSessionRetail)}
+                            </strong>
+                            {t("perSession")}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     {court.mapLink && (
                       <a
@@ -186,11 +224,15 @@ export function CourtList({ courts }: { courts: Court[] }) {
                       onClick={() => {
                         setEditingCourt(court);
                         setPrice(court.pricePerSession);
+                        setRetailPrice(
+                          court.pricePerSessionRetail ??
+                            court.pricePerSession + 20000,
+                        );
                         setDialogOpen(true);
                       }}
                     >
                       <Edit className="mr-1.5 h-4 w-4" />
-                      Sửa
+                      {tCommon("edit")}
                     </Button>
                     <Button
                       variant={isActive ? "destructive" : "default"}
@@ -200,12 +242,12 @@ export function CourtList({ courts }: { courts: Court[] }) {
                       {isActive ? (
                         <>
                           <X className="mr-1.5 h-4 w-4" />
-                          Xóa
+                          {tCommon("delete")}
                         </>
                       ) : (
                         <>
                           <ToggleLeft className="mr-1.5 h-4 w-4" />
-                          Bật
+                          {tCommon("enable")}
                         </>
                       )}
                     </Button>

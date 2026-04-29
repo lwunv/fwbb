@@ -28,6 +28,8 @@ interface ConfirmDialogProps {
   variant?: "destructive" | "default";
   onConfirm: () => void | Promise<void>;
   loading?: boolean;
+  /** Optional content rendered giữa description và button row (vd: form input) */
+  children?: React.ReactNode;
 }
 
 function useIsMobile(breakpoint = 640) {
@@ -119,6 +121,7 @@ function DesktopDialog({
   variant = "destructive",
   onConfirm,
   loading = false,
+  children,
 }: ConfirmDialogProps) {
   const tCommon = useTranslations("common");
   return (
@@ -135,6 +138,7 @@ function DesktopDialog({
         {description && (
           <p className="text-muted-foreground ml-12 text-sm">{description}</p>
         )}
+        {children && <div className="mt-2">{children}</div>}
         <div className="mt-2">
           <ConfirmActions
             loading={loading}
@@ -164,6 +168,7 @@ function MobileSheet({
   variant = "destructive",
   onConfirm,
   loading = false,
+  children,
 }: ConfirmDialogProps) {
   const tCommon = useTranslations("common");
   return (
@@ -183,6 +188,7 @@ function MobileSheet({
         {description ? (
           <p className="text-muted-foreground px-4 text-sm">{description}</p>
         ) : null}
+        {children && <div className="px-4">{children}</div>}
         <SheetFooter>
           <ConfirmActions
             loading={loading}

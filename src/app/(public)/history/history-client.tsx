@@ -16,9 +16,11 @@ import {
 import type { Locale as DateFnsLocale } from "date-fns";
 import { useLocale, useTranslations } from "next-intl";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Banknote, ChevronDown } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PaymentQR } from "@/components/payment/payment-qr";
+import { computePerHeadCharges } from "@/lib/cost-calculator";
 import {
   Dialog,
   DialogContent,
@@ -138,6 +140,21 @@ export function HistoryClient({
     description: string;
   } | null>(null);
 
+  const [allDebtsQROpen, setAllDebtsQROpen] = useState(true);
+
+  const unpaidSessions = useMemo(
+    () => sessions.filter((s) => s.mySummary && mySummaryIsUnpaid(s.mySummary)),
+    [sessions],
+  );
+  const totalOwedAcrossSessions = useMemo(
+    () =>
+      unpaidSessions.reduce(
+        (sum, s) => sum + (s.mySummary?.totalShare ?? 0),
+        0,
+      ),
+    [unpaidSessions],
+  );
+
   useEffect(() => {
     if (sessions.length === 0) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- keep selection valid when refreshed data becomes empty.
@@ -238,6 +255,100 @@ export function HistoryClient({
         </DialogContent>
       </Dialog>
 
+      {/* Pay-all-debts QR — chỉ khi user đã đăng nhập + còn nợ */}
+      {isIdentified &&
+        currentMemberId !== null &&
+        totalOwedAcrossSessions > 0 && (
+          <div className="border-destructive/30 bg-destructive/5 overflow-hidden rounded-xl border">
+            <button
+              type="button"
+              onClick={() => setAllDebtsQROpen((v) => !v)}
+              aria-expanded={allDebtsQROpen}
+              className="hover:bg-destructive/10 flex w-full items-center justify-between gap-2 p-3 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <div className="bg-destructive/15 text-destructive rounded-lg p-1.5">
+                  <Banknote className="h-4 w-4" />
+                </div>
+                <div className="text-left">
+                  <div className="text-sm font-semibold">
+                    {t("payAllDebts")}
+                  </div>
+                  <div className="text-muted-foreground text-xs">
+                    {t("payAllDebtsDesc")}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-destructive text-base font-bold tabular-nums">
+                  {formatK(totalOwedAcrossSessions)}
+                </span>
+                <ChevronDown
+                  className={`text-muted-foreground h-4 w-4 transition-transform ${
+                    allDebtsQROpen ? "rotate-180" : ""
+                  }`}
+                  aria-hidden
+                />
+              </div>
+            </button>
+
+            {allDebtsQROpen && (
+              <div className="bg-muted/20 border-t p-3">
+                <PaymentQR
+                  amount={totalOwedAcrossSessions}
+                  memo={`FWBB NO ${currentMemberId}`}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+      {/* Danh sách buổi còn nợ — click vào để xem chi tiết */}
+      {isIdentified && unpaidSessions.length > 0 && (
+        <Card className="border-destructive/20">
+          <CardContent className="space-y-2 p-3">
+            <div className="text-muted-foreground flex items-center justify-between text-xs font-semibold tracking-wide uppercase">
+              <span>{t("unpaidSessions")}</span>
+              <span className="text-destructive">{unpaidSessions.length}</span>
+            </div>
+            <div className="space-y-1.5">
+              {unpaidSessions.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedId(s.id);
+                    setViewMonth(startOfMonth(parseISO(s.date)));
+                    if (typeof window !== "undefined") {
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }
+                  }}
+                  className={cn(
+                    "hover:bg-destructive/10 flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left transition-colors",
+                    selectedId === s.id && "bg-destructive/10",
+                  )}
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium capitalize">
+                      {formatDateLabel(s.date, dfLocale)}
+                    </div>
+                    <div className="text-muted-foreground truncate text-xs">
+                      {s.courtName}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="text-destructive text-sm font-bold tabular-nums">
+                      {formatK(s.mySummary?.totalShare ?? 0)}
+                    </span>
+                    <ChevronRight className="text-muted-foreground h-4 w-4" />
+                  </div>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Lịch */}
       <Card className="border-border/80 gap-2 overflow-hidden py-2">
         <CardContent className="px-3 !py-0 sm:px-3">
@@ -263,7 +374,7 @@ export function HistoryClient({
             </button>
           </div>
 
-          <div className="text-muted-foreground mb-1.5 grid grid-cols-7 gap-1.5 text-center text-xs font-medium sm:text-xs">
+          <div className="text-muted-foreground mb-1.5 grid grid-cols-7 gap-1.5 text-center text-sm font-medium">
             {weekdayLabels.map((w, i) => {
               const isClubDayColumn = i === 0 || i === 4;
               return (
@@ -309,7 +420,7 @@ export function HistoryClient({
                   disabled={!hasSession}
                   onClick={() => onDayClick(day)}
                   className={cn(
-                    "relative min-h-[2rem] overflow-hidden rounded-md py-0.5 text-xs font-medium transition-colors sm:min-h-[2.25rem] sm:text-xs",
+                    "relative min-h-11 overflow-hidden rounded-md py-1 text-sm font-medium transition-colors sm:min-h-11",
                     !onMonth && "opacity-35",
                     !hasSession && "cursor-default opacity-50",
                     hasSession &&
@@ -396,6 +507,17 @@ function SessionDetailCard({
   const myDebt = my ? mySummaryToDebt(my) : null;
   const sharePaid = !!(myDebt?.adminConfirmed || myDebt?.memberConfirmed);
   const shareHasDebt = (myDebt?.totalAmount ?? 0) > 0;
+
+  // Per-head charges — share single source of truth with cost-calculator so
+  // there's no risk of UI drift vs server-side finalize logic.
+  const { playCostPerHead: playPerHead, dineCostPerHead: dinePerHead } =
+    computePerHeadCharges({
+      courtPrice: session.courtPrice,
+      shuttlecockCost: session.shuttlecockCost,
+      diningBill: session.diningBill,
+      playerCount: session.playerCount,
+      dinerCount: session.dinerCount,
+    });
 
   return (
     <Card
@@ -542,6 +664,12 @@ function SessionDetailCard({
                     {session.playerCount}
                   </strong>
                 </span>
+                {isCompleted && playPerHead > 0 && (
+                  <span className="ml-auto text-xs font-bold text-[var(--color-hist-play-fg)] tabular-nums">
+                    {formatK(playPerHead)}
+                    {t("perHead")}
+                  </span>
+                )}
               </div>
             </div>
             <div
@@ -551,13 +679,15 @@ function SessionDetailCard({
               )}
             >
               {isCompleted && (
-                <div className="flex justify-between gap-2">
-                  <span className="text-muted-foreground text-xs">
-                    {t("dining")}
-                  </span>
-                  <span className="text-[var(--color-hist-dine-fg)] tabular-nums">
-                    {formatK(session.diningBill)}
-                  </span>
+                <div className="space-y-1">
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground text-xs">
+                      {t("dining")}
+                    </span>
+                    <span className="text-[var(--color-hist-dine-fg)] tabular-nums">
+                      {formatK(session.diningBill)}
+                    </span>
+                  </div>
                 </div>
               )}
               <div
@@ -579,6 +709,12 @@ function SessionDetailCard({
                     {session.dinerCount}
                   </strong>
                 </span>
+                {isCompleted && dinePerHead > 0 && (
+                  <span className="ml-auto text-xs font-bold text-[var(--color-hist-dine-fg)] tabular-nums">
+                    {formatK(dinePerHead)}
+                    {t("perHead")}
+                  </span>
+                )}
               </div>
             </div>
           </div>

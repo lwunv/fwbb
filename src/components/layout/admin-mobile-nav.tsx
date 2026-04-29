@@ -13,7 +13,6 @@ import {
   MapPin,
   CircleDot,
   Package,
-  DollarSign,
   Wallet,
   BarChart3,
   LogOut,
@@ -39,8 +38,17 @@ const navItems = [
     icon: CircleDot,
   },
   { href: "/admin/inventory", labelKey: "inventory" as const, icon: Package },
-  { href: "/admin/finance", labelKey: "finance" as const, icon: DollarSign },
   { href: "/admin/fund", labelKey: "fund" as const, icon: Wallet },
+  {
+    href: "/admin/court-rent",
+    labelKey: "courtRent" as const,
+    icon: MapPin,
+  },
+  {
+    href: "/admin/shuttlecock-finance",
+    labelKey: "shuttlecockFinance" as const,
+    icon: CircleDot,
+  },
   { href: "/admin/stats", labelKey: "stats" as const, icon: BarChart3 },
 ];
 
@@ -51,13 +59,19 @@ export function AdminMobileNav({ appName = "FWBB" }: { appName?: string }) {
 
   return (
     <div className="bg-card flex items-center justify-between border-b p-4 lg:hidden">
-      <h1 className="text-lg font-bold">{appName} Admin</h1>
+      <div className="flex items-center gap-2">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/fwbb.svg" alt={appName} className="h-7 w-auto" />
+        <h1 className="text-lg font-bold">{appName} Admin</h1>
+      </div>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger render={<Button variant="ghost" size="icon" />}>
           <Menu className="h-5 w-5" />
         </SheetTrigger>
         <SheetContent side="left" className="w-64 p-0">
-          <div className="border-b p-6">
+          <div className="flex items-center gap-2 border-b p-6">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/fwbb.svg" alt={appName} className="h-8 w-auto" />
             <h2 className="text-lg font-bold">{appName} Admin</h2>
           </div>
           <nav className="flex-1 space-y-1 px-3 py-4">

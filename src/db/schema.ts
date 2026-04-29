@@ -35,7 +35,10 @@ export const courts = sqliteTable("courts", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
   address: text("address"),
+  /** Giá thuê lẻ — 220k/2h. Dùng khi thuê thêm sân ngoài hợp đồng tháng. */
+  pricePerSessionRetail: integer("price_per_session_retail"),
   mapLink: text("map_link"),
+  /** Giá thuê theo tháng — 200k/2h. (Cột `price_per_session` legacy: giá đang dùng = giá tháng). */
   pricePerSession: integer("price_per_session").notNull(),
   isActive: integer("is_active", { mode: "boolean" }).default(true),
 });
@@ -64,6 +67,9 @@ export const sessions = sqliteTable(
     diningBill: integer("dining_bill"),
     adminGuestPlayCount: integer("admin_guest_play_count").default(0),
     adminGuestDineCount: integer("admin_guest_dine_count").default(0),
+    /** Số tiền pass sân (nếu admin hủy buổi và pass cho team khác).
+     * Khi cancelled + passRevenue > 0 → admin đã thu được tiền và nộp vào quỹ. */
+    passRevenue: integer("pass_revenue"),
     notes: text("notes"),
     createdAt: text("created_at").default(sql`(current_timestamp)`),
     updatedAt: text("updated_at").default(sql`(current_timestamp)`),
@@ -290,6 +296,7 @@ export const financialTransactions = sqliteTable(
         "debt_admin_confirmed",
         "debt_undo",
         "inventory_purchase",
+        "court_rent_payment",
         "manual_adjustment",
         "bank_payment_received",
       ],
@@ -306,6 +313,13 @@ export const financialTransactions = sqliteTable(
     reversalOfId: integer("reversal_of_id"),
     description: text("description"),
     metadataJson: text("metadata_json"),
+    /**
+     * Optional idempotency key — set by client (UUID per logical action) so
+     * retries / double-submits coalesce into a single transaction. UNIQUE so
+     * the second insert with the same key fails at DB level (last line of
+     * defence under any race condition).
+     */
+    idempotencyKey: text("idempotency_key"),
     createdAt: text("created_at").default(sql`(current_timestamp)`),
   },
   (table) => [
@@ -313,6 +327,9 @@ export const financialTransactions = sqliteTable(
     index("idx_financial_transactions_session").on(table.sessionId),
     index("idx_financial_transactions_debt").on(table.debtId),
     index("idx_financial_transactions_type").on(table.type),
+    uniqueIndex("idx_financial_transactions_idempotency_key")
+      .on(table.idempotencyKey)
+      .where(sql`${table.idempotencyKey} IS NOT NULL`),
   ],
 );
 
@@ -343,6 +360,25 @@ export const financialTransactionsRelations = relations(
       references: [inventoryPurchases.id],
     }),
   }),
+);
+
+// ─── Rate-limit buckets (DB-backed, multi-instance safe) ───
+//
+// Replaces the previous in-memory Map. On Vercel serverless each instance
+// had its own bucket → attackers could amplify the limit by N instances.
+// DB-backed buckets are global; SQLite serializes writers so the count is
+// always correct under concurrent calls.
+
+export const rateLimitBuckets = sqliteTable(
+  "rate_limit_buckets",
+  {
+    key: text("key").primaryKey(),
+    count: integer("count").notNull().default(0),
+    /** Epoch millis when the bucket window expires. */
+    resetAt: integer("reset_at").notNull(),
+    updatedAt: text("updated_at").default(sql`(current_timestamp)`),
+  },
+  (table) => [index("idx_rate_limit_buckets_reset_at").on(table.resetAt)],
 );
 
 // ─── Payment Notifications (Gmail Pub/Sub) ───

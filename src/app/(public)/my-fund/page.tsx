@@ -1,30 +1,19 @@
+import { getTranslations } from "next-intl/server";
 import { getUserFromCookie } from "@/lib/user-identity";
 import { getFundTransactionsForMember } from "@/actions/fund";
 import { getFundBalance } from "@/lib/fund-calculator";
-import { isFundMember } from "@/lib/fund-calculator";
 import { MyFundClient } from "./my-fund-client";
 
 export default async function MyFundPage() {
-  const user = await getUserFromCookie();
+  const [user, t] = await Promise.all([
+    getUserFromCookie(),
+    getTranslations("myFundPage"),
+  ]);
 
   if (!user) {
     return (
       <div className="text-muted-foreground py-16 text-center">
-        Vui lòng xác định danh tính trước.
-      </div>
-    );
-  }
-
-  const isInFund = await isFundMember(user.memberId);
-
-  if (!isInFund) {
-    return (
-      <div className="mx-auto max-w-lg space-y-3 py-16 text-center">
-        <div className="text-4xl">💰</div>
-        <h2 className="text-lg font-semibold">Bạn chưa tham gia quỹ nhóm</h2>
-        <p className="text-muted-foreground text-sm">
-          Liên hệ admin để được thêm vào quỹ.
-        </p>
+        {t("identifyFirst")}
       </div>
     );
   }
@@ -34,5 +23,11 @@ export default async function MyFundPage() {
     getFundTransactionsForMember(user.memberId),
   ]);
 
-  return <MyFundClient balance={balance} transactions={transactions} />;
+  return (
+    <MyFundClient
+      balance={balance}
+      transactions={transactions}
+      memberId={user.memberId}
+    />
+  );
 }

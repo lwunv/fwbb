@@ -2,6 +2,7 @@ import { getUserFromCookie } from "@/lib/user-identity";
 import { db } from "@/db";
 import { members } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { getTranslations } from "next-intl/server";
 import { Header } from "@/components/layout/header";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { FacebookLoginGate } from "./facebook-login-gate";
@@ -12,14 +13,18 @@ export default async function PublicLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [user, appName] = await Promise.all([getUserFromCookie(), getAppName()]);
+  const [user, appName, tPub] = await Promise.all([
+    getUserFromCookie(),
+    getAppName(),
+    getTranslations("publicLayout"),
+  ]);
 
   // If user is not identified, show the Facebook login gate
   if (!user) {
     return (
-      <div className="min-h-screen flex flex-col">
+      <div className="flex min-h-screen flex-col">
         <Header appName={appName} />
-        <main className="flex-1 flex items-center justify-center p-4">
+        <main className="flex flex-1 items-center justify-center p-4">
           <FacebookLoginGate appName={appName} />
         </main>
       </div>
@@ -33,25 +38,29 @@ export default async function PublicLayout({
 
   if (!member || !member.isActive) {
     return (
-      <div className="min-h-screen flex flex-col">
+      <div className="flex min-h-screen flex-col">
         <Header appName={appName} />
-        <main className="flex-1 flex items-center justify-center p-4">
-          <div className="text-center max-w-sm space-y-4">
+        <main className="flex flex-1 items-center justify-center p-4">
+          <div className="max-w-sm space-y-4 text-center">
             <div className="text-4xl">🚫</div>
-            <h2 className="text-xl font-bold">Tài khoản bị vô hiệu hóa</h2>
+            <h2 className="text-xl font-bold">
+              {tPub("accountDisabledTitle")}
+            </h2>
             <p className="text-muted-foreground">
-              Tài khoản của bạn đã bị vô hiệu hóa. Liên hệ admin để được hỗ trợ.
+              {tPub("accountDisabledBody")}
             </p>
-            <form action={async () => {
-              "use server";
-              const { clearUserCookie } = await import("@/lib/user-identity");
-              await clearUserCookie();
-            }}>
+            <form
+              action={async () => {
+                "use server";
+                const { clearUserCookie } = await import("@/lib/user-identity");
+                await clearUserCookie();
+              }}
+            >
               <button
                 type="submit"
-                className="text-sm text-primary underline underline-offset-2"
+                className="text-primary text-sm underline underline-offset-2"
               >
-                Đăng nhập lại với tài khoản khác
+                {tPub("loginAgainOther")}
               </button>
             </form>
           </div>
@@ -61,11 +70,9 @@ export default async function PublicLayout({
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="flex min-h-screen flex-col">
       <Header appName={appName} />
-      <main className="flex-1 pb-20 px-4 py-4">
-        {children}
-      </main>
+      <main className="flex-1 px-4 py-4 pb-20">{children}</main>
       <BottomNav />
     </div>
   );

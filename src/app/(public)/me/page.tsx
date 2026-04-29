@@ -1,7 +1,7 @@
 import { getUserFromCookie } from "@/lib/user-identity";
 import { db } from "@/db";
-import { members, sessionAttendees, sessionDebts } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { members, sessionDebts } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { getFundBalance, isFundMember } from "@/lib/fund-calculator";
 import { MeClient } from "./me-client";
@@ -16,31 +16,17 @@ export default async function MePage() {
 
   if (!member) redirect("/");
 
-  // Get quick stats for this member
-  // Total sessions played
-  const attendances = await db.query.sessionAttendees.findMany({
-    where: and(
-      eq(sessionAttendees.memberId, user.memberId),
-      eq(sessionAttendees.isGuest, false),
-    ),
-    with: {
-      session: true,
-    },
-  });
-
-  const completedAttendances = attendances.filter(
-    (a) => a.session.status === "completed",
-  );
-
-  const totalPlayed = completedAttendances.filter((a) => a.attendsPlay).length;
-  const totalDined = completedAttendances.filter((a) => a.attendsDine).length;
-
-  // Total spent
   const debts = await db.query.sessionDebts.findMany({
     where: eq(sessionDebts.memberId, user.memberId),
+    with: { session: true },
   });
 
-  const totalSpent = debts.reduce((sum, d) => sum + d.totalAmount, 0);
+  const now = new Date();
+  const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const totalSpentThisMonth = debts
+    .filter((d) => d.session?.date?.startsWith(monthPrefix))
+    .reduce((sum, d) => sum + d.totalAmount, 0);
+
   const outstandingDebt = debts
     .filter((d) => !d.adminConfirmed && !d.memberConfirmed)
     .reduce((sum, d) => sum + d.totalAmount, 0);
@@ -59,9 +45,7 @@ export default async function MePage() {
         avatarUrl={member.avatarUrl ?? null}
         memberName={member.name}
         memberNickname={member.nickname ?? null}
-        totalPlayed={totalPlayed}
-        totalDined={totalDined}
-        totalSpent={totalSpent}
+        totalSpentThisMonth={totalSpentThisMonth}
         outstandingDebt={outstandingDebt}
         fundBalance={fundBalance}
       />

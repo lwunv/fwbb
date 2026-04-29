@@ -20,6 +20,7 @@ export const courtSchema = z.object({
   address: z.string().max(500).optional(),
   mapLink: z.string().url().optional().or(z.literal("")),
   pricePerSession: moneyVnd,
+  pricePerSessionRetail: moneyVnd.optional(),
 });
 
 export const brandSchema = z.object({

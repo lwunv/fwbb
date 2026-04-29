@@ -18,6 +18,7 @@ interface StockCardProps {
 
 export function StockCard({ stock }: StockCardProps) {
   const t = useTranslations("inventory");
+  const tCommon = useTranslations("common");
   const [editing, setEditing] = useState(false);
   const [editOng, setEditOng] = useState(stock.ong);
   const [editQua, setEditQua] = useState(stock.qua);
@@ -35,7 +36,9 @@ export function StockCard({ stock }: StockCardProps) {
               </div>
             </div>
           </div>
-          {!stock.isActive && <Badge variant="secondary">Ngừng</Badge>}
+          {!stock.isActive && (
+            <Badge variant="secondary">{tCommon("inactive")}</Badge>
+          )}
         </div>
 
         {/* Stock display */}
@@ -130,16 +133,16 @@ export function StockCard({ stock }: StockCardProps) {
         )}
 
         {/* Details: Đã mua includes adjustment so math always works */}
-        <div className="text-muted-foreground grid grid-cols-2 gap-x-4 border-t pt-2 text-xs">
-          <span>Đã mua:</span>
+        <div className="text-muted-foreground grid grid-cols-2 gap-x-4 border-t pt-2 text-sm">
+          <span>{t("purchased")}</span>
           <span className="text-right">
             {stock.currentStockQua + stock.totalUsedQua} {t("piece")}
           </span>
-          <span>Đã dùng:</span>
+          <span>{t("used")}</span>
           <span className="text-right">
             {stock.totalUsedQua} {t("piece")}
           </span>
-          <span className="text-foreground font-medium">Tồn kho:</span>
+          <span className="text-foreground font-medium">{t("onHand")}</span>
           <span className="text-foreground text-right font-medium">
             {stock.currentStockQua} {t("piece")}
           </span>

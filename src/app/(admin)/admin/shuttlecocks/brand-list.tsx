@@ -32,7 +32,7 @@ type Brand = InferSelectModel<typeof brandsTable>;
 export function BrandList({ brands }: { brands: Brand[] }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
-  const [price, setPrice] = useState(0);
+  const [price, setPrice] = useState(320000);
   const [toggledBrands, setToggledBrands] = useState<Record<number, boolean>>(
     {},
   );
@@ -70,6 +70,7 @@ export function BrandList({ brands }: { brands: Brand[] }) {
         open={dialogOpen}
         onOpenChange={(open) => {
           setDialogOpen(open);
+          if (open && !editingBrand) setPrice(320000);
           if (!open) setEditingBrand(null);
         }}
       >
@@ -106,6 +107,7 @@ export function BrandList({ brands }: { brands: Brand[] }) {
                 name="pricePerTube"
                 min={0}
                 step={5000}
+                className="flex w-full"
               />
             </div>
             <Button type="submit" className="w-full">
@@ -158,7 +160,7 @@ export function BrandList({ brands }: { brands: Brand[] }) {
                       }}
                     >
                       <Edit className="mr-1.5 h-4 w-4" />
-                      Sửa
+                      {tCommon("edit")}
                     </Button>
                     <Button
                       variant={isActive ? "destructive" : "default"}
@@ -168,12 +170,12 @@ export function BrandList({ brands }: { brands: Brand[] }) {
                       {isActive ? (
                         <>
                           <X className="mr-1.5 h-4 w-4" />
-                          Xóa
+                          {tCommon("delete")}
                         </>
                       ) : (
                         <>
                           <ToggleLeft className="mr-1.5 h-4 w-4" />
-                          Bật
+                          {tCommon("enable")}
                         </>
                       )}
                     </Button>

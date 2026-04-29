@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +22,7 @@ interface PurchaseFormProps {
 }
 
 export function PurchaseForm({ brands }: PurchaseFormProps) {
+  const t = useTranslations("inventory");
   const [success, setSuccess] = useState(false);
   const [selectedBrandId, setSelectedBrandId] = useState<string>(
     brands.length > 0 ? String(brands[0].id) : "",
@@ -78,18 +80,18 @@ export function PurchaseForm({ brands }: PurchaseFormProps) {
   return (
     <Card>
       <CardContent className="p-4">
-        <h3 className="mb-3 font-semibold">Nhập mua cầu</h3>
+        <h3 className="mb-3 font-semibold">{t("purchaseShuttle")}</h3>
         <form onSubmit={handleSubmit} className="space-y-3">
           {/* Brand */}
           <div>
-            <Label>Hãng cầu</Label>
+            <Label>{t("brandField")}</Label>
             <CustomSelect
               value={selectedBrandId}
               onChange={handleBrandChange}
-              placeholder="Chọn hãng..."
+              placeholder={t("selectBrand")}
               options={brands.map((b) => ({
                 value: String(b.id),
-                label: `${b.name} (${formatK(b.pricePerTube)}/ống)`,
+                label: `${b.name} (${formatK(b.pricePerTube)}/${t("tube")})`,
               }))}
             />
           </div>
@@ -97,7 +99,7 @@ export function PurchaseForm({ brands }: PurchaseFormProps) {
           <div className="grid grid-cols-2 gap-3">
             {/* Tubes */}
             <div className="space-y-1">
-              <Label>Số ống</Label>
+              <Label>{t("tubesCount")}</Label>
               <NumberStepper
                 value={tubes}
                 onChange={setTubes}
@@ -108,7 +110,7 @@ export function PurchaseForm({ brands }: PurchaseFormProps) {
 
             {/* Price per tube */}
             <div className="space-y-1">
-              <Label>Giá/ống (VND)</Label>
+              <Label>{t("pricePerTubeShort")}</Label>
               <NumberStepper
                 value={pricePerTube}
                 onChange={setPricePerTube}
@@ -120,7 +122,7 @@ export function PurchaseForm({ brands }: PurchaseFormProps) {
 
           {/* Date */}
           <div>
-            <Label>Ngày mua</Label>
+            <Label>{t("purchaseDate")}</Label>
             <Input
               type="date"
               value={purchasedAt}
@@ -130,30 +132,27 @@ export function PurchaseForm({ brands }: PurchaseFormProps) {
 
           {/* Notes */}
           <div>
-            <Label>Ghi chú</Label>
+            <Label>{t("notesLabel")}</Label>
             <Input
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Ghi chú (tùy chọn)"
+              placeholder={t("notesOptional")}
             />
           </div>
 
           {/* Total */}
           {totalPrice > 0 && (
             <div className="text-muted-foreground text-sm">
-              Tổng:{" "}
-              <strong className="text-foreground">{formatK(totalPrice)}</strong>
+              {t("totalWithAmount", { amount: formatK(totalPrice) })}
             </div>
           )}
 
           <Button type="submit" disabled={!selectedBrandId} className="w-full">
             <Plus className="mr-2 h-4 w-4" />
-            Nhập mua
+            {t("recordPurchase")}
           </Button>
 
-          {success && (
-            <p className="text-primary text-sm">Đã lưu thành công!</p>
-          )}
+          {success && <p className="text-primary text-sm">{t("savedOk")}</p>}
         </form>
       </CardContent>
     </Card>

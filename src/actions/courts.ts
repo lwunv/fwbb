@@ -24,11 +24,14 @@ export async function createCourt(formData: FormData) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
 
+  const retailRaw = formData.get("pricePerSessionRetail");
   const parsed = courtSchema.safeParse({
     name: formData.get("name") as string,
     address: (formData.get("address") as string) || undefined,
     mapLink: (formData.get("mapLink") as string) || "",
     pricePerSession: Number(formData.get("pricePerSession")),
+    pricePerSessionRetail:
+      retailRaw != null && retailRaw !== "" ? Number(retailRaw) : undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await db.insert(courts).values({
@@ -43,11 +46,14 @@ export async function updateCourt(id: number, formData: FormData) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
 
+  const retailRaw = formData.get("pricePerSessionRetail");
   const parsed = courtSchema.safeParse({
     name: formData.get("name") as string,
     address: (formData.get("address") as string) || undefined,
     mapLink: (formData.get("mapLink") as string) || "",
     pricePerSession: Number(formData.get("pricePerSession")),
+    pricePerSessionRetail:
+      retailRaw != null && retailRaw !== "" ? Number(retailRaw) : undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await db

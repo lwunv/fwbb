@@ -45,7 +45,9 @@ export async function getAdminFromCookie() {
   return verifyAdminToken(token);
 }
 
-export async function requireAdmin() {
+export async function requireAdmin(): Promise<
+  { admin: import("jose").JWTPayload } | { error: string }
+> {
   const admin = await getAdminFromCookie();
   if (!admin || admin.role !== "admin") {
     return { error: "Không có quyền admin" };

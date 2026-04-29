@@ -62,6 +62,35 @@ export function calculateExactShuttlecockCost(
 }
 
 /**
+ * Pure per-head cost helper. Same rounding rules as `calculateSessionCosts`
+ * (round UP to next 1k via `roundToThousand`), but exposes only the two
+ * per-head numbers — useful for UI summaries where we already know totals
+ * and just need to display "ai trả bao nhiêu một suất".
+ *
+ * Returns `0` when the divisor is 0 to avoid `Infinity` / `NaN` propagating
+ * into UI.
+ */
+export function computePerHeadCharges(input: {
+  courtPrice: number;
+  shuttlecockCost: number;
+  diningBill: number;
+  playerCount: number;
+  dinerCount: number;
+}): { playCostPerHead: number; dineCostPerHead: number } {
+  const playCostPerHead =
+    input.playerCount > 0
+      ? roundToThousand(
+          (input.courtPrice + input.shuttlecockCost) / input.playerCount,
+        )
+      : 0;
+  const dineCostPerHead =
+    input.dinerCount > 0
+      ? roundToThousand(input.diningBill / input.dinerCount)
+      : 0;
+  return { playCostPerHead, dineCostPerHead };
+}
+
+/**
  * Pure cost calculation function.
  *
  * Algorithm (from spec 5.5):

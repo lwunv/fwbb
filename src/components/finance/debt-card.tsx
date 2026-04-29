@@ -2,21 +2,15 @@
 
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { formatK } from "@/lib/utils";
-import {
-  Calendar,
-  CheckCircle,
-  ChevronDown,
-  ChevronUp,
-  QrCode,
-} from "lucide-react";
+import { Calendar, CheckCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { formatSessionDate } from "@/lib/date-format";
 import type { AppLocale } from "@/lib/date-fns-locale";
-import { VietQRPayment } from "@/components/payment/vietqr-payment";
+import { PaymentQR } from "@/components/payment/payment-qr";
 
 export interface DebtCardData {
   id: number;
@@ -55,7 +49,6 @@ export function DebtCard({
   const t = useTranslations("finance");
   const locale = useLocale() as AppLocale;
   const [expanded, setExpanded] = useState(false);
-  const [showQR, setShowQR] = useState(false);
   const hasBreakdown =
     debt.playAmount > 0 ||
     debt.dineAmount > 0 ||
@@ -63,20 +56,25 @@ export function DebtCard({
     debt.guestDineAmount > 0;
   const isUnpaid = !debt.memberConfirmed && !debt.adminConfirmed;
 
-  function getStatusBadge(memberConfirmed: boolean, adminConfirmed: boolean) {
-    if (adminConfirmed) {
-      return { label: t("confirmed"), variant: "default" as const };
-    }
-    if (memberConfirmed) {
-      return { label: t("paid"), variant: "default" as const };
-    }
-    return { label: t("unpaid"), variant: "destructive" as const };
-  }
-
-  const status = getStatusBadge(debt.memberConfirmed, debt.adminConfirmed);
+  // adminConfirmed = "Đã thanh toán" (xanh dương)
+  // memberConfirmed && !adminConfirmed = "Cần xác nhận" (xanh lá)
+  // !memberConfirmed && !adminConfirmed = "Chưa thanh toán" (đỏ)
+  // (Future) partialPaid khi có ledger ghi nhận 1 phần — chưa implement
+  const statusBadge = debt.adminConfirmed
+    ? { variant: "paid" as const, label: t("paid") }
+    : debt.memberConfirmed
+      ? { variant: "needsConfirm" as const, label: t("needsConfirm") }
+      : { variant: "unpaid" as const, label: t("unpaid") };
 
   return (
-    <Card size="sm">
+    <Card
+      size="sm"
+      className={
+        isUnpaid
+          ? "border-destructive/50 ring-destructive/25 ring-1"
+          : undefined
+      }
+    >
       <CardContent className="space-y-2 p-3">
         {/* Header */}
         <div className="flex items-start justify-between gap-2">
@@ -95,7 +93,7 @@ export function DebtCard({
                   {debt.memberName}
                 </div>
               )}
-              <div className="text-muted-foreground flex items-center gap-1 text-xs">
+              <div className="text-muted-foreground flex items-center gap-1 text-sm">
                 <Calendar className="h-4 w-4" />
                 <span>
                   {formatSessionDate(debt.sessionDate, "weekdayLong", locale)}
@@ -110,7 +108,9 @@ export function DebtCard({
               >
                 {formatK(debt.totalAmount)}
               </span>
-              <Badge variant={status.variant}>{status.label}</Badge>
+              <StatusBadge variant={statusBadge.variant}>
+                {statusBadge.label}
+              </StatusBadge>
             </div>
             {hasBreakdown && (
               <Button
@@ -167,24 +167,19 @@ export function DebtCard({
           </div>
         )}
 
-        {/* Action buttons */}
+        {/* Inline QR + action — chỉ hiện khi còn nợ */}
         {onPayAction && isUnpaid && (
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setShowQR(true)}
-              className="flex-1"
-            >
-              <QrCode className="mr-1 h-4 w-4" />
-              Chuyển khoản
-            </Button>
+          <div className="space-y-2 pt-1">
+            <PaymentQR
+              amount={debt.totalAmount}
+              memo={t("qrMemoDebt", { id: debt.sessionId })}
+            />
             <Button
               size="sm"
               variant="default"
               onClick={() => onPayAction(debt.id)}
               disabled={actionLoading}
-              className="flex-1"
+              className="w-full"
             >
               <CheckCircle className="mr-1 h-4 w-4" />
               {actionLabel ?? t("paid")}
@@ -192,17 +187,6 @@ export function DebtCard({
           </div>
         )}
       </CardContent>
-
-      {/* VietQR Payment Sheet */}
-      {showQR && (
-        <VietQRPayment
-          amount={debt.totalAmount}
-          memo={`FWBB S${debt.sessionId}`}
-          onClose={() => setShowQR(false)}
-          title="Thanh toán nợ"
-          description={`Buổi ${formatSessionDate(debt.sessionDate)}`}
-        />
-      )}
     </Card>
   );
 }

@@ -9,7 +9,7 @@ import { Home, Clock, Wallet, BarChart3, User } from "lucide-react";
 const navItems = [
   { href: "/", labelKey: "home" as const, icon: Home },
   { href: "/history", labelKey: "history" as const, icon: Clock },
-  { href: "/my-debts", labelKey: "debts" as const, icon: Wallet },
+  { href: "/my-fund", labelKey: "fund" as const, icon: Wallet },
   { href: "/stats", labelKey: "stats" as const, icon: BarChart3 },
   { href: "/me", labelKey: "me" as const, icon: User },
 ];

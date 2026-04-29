@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Roboto } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { NextIntlClientProvider } from "next-intl";
-import { getLocale, getMessages } from "next-intl/server";
+import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { Providers } from "@/components/providers";
 import "./globals.css";
@@ -25,10 +25,16 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "FWBB - Quản lý nhóm cầu lông",
-  description: "Ứng dụng quản lý nhóm cầu lông phong trào",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("appMeta");
+  return {
+    title: t("title"),
+    description: t("description"),
+    other: {
+      google: "notranslate",
+    },
+  };
+}
 
 export default async function RootLayout({
   children,
@@ -41,7 +47,8 @@ export default async function RootLayout({
   return (
     <html
       lang={locale}
-      className={`${roboto.variable} ${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      translate="no"
+      className={`${roboto.variable} ${geistSans.variable} ${geistMono.variable} notranslate h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col">

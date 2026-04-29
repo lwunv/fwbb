@@ -58,7 +58,7 @@ export function NumberStepper({
           const raw = parseInt(e.target.value, 10);
           if (!Number.isNaN(raw)) set(raw);
         }}
-        className="w-14 min-w-0 [appearance:textfield] border-0 bg-transparent py-0 text-center text-base font-bold tabular-nums outline-none focus-visible:ring-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        className="w-14 min-w-14 flex-1 [appearance:textfield] border-0 bg-transparent py-0 text-center text-base font-bold tabular-nums outline-none focus-visible:ring-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
       />
       <button
         type="button"
