@@ -1,7 +1,6 @@
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { formatK } from "@/lib/utils";
 import { Clock, MapPin, Navigation, Users } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { formatSessionDate } from "@/lib/date-format";
@@ -17,7 +16,6 @@ interface SessionCardProps {
   endTime: string | null;
   courtName?: string | null;
   courtMapLink?: string | null;
-  courtPrice?: number | null;
   status: string | null;
   playerCount: number;
   dinerCount: number;
@@ -31,7 +29,6 @@ export function SessionCard({
   endTime,
   courtName,
   courtMapLink,
-  courtPrice,
   status,
   playerCount,
   dinerCount,
@@ -82,11 +79,6 @@ export function SessionCard({
                   {t("directions")}
                 </a>
               )}
-              {courtPrice != null && (
-                <span className="text-primary font-medium">
-                  ({formatK(courtPrice)})
-                </span>
-              )}
             </div>
           )}
 
@@ -100,7 +92,7 @@ export function SessionCard({
                 </strong>{" "}
                 {t("people")}
                 {guestPlayCount > 0 && (
-                  <span className="text-primary/85 tabular-nums">
+                  <span className="text-white tabular-nums">
                     {" "}
                     ({guestPlayCount} {t("guest")})
                   </span>
@@ -113,7 +105,7 @@ export function SessionCard({
                 </strong>{" "}
                 {t("people")}
                 {guestDineCount > 0 && (
-                  <span className="text-orange-600/90 tabular-nums dark:text-orange-400/90">
+                  <span className="text-white tabular-nums">
                     {" "}
                     ({guestDineCount} {t("guest")})
                   </span>

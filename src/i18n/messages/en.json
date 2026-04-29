@@ -208,7 +208,8 @@
     "perSession": "Session",
     "perWeek": "Week",
     "perMonth": "Month",
-    "perYear": "Year"
+    "perYear": "Year",
+    "allYears": "All years"
   },
   "timeFilter": {
     "week": "Week",

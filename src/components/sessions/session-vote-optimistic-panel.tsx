@@ -24,7 +24,6 @@ interface SessionVoteOptimisticPanelProps {
     endTime: string | null;
     courtName?: string | null;
     courtMapLink?: string | null;
-    courtPrice?: number | null;
     status: string | null;
   };
   votes: VoteWithMember[];
@@ -109,7 +108,6 @@ export function SessionVoteOptimisticPanel({
         endTime={sessionMeta.endTime}
         courtName={sessionMeta.courtName}
         courtMapLink={sessionMeta.courtMapLink}
-        courtPrice={sessionMeta.courtPrice}
         status={sessionMeta.status}
         playerCount={playerCount}
         dinerCount={dinerCount}

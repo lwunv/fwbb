@@ -69,7 +69,7 @@ export function ActiveMembersChart({ data }: ActiveMembersChartProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1 rounded-lg bg-muted p-1 w-fit">
+      <div className="bg-muted flex w-fit gap-1 rounded-lg p-1">
         {(Object.entries(viewLabels) as [ViewMode, string][]).map(
           ([key, label]) => (
             <button
@@ -79,28 +79,35 @@ export function ActiveMembersChart({ data }: ActiveMembersChartProps) {
                 "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                 mode === key
                   ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               {label}
             </button>
-          )
+          ),
         )}
       </div>
 
       {chartData.length === 0 ? (
-        <div className="flex items-center justify-center h-[300px] text-muted-foreground text-sm">
+        <div className="text-muted-foreground flex h-[300px] items-center justify-center text-sm">
           {t("noData")}
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={Math.max(300, chartData.length * 44)}>
+        <ResponsiveContainer
+          width="100%"
+          height={Math.max(300, chartData.length * 44)}
+        >
           <BarChart
             data={chartData}
             layout="vertical"
             margin={{ top: 8, right: 16, left: 4, bottom: 8 }}
           >
             <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-            <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
+            <XAxis
+              type="number"
+              allowDecimals={false}
+              tick={{ fontSize: 11 }}
+            />
             <YAxis
               type="category"
               dataKey="displayName"
@@ -131,18 +138,38 @@ export function ActiveMembersChart({ data }: ActiveMembersChartProps) {
               }}
             />
             <Tooltip
+              cursor={{
+                fill: "var(--color-foreground, #0f172a)",
+                fillOpacity: 0.06,
+              }}
               contentStyle={{
                 backgroundColor: "var(--color-popover, #fff)",
                 border: "1px solid var(--color-border, #e2e8f0)",
-                borderRadius: "8px",
+                borderRadius: "12px",
                 color: "var(--color-popover-foreground, #1e293b)",
+                boxShadow: "0 8px 24px -8px rgba(0,0,0,0.25)",
+                padding: "10px 12px",
+                fontSize: 12,
               }}
+              itemStyle={{ padding: "2px 0" }}
               labelFormatter={(_, payload) =>
-                (payload?.[0]?.payload as { memberName?: string })?.memberName ?? ""
+                (payload?.[0]?.payload as { memberName?: string })
+                  ?.memberName ?? ""
               }
-              formatter={(value) => [`${value} ${t("sessionsUnit")}`, viewLabels[mode]]}
+              formatter={(value) => [
+                `${value} ${t("sessionsUnit")}`,
+                viewLabels[mode],
+              ]}
             />
-            <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+            <Bar
+              dataKey="value"
+              radius={[0, 4, 4, 0]}
+              activeBar={{
+                stroke: "var(--color-foreground, #0f172a)",
+                strokeOpacity: 0.35,
+                strokeWidth: 1,
+              }}
+            >
               {chartData.map((_, index) => (
                 <Cell
                   key={`cell-${index}`}

@@ -52,7 +52,6 @@ export default async function HomePage() {
               endTime={latestSession.endTime}
               courtName={latestSession.court?.name}
               courtMapLink={latestSession.court?.mapLink ?? null}
-              courtPrice={latestSession.courtPrice}
               status={latestSession.status}
               playerCount={0}
               dinerCount={0}
@@ -109,7 +108,6 @@ export default async function HomePage() {
             endTime: nextSession.endTime,
             courtName: nextSession.court?.name,
             courtMapLink: nextSession.court?.mapLink ?? null,
-            courtPrice: nextSession.courtPrice,
             status: nextSession.status,
           }}
           votes={votes}
@@ -136,7 +134,6 @@ export default async function HomePage() {
             endTime={latestSession.endTime}
             courtName={latestSession.court?.name}
             courtMapLink={latestSession.court?.mapLink ?? null}
-            courtPrice={latestSession.courtPrice}
             status={latestSession.status}
             playerCount={0}
             dinerCount={0}

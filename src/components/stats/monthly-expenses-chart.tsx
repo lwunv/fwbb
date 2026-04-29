@@ -91,12 +91,20 @@ export function MonthlyExpensesChart({
               width={50}
             />
             <Tooltip
+              cursor={{
+                fill: "var(--color-foreground, #0f172a)",
+                fillOpacity: 0.06,
+              }}
               contentStyle={{
                 backgroundColor: "var(--color-popover, #fff)",
                 border: "1px solid var(--color-border, #e2e8f0)",
-                borderRadius: "8px",
+                borderRadius: "12px",
                 color: "var(--color-popover-foreground, #1e293b)",
+                boxShadow: "0 8px 24px -8px rgba(0,0,0,0.25)",
+                padding: "10px 12px",
+                fontSize: 12,
               }}
+              itemStyle={{ padding: "2px 0" }}
               formatter={(value, name) => [
                 formatK(Number(value)),
                 labels[String(name)] || String(name),
@@ -126,12 +134,22 @@ export function MonthlyExpensesChart({
               stackId="a"
               fill="var(--color-chart-1, #6366f1)"
               hide={hidden.has("courtCost")}
+              activeBar={{
+                stroke: "var(--color-foreground, #0f172a)",
+                strokeOpacity: 0.35,
+                strokeWidth: 1,
+              }}
             />
             <Bar
               dataKey="shuttlecockCost"
               stackId="a"
               fill="var(--color-chart-2, #8b5cf6)"
               hide={hidden.has("shuttlecockCost")}
+              activeBar={{
+                stroke: "var(--color-foreground, #0f172a)",
+                strokeOpacity: 0.35,
+                strokeWidth: 1,
+              }}
             />
             <Bar
               dataKey="diningCost"
@@ -139,6 +157,11 @@ export function MonthlyExpensesChart({
               fill="var(--color-chart-3, #10b981)"
               radius={[4, 4, 0, 0]}
               hide={hidden.has("diningCost")}
+              activeBar={{
+                stroke: "var(--color-foreground, #0f172a)",
+                strokeOpacity: 0.35,
+                strokeWidth: 1,
+              }}
             />
           </BarChart>
         </ResponsiveContainer>

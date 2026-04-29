@@ -33,23 +33,24 @@ export default async function VoteSessionPage({
     getActiveMembers(),
   ]);
 
-  const isVotingOpen = session.status === "voting" || session.status === "confirmed";
+  const isVotingOpen =
+    session.status === "voting" || session.status === "confirmed";
 
   return (
-    <div className="space-y-4 max-w-lg mx-auto">
+    <div className="mx-auto max-w-lg space-y-4">
       <div className="flex items-center gap-2">
         <Link href="/">
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <h1 className="text-lg font-bold flex-1">{t("session")}</h1>
+        <h1 className="flex-1 text-lg font-bold">{t("session")}</h1>
         <CopyLinkButton sessionId={session.id} />
       </div>
 
       {!isVotingOpen && (
         <Card>
-          <CardContent className="p-4 text-center text-muted-foreground">
+          <CardContent className="text-muted-foreground p-4 text-center">
             {session.status === "cancelled"
               ? t("sessionCancelled")
               : t("sessionCompleted")}
@@ -65,7 +66,6 @@ export default async function VoteSessionPage({
           endTime: session.endTime,
           courtName: session.court?.name,
           courtMapLink: session.court?.mapLink ?? null,
-          courtPrice: session.courtPrice,
           status: session.status,
         }}
         votes={votes}

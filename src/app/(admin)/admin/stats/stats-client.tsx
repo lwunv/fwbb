@@ -2,7 +2,14 @@
 
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { ActiveMembersChart } from "@/components/stats/active-members-chart";
 import { MonthlyExpensesChart } from "@/components/stats/monthly-expenses-chart";
 import { AttendanceChart } from "@/components/stats/attendance-chart";
@@ -17,7 +24,9 @@ interface StatsClientProps {
   activeMembers: ActiveMemberStat[];
   monthlyExpenses: MonthlyExpense[];
   attendance: AttendancePoint[];
-  expenseGroup?: string;
+  expenseGroup: string;
+  activeYear: string;
+  availableYears: string[];
 }
 
 const GROUP_OPTIONS = ["session", "week", "month", "year"] as const;
@@ -26,7 +35,9 @@ export function StatsClient({
   activeMembers,
   monthlyExpenses,
   attendance,
-  expenseGroup = "week",
+  expenseGroup,
+  activeYear,
+  availableYears,
 }: StatsClientProps) {
   const t = useTranslations("stats");
   const router = useRouter();
@@ -40,40 +51,30 @@ export function StatsClient({
     year: t("perYear"),
   };
 
-  function handleGroupChange(group: string) {
+  const yearOptions = [
+    { value: "all", label: t("allYears") },
+    ...availableYears.map((y) => ({ value: y, label: y })),
+  ];
+
+  function setParam(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString());
-    params.set("expenseGroup", group);
-    // Đồng bộ period cho 2 chart còn lại (session→all)
-    params.set("period", group === "session" ? "all" : group);
+    params.set(key, value);
     router.push(`?${params.toString()}`, { scroll: false });
   }
 
   return (
     <div className="space-y-4">
-      {/* Filter chung — áp cho cả 3 biểu đồ */}
-      <Card>
-        <CardContent className="p-3 sm:p-4">
-          <div className="bg-muted flex gap-1 rounded-lg p-1">
-            {GROUP_OPTIONS.map((g) => (
-              <button
-                key={g}
-                onClick={() => handleGroupChange(g)}
-                className={`flex-1 rounded-md px-2 py-2 text-sm font-medium transition-colors ${
-                  expenseGroup === g
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {groupLabels[g]}
-              </button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
       <Card>
         <CardHeader>
           <CardTitle>{t("activeMembers")}</CardTitle>
+          <CardAction>
+            <CustomSelect
+              options={yearOptions}
+              value={activeYear}
+              onChange={(v) => setParam("activeYear", v)}
+              className="w-36"
+            />
+          </CardAction>
         </CardHeader>
         <CardContent>
           <ActiveMembersChart data={activeMembers} />
@@ -84,7 +85,22 @@ export function StatsClient({
         <CardHeader>
           <CardTitle>{t("monthlyCost")}</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <div className="bg-muted flex gap-1 rounded-lg p-1">
+            {GROUP_OPTIONS.map((g) => (
+              <button
+                key={g}
+                onClick={() => setParam("expenseGroup", g)}
+                className={`flex-1 rounded-md px-2 py-2 text-sm font-medium transition-colors ${
+                  expenseGroup === g
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {groupLabels[g]}
+              </button>
+            ))}
+          </div>
           <MonthlyExpensesChart data={monthlyExpenses} groupBy={expenseGroup} />
         </CardContent>
       </Card>

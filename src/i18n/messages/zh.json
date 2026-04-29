@@ -208,7 +208,8 @@
     "perSession": "每场",
     "perWeek": "每周",
     "perMonth": "每月",
-    "perYear": "每年"
+    "perYear": "每年",
+    "allYears": "所有年份"
   },
   "timeFilter": {
     "week": "周",

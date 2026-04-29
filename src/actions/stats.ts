@@ -6,21 +6,33 @@ import { eq, inArray } from "drizzle-orm";
 import { calculateExactShuttlecockCost } from "@/lib/cost-calculator";
 import { roundToThousand } from "@/lib/utils";
 
-function getDateFilterStart(filter: string): string | null {
+/**
+ * Date-range start cho biểu đồ chi phí, derive từ groupBy:
+ *   session → 3 tháng gần nhất
+ *   week    → 6 tháng gần nhất
+ *   month   → 2 năm gần nhất
+ *   year    → all time (null)
+ */
+function getExpenseRangeStart(groupBy: string): string | null {
   const now = new Date();
-  switch (filter) {
-    case "week":
-      return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .split("T")[0];
-    case "month":
-      return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .split("T")[0];
+  const ymd = (d: Date) => d.toISOString().split("T")[0];
+  switch (groupBy) {
+    case "session": {
+      const d = new Date(now);
+      d.setMonth(d.getMonth() - 3);
+      return ymd(d);
+    }
+    case "week": {
+      const d = new Date(now);
+      d.setMonth(d.getMonth() - 6);
+      return ymd(d);
+    }
+    case "month": {
+      const d = new Date(now);
+      d.setFullYear(d.getFullYear() - 2);
+      return ymd(d);
+    }
     case "year":
-      return new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .split("T")[0];
     default:
       return null;
   }
@@ -34,12 +46,14 @@ export interface ActiveMemberStat {
   bothCount: number;
 }
 
+/**
+ * yearFilter: "all" | "YYYY" — chỉ giữ buổi có session.date.startsWith(yearFilter).
+ */
 export async function getActiveMembersStats(
-  filter: string = "all",
+  yearFilter: string = "all",
 ): Promise<ActiveMemberStat[]> {
-  const dateStart = getDateFilterStart(filter);
+  const yearPrefix = /^\d{4}$/.test(yearFilter) ? yearFilter : null;
 
-  // Get all completed sessions with attendees
   const completedSessions = await db.query.sessions.findMany({
     where: eq(sessions.status, "completed"),
     with: {
@@ -47,9 +61,8 @@ export async function getActiveMembersStats(
     },
   });
 
-  // Filter by date if needed
-  const filteredSessions = dateStart
-    ? completedSessions.filter((s) => s.date >= dateStart)
+  const filteredSessions = yearPrefix
+    ? completedSessions.filter((s) => s.date.startsWith(yearPrefix))
     : completedSessions;
 
   // Get all members
@@ -112,17 +125,20 @@ function getExpenseGroupKey(date: string, groupBy: string): string {
   }
 }
 
-/** Chi phí gom theo buổi (toàn CLB): sân + cầu + nhậu */
+/**
+ * Chi phí gom theo buổi (toàn CLB): sân + cầu + nhậu.
+ * Date range tự động derive từ groupBy:
+ *   session → 3 tháng | week → 6 tháng | month → 2 năm | year → all time
+ */
 export async function getMonthlyExpenses(
-  filter: string = "all",
   groupBy: string = "week",
   forMemberId?: number | null,
 ): Promise<MonthlyExpense[]> {
   if (forMemberId != null && forMemberId > 0) {
-    return getMonthlyExpensesForMember(forMemberId, filter, groupBy);
+    return getMonthlyExpensesForMember(forMemberId, groupBy);
   }
 
-  const dateStart = getDateFilterStart(filter);
+  const dateStart = getExpenseRangeStart(groupBy);
 
   const completedSessions = await db.query.sessions.findMany({
     where: eq(sessions.status, "completed"),
@@ -175,10 +191,9 @@ export async function getMonthlyExpenses(
  */
 async function getMonthlyExpensesForMember(
   memberId: number,
-  filter: string,
   groupBy: string,
 ): Promise<MonthlyExpense[]> {
-  const dateStart = getDateFilterStart(filter);
+  const dateStart = getExpenseRangeStart(groupBy);
 
   const debts = await db.query.sessionDebts.findMany({
     where: eq(sessionDebts.memberId, memberId),
@@ -291,4 +306,21 @@ export async function getAttendanceTrend(): Promise<AttendancePoint[]> {
     playerCount: session.attendees.filter((a) => a.attendsPlay).length,
     dinerCount: session.attendees.filter((a) => a.attendsDine).length,
   }));
+}
+
+/**
+ * Danh sách các năm có session đã hoàn thành, sort giảm dần (mới nhất trước).
+ * Luôn bao gồm năm hiện tại để dropdown không trống lúc khởi tạo CLB mới.
+ */
+export async function getAvailableYears(): Promise<string[]> {
+  const completed = await db.query.sessions.findMany({
+    where: eq(sessions.status, "completed"),
+    columns: { date: true },
+  });
+  const years = new Set<string>();
+  for (const s of completed) {
+    if (s.date) years.add(s.date.substring(0, 4));
+  }
+  years.add(String(new Date().getFullYear()));
+  return [...years].sort((a, b) => b.localeCompare(a));
 }

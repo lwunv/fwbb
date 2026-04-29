@@ -208,7 +208,8 @@
     "perSession": "Buổi",
     "perWeek": "Tuần",
     "perMonth": "Tháng",
-    "perYear": "Năm"
+    "perYear": "Năm",
+    "allYears": "Tất cả các năm"
   },
   "timeFilter": {
     "week": "Tuần",

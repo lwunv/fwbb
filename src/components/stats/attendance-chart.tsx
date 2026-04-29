@@ -33,13 +33,14 @@ export function AttendanceChart({ data }: AttendanceChartProps) {
   const avgPlayers =
     chartData.length > 0
       ? Math.round(
-          chartData.reduce((sum, d) => sum + d.playerCount, 0) / chartData.length
+          chartData.reduce((sum, d) => sum + d.playerCount, 0) /
+            chartData.length,
         )
       : 0;
 
   if (chartData.length === 0) {
     return (
-      <div className="flex items-center justify-center h-[300px] text-muted-foreground text-sm">
+      <div className="text-muted-foreground flex h-[300px] items-center justify-center text-sm">
         {t("noData")}
       </div>
     );
@@ -47,7 +48,7 @@ export function AttendanceChart({ data }: AttendanceChartProps) {
 
   return (
     <div className="space-y-2">
-      <div className="text-xs text-muted-foreground">
+      <div className="text-muted-foreground text-xs">
         {t("average")}: {avgPlayers} {t("peoplePerSession")}
       </div>
       <ResponsiveContainer width="100%" height={300}>
@@ -63,18 +64,30 @@ export function AttendanceChart({ data }: AttendanceChartProps) {
           />
           <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={30} />
           <Tooltip
+            cursor={{
+              stroke: "var(--color-foreground, #0f172a)",
+              strokeOpacity: 0.25,
+              strokeDasharray: "3 3",
+            }}
             contentStyle={{
               backgroundColor: "var(--color-popover, #fff)",
               border: "1px solid var(--color-border, #e2e8f0)",
-              borderRadius: "8px",
+              borderRadius: "12px",
               color: "var(--color-popover-foreground, #1e293b)",
+              boxShadow: "0 8px 24px -8px rgba(0,0,0,0.25)",
+              padding: "10px 12px",
+              fontSize: 12,
             }}
+            itemStyle={{ padding: "2px 0" }}
             formatter={(value, name) => {
               const labels: Record<string, string> = {
                 playerCount: t("players"),
                 dinerCount: t("diners"),
               };
-              return [`${value} ${t("people")}`, labels[String(name)] || String(name)];
+              return [
+                `${value} ${t("people")}`,
+                labels[String(name)] || String(name),
+              ];
             }}
             labelFormatter={(label) => `${t("dateLabel")} ${label}`}
           />
@@ -108,13 +121,19 @@ export function AttendanceChart({ data }: AttendanceChartProps) {
           />
         </LineChart>
       </ResponsiveContainer>
-      <div className="flex gap-4 justify-center text-xs text-muted-foreground">
+      <div className="text-muted-foreground flex justify-center gap-4 text-xs">
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-0.5 bg-[var(--color-chart-1,#6366f1)]" />
+          <div className="h-0.5 w-3 bg-[var(--color-chart-1,#6366f1)]" />
           {t("players")}
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-0.5 bg-[var(--color-chart-3,#10b981)] border-dashed" style={{ borderTop: "2px dashed var(--color-chart-3, #10b981)", height: 0 }} />
+          <div
+            className="h-0.5 w-3 border-dashed bg-[var(--color-chart-3,#10b981)]"
+            style={{
+              borderTop: "2px dashed var(--color-chart-3, #10b981)",
+              height: 0,
+            }}
+          />
           {t("diners")}
         </div>
       </div>

@@ -2,6 +2,7 @@ import {
   getActiveMembersStats,
   getMonthlyExpenses,
   getAttendanceTrend,
+  getAvailableYears,
 } from "@/actions/stats";
 import { StatsClient } from "@/app/(admin)/admin/stats/stats-client";
 import { getUserFromCookie } from "@/lib/user-identity";
@@ -9,16 +10,18 @@ import { getUserFromCookie } from "@/lib/user-identity";
 export default async function PublicStatsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; expenseGroup?: string }>;
+  searchParams: Promise<{ activeYear?: string; expenseGroup?: string }>;
 }) {
-  const { period = "all", expenseGroup = "week" } = await searchParams;
+  const { activeYear = "all", expenseGroup = "week" } = await searchParams;
   const user = await getUserFromCookie();
 
-  const [activeMembers, monthlyExpenses, attendance] = await Promise.all([
-    getActiveMembersStats(period),
-    getMonthlyExpenses(period, expenseGroup, user?.memberId ?? null),
-    getAttendanceTrend(),
-  ]);
+  const [activeMembers, monthlyExpenses, attendance, availableYears] =
+    await Promise.all([
+      getActiveMembersStats(activeYear),
+      getMonthlyExpenses(expenseGroup, user?.memberId ?? null),
+      getAttendanceTrend(),
+      getAvailableYears(),
+    ]);
 
   return (
     <div className="mx-auto max-w-lg space-y-4">
@@ -27,6 +30,8 @@ export default async function PublicStatsPage({
         monthlyExpenses={monthlyExpenses}
         attendance={attendance}
         expenseGroup={expenseGroup}
+        activeYear={activeYear}
+        availableYears={availableYears}
       />
     </div>
   );
