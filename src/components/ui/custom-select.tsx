@@ -117,7 +117,7 @@ export function CustomSelect({
           else setOpen(true);
         }}
         className={cn(
-          "bg-background flex h-12 w-full items-center justify-between rounded-xl border px-4 text-base transition-colors",
+          "bg-card hover:border-primary/50 flex h-12 w-full items-center justify-between rounded-xl border-2 px-4 text-base transition-colors",
           "disabled:pointer-events-none disabled:opacity-50",
           open && "border-primary",
         )}

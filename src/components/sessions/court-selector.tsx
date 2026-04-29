@@ -108,7 +108,7 @@ export function CourtSelector({
         type="button"
         onClick={() => setOpen(!open)}
         className={cn(
-          "bg-background flex h-12 w-full items-center justify-between rounded-xl border px-4 text-base transition-colors",
+          "bg-card hover:border-primary/50 flex h-12 w-full items-center justify-between rounded-xl border-2 px-4 text-base transition-colors",
           open && "border-primary",
         )}
       >

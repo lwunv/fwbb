@@ -424,7 +424,7 @@ export function AdminVoteManager({
         </Card>
       )}
 
-      {/* Search box */}
+      {/* Search box — solid bg + border-2 cho dễ thấy hơn */}
       {!readOnly && (
         <div className="relative">
           <Search className="text-muted-foreground absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2" />
@@ -433,7 +433,7 @@ export function AdminVoteManager({
             placeholder={`${tCommon("search")}...`}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="bg-background h-12 w-full rounded-xl border pr-4 pl-11 text-base outline-none"
+            className="bg-card focus:border-primary h-12 w-full rounded-xl border-2 pr-4 pl-11 text-base transition-colors outline-none"
           />
         </div>
       )}
@@ -447,8 +447,8 @@ export function AdminVoteManager({
             </div>
           )}
 
-          {/* Đã tham gia */}
-          <div className="divide-y">
+          {/* Đã tham gia — mỗi row có nền primary nhẹ + ring để nổi hơn list "Chưa vote" */}
+          <div className="space-y-2 py-2">
             {activeMembers.map((member) => {
               const v = getVote(member.id)!;
               const debt = debtMap[member.id];
@@ -457,7 +457,10 @@ export function AdminVoteManager({
               const amountShown = displayMemberAmount(member.id);
 
               return (
-                <div key={member.id} className="py-3">
+                <div
+                  key={member.id}
+                  className="bg-primary/[0.06] ring-primary/15 dark:bg-primary/[0.08] rounded-xl p-2 ring-1"
+                >
                   <div className="flex min-h-[3.5rem] items-center gap-3">
                     <MemberAvatar
                       memberId={member.id}
@@ -466,42 +469,62 @@ export function AdminVoteManager({
                       size={36}
                     />
                     <span
-                      className="min-w-0 flex-1 truncate text-base font-medium"
+                      className="min-w-0 flex-1 truncate text-base font-semibold"
                       title={member.name}
                     >
                       {member.name}
                     </span>
 
                     <div className="flex shrink-0 items-center gap-2">
-                      {/* Cầu — đã vote: border 2px primary + bg; chưa vote: dashed mờ */}
-                      <button
-                        type="button"
-                        title="Cầu lông"
-                        disabled={readOnly}
-                        onClick={() => toggleTag(member.id, "play")}
-                        className={`inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 text-lg transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 ${
-                          v.willPlay
-                            ? "bg-primary/10 text-primary border-primary ring-primary/30 dark:bg-primary/20 shadow-sm ring-1"
-                            : "border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 border-dashed opacity-50 grayscale"
-                        }`}
-                      >
-                        🏸
-                      </button>
+                      {/* Cầu — đã vote: LED border primary; chưa vote: dashed mờ */}
+                      {v.willPlay ? (
+                        <div className="led-border-sm primary inline-flex">
+                          <button
+                            type="button"
+                            title="Cầu lông"
+                            disabled={readOnly}
+                            onClick={() => toggleTag(member.id, "play")}
+                            className="bg-primary/10 text-primary dark:bg-primary/25 inline-flex h-12 w-12 cursor-pointer items-center justify-center text-lg transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50"
+                          >
+                            🏸
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          title="Cầu lông"
+                          disabled={readOnly}
+                          onClick={() => toggleTag(member.id, "play")}
+                          className="border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed text-lg opacity-50 grayscale transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50"
+                        >
+                          🏸
+                        </button>
+                      )}
 
-                      {/* Nhậu — đã vote: border 2px cam + bg; chưa vote: dashed mờ */}
-                      <button
-                        type="button"
-                        title="Nhậu"
-                        disabled={readOnly}
-                        onClick={() => toggleTag(member.id, "dine")}
-                        className={`inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 text-lg transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 ${
-                          v.willDine
-                            ? "border-orange-500 bg-orange-100 text-orange-700 shadow-sm ring-1 ring-orange-500/30 dark:border-orange-400 dark:bg-orange-900/40 dark:text-orange-300 dark:ring-orange-400/30"
-                            : "border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 border-dashed opacity-50 grayscale"
-                        }`}
-                      >
-                        🍻
-                      </button>
+                      {/* Nhậu — đã vote: LED border orange; chưa vote: dashed mờ */}
+                      {v.willDine ? (
+                        <div className="led-border-sm orange inline-flex">
+                          <button
+                            type="button"
+                            title="Nhậu"
+                            disabled={readOnly}
+                            onClick={() => toggleTag(member.id, "dine")}
+                            className="inline-flex h-12 w-12 cursor-pointer items-center justify-center bg-orange-100 text-lg text-orange-700 transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 dark:bg-orange-900/40 dark:text-orange-300"
+                          >
+                            🍻
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          title="Nhậu"
+                          disabled={readOnly}
+                          onClick={() => toggleTag(member.id, "dine")}
+                          className="border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed text-lg opacity-50 grayscale transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50"
+                        >
+                          🍻
+                        </button>
+                      )}
 
                       {/* + Khách button */}
                       {!readOnly && (

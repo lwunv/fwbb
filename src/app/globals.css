@@ -293,6 +293,86 @@
   }
 }
 
+/* Smaller LED variants for icon-sized buttons (vote tags). Same rotating
+ * sweep but tighter padding and color-themed (primary / orange).
+ * Padding 1.5px so 48px buttons don't outgrow their layout. */
+.led-border-sm {
+  position: relative;
+  border-radius: 0.85rem;
+  padding: 1.5px;
+  overflow: hidden;
+  isolation: isolate;
+  background: transparent;
+}
+.led-border-sm > * {
+  position: relative;
+  z-index: 1;
+  border-radius: calc(0.85rem - 1.5px);
+}
+.led-border-sm::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  width: 200%;
+  height: 200%;
+  top: -50%;
+  left: -50%;
+  animation: led-rotate 3s linear infinite;
+  pointer-events: none;
+}
+.led-border-sm::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  width: 200%;
+  height: 200%;
+  top: -50%;
+  left: -50%;
+  filter: blur(6px);
+  animation: led-rotate 3s linear infinite;
+  pointer-events: none;
+}
+.led-border-sm.primary::before {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 280deg,
+    var(--primary) 320deg,
+    var(--primary) 350deg,
+    transparent 360deg
+  );
+}
+.led-border-sm.primary::after {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 280deg,
+    color-mix(in srgb, var(--primary) 60%, transparent) 320deg,
+    color-mix(in srgb, var(--primary) 70%, transparent) 340deg,
+    transparent 360deg
+  );
+}
+.led-border-sm.orange::before {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 280deg,
+    #f97316 320deg,
+    #fb923c 350deg,
+    transparent 360deg
+  );
+}
+.led-border-sm.orange::after {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 280deg,
+    rgba(249, 115, 22, 0.55) 320deg,
+    rgba(251, 146, 60, 0.65) 340deg,
+    transparent 360deg
+  );
+}
+
 @keyframes led-dot-pulse {
   0%,
   100% {
