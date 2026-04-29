@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { motion } from "framer-motion";
 import { formatVND } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
-import { PaymentQR } from "@/components/payment/payment-qr";
+import { FundTopUpCard } from "@/components/finance/fund-topup-card";
 import {
   Wallet,
   ArrowUpCircle,
@@ -36,30 +35,6 @@ export function MyFundClient({ balance, transactions, memberId }: Props) {
   const t = useTranslations("myFundClient");
   const locale = useLocale();
   const debtAmount = balance.balance < 0 ? Math.abs(balance.balance) : 0;
-  const hasDebt = debtAmount > 0;
-  const [mode, setMode] = useState<"contribute" | "payDebt">(
-    hasDebt ? "payDebt" : "contribute",
-  );
-  const [customAmount, setCustomAmount] = useState<string>(
-    hasDebt ? String(debtAmount) : "500000",
-  );
-
-  function pickMode(next: "contribute" | "payDebt") {
-    setMode(next);
-    if (next === "contribute") setCustomAmount("500000");
-    else setCustomAmount(String(debtAmount || 0));
-  }
-
-  const formattedAmount = customAmount
-    ? Number(customAmount).toLocaleString("vi-VN")
-    : "";
-
-  // Memo prefix matches the bank-matcher dispatch (see DebtFundTabs):
-  //   "FWBB QUY <id>" → fund_contribution
-  //   "FWBB NO  <id>" → debt repayment
-  const qrAmount = Math.max(0, parseInt(customAmount, 10) || 0);
-  const qrMemo =
-    mode === "payDebt" ? `FWBB NO ${memberId}` : `FWBB QUY ${memberId}`;
 
   function formatDate(dateStr: string | null) {
     if (!dateStr) return "";
@@ -142,100 +117,13 @@ export function MyFundClient({ balance, transactions, memberId }: Props) {
         </Card>
       </motion.div>
 
-      {/* Action: Top Up */}
+      {/* Action: Top Up — shared component, dùng chung với banner trên home */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
       >
-        <Card>
-          <CardContent className="space-y-3 p-4">
-            <h3 className="text-base font-semibold">{t("topUp")}</h3>
-
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => pickMode("contribute")}
-                className={`flex min-h-14 items-start gap-2 rounded-xl border p-3 text-left transition-colors ${
-                  mode === "contribute"
-                    ? "border-primary bg-primary/5 ring-primary/30 ring-1"
-                    : "border-border bg-background hover:bg-muted/50"
-                }`}
-              >
-                <span
-                  className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
-                    mode === "contribute"
-                      ? "border-primary bg-primary"
-                      : "border-muted-foreground"
-                  }`}
-                >
-                  {mode === "contribute" && (
-                    <span className="h-1.5 w-1.5 rounded-full bg-white" />
-                  )}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold">Nộp quỹ</span>
-                  <span className="text-muted-foreground block text-xs">
-                    Mặc định 500.000
-                  </span>
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => pickMode("payDebt")}
-                disabled={!hasDebt}
-                className={`flex min-h-14 items-start gap-2 rounded-xl border p-3 text-left transition-colors ${
-                  mode === "payDebt" && hasDebt
-                    ? "border-destructive bg-destructive/5 ring-destructive/30 ring-1"
-                    : "border-border bg-background hover:bg-muted/50"
-                } disabled:opacity-50`}
-              >
-                <span
-                  className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
-                    mode === "payDebt" && hasDebt
-                      ? "border-destructive bg-destructive"
-                      : "border-muted-foreground"
-                  }`}
-                >
-                  {mode === "payDebt" && hasDebt && (
-                    <span className="h-1.5 w-1.5 rounded-full bg-white" />
-                  )}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold">
-                    Thanh toán nợ
-                  </span>
-                  <span
-                    className={`block text-xs ${
-                      hasDebt
-                        ? "text-destructive font-semibold tabular-nums"
-                        : "text-muted-foreground"
-                    }`}
-                  >
-                    {hasDebt ? `Nợ ${formatVND(debtAmount)}` : "Không có nợ"}
-                  </span>
-                </span>
-              </button>
-            </div>
-
-            <input
-              type="text"
-              inputMode="numeric"
-              value={formattedAmount}
-              onChange={(e) => {
-                const digits = e.target.value.replace(/\D/g, "");
-                setCustomAmount(digits);
-              }}
-              placeholder={t("amountPlaceholder")}
-              className="bg-background min-h-11 w-full min-w-0 rounded-xl border p-2.5 text-base tabular-nums"
-              aria-label={t("topUp")}
-            />
-
-            {qrAmount > 0 && (
-              <PaymentQR variant="inline" amount={qrAmount} memo={qrMemo} />
-            )}
-          </CardContent>
-        </Card>
+        <FundTopUpCard memberId={memberId} debtAmount={debtAmount} />
       </motion.div>
 
       {/* Transaction History */}

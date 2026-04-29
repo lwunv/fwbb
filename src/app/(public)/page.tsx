@@ -2,11 +2,9 @@ import { getNextSession, getLatestCompletedSession } from "@/actions/sessions";
 import { getSessionVotes } from "@/actions/votes";
 import { getActiveMembers } from "@/actions/members";
 import { getUserFromCookie } from "@/lib/user-identity";
-import { isWithinHomeVoteWindow } from "@/lib/home-session";
-import { getFundBalance, isFundMember } from "@/lib/fund-calculator";
+import { getFundBalance } from "@/lib/fund-calculator";
 import { SessionCard } from "@/components/sessions/session-card";
 import { SessionVoteOptimisticPanel } from "@/components/sessions/session-vote-optimistic-panel";
-import { DebtFundTabs } from "@/components/finance/debt-fund-tabs";
 import { FundBalanceBanner } from "@/components/finance/fund-balance-banner";
 import { CopyLinkButton } from "@/components/shared/copy-link-button";
 import { getTranslations } from "next-intl/server";
@@ -24,35 +22,19 @@ export default async function HomePage() {
   // Merged Quỹ + Nợ model: only one number matters per user — the fund
   // balance. Negative = đang nợ, zero = hết quỹ, positive = còn quỹ.
   let userFundBalance = 0;
-  let userIsFundMember = false;
   if (user) {
-    [userFundBalance, userIsFundMember] = await Promise.all([
-      getFundBalance(user.memberId).then((b) => b.balance),
-      isFundMember(user.memberId),
-    ]);
+    userFundBalance = (await getFundBalance(user.memberId)).balance;
   }
-  const outstandingTotal = userFundBalance < 0 ? Math.abs(userFundBalance) : 0;
-  const hasOutstandingDebt = outstandingTotal > 0;
-  // "Quỹ hết" — fund member with balance exactly 0 (đã trả hết nợ nhưng quỹ rỗng).
-  const fundEmpty = userIsFundMember && userFundBalance === 0;
-  // Show the QR card whenever the user has something to pay (debt) or
-  // their fund needs topping up.
-  const needsFundAction = hasOutstandingDebt || fundEmpty;
-  const fundBalanceProp = userIsFundMember ? userFundBalance : null;
+  const hasOutstandingDebt = userFundBalance < 0;
 
   // Trước 2 ngày: còn nợ → ưu tiên buổi đã chơi gần đây + thanh toán (không vote)
-  if (
-    nextSession &&
-    user &&
-    hasOutstandingDebt &&
-    !isWithinHomeVoteWindow(nextSession.date)
-  ) {
+  if (nextSession && user && hasOutstandingDebt) {
     const latestSession = await getLatestCompletedSession();
 
     return (
       <div className="mx-auto max-w-lg space-y-6">
         <AutoRefresh />
-        <FundBalanceBanner balance={userFundBalance} />
+        <FundBalanceBanner balance={userFundBalance} memberId={user.memberId} />
         <div className="space-y-4">
           <h1 className="text-lg font-bold">{tDashboard("latestSession")}</h1>
           {latestSession ? (
@@ -74,17 +56,11 @@ export default async function HomePage() {
             </p>
           )}
         </div>
-
-        <DebtFundTabs
-          memberId={user.memberId}
-          outstandingTotal={outstandingTotal}
-          fundBalance={fundBalanceProp}
-        />
       </div>
     );
   }
 
-  // Buổi sắp tới + vote (toàn bộ khách; hoặc thành viên đã hết nợ / trong cửa sổ 2 ngày)
+  // Buổi sắp tới + vote (toàn bộ khách; hoặc thành viên đã hết nợ)
   if (nextSession) {
     const votes = await getSessionVotes(nextSession.id);
 
@@ -94,16 +70,12 @@ export default async function HomePage() {
     return (
       <div className="mx-auto max-w-lg space-y-4">
         <AutoRefresh />
-        {user && <FundBalanceBanner balance={userFundBalance} />}
-        {user &&
-          needsFundAction &&
-          isWithinHomeVoteWindow(nextSession.date) && (
-            <DebtFundTabs
-              memberId={user.memberId}
-              outstandingTotal={outstandingTotal}
-              fundBalance={fundBalanceProp}
-            />
-          )}
+        {user && (
+          <FundBalanceBanner
+            balance={userFundBalance}
+            memberId={user.memberId}
+          />
+        )}
 
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-bold">{tDashboard("upcomingSession")}</h1>
@@ -134,7 +106,9 @@ export default async function HomePage() {
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <AutoRefresh />
-      {user && <FundBalanceBanner balance={userFundBalance} />}
+      {user && (
+        <FundBalanceBanner balance={userFundBalance} memberId={user.memberId} />
+      )}
       {latestSession ? (
         <div className="space-y-4">
           <h1 className="text-lg font-bold">{tDashboard("latestSession")}</h1>
@@ -156,14 +130,6 @@ export default async function HomePage() {
           <div className="text-4xl">🏸</div>
           <h2 className="text-xl font-bold">{tDashboard("noUpcoming")}</h2>
         </div>
-      )}
-
-      {user && needsFundAction && (
-        <DebtFundTabs
-          memberId={user.memberId}
-          outstandingTotal={outstandingTotal}
-          fundBalance={fundBalanceProp}
-        />
       )}
     </div>
   );

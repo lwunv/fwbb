@@ -151,9 +151,6 @@ export function SessionList({
   const [cancelPassed, setCancelPassed] = useState(true);
   const [cancelPassRevenue, setCancelPassRevenue] = useState<string>("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [adminGuestExpanded, setAdminGuestExpanded] = useState<number | null>(
-    null,
-  );
   const [localAdminGuests, setLocalAdminGuests] = useState<
     Record<number, { play: number; dine: number }>
   >({});
@@ -440,70 +437,51 @@ export function SessionList({
                     </button>
                   )}
 
-                  {/* Admin guest — khách của admin */}
+                  {/* Admin guest — khách của admin (luôn mở, không cần click) */}
                   {isActive &&
                     (() => {
                       const ag = getAdminGuests(session.id, session);
-                      const hasAdminGuests = ag.play > 0 || ag.dine > 0;
-                      const isOpen = adminGuestExpanded === session.id;
-                      return isOpen ? (
+                      return (
                         <div
-                          className="px-1"
+                          className="flex flex-wrap items-center gap-3 px-1"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <div className="flex flex-wrap items-center gap-3">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm">🏸</span>
-                              <NumberStepper
-                                value={ag.play}
-                                onChange={(v) =>
-                                  handleAdminGuestChange(
-                                    session.id,
-                                    session,
-                                    "play",
-                                    v,
-                                  )
-                                }
-                                min={0}
-                                max={10}
-                              />
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm">🍻</span>
-                              <NumberStepper
-                                value={ag.dine}
-                                onChange={(v) =>
-                                  handleAdminGuestChange(
-                                    session.id,
-                                    session,
-                                    "dine",
-                                    v,
-                                  )
-                                }
-                                min={0}
-                                max={10}
-                              />
-                            </div>
+                          <span className="text-muted-foreground text-sm font-medium">
+                            Khách:
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">🏸</span>
+                            <NumberStepper
+                              value={ag.play}
+                              onChange={(v) =>
+                                handleAdminGuestChange(
+                                  session.id,
+                                  session,
+                                  "play",
+                                  v,
+                                )
+                              }
+                              min={0}
+                              max={10}
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">🍻</span>
+                            <NumberStepper
+                              value={ag.dine}
+                              onChange={(v) =>
+                                handleAdminGuestChange(
+                                  session.id,
+                                  session,
+                                  "dine",
+                                  v,
+                                )
+                              }
+                              min={0}
+                              max={10}
+                            />
                           </div>
                         </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setAdminGuestExpanded(session.id);
-                          }}
-                          className="border-muted-foreground/30 text-muted-foreground hover:text-foreground hover:border-primary/50 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed p-2.5 text-sm transition-colors"
-                        >
-                          {t("adminGuestButton")}
-                          {hasAdminGuests && (
-                            <span className="text-primary font-medium">
-                              ({ag.play > 0 ? `🏸${ag.play}` : ""}
-                              {ag.play > 0 && ag.dine > 0 ? " " : ""}
-                              {ag.dine > 0 ? `🍻${ag.dine}` : ""})
-                            </span>
-                          )}
-                        </button>
                       );
                     })()}
 

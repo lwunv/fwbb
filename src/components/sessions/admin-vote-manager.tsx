@@ -473,31 +473,31 @@ export function AdminVoteManager({
                     </span>
 
                     <div className="flex shrink-0 items-center gap-2">
-                      {/* Cầu */}
+                      {/* Cầu — đã vote: border 2px primary + bg; chưa vote: dashed mờ */}
                       <button
                         type="button"
                         title="Cầu lông"
                         disabled={readOnly}
                         onClick={() => toggleTag(member.id, "play")}
-                        className={`inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border text-lg transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 ${
+                        className={`inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 text-lg transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 ${
                           v.willPlay
-                            ? "bg-primary/10 text-primary border-primary dark:bg-primary/20"
-                            : "bg-muted text-muted-foreground border-transparent opacity-40"
+                            ? "bg-primary/10 text-primary border-primary ring-primary/30 dark:bg-primary/20 shadow-sm ring-1"
+                            : "border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 border-dashed opacity-50 grayscale"
                         }`}
                       >
                         🏸
                       </button>
 
-                      {/* Nhậu */}
+                      {/* Nhậu — đã vote: border 2px cam + bg; chưa vote: dashed mờ */}
                       <button
                         type="button"
                         title="Nhậu"
                         disabled={readOnly}
                         onClick={() => toggleTag(member.id, "dine")}
-                        className={`inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border text-lg transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 ${
+                        className={`inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 text-lg transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 ${
                           v.willDine
-                            ? "border-orange-400 bg-orange-100 text-orange-700 dark:border-orange-400 dark:bg-orange-900/40 dark:text-orange-300"
-                            : "bg-muted text-muted-foreground border-transparent opacity-40"
+                            ? "border-orange-500 bg-orange-100 text-orange-700 shadow-sm ring-1 ring-orange-500/30 dark:border-orange-400 dark:bg-orange-900/40 dark:text-orange-300 dark:ring-orange-400/30"
+                            : "border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 border-dashed opacity-50 grayscale"
                         }`}
                       >
                         🍻
@@ -582,7 +582,10 @@ export function AdminVoteManager({
                       const totalGuests = guests.play + guests.dine;
                       const isOpen = expandedGuest === member.id;
                       return isOpen ? (
-                        <div className="flex items-center gap-2 pb-1 pl-12">
+                        <div className="flex flex-wrap items-center gap-2 pt-2 pb-1">
+                          <span className="text-muted-foreground text-sm font-medium">
+                            Khách:
+                          </span>
                           {v.willPlay && (
                             <>
                               <span className="text-sm">🏸</span>
@@ -614,7 +617,7 @@ export function AdminVoteManager({
                         <button
                           type="button"
                           onClick={() => setExpandedGuest(member.id)}
-                          className="text-primary hover:text-primary/80 pb-1 pl-12 text-left text-sm transition-colors"
+                          className="text-primary hover:text-primary/80 pt-1 pb-1 text-left text-sm transition-colors"
                         >
                           {guests.play > 0 && (
                             <span>🏸 {guests.play} khách</span>

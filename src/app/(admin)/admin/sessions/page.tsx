@@ -1,9 +1,14 @@
 import { db } from "@/db";
 import { sessions, courts, members, shuttlecockBrands } from "@/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, lte } from "drizzle-orm";
+import { ymdInVN } from "@/lib/date-format";
 import { SessionList } from "./session-list";
 
 export default async function SessionsPage() {
+  // Spec của user: admin chỉ thấy buổi tính từ 00:00 UTC+7 của ngày diễn ra.
+  // Buổi tương lai (1/5 khi đang là 29/4) không hiện trong list admin.
+  const todayVN = ymdInVN();
+
   const [activeCourts, activeMembers, activeBrands, allSessions] =
     await Promise.all([
       db.query.courts.findMany({
@@ -19,6 +24,7 @@ export default async function SessionsPage() {
         orderBy: [shuttlecockBrands.name],
       }),
       db.query.sessions.findMany({
+        where: lte(sessions.date, todayVN),
         orderBy: [desc(sessions.date)],
         with: {
           court: true,

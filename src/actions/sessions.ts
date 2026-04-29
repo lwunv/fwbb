@@ -12,7 +12,7 @@ import {
   financialTransactions,
   paymentNotifications,
 } from "@/db/schema";
-import { eq, desc, and, gte, ne, isNull, inArray } from "drizzle-orm";
+import { eq, desc, and, gte, lte, ne, isNull, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
   sendGroupMessage,
@@ -20,6 +20,7 @@ import {
   buildConfirmedMessage,
 } from "@/lib/messenger";
 import { requireAdmin } from "@/lib/auth";
+import { ymdInVN, ymdInVNAddDays, dayOfWeekVN } from "@/lib/date-format";
 import { admins } from "@/db/schema";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
 import {
@@ -47,103 +48,53 @@ export async function getSession(id: number) {
   });
 }
 
+/**
+ * "Buổi sắp tới" cho user side — chỉ trả session ở khoảng [todayVN, todayVN+1]
+ * (theo spec của user: 00:00 UTC+7 ngày X-1 mới hiện buổi X). Nếu khoảng đó
+ * chưa có session active, auto-create cho ngày Mon/Wed/Fri gần nhất trong
+ * khoảng đó.
+ */
+const SESSION_DAYS_OF_WEEK = new Set([1, 3, 5]); // Mon=1, Wed=3, Fri=5 (VN)
+
 export async function getNextSession() {
-  const today = new Date().toISOString().split("T")[0];
+  const today = ymdInVN();
+  const tomorrow = ymdInVNAddDays(1);
+
   const existing = await db.query.sessions.findFirst({
     where: and(
       gte(sessions.date, today),
+      lte(sessions.date, tomorrow),
       ne(sessions.status, "completed"),
       ne(sessions.status, "cancelled"),
     ),
     orderBy: [sessions.date],
     with: {
       court: true,
-      shuttlecocks: {
-        with: { brand: true },
-      },
+      shuttlecocks: { with: { brand: true } },
     },
   });
 
   if (existing) return existing;
 
-  // Auto-create next Mon(1) or Fri(5) session
-  const now = new Date();
-  const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, ..., 5=Fri, 6=Sat
-  let daysUntilNext: number;
-  if (dayOfWeek <= 1) {
-    daysUntilNext = 1 - dayOfWeek; // days until Monday
-  } else if (dayOfWeek <= 5) {
-    daysUntilNext = 5 - dayOfWeek; // days until Friday
-  } else {
-    daysUntilNext = 2; // Saturday → Monday
-  }
-  if (daysUntilNext === 0) daysUntilNext = 0; // today is Mon or Fri
-
-  const nextDate = new Date(now);
-  nextDate.setDate(now.getDate() + daysUntilNext);
-  const dateStr = nextDate.toISOString().split("T")[0];
-
-  // Check if that date already has a session (completed/cancelled)
-  const existingForDate = await db.query.sessions.findFirst({
-    where: eq(sessions.date, dateStr),
-  });
-
-  let targetDate = dateStr;
-  if (existingForDate) {
-    // Skip to next session day
-    const altDate = new Date(now);
-    altDate.setDate(
-      now.getDate() +
-        daysUntilNext +
-        (daysUntilNext === 0 && dayOfWeek === 1
-          ? 4
-          : daysUntilNext === 0 && dayOfWeek === 5
-            ? 3
-            : 0),
-    );
-    if (
-      existingForDate.status === "completed" ||
-      existingForDate.status === "cancelled"
-    ) {
-      // Find next available Mon/Fri
-      const d = new Date(dateStr + "T00:00:00");
-      for (let i = 1; i <= 7; i++) {
-        d.setDate(d.getDate() + 1);
-        const dow = d.getDay();
-        if (dow === 1 || dow === 5) {
-          targetDate = d.toISOString().split("T")[0];
-          const check = await db.query.sessions.findFirst({
-            where: eq(sessions.date, targetDate),
-          });
-          if (!check) break;
-        }
-      }
-    } else {
-      // There's an active session for that date, return it
-      return db.query.sessions.findFirst({
-        where: eq(sessions.id, existingForDate.id),
-        with: { court: true, shuttlecocks: { with: { brand: true } } },
-      });
-    }
+  // Không có session active trong [today, tomorrow] → auto-create nếu trong
+  // khoảng đó có ngày Mon/Wed/Fri và chưa có row nào (kể cả completed/cancelled).
+  for (const candidate of [today, tomorrow]) {
+    if (!SESSION_DAYS_OF_WEEK.has(dayOfWeekVN(candidate))) continue;
+    const exists = await db.query.sessions.findFirst({
+      where: eq(sessions.date, candidate),
+    });
+    if (exists) continue; // có rồi (chắc completed/cancelled) → bỏ qua
+    const [newSession] = await db
+      .insert(sessions)
+      .values({ date: candidate, status: "voting" })
+      .returning();
+    return db.query.sessions.findFirst({
+      where: eq(sessions.id, newSession.id),
+      with: { court: true, shuttlecocks: { with: { brand: true } } },
+    });
   }
 
-  const [newSession] = await db
-    .insert(sessions)
-    .values({
-      date: targetDate,
-      status: "voting",
-    })
-    .returning();
-
-  return db.query.sessions.findFirst({
-    where: eq(sessions.id, newSession.id),
-    with: {
-      court: true,
-      shuttlecocks: {
-        with: { brand: true },
-      },
-    },
-  });
+  return undefined;
 }
 
 export async function getLatestCompletedSession() {

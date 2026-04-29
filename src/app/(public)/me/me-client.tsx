@@ -256,20 +256,25 @@ export function MeClient({
       <Card>
         <CardContent>
           <div className="grid grid-cols-3 gap-3 sm:gap-4">
-            <div className="grid grid-rows-[2.5rem_1.5rem_2.5rem] place-items-center gap-1.5 text-center">
+            <Link
+              href="/history"
+              className="hover:bg-foreground/[0.04] grid grid-rows-[2.5rem_1.5rem_2.5rem] place-items-center gap-1.5 rounded-lg p-1 text-center transition-colors active:scale-[0.98]"
+              aria-label={tStats("totalSpentThisMonth")}
+            >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-yellow-500/15 dark:bg-yellow-500/20">
                 <Wallet className="h-5 w-5 shrink-0 text-yellow-600 dark:text-yellow-400" />
               </div>
               <p className="text-lg leading-none font-bold text-yellow-600 tabular-nums dark:text-yellow-400">
                 {formatK(totalSpentThisMonth)}
               </p>
-              <p className="max-w-[7rem] text-xs leading-snug font-medium text-yellow-700 dark:text-yellow-400/90">
+              <p className="inline-flex max-w-[7rem] items-center justify-center gap-0.5 text-xs leading-snug font-medium text-yellow-700 dark:text-yellow-400/90">
                 {tStats("totalSpentThisMonth")}
+                <ChevronRight className="h-3 w-3 shrink-0" aria-hidden />
               </p>
-            </div>
+            </Link>
             <Link
               href="/my-fund"
-              className="hover:bg-accent/40 grid grid-rows-[2.5rem_1.5rem_2.5rem] place-items-center gap-1.5 rounded-lg text-center transition-colors active:scale-[0.98]"
+              className="hover:bg-foreground/[0.04] grid grid-rows-[2.5rem_1.5rem_2.5rem] place-items-center gap-1.5 rounded-lg p-1 text-center transition-colors active:scale-[0.98]"
               aria-label={tMe("myFund")}
             >
               <div className="bg-primary/10 text-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
@@ -285,7 +290,7 @@ export function MeClient({
             </Link>
             <Link
               href="/my-fund"
-              className="hover:bg-accent/40 grid grid-rows-[2.5rem_1.5rem_2.5rem] place-items-center gap-1.5 rounded-lg text-center transition-colors active:scale-[0.98]"
+              className="hover:bg-foreground/[0.04] grid grid-rows-[2.5rem_1.5rem_2.5rem] place-items-center gap-1.5 rounded-lg p-1 text-center transition-colors active:scale-[0.98]"
               aria-label={tStats("outstandingDebt")}
             >
               <div className="bg-destructive/15 flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
