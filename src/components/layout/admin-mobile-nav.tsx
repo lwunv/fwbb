@@ -16,6 +16,7 @@ import {
   Wallet,
   BarChart3,
   LogOut,
+  Receipt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -39,6 +40,11 @@ const navItems = [
   },
   { href: "/admin/inventory", labelKey: "inventory" as const, icon: Package },
   { href: "/admin/fund", labelKey: "fund" as const, icon: Wallet },
+  {
+    href: "/admin/fund/transactions",
+    labelKey: "transactions" as const,
+    icon: Receipt,
+  },
   {
     href: "/admin/court-rent",
     labelKey: "courtRent" as const,
@@ -75,22 +81,28 @@ export function AdminMobileNav({ appName = "FWBB" }: { appName?: string }) {
             <h2 className="text-lg font-bold">{appName} Admin</h2>
           </div>
           <nav className="flex-1 space-y-1 px-3 py-4">
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setOpen(false)}
-                className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                  pathname.startsWith(item.href)
-                    ? "bg-primary text-primary-foreground"
-                    : "hover:bg-accent",
-                )}
-              >
-                <item.icon className="h-4 w-4" />
-                {t(item.labelKey)}
-              </Link>
-            ))}
+            {navItems.map((item) => {
+              const isActive =
+                item.href === "/admin/fund"
+                  ? pathname === "/admin/fund"
+                  : pathname.startsWith(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setOpen(false)}
+                  className={cn(
+                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-accent",
+                  )}
+                >
+                  <item.icon className="h-4 w-4" />
+                  {t(item.labelKey)}
+                </Link>
+              );
+            })}
           </nav>
           <div className="space-y-2 border-t p-3">
             <div className="flex items-center gap-2 px-1">

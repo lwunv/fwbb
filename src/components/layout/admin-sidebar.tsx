@@ -14,6 +14,7 @@ import {
   Wallet,
   BarChart3,
   LogOut,
+  Receipt,
 } from "lucide-react";
 import { logout } from "@/actions/auth";
 import { LanguageSelector } from "@/components/shared/language-selector";
@@ -35,6 +36,11 @@ const navItems = [
   },
   { href: "/admin/inventory", labelKey: "inventory" as const, icon: Package },
   { href: "/admin/fund", labelKey: "fund" as const, icon: Wallet },
+  {
+    href: "/admin/fund/transactions",
+    labelKey: "transactions" as const,
+    icon: Receipt,
+  },
   {
     href: "/admin/court-rent",
     labelKey: "courtRent" as const,
@@ -60,21 +66,29 @@ export function AdminSidebar({ appName = "FWBB" }: { appName?: string }) {
         <h1 className="text-xl font-bold">{appName} Admin</h1>
       </div>
       <nav className="flex-1 space-y-1 px-3">
-        {navItems.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-              pathname.startsWith(item.href)
-                ? "bg-primary text-primary-foreground"
-                : "hover:bg-accent",
-            )}
-          >
-            <item.icon className="h-4 w-4" />
-            {t(item.labelKey)}
-          </Link>
-        ))}
+        {navItems.map((item) => {
+          // Exact match cho /admin/fund (tránh match nhầm khi đang ở
+          // /admin/fund/transactions); các href khác dùng startsWith như cũ.
+          const isActive =
+            item.href === "/admin/fund"
+              ? pathname === "/admin/fund"
+              : pathname.startsWith(item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                isActive
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-accent",
+              )}
+            >
+              <item.icon className="h-4 w-4" />
+              {t(item.labelKey)}
+            </Link>
+          );
+        })}
       </nav>
       <div className="space-y-2 border-t p-3">
         <div className="flex items-center gap-2 px-1">

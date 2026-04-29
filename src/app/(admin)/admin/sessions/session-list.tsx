@@ -238,7 +238,9 @@ export function SessionList({
   }
 
   return (
-    <div className="">
+    <div className="pb-24">
+      {/* pb-24 chừa chỗ cho thanh "Tạo buổi chơi" sticky ở bottom — nếu không
+          row cuối của expanded session sẽ bị nó che mất. */}
       <Dialog
         open={dialogOpen}
         onOpenChange={(open) => {

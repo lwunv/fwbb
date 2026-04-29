@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 import {
   ArrowUpCircle,
   ArrowDownCircle,
@@ -9,6 +10,8 @@ import {
   ChevronDown,
   Wallet,
   Search,
+  Plus,
+  Minus,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,6 +20,8 @@ import { MemberAvatar } from "@/components/shared/member-avatar";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatVND, cn } from "@/lib/utils";
 import { formatSessionDate } from "@/lib/date-format";
+import { fireAction } from "@/lib/optimistic-action";
+import { recordContribution, recordRefund } from "@/actions/fund";
 import type { InferSelectModel } from "drizzle-orm";
 import type { members as membersTable } from "@/db/schema";
 import type { FundBalance } from "@/lib/fund-calculator";
@@ -75,6 +80,44 @@ export function FundReport({ fundMembers, transactions }: Props) {
   const [filter, setFilter] = useState<FilterKey | null>(null);
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [adjustAmount, setAdjustAmount] = useState<string>("");
+  const [adjustDesc, setAdjustDesc] = useState<string>("");
+  const [adjustSign, setAdjustSign] = useState<1 | -1>(1);
+  const [adjustDirty, setAdjustDirty] = useState(false);
+  const [adjustFocused, setAdjustFocused] = useState(false);
+  const [adjusting, setAdjusting] = useState(false);
+
+  function handleAdjust(memberId: number) {
+    const amount = parseInt(adjustAmount, 10);
+    if (!amount || amount <= 0) {
+      toast.error("Nhập số tiền hợp lệ");
+      return;
+    }
+    const sign = adjustSign;
+    const desc = adjustDesc.trim() || undefined;
+    const idemKey = `${sign === 1 ? "contrib" : "refund"}-${crypto.randomUUID()}`;
+    setAdjusting(true);
+    fireAction(
+      () =>
+        sign === 1
+          ? recordContribution(memberId, amount, desc, idemKey)
+          : recordRefund(memberId, amount, desc, idemKey),
+      () => setAdjusting(false),
+      {
+        successMsg:
+          sign === 1
+            ? `Đã cộng ${formatVND(amount)} vào quỹ`
+            : `Đã trừ ${formatVND(amount)} khỏi quỹ`,
+        onSuccess: () => {
+          setAdjusting(false);
+          setAdjustAmount("");
+          setAdjustDesc("");
+          setAdjustDirty(false);
+          setAdjustSign(1);
+        },
+      },
+    );
+  }
 
   const counts = useMemo(() => {
     const c = { hasFund: 0, depleted: 0, owing: 0 } as Record<
@@ -307,6 +350,113 @@ export function FundReport({ fundMembers, transactions }: Props) {
                             color="text-red-600 dark:text-red-400"
                           />
                         </div>
+
+                        {/* Inline adjust quỹ — sign toggle + amount + Lưu button.
+                            Lưu chỉ hiện khi user đã sửa value và đã unfocus. */}
+                        <div
+                          className={cn(
+                            "space-y-2 border-t p-3",
+                            tones.divider,
+                          )}
+                        >
+                          <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
+                            Điều chỉnh quỹ
+                          </p>
+
+                          {/* Sign picker */}
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setAdjustSign(1)}
+                              disabled={adjusting}
+                              className={cn(
+                                "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border-2 px-3 text-sm font-semibold transition-colors disabled:opacity-50",
+                                adjustSign === 1
+                                  ? "border-green-500/60 bg-green-500/15 text-green-700 dark:text-green-400"
+                                  : "border-border text-muted-foreground hover:bg-muted/50",
+                              )}
+                            >
+                              <Plus className="h-4 w-4" /> Cộng quỹ
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setAdjustSign(-1)}
+                              disabled={adjusting}
+                              className={cn(
+                                "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border-2 px-3 text-sm font-semibold transition-colors disabled:opacity-50",
+                                adjustSign === -1
+                                  ? "border-red-500/60 bg-red-500/15 text-red-700 dark:text-red-400"
+                                  : "border-border text-muted-foreground hover:bg-muted/50",
+                              )}
+                            >
+                              <Minus className="h-4 w-4" /> Trừ quỹ
+                            </button>
+                          </div>
+
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={
+                              adjustAmount
+                                ? Number(adjustAmount).toLocaleString("vi-VN")
+                                : ""
+                            }
+                            onChange={(e) => {
+                              setAdjustAmount(
+                                e.target.value.replace(/\D/g, ""),
+                              );
+                              setAdjustDirty(true);
+                            }}
+                            onFocus={() => setAdjustFocused(true)}
+                            onBlur={() => setAdjustFocused(false)}
+                            placeholder="Số tiền (VND)"
+                            className="bg-card focus:border-primary min-h-11 w-full rounded-xl border-2 px-3 text-base tabular-nums transition-colors outline-none"
+                            aria-label="Số tiền điều chỉnh"
+                            disabled={adjusting}
+                          />
+                          <input
+                            type="text"
+                            value={adjustDesc}
+                            onChange={(e) => {
+                              setAdjustDesc(e.target.value);
+                              setAdjustDirty(true);
+                            }}
+                            onFocus={() => setAdjustFocused(true)}
+                            onBlur={() => setAdjustFocused(false)}
+                            placeholder="Ghi chú (lưu vào log giao dịch)"
+                            className="bg-card focus:border-primary min-h-10 w-full rounded-xl border-2 px-3 text-sm transition-colors outline-none"
+                            disabled={adjusting}
+                          />
+
+                          {/* Lưu button — chỉ hiện khi user đã sửa giá trị + đã
+                              unfocus (input.blur). Click → fire action + ghi
+                              vào financial_transactions log. */}
+                          <AnimatePresence initial={false}>
+                            {adjustDirty &&
+                              !adjustFocused &&
+                              parseInt(adjustAmount, 10) > 0 && (
+                                <motion.button
+                                  key="save"
+                                  type="button"
+                                  initial={{ opacity: 0, y: -4 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0, y: -4 }}
+                                  onClick={() => handleAdjust(fm.memberId)}
+                                  disabled={adjusting}
+                                  className={cn(
+                                    "inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl px-4 text-sm font-semibold text-white shadow-sm transition-colors disabled:opacity-50",
+                                    adjustSign === 1
+                                      ? "bg-green-600 hover:bg-green-700"
+                                      : "bg-red-600 hover:bg-red-700",
+                                  )}
+                                >
+                                  Lưu — {adjustSign === 1 ? "Cộng" : "Trừ"}{" "}
+                                  {formatVND(parseInt(adjustAmount, 10) || 0)}
+                                </motion.button>
+                              )}
+                          </AnimatePresence>
+                        </div>
+
                         <div className="divide-y">
                           {memberTxs.length === 0 ? (
                             <p className="text-muted-foreground p-4 text-center text-sm">

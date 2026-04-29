@@ -476,7 +476,7 @@ export function AdminVoteManager({
                     </span>
 
                     <div className="flex shrink-0 items-center gap-2">
-                      {/* Cầu — đã vote: LED border primary; chưa vote: dashed mờ */}
+                      {/* Cầu — đã vote: LED border + border tĩnh primary; chưa vote: dashed mờ */}
                       {v.willPlay ? (
                         <div className="led-border-sm primary inline-flex">
                           <button
@@ -484,7 +484,7 @@ export function AdminVoteManager({
                             title="Cầu lông"
                             disabled={readOnly}
                             onClick={() => toggleTag(member.id, "play")}
-                            className="bg-primary/10 text-primary dark:bg-primary/25 inline-flex h-12 w-12 cursor-pointer items-center justify-center text-lg transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50"
+                            className="border-primary bg-primary/10 text-primary dark:bg-primary/25 inline-flex h-12 w-12 cursor-pointer items-center justify-center border-2 text-lg transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50"
                           >
                             🏸
                           </button>
@@ -501,7 +501,7 @@ export function AdminVoteManager({
                         </button>
                       )}
 
-                      {/* Nhậu — đã vote: LED border orange; chưa vote: dashed mờ */}
+                      {/* Nhậu — đã vote: LED border + border tĩnh cam; chưa vote: dashed mờ */}
                       {v.willDine ? (
                         <div className="led-border-sm orange inline-flex">
                           <button
@@ -509,7 +509,7 @@ export function AdminVoteManager({
                             title="Nhậu"
                             disabled={readOnly}
                             onClick={() => toggleTag(member.id, "dine")}
-                            className="inline-flex h-12 w-12 cursor-pointer items-center justify-center bg-orange-100 text-lg text-orange-700 transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 dark:bg-orange-900/40 dark:text-orange-300"
+                            className="inline-flex h-12 w-12 cursor-pointer items-center justify-center border-2 border-orange-500 bg-orange-100 text-lg text-orange-700 transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 dark:border-orange-400 dark:bg-orange-900/40 dark:text-orange-300"
                           >
                             🍻
                           </button>

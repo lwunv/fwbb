@@ -294,8 +294,9 @@
 }
 
 /* Smaller LED variants for icon-sized buttons (vote tags). Same rotating
- * sweep but tighter padding and color-themed (primary / orange).
- * Padding 1.5px so 48px buttons don't outgrow their layout. */
+ * sweep as `.led-border` nhưng padding nhỏ hơn + glow tiết chế để không
+ * bleed vào inner button. Inner button BẮT BUỘC dùng bg đặc (bg-card /
+ * bg-background) — nếu để translucent, ::after glow lộ qua trông như blob. */
 .led-border-sm {
   position: relative;
   border-radius: 0.85rem;
@@ -313,42 +314,17 @@
   content: "";
   position: absolute;
   z-index: 0;
-  width: 200%;
-  height: 200%;
-  top: -50%;
-  left: -50%;
-  animation: led-rotate 3s linear infinite;
-  pointer-events: none;
-}
-.led-border-sm::after {
-  content: "";
-  position: absolute;
-  z-index: 0;
-  width: 200%;
-  height: 200%;
-  top: -50%;
-  left: -50%;
-  filter: blur(6px);
-  animation: led-rotate 3s linear infinite;
+  inset: -50%;
+  animation: led-rotate 2.4s linear infinite;
   pointer-events: none;
 }
 .led-border-sm.primary::before {
   background: conic-gradient(
     from 0deg,
     transparent 0deg,
-    transparent 280deg,
-    var(--primary) 320deg,
-    var(--primary) 350deg,
-    transparent 360deg
-  );
-}
-.led-border-sm.primary::after {
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg,
-    transparent 280deg,
-    color-mix(in srgb, var(--primary) 60%, transparent) 320deg,
-    color-mix(in srgb, var(--primary) 70%, transparent) 340deg,
+    transparent 300deg,
+    var(--primary) 335deg,
+    var(--primary) 355deg,
     transparent 360deg
   );
 }
@@ -356,19 +332,9 @@
   background: conic-gradient(
     from 0deg,
     transparent 0deg,
-    transparent 280deg,
-    #f97316 320deg,
-    #fb923c 350deg,
-    transparent 360deg
-  );
-}
-.led-border-sm.orange::after {
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg,
-    transparent 280deg,
-    rgba(249, 115, 22, 0.55) 320deg,
-    rgba(251, 146, 60, 0.65) 340deg,
+    transparent 300deg,
+    #f97316 335deg,
+    #fb923c 355deg,
     transparent 360deg
   );
 }

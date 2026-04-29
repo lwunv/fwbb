@@ -15,6 +15,7 @@
     "inventory": "Inventory",
     "finance": "Finance",
     "fund": "Fund",
+    "transactions": "Transactions",
     "courtRent": "Court rent",
     "shuttlecockFinance": "Shuttlecock finance",
     "stats": "Stats",

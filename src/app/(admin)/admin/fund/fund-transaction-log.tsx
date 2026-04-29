@@ -289,24 +289,24 @@ function TxCard({ tx }: { tx: FinancialTransactionRow }) {
             memberId={tx.memberId}
             avatarKey={tx.memberAvatarKey}
             avatarUrl={tx.memberAvatarUrl}
-            size={36}
+            size={40}
           />
         ) : (
-          <div className="bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-full">
-            <Icon className={`h-4 w-4 ${meta.iconClass}`} />
+          <div className="bg-muted flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
+            <Icon className={`h-5 w-5 ${meta.iconClass}`} />
           </div>
         )}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <Icon className={`h-4 w-4 shrink-0 ${meta.iconClass}`} />
-            <span className="truncate text-sm font-medium">
+            <span className="truncate text-base font-semibold">
               {tx.memberName ?? t("logSystem")}
             </span>
-            <span className="text-muted-foreground shrink-0 text-xs">
+            <span className="text-muted-foreground shrink-0 text-sm">
               · {label}
             </span>
             <span
-              className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
+              className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${
                 isAuto
                   ? "bg-blue-500/15 text-blue-600 dark:text-blue-400"
                   : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
@@ -315,14 +315,22 @@ function TxCard({ tx }: { tx: FinancialTransactionRow }) {
               {isAuto ? "QR" : "Admin"}
             </span>
           </div>
-          <div className="text-muted-foreground truncate text-xs">
-            {fmtDateTime(tx.createdAt, locale)}
-            {tx.sessionDate &&
-              ` · ${t("logSession", { date: tx.sessionDate })}`}
-            {tx.description && ` · ${tx.description}`}
+          {/* Description đứng trước, đậm hơn để admin scan info nhanh */}
+          {tx.description && (
+            <p className="text-foreground truncate text-sm font-medium">
+              {tx.description}
+            </p>
+          )}
+          <div className="text-muted-foreground flex flex-wrap gap-x-2 text-sm">
+            <span>{fmtDateTime(tx.createdAt, locale)}</span>
+            {tx.sessionDate && (
+              <span>· {t("logSession", { date: tx.sessionDate })}</span>
+            )}
           </div>
         </div>
-        <span className={`text-base font-bold tabular-nums ${amountColor}`}>
+        <span
+          className={`shrink-0 text-lg font-bold tabular-nums ${amountColor}`}
+        >
           {sign}
           {formatK(tx.amount)}
         </span>
