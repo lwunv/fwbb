@@ -186,15 +186,16 @@ export function CourtList({ courts }: { courts: Court[] }) {
                           </strong>
                           {t("perSession")}
                         </span>
-                        {court.pricePerSessionRetail != null && (
-                          <span className="text-muted-foreground">
-                            Lẻ:{" "}
-                            <strong className="tabular-nums">
-                              {formatK(court.pricePerSessionRetail)}
-                            </strong>
-                            {t("perSession")}
-                          </span>
-                        )}
+                        <span className="text-muted-foreground">
+                          Lẻ:{" "}
+                          <strong className="tabular-nums">
+                            {formatK(
+                              court.pricePerSessionRetail ??
+                                court.pricePerSession + 20000,
+                            )}
+                          </strong>
+                          {t("perSession")}
+                        </span>
                       </div>
                     </div>
                     {court.mapLink && (

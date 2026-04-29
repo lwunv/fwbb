@@ -1,16 +1,19 @@
+import Link from "next/link";
+import { ArrowRight, Receipt } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 import {
   getFundMembersWithBalances,
   getAllFundTransactions,
   getFundOverview,
-  getRecentFinancialTransactions,
 } from "@/actions/fund";
 import { mergeLegacyDebtsIntoFund } from "@/actions/merge-debt-fund";
 import { db } from "@/db";
 import { members } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { FundDashboard } from "./fund-dashboard";
 import { FundReport } from "./fund-report";
-import { FundTransactionLog } from "./fund-transaction-log";
 import { ReconcilePanel } from "./reconcile-panel";
 
 export default async function AdminFundPage() {
@@ -18,19 +21,14 @@ export default async function AdminFundPage() {
   // unified fund balance. Cheap when there's nothing to migrate.
   await mergeLegacyDebtsIntoFund();
 
-  const [
-    overview,
-    fundMembersWithBalances,
-    transactions,
-    allMembers,
-    recentFinancialTransactions,
-  ] = await Promise.all([
-    getFundOverview(),
-    getFundMembersWithBalances(),
-    getAllFundTransactions(),
-    db.query.members.findMany({ where: eq(members.isActive, true) }),
-    getRecentFinancialTransactions(100),
-  ]);
+  const [overview, fundMembersWithBalances, transactions, allMembers, t] =
+    await Promise.all([
+      getFundOverview(),
+      getFundMembersWithBalances(),
+      getAllFundTransactions(),
+      db.query.members.findMany({ where: eq(members.isActive, true) }),
+      getTranslations("fundAdmin"),
+    ]);
 
   // Merged Quỹ + Nợ: "Nợ chưa thu" = sum of negative balances.
   let totalOutstanding = 0;
@@ -41,21 +39,6 @@ export default async function AdminFundPage() {
       owingCount += 1;
     }
   }
-
-  const txRows = recentFinancialTransactions.map((tx) => ({
-    id: tx.id,
-    memberId: tx.memberId,
-    memberName: tx.member?.name ?? null,
-    memberAvatarKey: tx.member?.avatarKey ?? null,
-    memberAvatarUrl: tx.member?.avatarUrl ?? null,
-    type: tx.type,
-    direction: tx.direction,
-    amount: tx.amount,
-    description: tx.description,
-    sessionDate: tx.session?.date ?? null,
-    paymentNotificationId: tx.paymentNotificationId ?? null,
-    createdAt: tx.createdAt ?? "",
-  }));
 
   return (
     <div className="space-y-6">
@@ -70,7 +53,31 @@ export default async function AdminFundPage() {
         fundMembers={fundMembersWithBalances}
         transactions={transactions}
       />
-      <FundTransactionLog transactions={txRows} />
+
+      <Card>
+        <CardContent className="flex items-center justify-between p-4">
+          <div className="flex items-center gap-3">
+            <div className="bg-primary/10 text-primary rounded-full p-2.5">
+              <Receipt className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold">
+                {t("transactionsCardTitle")}
+              </h3>
+              <p className="text-muted-foreground text-sm">
+                {t("transactionsCardSubtitle")}
+              </p>
+            </div>
+          </div>
+          <Link href="/admin/fund/transactions">
+            <Button variant="outline" size="sm">
+              {t("transactionsCardCta")}
+              <ArrowRight className="ml-1 h-4 w-4" />
+            </Button>
+          </Link>
+        </CardContent>
+      </Card>
+
       <ReconcilePanel />
     </div>
   );
