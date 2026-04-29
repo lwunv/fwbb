@@ -43,7 +43,6 @@ export interface ActiveMemberStat {
   memberName: string;
   playCount: number;
   dineCount: number;
-  bothCount: number;
 }
 
 /**
@@ -70,21 +69,16 @@ export async function getActiveMembersStats(
   const memberMap = new Map(allMembers.map((m) => [m.id, m.name]));
 
   // Count per member
-  const stats: Record<
-    number,
-    { playCount: number; dineCount: number; bothCount: number }
-  > = {};
+  const stats: Record<number, { playCount: number; dineCount: number }> = {};
 
   for (const session of filteredSessions) {
     for (const attendee of session.attendees) {
       if (!attendee.memberId || attendee.isGuest) continue;
       if (!stats[attendee.memberId]) {
-        stats[attendee.memberId] = { playCount: 0, dineCount: 0, bothCount: 0 };
+        stats[attendee.memberId] = { playCount: 0, dineCount: 0 };
       }
       if (attendee.attendsPlay) stats[attendee.memberId].playCount++;
       if (attendee.attendsDine) stats[attendee.memberId].dineCount++;
-      if (attendee.attendsPlay || attendee.attendsDine)
-        stats[attendee.memberId].bothCount++;
     }
   }
 
@@ -94,7 +88,7 @@ export async function getActiveMembersStats(
       memberName: memberMap.get(Number(id)) || "Unknown",
       ...counts,
     }))
-    .sort((a, b) => b.playCount - a.playCount);
+    .sort((a, b) => b.playCount + b.dineCount - (a.playCount + a.dineCount));
 }
 
 export interface MonthlyExpense {

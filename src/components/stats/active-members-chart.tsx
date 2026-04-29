@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import {
   BarChart,
   Bar,
@@ -9,25 +8,17 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Cell,
+  Legend,
 } from "recharts";
 import { useTranslations } from "next-intl";
-import { cn } from "@/lib/utils";
 import type { ActiveMemberStat } from "@/actions/stats";
-
-type ViewMode = "play" | "dine" | "both";
 
 interface ActiveMembersChartProps {
   data: ActiveMemberStat[];
 }
 
-const CHART_COLORS = [
-  "var(--color-chart-1, #6366f1)",
-  "var(--color-chart-2, #8b5cf6)",
-  "var(--color-chart-3, #a78bfa)",
-  "var(--color-chart-4, #c4b5fd)",
-  "var(--color-chart-5, #ddd6fe)",
-];
+const COLOR_PLAY = "var(--color-primary, #6366f1)";
+const COLOR_DINE = "#f97316"; // orange-500, matches dining accent on home/session cards
 
 const DISPLAY_NAME_MAX = 11;
 
@@ -38,56 +29,25 @@ function shortenName(name: string, max = DISPLAY_NAME_MAX) {
 }
 
 export function ActiveMembersChart({ data }: ActiveMembersChartProps) {
-  const [mode, setMode] = useState<ViewMode>("play");
   const t = useTranslations("stats");
 
-  const viewLabels: Record<ViewMode, string> = {
-    play: t("playBadminton"),
-    dine: t("dining"),
-    both: t("both"),
-  };
-
-  const getValue = (item: ActiveMemberStat) => {
-    switch (mode) {
-      case "play":
-        return item.playCount;
-      case "dine":
-        return item.dineCount;
-      case "both":
-        return item.bothCount;
-    }
+  const seriesLabels: Record<string, string> = {
+    playCount: t("playBadminton"),
+    dineCount: t("dining"),
   };
 
   const chartData = [...data]
-    .sort((a, b) => getValue(b) - getValue(a))
+    .sort((a, b) => b.playCount + b.dineCount - (a.playCount + a.dineCount))
     .slice(0, 10)
     .map((item) => ({
       memberName: item.memberName,
       displayName: shortenName(item.memberName),
-      value: getValue(item),
+      playCount: item.playCount,
+      dineCount: item.dineCount,
     }));
 
   return (
     <div className="space-y-4">
-      <div className="bg-muted flex w-fit gap-1 rounded-lg p-1">
-        {(Object.entries(viewLabels) as [ViewMode, string][]).map(
-          ([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setMode(key)}
-              className={cn(
-                "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                mode === key
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {label}
-            </button>
-          ),
-        )}
-      </div>
-
       {chartData.length === 0 ? (
         <div className="text-muted-foreground flex h-[300px] items-center justify-center text-sm">
           {t("noData")}
@@ -146,37 +106,57 @@ export function ActiveMembersChart({ data }: ActiveMembersChartProps) {
                 backgroundColor: "var(--color-popover, #fff)",
                 border: "1px solid var(--color-border, #e2e8f0)",
                 borderRadius: "12px",
-                color: "var(--color-popover-foreground, #1e293b)",
+                color: "var(--color-popover-foreground, #f8fafc)",
                 boxShadow: "0 8px 24px -8px rgba(0,0,0,0.25)",
                 padding: "10px 12px",
                 fontSize: 12,
               }}
-              itemStyle={{ padding: "2px 0" }}
+              labelStyle={{
+                color: "var(--color-popover-foreground, #f8fafc)",
+                fontWeight: 600,
+                marginBottom: 4,
+              }}
+              itemStyle={{
+                color: "var(--color-popover-foreground, #f8fafc)",
+                padding: "2px 0",
+              }}
               labelFormatter={(_, payload) =>
                 (payload?.[0]?.payload as { memberName?: string })
                   ?.memberName ?? ""
               }
-              formatter={(value) => [
+              formatter={(value, name) => [
                 `${value} ${t("sessionsUnit")}`,
-                viewLabels[mode],
+                seriesLabels[String(name)] ?? String(name),
               ]}
             />
+            <Legend
+              formatter={(value: string) => (
+                <span className="text-muted-foreground text-xs">
+                  {seriesLabels[value] ?? value}
+                </span>
+              )}
+            />
             <Bar
-              dataKey="value"
+              dataKey="playCount"
+              stackId="a"
+              fill={COLOR_PLAY}
+              activeBar={{
+                stroke: "var(--color-foreground, #0f172a)",
+                strokeOpacity: 0.35,
+                strokeWidth: 1,
+              }}
+            />
+            <Bar
+              dataKey="dineCount"
+              stackId="a"
+              fill={COLOR_DINE}
               radius={[0, 4, 4, 0]}
               activeBar={{
                 stroke: "var(--color-foreground, #0f172a)",
                 strokeOpacity: 0.35,
                 strokeWidth: 1,
               }}
-            >
-              {chartData.map((_, index) => (
-                <Cell
-                  key={`cell-${index}`}
-                  fill={CHART_COLORS[index % CHART_COLORS.length]}
-                />
-              ))}
-            </Bar>
+            />
           </BarChart>
         </ResponsiveContainer>
       )}
