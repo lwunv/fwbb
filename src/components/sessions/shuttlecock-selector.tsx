@@ -105,14 +105,16 @@ export function ShuttlecockSelector({
       {/* Each brand = 1 row */}
       {items.map((sc) => (
         <div key={sc.id} className="flex items-center gap-2">
-          <span className="min-w-0 flex-1 truncate text-sm font-medium">
-            🏸 {sc.brand.name}
-            <span className="text-muted-foreground ml-1 text-xs">
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-base font-semibold">
+              🏸 {sc.brand.name}
+            </div>
+            <div className="text-primary text-base font-bold tabular-nums">
               {formatK(
                 calculateShuttlecockCost(sc.quantityUsed, sc.pricePerTube),
               )}
-            </span>
-          </span>
+            </div>
+          </div>
           <NumberStepper
             value={sc.quantityUsed}
             onChange={(v) => handleQuantityChange(sc, v)}
@@ -146,8 +148,11 @@ export function ShuttlecockSelector({
           />
         )}
         {totalCost > 0 && (
-          <span className="shrink-0 text-sm font-medium">
-            Tổng: <span className="text-primary">{formatK(totalCost)}</span>
+          <span className="text-muted-foreground shrink-0 text-base">
+            Tổng:{" "}
+            <span className="text-primary text-lg font-bold tabular-nums">
+              {formatK(totalCost)}
+            </span>
           </span>
         )}
       </div>

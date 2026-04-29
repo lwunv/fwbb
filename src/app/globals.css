@@ -293,10 +293,11 @@
   }
 }
 
-/* Smaller LED variants for icon-sized buttons (vote tags). Same rotating
- * sweep as `.led-border` nhưng padding nhỏ hơn + glow tiết chế để không
- * bleed vào inner button. Inner button BẮT BUỘC dùng bg đặc (bg-card /
- * bg-background) — nếu để translucent, ::after glow lộ qua trông như blob. */
+/* Smaller LED variants for icon-sized buttons (vote tags).
+ * Mirrors `.led-border` structure (rotating conic-gradient sweep + blurred
+ * glow trail) for visual consistency with the user-side upcoming-session card,
+ * just with thinner padding (1.5px) for icon-sized buttons. Uses the same
+ * `led-rotate` keyframes as the big variant. */
 .led-border-sm {
   position: relative;
   border-radius: 0.85rem;
@@ -310,21 +311,41 @@
   z-index: 1;
   border-radius: calc(0.85rem - 1.5px);
 }
-.led-border-sm::before {
+.led-border-sm::before,
+.led-border-sm::after {
   content: "";
   position: absolute;
   z-index: 0;
-  inset: -50%;
-  animation: led-rotate 2.4s linear infinite;
+  width: 200%;
+  height: 200%;
+  top: -50%;
+  left: -50%;
+  animation: led-rotate 3.5s linear infinite;
   pointer-events: none;
+}
+.led-border-sm::after {
+  filter: blur(8px);
+  opacity: 0.7;
 }
 .led-border-sm.primary::before {
   background: conic-gradient(
     from 0deg,
     transparent 0deg,
-    transparent 300deg,
-    var(--primary) 335deg,
-    var(--primary) 355deg,
+    transparent 280deg,
+    var(--primary) 320deg,
+    color-mix(in oklab, var(--primary), white 25%) 340deg,
+    color-mix(in oklab, var(--primary), white 45%) 350deg,
+    color-mix(in oklab, var(--primary), white 25%) 358deg,
+    transparent 360deg
+  );
+}
+.led-border-sm.primary::after {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 280deg,
+    color-mix(in oklab, var(--primary), transparent 50%) 320deg,
+    color-mix(in oklab, var(--primary), transparent 30%) 340deg,
     transparent 360deg
   );
 }
@@ -332,9 +353,21 @@
   background: conic-gradient(
     from 0deg,
     transparent 0deg,
-    transparent 300deg,
-    #f97316 335deg,
-    #fb923c 355deg,
+    transparent 280deg,
+    #f97316 320deg,
+    #fb923c 340deg,
+    #fed7aa 350deg,
+    #fb923c 358deg,
+    transparent 360deg
+  );
+}
+.led-border-sm.orange::after {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 280deg,
+    rgba(249, 115, 22, 0.5) 320deg,
+    rgba(251, 146, 60, 0.6) 340deg,
     transparent 360deg
   );
 }

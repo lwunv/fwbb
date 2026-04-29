@@ -90,11 +90,12 @@ export function SessionCard({
                 <strong className="text-primary tabular-nums">
                   {playerCount + guestPlayCount}
                 </strong>{" "}
-                {t("people")}
+                <span className="text-white">{t("people")}</span>
                 {guestPlayCount > 0 && (
-                  <span className="text-white tabular-nums">
+                  <span className="tabular-nums">
                     {" "}
-                    ({guestPlayCount} {t("guest")})
+                    (<span className="text-primary">{guestPlayCount}</span>{" "}
+                    <span className="text-white">{t("guest")}</span>)
                   </span>
                 )}
               </span>
@@ -103,11 +104,15 @@ export function SessionCard({
                 <strong className="text-orange-600 tabular-nums dark:text-orange-400">
                   {dinerCount + guestDineCount}
                 </strong>{" "}
-                {t("people")}
+                <span className="text-white">{t("people")}</span>
                 {guestDineCount > 0 && (
-                  <span className="text-white tabular-nums">
+                  <span className="tabular-nums">
                     {" "}
-                    ({guestDineCount} {t("guest")})
+                    (
+                    <span className="text-orange-600 dark:text-orange-400">
+                      {guestDineCount}
+                    </span>{" "}
+                    <span className="text-white">{t("guest")}</span>)
                   </span>
                 )}
               </span>

@@ -637,7 +637,7 @@ export function SessionList({
         title={t("cancelSession")}
         description={t("cancelConfirm")}
         onConfirm={handleCancelConfirm}
-        confirmLabel={t("cancelSession")}
+        confirmLabel={t("cancelSessionConfirmLabel")}
       >
         <div className="space-y-3">
           <label className="hover:bg-accent/40 flex cursor-pointer items-start gap-2 rounded-lg border p-3 transition-colors">

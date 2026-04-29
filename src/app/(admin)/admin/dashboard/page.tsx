@@ -1,13 +1,17 @@
 import { db } from "@/db";
-import { sessions, members } from "@/db/schema";
-import { eq, gte } from "drizzle-orm";
-import { getFundMembersWithBalances } from "@/actions/fund";
+import { sessions, members, financialTransactions } from "@/db/schema";
+import { eq, gte, lt, and } from "drizzle-orm";
+import {
+  getFundMembersWithBalances,
+  getRecentFinancialTransactions,
+} from "@/actions/fund";
 import { mergeLegacyDebtsIntoFund } from "@/actions/merge-debt-fund";
-import { checkLowStock } from "@/actions/inventory";
+import { getStockByBrand } from "@/actions/inventory";
 import { getNextSession } from "@/actions/sessions";
 import { getSessionVotes } from "@/actions/votes";
 import { DashboardClient } from "./dashboard-client";
 import { getAppName } from "@/actions/settings";
+import { ymdInVN } from "@/lib/date-format";
 
 export default async function DashboardPage() {
   // Idempotent migration before reading balances.
@@ -17,6 +21,7 @@ export default async function DashboardPage() {
   const fundMembers = await getFundMembersWithBalances();
 
   let totalOutstanding = 0;
+  let totalPositiveBalance = 0;
   const owingMembers: {
     memberId: number;
     memberName: string;
@@ -35,28 +40,140 @@ export default async function DashboardPage() {
         memberAvatarUrl: fm.member.avatarUrl ?? null,
         amount: debt,
       });
+    } else if (fm.balance.balance > 0) {
+      totalPositiveBalance += fm.balance.balance;
     }
   }
   owingMembers.sort((a, b) => b.amount - a.amount);
   const topOwingMembers = owingMembers.slice(0, 5);
 
-  // 2. Low stock
-  const lowStockResult = await checkLowStock();
+  // Inventory breakdown per brand
+  const stockByBrand = await getStockByBrand();
+  const activeStock = stockByBrand.filter((s) => s.isActive);
+  const totalStockQua = activeStock.reduce(
+    (sum, s) => sum + s.currentStockQua,
+    0,
+  );
+  const lowStockBrands = activeStock.filter((s) => s.isLowStock);
 
-  // 3. Active members count
+  // Active members count
   const activeMembers = await db.query.members.findMany({
     where: eq(members.isActive, true),
   });
 
-  // 4. Sessions this month
-  const now = new Date();
-  const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-  const allSessions = await db.query.sessions.findMany({
-    where: gte(sessions.date, monthStart),
-  });
-  const sessionsThisMonth = allSessions.length;
+  // Sessions this month — VN local YYYY-MM
+  const todayVN = ymdInVN();
+  const yearVN = parseInt(todayVN.slice(0, 4), 10);
+  const monthVN = parseInt(todayVN.slice(5, 7), 10);
+  const monthStart = `${yearVN}-${String(monthVN).padStart(2, "0")}-01`;
+  const nextMonth = monthVN === 12 ? 1 : monthVN + 1;
+  const nextMonthYear = monthVN === 12 ? yearVN + 1 : yearVN;
+  const nextMonthStart = `${nextMonthYear}-${String(nextMonth).padStart(2, "0")}-01`;
 
-  // 5. Upcoming session
+  const monthSessions = await db.query.sessions.findMany({
+    where: and(
+      gte(sessions.date, monthStart),
+      lt(sessions.date, nextMonthStart),
+    ),
+    columns: {
+      id: true,
+      date: true,
+      courtPrice: true,
+      status: true,
+    },
+  });
+  const sessionsThisMonth = monthSessions.length;
+  const completedSessionsThisMonth = monthSessions.filter(
+    (s) => s.status === "completed",
+  ).length;
+  const courtRentExpectedThisMonth = monthSessions
+    .filter((s) => s.status !== "cancelled")
+    .reduce((s, x) => s + (x.courtPrice ?? 0), 0);
+
+  // Financial transactions this month — aggregate by type/direction
+  // We use createdAt filter (gte VN month start in UTC ≈ same day) — small
+  // edge at month boundary acceptable for a dashboard summary tile.
+  const monthTxs = await db.query.financialTransactions.findMany({
+    where: and(
+      gte(financialTransactions.createdAt, monthStart),
+      lt(financialTransactions.createdAt, nextMonthStart),
+    ),
+    columns: {
+      type: true,
+      direction: true,
+      amount: true,
+      metadataJson: true,
+    },
+  });
+
+  let monthIn = 0;
+  let monthOut = 0;
+  let monthInventorySpend = 0;
+  let monthCourtRentPaid = 0;
+  for (const t of monthTxs) {
+    if (t.direction === "in") monthIn += t.amount;
+    else if (t.direction === "out") monthOut += t.amount;
+    if (t.type === "inventory_purchase" && t.direction === "out") {
+      monthInventorySpend += t.amount;
+    }
+    if (t.type === "court_rent_payment" && t.direction === "out") {
+      // Only count payments targeted at this month
+      try {
+        const meta = t.metadataJson
+          ? (JSON.parse(t.metadataJson) as { targetMonth?: unknown })
+          : null;
+        const target =
+          meta && typeof meta.targetMonth === "string"
+            ? meta.targetMonth
+            : null;
+        if (target === `${yearVN}-${String(monthVN).padStart(2, "0")}`) {
+          monthCourtRentPaid += t.amount;
+        }
+      } catch {
+        // ignore malformed metadata
+      }
+    }
+  }
+
+  // Court-rent paid for THIS month — query all court_rent_payment with
+  // metadata.targetMonth = current month (regardless of when paid).
+  const allCourtRentPayments = await db.query.financialTransactions.findMany({
+    where: eq(financialTransactions.type, "court_rent_payment"),
+    columns: { amount: true, direction: true, metadataJson: true },
+  });
+  let courtRentPaidThisMonth = 0;
+  const monthKey = `${yearVN}-${String(monthVN).padStart(2, "0")}`;
+  for (const p of allCourtRentPayments) {
+    if (p.direction !== "out") continue;
+    if (!p.metadataJson) continue;
+    try {
+      const meta = JSON.parse(p.metadataJson) as { targetMonth?: unknown };
+      if (meta?.targetMonth === monthKey) courtRentPaidThisMonth += p.amount;
+    } catch {
+      // skip
+    }
+  }
+  const courtRentRemainingThisMonth = Math.max(
+    0,
+    courtRentExpectedThisMonth - courtRentPaidThisMonth,
+  );
+
+  // Recent financial transactions (last 5) — for activity feed
+  const recentTxsRaw = await getRecentFinancialTransactions(5);
+  const recentTransactions = recentTxsRaw.map((r) => ({
+    id: r.id,
+    type: r.type,
+    direction: r.direction,
+    amount: r.amount,
+    description: r.description,
+    createdAt: r.createdAt ?? "",
+    memberId: r.memberId ?? null,
+    memberName: r.member?.nickname || r.member?.name || null,
+    memberAvatarKey: r.member?.avatarKey ?? null,
+    memberAvatarUrl: r.member?.avatarUrl ?? null,
+  }));
+
+  // Upcoming session
   const nextSession = await getNextSession();
 
   let upcomingSession: {
@@ -71,10 +188,15 @@ export default async function DashboardPage() {
     dinerCount: number;
     guestPlayCount: number;
     guestDineCount: number;
+    votedCount: number;
+    totalEligibleVoters: number;
   } | null = null;
 
   if (nextSession) {
     const sessionVotes = await getSessionVotes(nextSession.id);
+    const votedCount = sessionVotes.filter(
+      (v) => v.willPlay || v.willDine,
+    ).length;
     upcomingSession = {
       id: nextSession.id,
       date: nextSession.date,
@@ -93,8 +215,21 @@ export default async function DashboardPage() {
         (s, v) => s + (v.guestDineCount ?? 0),
         0,
       ),
+      votedCount,
+      totalEligibleVoters: activeMembers.length,
     };
   }
+
+  // Brand-level inventory tiles
+  const inventoryByBrand = activeStock.map((s) => ({
+    brandId: s.brandId,
+    brandName: s.brandName,
+    pricePerTube: s.pricePerTube,
+    currentStockQua: s.currentStockQua,
+    ong: s.ong,
+    qua: s.qua,
+    isLowStock: s.isLowStock,
+  }));
 
   const appName = await getAppName();
 
@@ -103,12 +238,25 @@ export default async function DashboardPage() {
       <DashboardClient
         appName={appName}
         totalOutstanding={totalOutstanding}
+        totalPositiveBalance={totalPositiveBalance}
         owingCount={owingMembers.length}
         topOwingMembers={topOwingMembers}
-        totalStockQua={lowStockResult.totalQua}
+        totalStockQua={totalStockQua}
+        lowStockBrandCount={lowStockBrands.length}
+        inventoryByBrand={inventoryByBrand}
         activeMembersCount={activeMembers.length}
         sessionsThisMonth={sessionsThisMonth}
+        completedSessionsThisMonth={completedSessionsThisMonth}
         upcomingSession={upcomingSession}
+        monthIn={monthIn}
+        monthOut={monthOut}
+        monthInventorySpend={monthInventorySpend}
+        courtRentExpectedThisMonth={courtRentExpectedThisMonth}
+        courtRentPaidThisMonth={courtRentPaidThisMonth}
+        courtRentRemainingThisMonth={courtRentRemainingThisMonth}
+        recentTransactions={recentTransactions}
+        currentMonth={monthVN}
+        currentYear={yearVN}
       />
     </div>
   );

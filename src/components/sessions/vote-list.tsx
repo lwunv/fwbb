@@ -57,24 +57,32 @@ export function VoteList({
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                  className="flex items-center gap-3 py-2"
+                  className="flex items-center gap-3 py-2.5"
                 >
                   <MemberAvatar
                     memberId={member.id}
                     avatarKey={member.avatarKey}
                     avatarUrl={member.avatarUrl}
-                    size={36}
+                    size={44}
                   />
-                  <div>
-                    <p className="text-base font-medium">{member.name}</p>
-                    <div className="mt-0.5 flex flex-wrap gap-1.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-lg font-semibold">
+                      {member.name}
+                    </p>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
                       {vote.willPlay && (
-                        <Badge variant="votePlay" className="text-xs">
+                        <Badge
+                          variant="votePlay"
+                          className="h-7 px-3 py-1 text-sm font-semibold"
+                        >
                           🏸 {t("badmintonShort")}
                         </Badge>
                       )}
                       {vote.willDine && (
-                        <Badge variant="voteDine" className="text-xs">
+                        <Badge
+                          variant="voteDine"
+                          className="h-7 px-3 py-1 text-sm font-semibold"
+                        >
                           🍻 {t("diningShort")}
                         </Badge>
                       )}
@@ -89,7 +97,7 @@ export function VoteList({
 
       {notVotedMembers.length > 0 && (
         <div className="space-y-2">
-          <p className="text-muted-foreground text-sm font-medium tracking-wider uppercase">
+          <p className="text-muted-foreground text-base font-semibold tracking-wider uppercase">
             {t("notVoted")} ({notVotedMembers.length})
           </p>
           <AnimatePresence initial={false}>
@@ -107,9 +115,9 @@ export function VoteList({
                   memberId={member.id}
                   avatarKey={member.avatarKey}
                   avatarUrl={member.avatarUrl}
-                  size={36}
+                  size={40}
                 />
-                <p className="text-base font-medium">{member.name}</p>
+                <p className="truncate text-base font-medium">{member.name}</p>
               </motion.div>
             ))}
           </AnimatePresence>

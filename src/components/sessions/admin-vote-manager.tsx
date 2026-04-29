@@ -484,7 +484,7 @@ export function AdminVoteManager({
                             title="Cầu lông"
                             disabled={readOnly}
                             onClick={() => toggleTag(member.id, "play")}
-                            className="border-primary bg-primary/10 text-primary dark:bg-primary/25 inline-flex h-12 w-12 cursor-pointer items-center justify-center border-2 text-lg transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50"
+                            className="border-primary text-primary inline-flex h-12 w-12 cursor-pointer items-center justify-center border-2 bg-violet-50 text-lg transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 dark:bg-violet-950"
                           >
                             🏸
                           </button>
@@ -509,7 +509,7 @@ export function AdminVoteManager({
                             title="Nhậu"
                             disabled={readOnly}
                             onClick={() => toggleTag(member.id, "dine")}
-                            className="inline-flex h-12 w-12 cursor-pointer items-center justify-center border-2 border-orange-500 bg-orange-100 text-lg text-orange-700 transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 dark:border-orange-400 dark:bg-orange-900/40 dark:text-orange-300"
+                            className="inline-flex h-12 w-12 cursor-pointer items-center justify-center border-2 border-orange-500 bg-orange-50 text-lg text-orange-700 transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 dark:border-orange-400 dark:bg-orange-950 dark:text-orange-300"
                           >
                             🍻
                           </button>

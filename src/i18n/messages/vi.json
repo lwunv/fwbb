@@ -62,6 +62,7 @@
     "deleteSessionDesc": "Bạn có chắc chắn muốn xóa buổi chơi này? Tất cả dữ liệu liên quan sẽ bị xóa.",
     "confirmSession": "Xác nhận buổi chơi",
     "cancelSession": "Hủy",
+    "cancelSessionConfirmLabel": "Xác nhận hủy",
     "cancelConfirm": "Bạn có chắc muốn hủy buổi chơi này?",
     "shuttlecockUsage": "Cầu lông sử dụng",
     "done": "Đã hoàn thành",

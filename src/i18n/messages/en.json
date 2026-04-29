@@ -62,6 +62,7 @@
     "deleteSessionDesc": "Are you sure? All related data will be deleted.",
     "confirmSession": "Confirm session",
     "cancelSession": "Cancel",
+    "cancelSessionConfirmLabel": "Confirm cancel",
     "cancelConfirm": "Are you sure you want to cancel this session?",
     "shuttlecockUsage": "Shuttlecock usage",
     "done": "Done",

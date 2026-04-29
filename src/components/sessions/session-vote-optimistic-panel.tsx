@@ -133,12 +133,12 @@ export function SessionVoteOptimisticPanel({
 
       <Card>
         <CardContent className="p-4">
-          <h2 className="mb-3 font-semibold">
+          <h2 className="mb-3 text-lg font-bold sm:text-xl">
             <span className="inline-flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
               <span className="inline-flex items-baseline whitespace-nowrap">
                 <span className="pr-1">{t("voteList")}</span>
                 <span className="text-muted-foreground">(</span>
-                <span className="text-primary text-lg leading-none font-bold tabular-nums sm:text-xl">
+                <span className="text-primary text-2xl leading-none font-extrabold tabular-nums sm:text-3xl">
                   {listHeadCount}
                 </span>
                 <span className="text-muted-foreground tabular-nums">/</span>
@@ -148,18 +148,18 @@ export function SessionVoteOptimisticPanel({
                 <span className="text-muted-foreground">)</span>
               </span>
               {totalGuestPlay > 0 && (
-                <span className="text-muted-foreground font-normal whitespace-nowrap">
+                <span className="text-muted-foreground text-base font-normal whitespace-nowrap">
                   +{" "}
-                  <span className="text-primary font-semibold tabular-nums">
+                  <span className="text-primary text-lg font-bold tabular-nums">
                     {totalGuestPlay}
                   </span>{" "}
                   {tv("guestSummaryPlayTail", { count: totalGuestPlay })}
                 </span>
               )}
               {totalGuestDine > 0 && (
-                <span className="text-muted-foreground font-normal whitespace-nowrap">
+                <span className="text-muted-foreground text-base font-normal whitespace-nowrap">
                   +{" "}
-                  <span className="font-semibold text-orange-600 tabular-nums dark:text-orange-400">
+                  <span className="text-lg font-bold text-orange-600 tabular-nums dark:text-orange-400">
                     {totalGuestDine}
                   </span>{" "}
                   {tv("guestSummaryDineTail", { count: totalGuestDine })}
