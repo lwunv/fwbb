@@ -558,16 +558,12 @@
     "deducted": "已扣除",
     "topUp": "充值资金",
     "amountPlaceholder": "500000",
-    "getQR": "获取二维码",
     "history": "交易历史",
     "txCount": "{count} 笔",
     "noTransactions": "暂无交易。",
     "txContribution": "充值",
     "txDeduction": "扣除（场次欠款）",
     "txRefund": "退款",
-    "session": "场次 {date}",
-    "qrTitle": "充值资金",
-    "qrDescription": "转账以增加群组资金",
-    "qrMemo": "FWBB 基金"
+    "session": "场次 {date}"
   }
 }

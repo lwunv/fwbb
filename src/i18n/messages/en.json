@@ -558,16 +558,12 @@
     "deducted": "Deducted",
     "topUp": "Top up the fund",
     "amountPlaceholder": "500000",
-    "getQR": "Get QR code",
     "history": "Transaction history",
     "txCount": "{count} txs",
     "noTransactions": "No transactions yet.",
     "txContribution": "Contribution",
     "txDeduction": "Deduction (session debt)",
     "txRefund": "Refund",
-    "session": "Session {date}",
-    "qrTitle": "Top up fund",
-    "qrDescription": "Transfer to top up the group fund",
-    "qrMemo": "FWBB FUND"
+    "session": "Session {date}"
   }
 }

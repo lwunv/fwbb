@@ -11,7 +11,6 @@ import {
   ArrowUpCircle,
   ArrowDownCircle,
   RotateCcw,
-  QrCode,
   Calendar,
 } from "lucide-react";
 import type { FundBalance } from "@/lib/fund-core";
@@ -36,7 +35,6 @@ interface Props {
 export function MyFundClient({ balance, transactions, memberId }: Props) {
   const t = useTranslations("myFundClient");
   const locale = useLocale();
-  const [showQR, setShowQR] = useState(false);
   const debtAmount = balance.balance < 0 ? Math.abs(balance.balance) : 0;
   const hasDebt = debtAmount > 0;
   const [mode, setMode] = useState<"contribute" | "payDebt">(
@@ -55,6 +53,13 @@ export function MyFundClient({ balance, transactions, memberId }: Props) {
   const formattedAmount = customAmount
     ? Number(customAmount).toLocaleString("vi-VN")
     : "";
+
+  // Memo prefix matches the bank-matcher dispatch (see DebtFundTabs):
+  //   "FWBB QUY <id>" → fund_contribution
+  //   "FWBB NO  <id>" → debt repayment
+  const qrAmount = Math.max(0, parseInt(customAmount, 10) || 0);
+  const qrMemo =
+    mode === "payDebt" ? `FWBB NO ${memberId}` : `FWBB QUY ${memberId}`;
 
   function formatDate(dateStr: string | null) {
     if (!dateStr) return "";
@@ -213,28 +218,22 @@ export function MyFundClient({ balance, transactions, memberId }: Props) {
               </button>
             </div>
 
-            <div className="flex gap-2">
-              <input
-                type="text"
-                inputMode="numeric"
-                value={formattedAmount}
-                onChange={(e) => {
-                  const digits = e.target.value.replace(/\D/g, "");
-                  setCustomAmount(digits);
-                }}
-                placeholder={t("amountPlaceholder")}
-                className="bg-background min-h-11 min-w-0 flex-1 rounded-xl border p-2.5 text-base tabular-nums"
-                aria-label={t("topUp")}
-              />
-              <button
-                onClick={() => setShowQR(true)}
-                disabled={!customAmount || parseInt(customAmount, 10) <= 0}
-                className="bg-primary text-primary-foreground flex min-h-11 items-center gap-2 rounded-xl px-4 font-medium whitespace-nowrap active:scale-[0.98] disabled:opacity-50"
-              >
-                <QrCode className="h-4 w-4" />
-                {t("getQR")}
-              </button>
-            </div>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={formattedAmount}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, "");
+                setCustomAmount(digits);
+              }}
+              placeholder={t("amountPlaceholder")}
+              className="bg-background min-h-11 w-full min-w-0 rounded-xl border p-2.5 text-base tabular-nums"
+              aria-label={t("topUp")}
+            />
+
+            {qrAmount > 0 && (
+              <PaymentQR variant="inline" amount={qrAmount} memo={qrMemo} />
+            )}
           </CardContent>
         </Card>
       </motion.div>
@@ -310,18 +309,6 @@ export function MyFundClient({ balance, transactions, memberId }: Props) {
           </div>
         </Card>
       </motion.div>
-
-      {/* VietQR Payment Sheet */}
-      {showQR && (
-        <PaymentQR
-          variant="overlay"
-          amount={parseInt(customAmount, 10) || 500000}
-          memo={`FWBB QUY ${memberId}`}
-          onClose={() => setShowQR(false)}
-          title={t("qrTitle")}
-          description={t("qrDescription")}
-        />
-      )}
     </div>
   );
 }

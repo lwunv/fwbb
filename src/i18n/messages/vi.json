@@ -558,16 +558,12 @@
     "deducted": "Đã trừ",
     "topUp": "Nạp thêm vào quỹ",
     "amountPlaceholder": "500000",
-    "getQR": "Lấy mã QR",
     "history": "Lịch sử giao dịch",
     "txCount": "{count} GD",
     "noTransactions": "Chưa có giao dịch nào.",
     "txContribution": "Đóng quỹ",
     "txDeduction": "Trừ quỹ (Nợ buổi chơi)",
     "txRefund": "Hoàn quỹ",
-    "session": "Buổi {date}",
-    "qrTitle": "Nạp quỹ",
-    "qrDescription": "Chuyển khoản để nạp thêm vào quỹ nhóm",
-    "qrMemo": "FWBB QUY"
+    "session": "Buổi {date}"
   }
 }

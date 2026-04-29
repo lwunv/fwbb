@@ -154,7 +154,7 @@ export function MonthlyExpensesChart({
             <Bar
               dataKey="diningCost"
               stackId="a"
-              fill="var(--color-chart-3, #10b981)"
+              fill="#f97316"
               radius={[4, 4, 0, 0]}
               hide={hidden.has("diningCost")}
               activeBar={{

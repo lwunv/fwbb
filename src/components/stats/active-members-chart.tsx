@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   BarChart,
   Bar,
@@ -30,11 +31,21 @@ function shortenName(name: string, max = DISPLAY_NAME_MAX) {
 
 export function ActiveMembersChart({ data }: ActiveMembersChartProps) {
   const t = useTranslations("stats");
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
 
   const seriesLabels: Record<string, string> = {
     playCount: t("playBadminton"),
     dineCount: t("dining"),
   };
+
+  function toggleSeries(dataKey: string) {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(dataKey)) next.delete(dataKey);
+      else next.add(dataKey);
+      return next;
+    });
+  }
 
   const chartData = [...data]
     .sort((a, b) => b.playCount + b.dineCount - (a.playCount + a.dineCount))
@@ -130,16 +141,30 @@ export function ActiveMembersChart({ data }: ActiveMembersChartProps) {
               ]}
             />
             <Legend
-              formatter={(value: string) => (
-                <span className="text-muted-foreground text-xs">
-                  {seriesLabels[value] ?? value}
-                </span>
-              )}
+              onClick={(e) => {
+                if (e.dataKey) toggleSeries(String(e.dataKey));
+              }}
+              formatter={(value: string) => {
+                const isHidden = hidden.has(value);
+                return (
+                  <span
+                    className="text-muted-foreground text-xs"
+                    style={{
+                      cursor: "pointer",
+                      opacity: isHidden ? 0.45 : 1,
+                      textDecoration: isHidden ? "line-through" : undefined,
+                    }}
+                  >
+                    {seriesLabels[value] ?? value}
+                  </span>
+                );
+              }}
             />
             <Bar
               dataKey="playCount"
               stackId="a"
               fill={COLOR_PLAY}
+              hide={hidden.has("playCount")}
               activeBar={{
                 stroke: "var(--color-foreground, #0f172a)",
                 strokeOpacity: 0.35,
@@ -151,6 +176,7 @@ export function ActiveMembersChart({ data }: ActiveMembersChartProps) {
               stackId="a"
               fill={COLOR_DINE}
               radius={[0, 4, 4, 0]}
+              hide={hidden.has("dineCount")}
               activeBar={{
                 stroke: "var(--color-foreground, #0f172a)",
                 strokeOpacity: 0.35,

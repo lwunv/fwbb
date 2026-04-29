@@ -3,7 +3,7 @@ import { getSessionVotes } from "@/actions/votes";
 import { getActiveMembers } from "@/actions/members";
 import { getUserFromCookie } from "@/lib/user-identity";
 import { isWithinHomeVoteWindow } from "@/lib/home-session";
-import { getFundBalance } from "@/lib/fund-calculator";
+import { getFundBalance, isFundMember } from "@/lib/fund-calculator";
 import { SessionCard } from "@/components/sessions/session-card";
 import { SessionVoteOptimisticPanel } from "@/components/sessions/session-vote-optimistic-panel";
 import { DebtFundTabs } from "@/components/finance/debt-fund-tabs";
@@ -24,11 +24,21 @@ export default async function HomePage() {
   // Merged Quỹ + Nợ model: only one number matters per user — the fund
   // balance. Negative = đang nợ, zero = hết quỹ, positive = còn quỹ.
   let userFundBalance = 0;
+  let userIsFundMember = false;
   if (user) {
-    userFundBalance = (await getFundBalance(user.memberId)).balance;
+    [userFundBalance, userIsFundMember] = await Promise.all([
+      getFundBalance(user.memberId).then((b) => b.balance),
+      isFundMember(user.memberId),
+    ]);
   }
   const outstandingTotal = userFundBalance < 0 ? Math.abs(userFundBalance) : 0;
   const hasOutstandingDebt = outstandingTotal > 0;
+  // "Quỹ hết" — fund member with balance exactly 0 (đã trả hết nợ nhưng quỹ rỗng).
+  const fundEmpty = userIsFundMember && userFundBalance === 0;
+  // Show the QR card whenever the user has something to pay (debt) or
+  // their fund needs topping up.
+  const needsFundAction = hasOutstandingDebt || fundEmpty;
+  const fundBalanceProp = userIsFundMember ? userFundBalance : null;
 
   // Trước 2 ngày: còn nợ → ưu tiên buổi đã chơi gần đây + thanh toán (không vote)
   if (
@@ -68,7 +78,7 @@ export default async function HomePage() {
         <DebtFundTabs
           memberId={user.memberId}
           outstandingTotal={outstandingTotal}
-          fundBalance={userFundBalance}
+          fundBalance={fundBalanceProp}
         />
       </div>
     );
@@ -86,12 +96,12 @@ export default async function HomePage() {
         <AutoRefresh />
         {user && <FundBalanceBanner balance={userFundBalance} />}
         {user &&
-          hasOutstandingDebt &&
+          needsFundAction &&
           isWithinHomeVoteWindow(nextSession.date) && (
             <DebtFundTabs
               memberId={user.memberId}
               outstandingTotal={outstandingTotal}
-              fundBalance={userFundBalance}
+              fundBalance={fundBalanceProp}
             />
           )}
 
@@ -148,11 +158,11 @@ export default async function HomePage() {
         </div>
       )}
 
-      {user && hasOutstandingDebt && (
+      {user && needsFundAction && (
         <DebtFundTabs
           memberId={user.memberId}
           outstandingTotal={outstandingTotal}
-          fundBalance={userFundBalance}
+          fundBalance={fundBalanceProp}
         />
       )}
     </div>
