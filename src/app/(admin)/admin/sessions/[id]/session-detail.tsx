@@ -145,6 +145,8 @@ export function SessionDetail({
         members={members}
         debtMap={debtMap}
         readOnly={localStatus === "completed" || localStatus === "cancelled"}
+        adminGuestPlayCount={session.adminGuestPlayCount ?? 0}
+        adminGuestDineCount={session.adminGuestDineCount ?? 0}
         sessionCosts={{
           courtPrice: session.courtPrice ?? 0,
           courtName: session.court?.name ?? null,

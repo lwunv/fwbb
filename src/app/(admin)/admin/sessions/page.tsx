@@ -1,15 +1,21 @@
 import { db } from "@/db";
 import { sessions, courts, members, shuttlecockBrands } from "@/db/schema";
-import { desc, eq, lte } from "drizzle-orm";
-import { ymdInVN } from "@/lib/date-format";
+import { desc, eq, sql } from "drizzle-orm";
 import { SessionList } from "./session-list";
 
-export default async function SessionsPage() {
-  // Spec của user: admin chỉ thấy buổi tính từ 00:00 UTC+7 của ngày diễn ra.
-  // Buổi tương lai (1/5 khi đang là 29/4) không hiện trong list admin.
-  const todayVN = ymdInVN();
+const PAGE_SIZE = 10;
 
-  const [activeCourts, activeMembers, activeBrands, allSessions] =
+export default async function SessionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const sp = await searchParams;
+  const pageNum = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
+
+  // 2-wave fetch: count trước để clamp page, rồi fetch slice theo safePage.
+  // Tránh case URL `?page=99` nhưng thực tế chỉ có 3 trang → fetch empty slice.
+  const [activeCourts, activeMembers, activeBrands, totalRows] =
     await Promise.all([
       db.query.courts.findMany({
         where: eq(courts.isActive, true),
@@ -23,17 +29,27 @@ export default async function SessionsPage() {
         where: eq(shuttlecockBrands.isActive, true),
         orderBy: [shuttlecockBrands.name],
       }),
-      db.query.sessions.findMany({
-        where: lte(sessions.date, todayVN),
-        orderBy: [desc(sessions.date)],
-        with: {
-          court: true,
-          votes: { with: { member: true } },
-          debts: { with: { member: true } },
-          shuttlecocks: { with: { brand: true } },
-        },
-      }),
+      db
+        .select({ count: sql<number>`count(*)` })
+        .from(sessions)
+        .then((r) => Number(r[0]?.count ?? 0)),
     ]);
+
+  const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
+  const safePage = Math.min(pageNum, totalPages);
+  const offset = (safePage - 1) * PAGE_SIZE;
+
+  const allSessions = await db.query.sessions.findMany({
+    orderBy: [desc(sessions.date)],
+    limit: PAGE_SIZE,
+    offset,
+    with: {
+      court: true,
+      votes: { with: { member: true } },
+      debts: { with: { member: true } },
+      shuttlecocks: { with: { brand: true } },
+    },
+  });
 
   const sessionCards = allSessions.map((s) => {
     const playerCount = s.votes.filter((v) => v.willPlay).length;
@@ -110,6 +126,8 @@ export default async function SessionsPage() {
         courts={activeCourts}
         members={activeMembers}
         brands={activeBrands}
+        currentPage={safePage}
+        totalPages={totalPages}
       />
     </div>
   );

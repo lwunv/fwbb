@@ -7,7 +7,7 @@ import {
 } from "@/actions/fund";
 import { mergeLegacyDebtsIntoFund } from "@/actions/merge-debt-fund";
 import { getStockByBrand } from "@/actions/inventory";
-import { getNextSession } from "@/actions/sessions";
+import { getAdminUpcomingSession } from "@/actions/sessions";
 import { getSessionVotes } from "@/actions/votes";
 import { DashboardClient } from "./dashboard-client";
 import { getAppName } from "@/actions/settings";
@@ -173,8 +173,8 @@ export default async function DashboardPage() {
     memberAvatarUrl: r.member?.avatarUrl ?? null,
   }));
 
-  // Upcoming session
-  const nextSession = await getNextSession();
+  // Buổi cần admin chú ý — ưu tiên hôm nay, fallback hôm qua nếu chưa finalize.
+  const nextSession = await getAdminUpcomingSession();
 
   let upcomingSession: {
     id: number;
@@ -207,14 +207,12 @@ export default async function DashboardPage() {
       endTime: nextSession.endTime || "22:30",
       playerCount: sessionVotes.filter((v) => v.willPlay).length,
       dinerCount: sessionVotes.filter((v) => v.willDine).length,
-      guestPlayCount: sessionVotes.reduce(
-        (s, v) => s + (v.guestPlayCount ?? 0),
-        0,
-      ),
-      guestDineCount: sessionVotes.reduce(
-        (s, v) => s + (v.guestDineCount ?? 0),
-        0,
-      ),
+      guestPlayCount:
+        sessionVotes.reduce((s, v) => s + (v.guestPlayCount ?? 0), 0) +
+        (nextSession.adminGuestPlayCount ?? 0),
+      guestDineCount:
+        sessionVotes.reduce((s, v) => s + (v.guestDineCount ?? 0), 0) +
+        (nextSession.adminGuestDineCount ?? 0),
       votedCount,
       totalEligibleVoters: activeMembers.length,
     };

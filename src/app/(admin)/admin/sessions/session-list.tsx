@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { parseAsInteger, useQueryState } from "nuqs";
 import {
   createSessionManually,
   cancelSession,
@@ -10,6 +11,10 @@ import {
 import { confirmPaymentByAdmin } from "@/actions/finance";
 import { fireAction } from "@/lib/optimistic-action";
 import { formatK } from "@/lib/utils";
+import {
+  calculateShuttlecockCost,
+  computePerHeadCharges,
+} from "@/lib/cost-calculator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +37,8 @@ import {
   Calendar,
   MapPin,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Navigation,
   AlertTriangle,
   X,
@@ -136,12 +143,20 @@ export function SessionList({
   courts = [],
   members = [],
   brands = [],
+  currentPage = 1,
+  totalPages = 1,
 }: {
   sessions: SessionCard[];
   courts?: Court[];
   members?: Member[];
   brands?: Brand[];
+  currentPage?: number;
+  totalPages?: number;
 }) {
+  const [, setPage] = useQueryState(
+    "page",
+    parseAsInteger.withDefault(1).withOptions({ shallow: false }),
+  );
   const [dialogOpen, setDialogOpen] = useState(false);
   const [error, setError] = useState("");
   const [cancelledSessions, setCancelledSessions] = useState<Set<number>>(
@@ -335,6 +350,26 @@ export function SessionList({
           const totalGuestDine =
             session.guestDineCount + ag.dine - session.adminGuestDineCount;
 
+          // Per-head & total — dùng cùng helper với cost-calculator để đồng bộ
+          // 3 trang admin (list / detail / dashboard).
+          const courtPriceVal = session.courtPrice ?? 0;
+          const shuttlecockCost = session.shuttlecocks.reduce(
+            (sum, s) =>
+              sum + calculateShuttlecockCost(s.quantityUsed, s.pricePerTube),
+            0,
+          );
+          const totalPlayers = session.playerCount + totalGuestPlay;
+          const totalDiners = session.dinerCount + totalGuestDine;
+          const { playCostPerHead, dineCostPerHead } = computePerHeadCharges({
+            courtPrice: courtPriceVal,
+            shuttlecockCost,
+            diningBill: session.diningBill,
+            playerCount: totalPlayers,
+            dinerCount: totalDiners,
+          });
+          const totalExpense =
+            courtPriceVal + shuttlecockCost + session.diningBill;
+
           return (
             <div key={session.id}>
               <Card className={`!py-0 transition-all ${status.cardBg}`}>
@@ -487,6 +522,45 @@ export function SessionList({
                       );
                     })()}
 
+                  {/* Cost-per-head strip — hiện cho voting/confirmed/completed
+                      khi có dữ liệu. Số khi chưa completed là ước tính (sẽ đổi
+                      nếu thêm/bớt người). */}
+                  {effectiveStatus !== "cancelled" &&
+                    (totalExpense > 0 ||
+                      playCostPerHead > 0 ||
+                      dineCostPerHead > 0) && (
+                      <div className="bg-card/40 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border px-3 py-2 text-sm">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                          {playCostPerHead > 0 && (
+                            <span>
+                              🏸{" "}
+                              <strong className="text-primary">
+                                {formatK(playCostPerHead)}
+                              </strong>
+                              /người
+                            </span>
+                          )}
+                          {dineCostPerHead > 0 && (
+                            <span>
+                              🍻{" "}
+                              <strong className="text-orange-500 dark:text-orange-400">
+                                {formatK(dineCostPerHead)}
+                              </strong>
+                              /người
+                            </span>
+                          )}
+                        </div>
+                        {totalExpense > 0 && (
+                          <span className="text-muted-foreground tabular-nums">
+                            Tổng{" "}
+                            <strong className="text-foreground">
+                              {formatK(totalExpense)}
+                            </strong>
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                   {/* Completed: counts (non-expandable) + payment status */}
                   {effectiveStatus === "completed" && (
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
@@ -562,6 +636,8 @@ export function SessionList({
                     members={members}
                     debtMap={session.debtMap}
                     readOnly={false}
+                    adminGuestPlayCount={ag.play}
+                    adminGuestDineCount={ag.dine}
                     sessionCosts={{
                       courtPrice: session.courtPrice ?? 0,
                       courtName: session.courtName,
@@ -628,6 +704,35 @@ export function SessionList({
           </div>
         )}
       </div>
+
+      {totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-center gap-3">
+          <Button
+            variant="outline"
+            size="icon"
+            disabled={currentPage <= 1}
+            onClick={() => setPage(Math.max(1, currentPage - 1))}
+            className="h-11 w-11"
+            aria-label="Trang trước"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="text-muted-foreground min-w-[5rem] text-center text-sm tabular-nums">
+            Trang <strong className="text-foreground">{currentPage}</strong> /{" "}
+            {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="icon"
+            disabled={currentPage >= totalPages}
+            onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
+            className="h-11 w-11"
+            aria-label="Trang sau"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
       <ConfirmDialog
         open={cancelTarget !== null}

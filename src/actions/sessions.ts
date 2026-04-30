@@ -97,6 +97,66 @@ export async function getNextSession() {
   return undefined;
 }
 
+/**
+ * Buổi cần admin chú ý trên dashboard. Khác `getNextSession` ở chỗ:
+ * - Ưu tiên buổi của hôm nay (active).
+ * - Nếu không có, fallback buổi của hôm qua (chưa finalize) để admin chốt sổ.
+ * - KHÔNG hiện buổi của ngày mai (đợi đến đúng ngày mới hiện) — theo spec
+ *   user: "ngày 30/4 thì cần hiện buổi 29/4 chứ. đến 1/5 mới hiện buổi tiếp".
+ * - Nếu hôm nay là Mon/Wed/Fri và chưa có row, auto-create cho hôm nay.
+ */
+export async function getAdminUpcomingSession() {
+  const today = ymdInVN();
+  const yesterday = ymdInVNAddDays(-1);
+
+  // 1. Hôm nay có session active → show
+  const todaySession = await db.query.sessions.findFirst({
+    where: and(
+      eq(sessions.date, today),
+      ne(sessions.status, "completed"),
+      ne(sessions.status, "cancelled"),
+    ),
+    with: {
+      court: true,
+      shuttlecocks: { with: { brand: true } },
+    },
+  });
+  if (todaySession) return todaySession;
+
+  // 2. Hôm qua có session active (chưa finalize) → admin cần chốt sổ
+  const yesterdaySession = await db.query.sessions.findFirst({
+    where: and(
+      eq(sessions.date, yesterday),
+      ne(sessions.status, "completed"),
+      ne(sessions.status, "cancelled"),
+    ),
+    with: {
+      court: true,
+      shuttlecocks: { with: { brand: true } },
+    },
+  });
+  if (yesterdaySession) return yesterdaySession;
+
+  // 3. Hôm nay là ngày chơi mà chưa có row → auto-create
+  if (SESSION_DAYS_OF_WEEK.has(dayOfWeekVN(today))) {
+    const exists = await db.query.sessions.findFirst({
+      where: eq(sessions.date, today),
+    });
+    if (!exists) {
+      const [newSession] = await db
+        .insert(sessions)
+        .values({ date: today, status: "voting" })
+        .returning();
+      return db.query.sessions.findFirst({
+        where: eq(sessions.id, newSession.id),
+        with: { court: true, shuttlecocks: { with: { brand: true } } },
+      });
+    }
+  }
+
+  return undefined;
+}
+
 export async function getLatestCompletedSession() {
   return db.query.sessions.findFirst({
     where: eq(sessions.status, "completed"),

@@ -46,6 +46,8 @@ interface AdminVoteManagerProps {
   debtMap?: Record<number, DebtInfo>;
   readOnly?: boolean;
   sessionCosts?: SessionCosts;
+  adminGuestPlayCount?: number;
+  adminGuestDineCount?: number;
 }
 
 // Local optimistic state types
@@ -64,6 +66,8 @@ export function AdminVoteManager({
   debtMap = {},
   readOnly = false,
   sessionCosts,
+  adminGuestPlayCount = 0,
+  adminGuestDineCount = 0,
 }: AdminVoteManagerProps) {
   const t = useTranslations("voting");
   const tCommon = useTranslations("common");
@@ -118,15 +122,18 @@ export function AdminVoteManager({
     (m) => getVote(m.id)?.willDine,
   ).length;
 
-  /** Khách cộng từ vote — bỏ member đã remove khỏi danh sách */
-  const totalGuestPlay = votes.reduce((s, v) => {
-    if (removedMembers.has(v.memberId)) return s;
-    return s + (v.guestPlayCount ?? 0);
-  }, 0);
-  const totalGuestDine = votes.reduce((s, v) => {
-    if (removedMembers.has(v.memberId)) return s;
-    return s + (v.guestDineCount ?? 0);
-  }, 0);
+  /** Khách cộng từ vote — bỏ member đã remove khỏi danh sách. Cộng cả khách
+   *  của admin (lưu trên `sessions.admin_guest_*_count`) để khớp finalize. */
+  const totalGuestPlay =
+    votes.reduce((s, v) => {
+      if (removedMembers.has(v.memberId)) return s;
+      return s + (v.guestPlayCount ?? 0);
+    }, 0) + adminGuestPlayCount;
+  const totalGuestDine =
+    votes.reduce((s, v) => {
+      if (removedMembers.has(v.memberId)) return s;
+      return s + (v.guestDineCount ?? 0);
+    }, 0) + adminGuestDineCount;
 
   /** Tổng “mạng” play/dine — khớp logic finalize (cost-calculator) */
   const playerCount = memberPlayerCount + totalGuestPlay;
@@ -313,11 +320,16 @@ export function AdminVoteManager({
 
   return (
     <div className="space-y-3">
-      {/* Info card — blue tint (only when completed) */}
-      {sc?.isCompleted && (
-        <Card className="border-blue-200/40 bg-blue-50/40 !py-2 dark:border-blue-900/30 dark:bg-blue-950/20">
-          <CardContent className="space-y-1.5 px-3 py-0">
-            {sc.isCompleted && (
+      {/* Info card — luôn hiện khi có dữ liệu chi/người. Khi chưa completed
+          các con số là ước tính (per-head có thể thay đổi nếu thêm/bớt người). */}
+      {sc &&
+        (sc.courtPrice > 0 ||
+          sc.diningBill > 0 ||
+          shuttlecockCost > 0 ||
+          playerCount > 0 ||
+          dinerCount > 0) && (
+          <Card className="border-blue-200/40 bg-blue-50/40 !py-2 dark:border-blue-900/30 dark:bg-blue-950/20">
+            <CardContent className="space-y-1.5 px-3 py-0">
               <div className="space-y-0.5 text-sm">
                 {sc.shuttlecocks.length > 0 && (
                   <div className="flex items-center justify-between">
@@ -419,10 +431,9 @@ export function AdminVoteManager({
                   </div>
                 </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+            </CardContent>
+          </Card>
+        )}
 
       {/* Search box — solid bg + border-2 cho dễ thấy hơn */}
       {!readOnly && (
