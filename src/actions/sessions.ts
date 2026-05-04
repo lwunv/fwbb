@@ -12,7 +12,7 @@ import {
   financialTransactions,
   paymentNotifications,
 } from "@/db/schema";
-import { eq, desc, and, gte, lte, ne, isNull, inArray } from "drizzle-orm";
+import { eq, desc, and, gte, lt, lte, ne, isNull, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
   sendGroupMessage,
@@ -100,14 +100,16 @@ export async function getNextSession() {
 /**
  * Buổi cần admin chú ý trên dashboard. Khác `getNextSession` ở chỗ:
  * - Ưu tiên buổi của hôm nay (active).
- * - Nếu không có, fallback buổi của hôm qua (chưa finalize) để admin chốt sổ.
- * - KHÔNG hiện buổi của ngày mai (đợi đến đúng ngày mới hiện) — theo spec
+ * - KHÔNG hiện buổi tương lai (đợi đến đúng ngày mới hiện) — theo spec
  *   user: "ngày 30/4 thì cần hiện buổi 29/4 chứ. đến 1/5 mới hiện buổi tiếp".
  * - Nếu hôm nay là Mon/Wed/Fri và chưa có row, auto-create cho hôm nay.
+ * - Nếu vẫn không có buổi cho hôm nay, lùi về buổi pending gần nhất trong
+ *   quá khứ (voting/confirmed chưa finalize). Không giới hạn 1 ngày — VD: Chủ
+ *   Nhật vẫn phải hiện buổi T6 nếu nó chưa được chốt sổ. Dashboard không bao
+ *   giờ trống nếu còn buổi pending.
  */
 export async function getAdminUpcomingSession() {
   const today = ymdInVN();
-  const yesterday = ymdInVNAddDays(-1);
 
   // 1. Hôm nay có session active → show
   const todaySession = await db.query.sessions.findFirst({
@@ -123,21 +125,7 @@ export async function getAdminUpcomingSession() {
   });
   if (todaySession) return todaySession;
 
-  // 2. Hôm qua có session active (chưa finalize) → admin cần chốt sổ
-  const yesterdaySession = await db.query.sessions.findFirst({
-    where: and(
-      eq(sessions.date, yesterday),
-      ne(sessions.status, "completed"),
-      ne(sessions.status, "cancelled"),
-    ),
-    with: {
-      court: true,
-      shuttlecocks: { with: { brand: true } },
-    },
-  });
-  if (yesterdaySession) return yesterdaySession;
-
-  // 3. Hôm nay là ngày chơi mà chưa có row → auto-create
+  // 2. Hôm nay là ngày chơi mà chưa có row → auto-create cho hôm nay
   if (SESSION_DAYS_OF_WEEK.has(dayOfWeekVN(today))) {
     const exists = await db.query.sessions.findFirst({
       where: eq(sessions.date, today),
@@ -153,6 +141,22 @@ export async function getAdminUpcomingSession() {
       });
     }
   }
+
+  // 3. Lùi về buổi pending gần nhất trong quá khứ (admin cần chốt sổ).
+  //    Không giới hạn 1 ngày: T6 chưa finalize phải vẫn hiện vào CN/T2 sau đó.
+  const pastPending = await db.query.sessions.findFirst({
+    where: and(
+      lt(sessions.date, today),
+      ne(sessions.status, "completed"),
+      ne(sessions.status, "cancelled"),
+    ),
+    orderBy: [desc(sessions.date)],
+    with: {
+      court: true,
+      shuttlecocks: { with: { brand: true } },
+    },
+  });
+  if (pastPending) return pastPending;
 
   return undefined;
 }

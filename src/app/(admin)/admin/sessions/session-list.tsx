@@ -121,8 +121,7 @@ const statusStyles: Record<
   },
   confirmed: {
     labelKey: "confirmed",
-    cardBg:
-      "bg-green-50/60 border-green-200/50 dark:bg-green-950/20 dark:border-green-900/30",
+    cardBg: "bg-green-50/60 border-2 dark:bg-green-950/20 animate-border-pulse",
   },
   completed: {
     labelKey: "completed",
