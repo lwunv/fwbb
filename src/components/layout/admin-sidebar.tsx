@@ -59,7 +59,7 @@ export function AdminSidebar({ appName = "FWBB" }: { appName?: string }) {
   const t = useTranslations("adminNav");
 
   return (
-    <aside className="bg-card hidden border-r lg:fixed lg:inset-y-0 lg:flex lg:w-60 lg:flex-col">
+    <aside className="bg-sidebar text-sidebar-foreground border-sidebar-border hidden border-r lg:fixed lg:inset-y-0 lg:flex lg:w-60 lg:flex-col">
       <div className="flex items-center gap-2 p-6">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/fwbb.svg" alt={appName} className="h-8 w-auto" />

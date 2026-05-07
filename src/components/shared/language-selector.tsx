@@ -111,6 +111,11 @@ export function LanguageSelector({ className }: LanguageSelectorProps) {
   const [mounted, setMounted] = useState(false);
   const [locale, setLocale] = useState<string>("vi");
   const [open, setOpen] = useState(false);
+  // Mở UP khi trigger nằm sát đáy viewport (vd LanguageSelector trong admin
+  // sidebar bottom) — `top: 100%` mặc định sẽ tràn dưới + bị Next.js dev
+  // indicator che. Tính lúc mở, không cần listen scroll vì dropdown đóng khi
+  // user cuộn / blur.
+  const [dropUp, setDropUp] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -121,6 +126,14 @@ export function LanguageSelector({ className }: LanguageSelectorProps) {
 
   useEffect(() => {
     if (!open) return;
+    // Tính direction tại thời điểm mở: nếu dưới trigger còn < ~180px thì dropUp.
+    // 180px = đủ chứa 3 option × ~52px + padding.
+    const r = rootRef.current?.getBoundingClientRect();
+    if (r) {
+      const below = window.innerHeight - r.bottom;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot direction calc on open.
+      setDropUp(below < 180);
+    }
     const onDown = (e: MouseEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
         setOpen(false);
@@ -191,8 +204,10 @@ export function LanguageSelector({ className }: LanguageSelectorProps) {
           role="listbox"
           aria-labelledby="header-language-trigger"
           className={cn(
-            "border-border bg-popover text-popover-foreground absolute top-[calc(100%+6px)] right-0 left-0 z-[100] overflow-hidden rounded-xl border py-1 shadow-lg",
-            "animate-in fade-in-0 zoom-in-95 slide-in-from-top-1 duration-150",
+            "border-border bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 absolute right-0 left-0 z-[100] overflow-hidden rounded-xl border py-1 shadow-lg duration-150",
+            dropUp
+              ? "slide-in-from-bottom-1 bottom-[calc(100%+6px)]"
+              : "slide-in-from-top-1 top-[calc(100%+6px)]",
           )}
         >
           {LOCALE_CODES.map((code) => {

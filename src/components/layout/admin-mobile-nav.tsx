@@ -64,7 +64,7 @@ export function AdminMobileNav({ appName = "FWBB" }: { appName?: string }) {
   const t = useTranslations("adminNav");
 
   return (
-    <div className="bg-card flex items-center justify-between border-b p-4 lg:hidden">
+    <div className="bg-sidebar text-sidebar-foreground border-sidebar-border flex items-center justify-between border-b p-4 lg:hidden">
       <div className="flex items-center gap-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/fwbb.svg" alt={appName} className="h-7 w-auto" />
