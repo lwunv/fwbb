@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
@@ -21,6 +21,7 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { StatTile } from "@/components/shared/stat-tile";
 import { formatVND, formatK, cn } from "@/lib/utils";
+import { fireAction } from "@/lib/optimistic-action";
 import {
   getCourtRentReport,
   getCourtRentPayments,
@@ -66,6 +67,34 @@ const MONTH_LABELS = [
   "T12",
 ];
 
+/** Cộng/trừ amount vào month + yearTotal khi optimistic add/remove payment.
+ *  delta > 0 = ghi nhận thêm, < 0 = xóa. Pure → safe để dùng trong setState. */
+function patchReportTotal(
+  prev: CourtRentReport,
+  targetYear: number,
+  targetMonth: number,
+  delta: number,
+): CourtRentReport {
+  if (prev.year !== targetYear) return prev;
+  return {
+    ...prev,
+    months: prev.months.map((m) =>
+      m.month === targetMonth
+        ? {
+            ...m,
+            paidTotal: Math.max(0, m.paidTotal + delta),
+            remaining: Math.max(0, m.expectedTotal - (m.paidTotal + delta)),
+          }
+        : m,
+    ),
+    yearTotal: {
+      ...prev.yearTotal,
+      paid: Math.max(0, prev.yearTotal.paid + delta),
+      remaining: Math.max(0, prev.yearTotal.remaining - delta),
+    },
+  };
+}
+
 export function CourtRentClient({
   initialYear,
   initialReport,
@@ -85,13 +114,13 @@ export function CourtRentClient({
   const [formAmount, setFormAmount] = useState("2400000");
   const [formCourtId, setFormCourtId] = useState<string>("");
   const [formNote, setFormNote] = useState("");
-  const [submitting, startSubmit] = useTransition();
 
   // Payments list for selected month
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
-  const [, startDelete] = useTransition();
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  // Optimistic ghost id counter (negative để không clash với DB id thật).
+  const optimisticIdRef = useRef(-1);
 
   async function loadReport(y: number) {
     setLoading(true);
@@ -130,40 +159,100 @@ export function CourtRentClient({
       toast.error("Số tiền phải > 0");
       return;
     }
-    startSubmit(async () => {
-      const r = await recordCourtRentPayment({
-        year: formYear,
-        month: formMonth,
-        amount,
-        courtId: formCourtId ? parseInt(formCourtId, 10) : null,
-        note: formNote.trim() || undefined,
-      });
-      if ("error" in r) {
-        toast.error(r.error);
-        return;
-      }
-      toast.success("Đã ghi nhận thanh toán tiền sân");
-      setFormAmount("2400000");
-      setFormNote("");
-      await loadReport(year);
-      if (formYear === year && formMonth === selectedMonth) {
-        await loadPayments();
-      }
-    });
+
+    const courtIdNum = formCourtId ? parseInt(formCourtId, 10) : null;
+    const courtName = courtIdNum
+      ? (courts.find((c) => c.id === courtIdNum)?.name ?? null)
+      : null;
+    const note = formNote.trim();
+    const targetMonthKey = `${formYear}-${String(formMonth).padStart(2, "0")}`;
+
+    // Snapshot for rollback
+    const prevReport = report;
+    const prevPayments = payments;
+    const prevForm = { amount: formAmount, note: formNote };
+
+    // Optimistic: ghost row + bump report totals if same view
+    const ghostId = optimisticIdRef.current;
+    optimisticIdRef.current -= 1;
+    const ghostRow: PaymentRow = {
+      id: ghostId,
+      amount,
+      description:
+        note ||
+        `Trả tiền sân tháng ${String(formMonth).padStart(2, "0")}/${formYear}`,
+      createdAt: new Date().toISOString(),
+      targetMonth: targetMonthKey,
+      courtId: courtIdNum,
+      courtName,
+    };
+
+    if (formYear === year && formMonth === selectedMonth) {
+      setPayments((prev) => [ghostRow, ...prev]);
+    }
+    setReport((prev) => patchReportTotal(prev, formYear, formMonth, amount));
+    // Reset form ngay (UX: input clear instantly)
+    setFormAmount("2400000");
+    setFormNote("");
+
+    fireAction(
+      () =>
+        recordCourtRentPayment({
+          year: formYear,
+          month: formMonth,
+          amount,
+          courtId: courtIdNum,
+          note: note || undefined,
+        }),
+      () => {
+        // Rollback all
+        setReport(prevReport);
+        setPayments(prevPayments);
+        setFormAmount(prevForm.amount);
+        setFormNote(prevForm.note);
+      },
+      {
+        successMsg: "Đã ghi nhận thanh toán tiền sân",
+        onSuccess: () => {
+          // Refresh từ server để swap ghost row → row thật + đồng bộ totals
+          if (formYear === year) loadReport(year);
+          if (formYear === year && formMonth === selectedMonth) loadPayments();
+        },
+      },
+    );
   }
 
   function handleDelete(paymentId: number) {
-    startDelete(async () => {
-      const r = await deleteCourtRentPayment(paymentId);
-      if ("error" in r) {
-        toast.error(r.error);
-        return;
-      }
-      toast.success("Đã xóa giao dịch");
-      setDeleteTarget(null);
-      await loadReport(year);
-      await loadPayments();
-    });
+    const target = payments.find((p) => p.id === paymentId);
+    if (!target) return;
+
+    const prevReport = report;
+    const prevPayments = payments;
+    const tm = target.targetMonth;
+    const [tyStr, tmStr] = (tm ?? "").split("-");
+    const ty = parseInt(tyStr ?? "", 10);
+    const tmNum = parseInt(tmStr ?? "", 10);
+
+    // Optimistic remove + bump totals down
+    setPayments((prev) => prev.filter((p) => p.id !== paymentId));
+    if (Number.isFinite(ty) && Number.isFinite(tmNum)) {
+      setReport((prev) => patchReportTotal(prev, ty, tmNum, -target.amount));
+    }
+    setDeleteTarget(null);
+
+    fireAction(
+      () => deleteCourtRentPayment(paymentId),
+      () => {
+        setReport(prevReport);
+        setPayments(prevPayments);
+      },
+      {
+        successMsg: "Đã xóa giao dịch",
+        onSuccess: () => {
+          if (Number.isFinite(ty) && ty === year) loadReport(year);
+        },
+      },
+    );
   }
 
   return (
@@ -376,17 +465,8 @@ export function CourtRentClient({
               className="bg-background dark:bg-background mt-1"
             />
           </div>
-          <Button
-            type="button"
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="w-full"
-          >
-            {submitting ? (
-              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-            ) : (
-              <Plus className="mr-1 h-4 w-4" />
-            )}
+          <Button type="button" onClick={handleSubmit} className="w-full">
+            <Plus className="mr-1 h-4 w-4" />
             Ghi nhận thanh toán
           </Button>
         </CardContent>
@@ -416,7 +496,11 @@ export function CourtRentClient({
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -4 }}
-                    className="bg-muted/30 flex items-center justify-between gap-2 rounded-lg border p-3"
+                    className={cn(
+                      "bg-muted/30 flex items-center justify-between gap-2 rounded-lg border p-3",
+                      // Ghost row (chưa server-confirmed) — mờ đi 1 chút.
+                      p.id < 0 && "opacity-70",
+                    )}
                   >
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium">
@@ -448,6 +532,9 @@ export function CourtRentClient({
                       variant="ghost"
                       size="icon"
                       onClick={() => setDeleteTarget(p.id)}
+                      // Ghost (chưa lưu DB) → không cho xóa, sẽ tự reconcile
+                      // sau khi server response.
+                      disabled={p.id < 0}
                       className="text-destructive hover:bg-destructive/10"
                     >
                       <Trash2 className="h-4 w-4" />

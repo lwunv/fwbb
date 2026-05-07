@@ -195,6 +195,14 @@ export function SessionList({
   const [unlockedSessions, setUnlockedSessions] = useState<Set<number>>(
     new Set(),
   );
+  // Optimistic finalize — admin bấm "Xác nhận buổi chơi" → status đổi ngay
+  // sang "completed" cho UI mà không chờ server. Rollback nếu finalize fail.
+  const [finalizingSessions, setFinalizingSessions] = useState<Set<number>>(
+    new Set(),
+  );
+  // Optimistic confirm-payment — debtId nào đã được admin bấm "Đã nhận"
+  // (chưa server-revalidated) sẽ filter khỏi unpaidDebts list ngay.
+  const [paidDebtIds, setPaidDebtIds] = useState<Set<number>>(new Set());
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [localAdminGuests, setLocalAdminGuests] = useState<
     Record<number, { play: number; dine: number }>
@@ -402,11 +410,15 @@ export function SessionList({
             // - cancelledSessions: cancel optimistic (pending server)
             // - unlockedSessions: unlock optimistic → đã completed nhưng admin
             //   vừa bấm "Mở lại" → hiển thị như voting cho tới khi server revalidate.
+            // - finalizingSessions: finalize optimistic → past-pending vừa bấm
+            //   "Xác nhận" → hiển thị như completed cho tới khi server revalidate.
             const rawStatus = cancelledSessions.has(session.id)
               ? "cancelled"
-              : unlockedSessions.has(session.id)
-                ? "voting"
-                : (session.status ?? "voting");
+              : finalizingSessions.has(session.id)
+                ? "completed"
+                : unlockedSessions.has(session.id)
+                  ? "voting"
+                  : (session.status ?? "voting");
             const effectiveStatus: SessionStatus = (
               ["voting", "confirmed", "completed", "cancelled"].includes(
                 rawStatus,
@@ -415,7 +427,16 @@ export function SessionList({
                 : "voting"
             ) as SessionStatus;
             const status = statusStyles[effectiveStatus];
-            const unpaidAmount = session.totalDebt - session.paidDebt;
+            // Filter unpaid debts đã optimistically paid → list rút ngắn ngay
+            // khi admin bấm "Đã nhận", không chờ revalidate.
+            const optimisticUnpaidDebts = session.unpaidDebts.filter(
+              (d) => !paidDebtIds.has(d.debtId),
+            );
+            const optimisticPaidExtra = session.unpaidDebts
+              .filter((d) => paidDebtIds.has(d.debtId))
+              .reduce((sum, d) => sum + d.amount, 0);
+            const unpaidAmount =
+              session.totalDebt - session.paidDebt - optimisticPaidExtra;
             const allPaid =
               effectiveStatus === "completed" && unpaidAmount <= 0;
             const isExpanded = expandedId === session.id;
@@ -618,11 +639,21 @@ export function SessionList({
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  // Optimistic: đánh dấu finalizing → status
+                                  // xanh "completed" cho UI ngay; rollback nếu
+                                  // server fail (vd thiếu courtPrice).
+                                  const id = session.id;
+                                  setFinalizingSessions((prev) =>
+                                    new Set(prev).add(id),
+                                  );
                                   fireAction(
-                                    () => finalizeSessionAuto(session.id),
-                                    () => {
-                                      /* fireAction đã toast lỗi */
-                                    },
+                                    () => finalizeSessionAuto(id),
+                                    () =>
+                                      setFinalizingSessions((prev) => {
+                                        const n = new Set(prev);
+                                        n.delete(id);
+                                        return n;
+                                      }),
                                   );
                                 }}
                                 className="bg-primary hover:bg-primary/90 active:bg-primary/95 shadow-primary/30 hover:shadow-primary/40 inline-flex h-[42px] w-1/2 shrink-0 items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md"
@@ -876,12 +907,13 @@ export function SessionList({
                 {/* AdminVoteManager đã chuyển vào trong Card phía trên (gộp chung
                   border với toggle counts). Không còn block tách rời ở đây. */}
 
-                {/* Expanded: unpaid debts for completed sessions */}
+                {/* Expanded: unpaid debts for completed sessions — đã filter
+                  paidDebtIds để row biến mất ngay khi admin bấm "Đã nhận". */}
                 {isExpanded &&
                   effectiveStatus === "completed" &&
-                  session.unpaidDebts.length > 0 && (
+                  optimisticUnpaidDebts.length > 0 && (
                     <div className="bg-background/50 divide-y rounded-b-xl border border-t-0 p-4">
-                      {session.unpaidDebts.map((d) => (
+                      {optimisticUnpaidDebts.map((d) => (
                         <div
                           key={d.memberId}
                           className="flex items-center justify-between py-2 text-sm"
@@ -903,11 +935,21 @@ export function SessionList({
                               size="sm"
                               variant="outline"
                               className="gap-1 border-green-500/40 text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950/30"
-                              onClick={() =>
-                                fireAction(() =>
-                                  confirmPaymentByAdmin(d.debtId),
-                                )
-                              }
+                              onClick={() => {
+                                const debtId = d.debtId;
+                                setPaidDebtIds((prev) =>
+                                  new Set(prev).add(debtId),
+                                );
+                                fireAction(
+                                  () => confirmPaymentByAdmin(debtId),
+                                  () =>
+                                    setPaidDebtIds((prev) => {
+                                      const n = new Set(prev);
+                                      n.delete(debtId);
+                                      return n;
+                                    }),
+                                );
+                              }}
                             >
                               <Check className="h-4 w-4" />
                               {tF("received")}
