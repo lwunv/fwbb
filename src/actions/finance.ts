@@ -312,6 +312,111 @@ export async function finalizeSession(
 }
 
 /**
+ * One-click finalize: build `attendeeList` từ vote data hiện tại + admin
+ * guests, gọi `finalizeSession` trực tiếp. Không cần admin nhập attendee
+ * thủ công qua wizard. Dùng khi admin click "Xác nhận buổi chơi" trên past
+ * pending card.
+ *
+ * Quy ước build attendees:
+ * - Mỗi member có willPlay/willDine → 1 attendee với cờ tương ứng.
+ * - Mỗi guestPlayCount → 1 attendee guest (chỉ chơi).
+ * - Mỗi guestDineCount → 1 attendee guest (chỉ nhậu).
+ *   (Nếu khách thực tế vừa chơi vừa nhậu, admin phải finalize qua trang detail
+ *   để input thủ công — auto-finalize đơn giản hóa, không suy ra split.)
+ * - adminGuestPlay/Dine → guest invitedById = adminMemberId.
+ *
+ * Dùng `session.diningBill` đã set sẵn (admin nhập trên detail page hoặc 0).
+ */
+export async function finalizeSessionAuto(sessionId: number) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
+  const session = await db.query.sessions.findFirst({
+    where: eq(sessions.id, sessionId),
+    with: {
+      votes: { with: { member: true } },
+    },
+  });
+  if (!session) return { error: "Không tìm thấy buổi chơi" };
+  if (session.status === "completed") {
+    return { error: "Buổi đã hoàn thành — không thể finalize lại tự động" };
+  }
+  if (session.status === "cancelled") {
+    return { error: "Buổi đã hủy — không thể finalize" };
+  }
+
+  const adminMemberId = await resolveAdminMemberId();
+  if (adminMemberId === null) {
+    return {
+      error:
+        "Admin chưa được liên kết với member — vào /admin/members để gắn member của admin trước khi chốt sổ",
+    };
+  }
+
+  const attendeeList: FinalizeAttendee[] = [];
+  for (const v of session.votes) {
+    if (v.willPlay || v.willDine) {
+      attendeeList.push({
+        memberId: v.memberId,
+        guestName: null,
+        invitedById: null,
+        isGuest: false,
+        attendsPlay: v.willPlay ?? false,
+        attendsDine: v.willDine ?? false,
+      });
+    }
+    const memberName = v.member?.name ?? `M${v.memberId}`;
+    const gp = v.guestPlayCount ?? 0;
+    const gd = v.guestDineCount ?? 0;
+    for (let i = 0; i < gp; i++) {
+      attendeeList.push({
+        memberId: null,
+        guestName: `Khách ${memberName} ${i + 1}`,
+        invitedById: v.memberId,
+        isGuest: true,
+        attendsPlay: true,
+        attendsDine: false,
+      });
+    }
+    for (let i = 0; i < gd; i++) {
+      attendeeList.push({
+        memberId: null,
+        guestName: `Khách ${memberName} (nhậu) ${i + 1}`,
+        invitedById: v.memberId,
+        isGuest: true,
+        attendsPlay: false,
+        attendsDine: true,
+      });
+    }
+  }
+
+  const adminGp = session.adminGuestPlayCount ?? 0;
+  const adminGd = session.adminGuestDineCount ?? 0;
+  for (let i = 0; i < adminGp; i++) {
+    attendeeList.push({
+      memberId: null,
+      guestName: `Khách Admin ${i + 1}`,
+      invitedById: adminMemberId,
+      isGuest: true,
+      attendsPlay: true,
+      attendsDine: false,
+    });
+  }
+  for (let i = 0; i < adminGd; i++) {
+    attendeeList.push({
+      memberId: null,
+      guestName: `Khách Admin (nhậu) ${i + 1}`,
+      invitedById: adminMemberId,
+      isGuest: true,
+      attendsPlay: false,
+      attendsDine: true,
+    });
+  }
+
+  return finalizeSession(sessionId, attendeeList, session.diningBill ?? 0);
+}
+
+/**
  * Resolve admin's member record. Prefers the explicit `admins.memberId` FK;
  * falls back to matching `admins.username === members.name` ONLY when exactly
  * one member matches (to avoid auto-confirming the wrong member's debt when

@@ -85,7 +85,10 @@ async function seed() {
     {
       name: "Trường THCS Tây Mỗ 3",
       address: "Gần PZ3",
-      pricePerSession: 220000,
+      // Sân hợp đồng tháng: 200k/buổi cho sân đầu, 220k/buổi cho sân lẻ thứ 2.
+      // → 1 sân = 200k, 2 sân = 200k + 220k = 420k.
+      pricePerSession: 200000,
+      pricePerSessionRetail: 220000,
       mapLink: "https://maps.app.goo.gl/Rnz2EKnH3xKxm9Fk8",
     },
     {

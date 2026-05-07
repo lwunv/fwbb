@@ -6,9 +6,11 @@ import { parseAsInteger, useQueryState } from "nuqs";
 import {
   createSessionManually,
   cancelSession,
+  reopenSession,
+  unlockSession,
   setAdminGuestCount,
 } from "@/actions/sessions";
-import { confirmPaymentByAdmin } from "@/actions/finance";
+import { confirmPaymentByAdmin, finalizeSessionAuto } from "@/actions/finance";
 import { fireAction } from "@/lib/optimistic-action";
 import { formatK } from "@/lib/utils";
 import {
@@ -43,6 +45,7 @@ import {
   AlertTriangle,
   X,
   Check,
+  RotateCcw,
 } from "lucide-react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -50,6 +53,7 @@ import { usePolling } from "@/lib/use-polling";
 import {
   formatSessionDate as fmtSessionDate,
   getNextSessionDay,
+  ymdInVN,
 } from "@/lib/date-format";
 import type { InferSelectModel } from "drizzle-orm";
 import type {
@@ -111,6 +115,19 @@ interface SessionCard {
 
 type SessionStatus = "voting" | "confirmed" | "completed" | "cancelled";
 
+/**
+ * Filter dropdown ở đầu list. Khác `SessionStatus` ở chỗ:
+ * - "voting" trong filter = active upcoming/today (gồm cả status `confirmed`).
+ * - "needsConfirm" là derived state — past pending — không phải status thật.
+ * - "all" = không filter.
+ */
+export type StatusFilter =
+  | "all"
+  | "voting"
+  | "needsConfirm"
+  | "completed"
+  | "cancelled";
+
 const statusStyles: Record<
   SessionStatus,
   { labelKey: SessionStatus; cardBg: string }
@@ -144,6 +161,7 @@ export function SessionList({
   brands = [],
   currentPage = 1,
   totalPages = 1,
+  currentStatusFilter = "all",
 }: {
   sessions: SessionCard[];
   courts?: Court[];
@@ -151,11 +169,18 @@ export function SessionList({
   brands?: Brand[];
   currentPage?: number;
   totalPages?: number;
+  currentStatusFilter?: StatusFilter;
 }) {
   const [, setPage] = useQueryState(
     "page",
     parseAsInteger.withDefault(1).withOptions({ shallow: false }),
   );
+  // Status filter — đổi filter reset page về 1 (server fetch lại slice mới).
+  const [, setStatusFilter] = useQueryState("status", {
+    defaultValue: "all",
+    shallow: false,
+    clearOnDefault: true,
+  });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [error, setError] = useState("");
   const [cancelledSessions, setCancelledSessions] = useState<Set<number>>(
@@ -164,6 +189,12 @@ export function SessionList({
   const [cancelTarget, setCancelTarget] = useState<number | null>(null);
   const [cancelPassed, setCancelPassed] = useState(true);
   const [cancelPassRevenue, setCancelPassRevenue] = useState<string>("");
+  // Unlock = mở lại buổi đã completed để sửa. Confirm vì sẽ reverse các
+  // fund_deduction đã trừ quỹ → balance member sẽ thay đổi.
+  const [unlockTarget, setUnlockTarget] = useState<number | null>(null);
+  const [unlockedSessions, setUnlockedSessions] = useState<Set<number>>(
+    new Set(),
+  );
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [localAdminGuests, setLocalAdminGuests] = useState<
     Record<number, { play: number; dine: number }>
@@ -174,6 +205,9 @@ export function SessionList({
   const tVoting = useTranslations("voting");
   const tFundAdmin = useTranslations("fundAdmin");
   usePolling();
+
+  // Tính 1 lần / render thay vì gọi `ymdInVN()` lặp trong .map() bên dưới.
+  const todayYmd = ymdInVN();
 
   function handleCreate(formData: FormData) {
     const date = formData.get("date") as string;
@@ -252,21 +286,17 @@ export function SessionList({
   }
 
   return (
-    <div className="pb-24">
-      {/* pb-24 chừa chỗ cho thanh "Tạo buổi chơi" sticky ở bottom — nếu không
-          row cuối của expanded session sẽ bị nó che mất. */}
-      <Dialog
-        open={dialogOpen}
-        onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) setError("");
-        }}
-      >
-        <div className="bg-background/95 fixed right-0 bottom-0 left-0 z-30 border-t p-3 backdrop-blur lg:left-60">
-          <DialogTrigger render={<Button className="w-full" size="lg" />}>
-            <Plus className="mr-2 h-4 w-4" /> {t("createSession")}
-          </DialogTrigger>
-        </div>
+    <Dialog
+      open={dialogOpen}
+      onOpenChange={(open) => {
+        setDialogOpen(open);
+        if (!open) setError("");
+      }}
+    >
+      <div className="mx-auto max-w-3xl">
+        {/* max-w-3xl mx-auto — desktop không rải card full width (dễ đọc,
+            vibes mobile-first). "Tạo buổi chơi" giờ inline với filter chips,
+            không còn fixed bottom bar nữa. */}
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t("createSessionTitle")}</DialogTitle>
@@ -323,464 +353,686 @@ export function SessionList({
             </Button>
           </form>
         </DialogContent>
-      </Dialog>
 
-      <div className="grid gap-3">
-        {sessions.map((session) => {
-          const rawStatus = cancelledSessions.has(session.id)
-            ? "cancelled"
-            : (session.status ?? "voting");
-          const effectiveStatus: SessionStatus = (
-            ["voting", "confirmed", "completed", "cancelled"].includes(
-              rawStatus,
-            )
-              ? rawStatus
-              : "voting"
-          ) as SessionStatus;
-          const status = statusStyles[effectiveStatus];
-          const unpaidAmount = session.totalDebt - session.paidDebt;
-          const allPaid = effectiveStatus === "completed" && unpaidAmount <= 0;
-          const isExpanded = expandedId === session.id;
-          const isActive =
-            effectiveStatus === "voting" || effectiveStatus === "confirmed";
-          const ag = getAdminGuests(session.id, session);
-          const totalGuestPlay =
-            session.guestPlayCount + ag.play - session.adminGuestPlayCount;
-          const totalGuestDine =
-            session.guestDineCount + ag.dine - session.adminGuestDineCount;
+        {/* Top bar — filter chips (left, scroll-x trên mobile) + Tạo buổi chơi
+            (right, không bị filter đẩy ra ngoài viewport). */}
+        <div className="mb-3 flex items-center gap-2">
+          <div className="-mx-1 flex min-w-0 flex-1 gap-2 overflow-x-auto px-1 pb-1">
+            {(
+              [
+                { key: "all", label: t("filterAll") },
+                { key: "voting", label: t("filterUpcoming") },
+                { key: "needsConfirm", label: tF("needsConfirm") },
+                { key: "completed", label: t("completed") },
+                { key: "cancelled", label: t("cancelled") },
+              ] satisfies { key: StatusFilter; label: string }[]
+            ).map((f) => {
+              const active = currentStatusFilter === f.key;
+              return (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() =>
+                    setStatusFilter(f.key === "all" ? null : f.key)
+                  }
+                  className={`inline-flex h-9 shrink-0 items-center rounded-full border px-3.5 text-sm font-medium transition-colors ${
+                    active
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-card hover:bg-muted/50"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              );
+            })}
+          </div>
+          <DialogTrigger
+            render={
+              <Button size="sm" className="h-9 shrink-0 gap-1 px-3 text-sm" />
+            }
+          >
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">{t("createSession")}</span>
+          </DialogTrigger>
+        </div>
 
-          // Per-head & total — dùng cùng helper với cost-calculator để đồng bộ
-          // 3 trang admin (list / detail / dashboard).
-          const courtPriceVal = session.courtPrice ?? 0;
-          const shuttlecockCost = session.shuttlecocks.reduce(
-            (sum, s) =>
-              sum + calculateShuttlecockCost(s.quantityUsed, s.pricePerTube),
-            0,
-          );
-          const totalPlayers = session.playerCount + totalGuestPlay;
-          const totalDiners = session.dinerCount + totalGuestDine;
-          const { playCostPerHead, dineCostPerHead } = computePerHeadCharges({
-            courtPrice: courtPriceVal,
-            shuttlecockCost,
-            diningBill: session.diningBill,
-            playerCount: totalPlayers,
-            dinerCount: totalDiners,
-          });
-          const totalExpense =
-            courtPriceVal + shuttlecockCost + session.diningBill;
+        <div className="grid gap-3">
+          {sessions.map((session) => {
+            // Optimistic status overrides:
+            // - cancelledSessions: cancel optimistic (pending server)
+            // - unlockedSessions: unlock optimistic → đã completed nhưng admin
+            //   vừa bấm "Mở lại" → hiển thị như voting cho tới khi server revalidate.
+            const rawStatus = cancelledSessions.has(session.id)
+              ? "cancelled"
+              : unlockedSessions.has(session.id)
+                ? "voting"
+                : (session.status ?? "voting");
+            const effectiveStatus: SessionStatus = (
+              ["voting", "confirmed", "completed", "cancelled"].includes(
+                rawStatus,
+              )
+                ? rawStatus
+                : "voting"
+            ) as SessionStatus;
+            const status = statusStyles[effectiveStatus];
+            const unpaidAmount = session.totalDebt - session.paidDebt;
+            const allPaid =
+              effectiveStatus === "completed" && unpaidAmount <= 0;
+            const isExpanded = expandedId === session.id;
+            const isActive =
+              effectiveStatus === "voting" || effectiveStatus === "confirmed";
+            // Buổi đã qua nhưng vẫn ở voting/confirmed → admin chưa chốt sổ.
+            // Tách visual khỏi "đang vote" để LED xanh chỉ giữ cho buổi sắp/đang
+            // diễn ra (yêu cầu UX), còn buổi này hiện amber + badge "Cần xác nhận".
+            const isPastPending = isActive && session.date < todayYmd;
+            const cardBgClass = isPastPending
+              ? "bg-card border-rose-400 border-2 ring-2 ring-rose-200/50 dark:ring-rose-900/30"
+              : status.cardBg;
+            const badgeVariant = isPastPending
+              ? "needsConfirm"
+              : effectiveStatus;
+            const badgeText = isPastPending
+              ? tF("needsConfirm")
+              : t(status.labelKey);
+            const ag = getAdminGuests(session.id, session);
+            const totalGuestPlay =
+              session.guestPlayCount + ag.play - session.adminGuestPlayCount;
+            const totalGuestDine =
+              session.guestDineCount + ag.dine - session.adminGuestDineCount;
 
-          return (
-            <div key={session.id}>
-              <Card className={`!py-0 transition-all ${status.cardBg}`}>
-                <CardContent className="space-y-2 p-4">
-                  {/* Header: Date + Status */}
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="flex items-center gap-2 text-base font-bold capitalize">
-                        <Calendar className="text-muted-foreground h-5 w-5" />
-                        {formatSessionDate(session.date)}
-                      </p>
-                      {(session.startTime || session.endTime) && (
-                        <p className="text-muted-foreground mt-1 text-sm whitespace-nowrap">
-                          ⏰ {session.startTime ?? "—"} –{" "}
-                          {session.endTime ?? "—"}
+            // Per-head & total — dùng cùng helper với cost-calculator để đồng bộ
+            // 3 trang admin (list / detail / dashboard).
+            const courtPriceVal = session.courtPrice ?? 0;
+            const shuttlecockCost = session.shuttlecocks.reduce(
+              (sum, s) =>
+                sum + calculateShuttlecockCost(s.quantityUsed, s.pricePerTube),
+              0,
+            );
+            const totalPlayers = session.playerCount + totalGuestPlay;
+            const totalDiners = session.dinerCount + totalGuestDine;
+            const { playCostPerHead, dineCostPerHead } = computePerHeadCharges({
+              courtPrice: courtPriceVal,
+              shuttlecockCost,
+              diningBill: session.diningBill,
+              playerCount: totalPlayers,
+              dinerCount: totalDiners,
+            });
+            const totalExpense =
+              courtPriceVal + shuttlecockCost + session.diningBill;
+
+            return (
+              <div key={session.id}>
+                <Card className={`!py-0 transition-all ${cardBgClass}`}>
+                  <CardContent className="space-y-2 p-4">
+                    {/* Header: Date + Status */}
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="flex items-center gap-2 text-base font-bold capitalize">
+                          <Calendar className="text-muted-foreground h-5 w-5" />
+                          {formatSessionDate(session.date)}
                         </p>
-                      )}
-                      {session.courtName && (
-                        <p className="text-muted-foreground mt-1 flex min-w-0 flex-nowrap items-center gap-2 text-sm">
-                          <MapPin className="h-4 w-4 shrink-0" />
-                          <span className="truncate">{session.courtName}</span>
-                          {session.courtMapLink && (
-                            <span
-                              role="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                window.open(session.courtMapLink!, "_blank");
-                              }}
-                              className="text-primary inline-flex shrink-0 items-center gap-1"
-                            >
-                              <Navigation className="h-4 w-4" />
-                              {t("directions")}
+                        {(session.startTime || session.endTime) && (
+                          <p className="text-muted-foreground mt-1 text-sm whitespace-nowrap">
+                            ⏰ {session.startTime ?? "—"} –{" "}
+                            {session.endTime ?? "—"}
+                          </p>
+                        )}
+                        {session.courtName && (
+                          <p className="text-muted-foreground mt-1 flex min-w-0 flex-nowrap items-center gap-2 text-sm">
+                            <MapPin className="h-4 w-4 shrink-0" />
+                            <span className="truncate">
+                              {session.courtName}
                             </span>
-                          )}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="hidden sm:inline-flex">
-                        <StatusBadge variant={effectiveStatus}>
-                          {t(status.labelKey)}
-                        </StatusBadge>
+                            {session.courtMapLink && (
+                              <span
+                                role="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  window.open(session.courtMapLink!, "_blank");
+                                }}
+                                className="text-primary inline-flex shrink-0 items-center gap-1"
+                              >
+                                <Navigation className="h-4 w-4" />
+                                {t("directions")}
+                              </span>
+                            )}
+                          </p>
+                        )}
                       </div>
-                      {isActive && (
+                      <div className="flex items-center gap-2">
+                        <div className="inline-flex">
+                          <StatusBadge variant={badgeVariant}>
+                            {badgeText}
+                          </StatusBadge>
+                        </div>
+                        {isActive && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCancelTarget(session.id);
+                              setCancelPassed(true);
+                              setCancelPassRevenue(
+                                String(session.courtPrice ?? 200000),
+                              );
+                            }}
+                            className="border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 inline-flex h-10 w-10 items-center justify-center rounded-xl border transition-colors"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Past pending CTA giờ inline cùng hàng "Tổng chi" bên
+                      dưới (button trái, totals phải) — không tách block riêng
+                      full-width nữa để tiết kiệm không gian. */}
+
+                    {/* Court + Shuttlecock selectors — luôn hiện cho buổi active
+                      VÀ past pending. Past pending cần edit court/shuttle để
+                      finalize đúng (admin có thể chốt lại số quả thực dùng,
+                      thay sân nếu hôm đó đổi sân, v.v.). */}
+                    {isActive && (
+                      <div
+                        className="space-y-2 pt-1"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <CourtSelector
+                          sessionId={session.id}
+                          courts={courts}
+                          currentCourtId={session.courtId}
+                          currentCourtQuantity={session.courtQuantity}
+                        />
+                        <ShuttlecockSelector
+                          sessionId={session.id}
+                          brands={brands}
+                          currentShuttlecocks={session.shuttlecocks}
+                        />
+                      </div>
+                    )}
+
+                    {/* Admin guest — khách của admin (luôn mở, không cần click) */}
+                    {isActive &&
+                      (() => {
+                        const ag = getAdminGuests(session.id, session);
+                        return (
+                          <div
+                            className="flex flex-wrap items-center gap-3 px-1"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <span className="text-muted-foreground text-sm font-medium">
+                              Khách:
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm">🏸</span>
+                              <NumberStepper
+                                value={ag.play}
+                                onChange={(v) =>
+                                  handleAdminGuestChange(
+                                    session.id,
+                                    session,
+                                    "play",
+                                    v,
+                                  )
+                                }
+                                min={0}
+                                max={10}
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm">🍻</span>
+                              <NumberStepper
+                                value={ag.dine}
+                                onChange={(v) =>
+                                  handleAdminGuestChange(
+                                    session.id,
+                                    session,
+                                    "dine",
+                                    v,
+                                  )
+                                }
+                                min={0}
+                                max={10}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                    {/* Tóm tắt chi phí — format đồng bộ với row Court/Shuttle:
+                      [icon + label trái] ... [số tiền right-align, bold tabular].
+                      Hiện cho mọi status trừ cancelled khi có dữ liệu. Số khi
+                      chưa completed là ước tính (đổi nếu thêm/bớt người). */}
+                    {effectiveStatus !== "cancelled" &&
+                      (totalExpense > 0 ||
+                        playCostPerHead > 0 ||
+                        dineCostPerHead > 0 ||
+                        isPastPending) && (
+                        <div className="pt-1 text-base">
+                          {/* Past-pending: button "Xác nhận" nằm BÊN TRÁI cùng hàng
+                            với Tổng chi (right-align) → tiết kiệm không gian +
+                            CTA gần ngay con số tổng admin cần verify. */}
+                          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 font-bold">
+                            {isPastPending ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  fireAction(
+                                    () => finalizeSessionAuto(session.id),
+                                    () => {
+                                      /* fireAction đã toast lỗi */
+                                    },
+                                  );
+                                }}
+                                className="bg-primary hover:bg-primary/90 active:bg-primary/95 shadow-primary/30 hover:shadow-primary/40 inline-flex h-[42px] w-1/2 shrink-0 items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md"
+                              >
+                                <Check className="h-4 w-4" />
+                                {t("confirmSession")}
+                              </button>
+                            ) : (
+                              <span className="min-w-0 flex-1">
+                                💰 Tổng chi
+                              </span>
+                            )}
+                            <span className="ml-auto flex items-center gap-1.5">
+                              {!isPastPending ? null : (
+                                <span className="font-semibold">
+                                  💰 Tổng chi
+                                </span>
+                              )}
+                              <span className="text-primary text-lg font-bold tabular-nums">
+                                {formatK(totalExpense)}
+                              </span>
+                              {(playCostPerHead > 0 || dineCostPerHead > 0) && (
+                                <span className="text-foreground/70 text-base font-semibold tabular-nums">
+                                  (
+                                  {playCostPerHead > 0 && (
+                                    <span className="text-primary">
+                                      🏸 {formatK(playCostPerHead)}
+                                    </span>
+                                  )}
+                                  {playCostPerHead > 0 &&
+                                    dineCostPerHead > 0 && (
+                                      <span className="text-foreground/50">
+                                        {" "}
+                                        ·{" "}
+                                      </span>
+                                    )}
+                                  {dineCostPerHead > 0 && (
+                                    <span className="text-orange-500 dark:text-orange-400">
+                                      🍻 {formatK(dineCostPerHead)}
+                                    </span>
+                                  )}
+                                  <span className="text-foreground/70 text-sm font-medium">
+                                    /người)
+                                  </span>
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                    {/* Members block — toggle + danh sách trong CÙNG 1 card chung,
+                      border chung. Toggle collapsed = thấy stat tổng; expanded =
+                      mở rộng AdminVoteManager (member list) ngay bên dưới với
+                      `border-t` divider. Không tách block ra ngoài Card nữa. */}
+                    {isActive && (
+                      <div
+                        className={`border-primary/25 bg-primary/[0.04] overflow-hidden rounded-xl border transition-colors ${
+                          isExpanded
+                            ? "border-primary/50"
+                            : "hover:border-primary/40"
+                        }`}
+                      >
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setCancelTarget(session.id);
-                            setCancelPassed(true);
-                            setCancelPassRevenue(
-                              String(session.courtPrice ?? 200000),
-                            );
-                          }}
-                          className="border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 inline-flex h-10 w-10 items-center justify-center rounded-xl border transition-colors"
+                          type="button"
+                          onClick={(e) => toggleExpand(e, session.id)}
+                          className="flex w-full items-center justify-between p-3 text-base"
                         >
-                          <X className="h-4 w-4" />
+                          <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-left">
+                            <span className="text-primary">
+                              🏸 {tVoting("badmintonShort")}:{" "}
+                              <strong>
+                                {session.playerCount + totalGuestPlay}
+                              </strong>{" "}
+                              <span className="text-foreground/80">
+                                {t("people")}
+                              </span>
+                              {totalGuestPlay > 0 && (
+                                <span className="tabular-nums">
+                                  {" "}
+                                  <span className="text-foreground/80">
+                                    ({t("including")}{" "}
+                                  </span>
+                                  {totalGuestPlay}{" "}
+                                  <span className="text-foreground/80">
+                                    {t("guest")})
+                                  </span>
+                                </span>
+                              )}
+                            </span>
+                            <span className="text-orange-500 dark:text-orange-400">
+                              🍻 {tVoting("diningShort")}:{" "}
+                              <strong>
+                                {session.dinerCount + totalGuestDine}
+                              </strong>{" "}
+                              <span className="text-foreground/80">
+                                {t("people")}
+                              </span>
+                              {totalGuestDine > 0 && (
+                                <span className="tabular-nums">
+                                  {" "}
+                                  <span className="text-foreground/80">
+                                    ({t("including")}{" "}
+                                  </span>
+                                  {totalGuestDine}{" "}
+                                  <span className="text-foreground/80">
+                                    {t("guest")})
+                                  </span>
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          <ChevronDown
+                            className={`text-muted-foreground h-5 w-5 shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                          />
                         </button>
-                      )}
-                    </div>
-                  </div>
 
-                  {/* Expand button — full width, shows counts */}
-                  {isActive && (
-                    <button
-                      onClick={(e) => toggleExpand(e, session.id)}
-                      className={`flex w-full items-center justify-between rounded-xl border p-3 text-base transition-colors ${
-                        isExpanded
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-muted-foreground/30"
-                      }`}
-                    >
-                      <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-left">
-                        <span className="text-primary">
-                          🏸 {tVoting("badmintonShort")}:{" "}
-                          <strong>
-                            {session.playerCount + totalGuestPlay}
-                          </strong>{" "}
-                          {t("people")}
-                          {totalGuestPlay > 0 && (
-                            <span className="tabular-nums">
-                              {" "}
-                              ({totalGuestPlay} {t("guest")})
-                            </span>
-                          )}
-                        </span>
-                        <span className="text-orange-500 dark:text-orange-400">
-                          🍻 {tVoting("diningShort")}:{" "}
-                          <strong>{session.dinerCount + totalGuestDine}</strong>{" "}
-                          {t("people")}
-                          {totalGuestDine > 0 && (
-                            <span className="tabular-nums">
-                              {" "}
-                              ({totalGuestDine} {t("guest")})
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                      <ChevronDown
-                        className={`text-muted-foreground h-5 w-5 shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                      />
-                    </button>
-                  )}
-
-                  {/* Admin guest — khách của admin (luôn mở, không cần click) */}
-                  {isActive &&
-                    (() => {
-                      const ag = getAdminGuests(session.id, session);
-                      return (
-                        <div
-                          className="flex flex-wrap items-center gap-3 px-1"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <span className="text-muted-foreground text-sm font-medium">
-                            Khách:
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm">🏸</span>
-                            <NumberStepper
-                              value={ag.play}
-                              onChange={(v) =>
-                                handleAdminGuestChange(
-                                  session.id,
-                                  session,
-                                  "play",
-                                  v,
-                                )
-                              }
-                              min={0}
-                              max={10}
+                        {isExpanded && (
+                          <div
+                            className="bg-background/40 border-t p-3"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <AdminVoteManager
+                              sessionId={session.id}
+                              votes={session.votes}
+                              members={members}
+                              debtMap={session.debtMap}
+                              readOnly={false}
+                              adminGuestPlayCount={ag.play}
+                              adminGuestDineCount={ag.dine}
+                              sessionCosts={{
+                                courtPrice: session.courtPrice ?? 0,
+                                courtName: session.courtName,
+                                diningBill: session.diningBill,
+                                shuttlecocks: session.shuttlecocks.map((s) => ({
+                                  brandName: s.brand?.name ?? "",
+                                  quantity: s.quantityUsed,
+                                  pricePerTube: s.pricePerTube,
+                                })),
+                                startTime: session.startTime ?? "20:30",
+                                endTime: session.endTime ?? "22:30",
+                                isCompleted: false,
+                              }}
+                              hideCostSummary
                             />
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm">🍻</span>
-                            <NumberStepper
-                              value={ag.dine}
-                              onChange={(v) =>
-                                handleAdminGuestChange(
-                                  session.id,
-                                  session,
-                                  "dine",
-                                  v,
-                                )
-                              }
-                              min={0}
-                              max={10}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                  {/* Cost-per-head strip — hiện cho voting/confirmed/completed
-                      khi có dữ liệu. Số khi chưa completed là ước tính (sẽ đổi
-                      nếu thêm/bớt người). */}
-                  {effectiveStatus !== "cancelled" &&
-                    (totalExpense > 0 ||
-                      playCostPerHead > 0 ||
-                      dineCostPerHead > 0) && (
-                      <div className="bg-card/40 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border px-3 py-2 text-sm">
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-                          {playCostPerHead > 0 && (
-                            <span>
-                              🏸{" "}
-                              <strong className="text-primary">
-                                {formatK(playCostPerHead)}
-                              </strong>
-                              /người
-                            </span>
-                          )}
-                          {dineCostPerHead > 0 && (
-                            <span>
-                              🍻{" "}
-                              <strong className="text-orange-500 dark:text-orange-400">
-                                {formatK(dineCostPerHead)}
-                              </strong>
-                              /người
-                            </span>
-                          )}
-                        </div>
-                        {totalExpense > 0 && (
-                          <span className="text-muted-foreground tabular-nums">
-                            Tổng{" "}
-                            <strong className="text-foreground">
-                              {formatK(totalExpense)}
-                            </strong>
-                          </span>
                         )}
                       </div>
                     )}
 
-                  {/* Completed: counts (non-expandable) + payment status */}
-                  {effectiveStatus === "completed" && (
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-                      <span className="text-primary">
-                        🏸{" "}
-                        <strong>
-                          {session.playerCount + session.guestPlayCount}
-                        </strong>{" "}
-                        {t("people")}
-                      </span>
-                      <span className="text-orange-500 dark:text-orange-400">
-                        🍻{" "}
-                        <strong>
-                          {session.dinerCount + session.guestDineCount}
-                        </strong>{" "}
-                        {t("people")}
-                      </span>
-                      {allPaid ? (
-                        <span className="ml-auto text-sm font-medium text-green-600 dark:text-green-400">
-                          ✓ {formatK(session.totalDebt)}
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() =>
-                            setExpandedId(isExpanded ? null : session.id)
-                          }
-                          className="ml-auto inline-flex items-center gap-2 py-1 text-sm font-medium text-amber-600 dark:text-amber-400"
-                        >
-                          <AlertTriangle className="h-4 w-4" />
-                          {t("stillOwingAmount", {
-                            amount: formatK(unpaidAmount),
-                          })}
-                          <ChevronDown
-                            className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                          />
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {effectiveStatus === "cancelled" && (
-                    <div className="text-muted-foreground flex flex-wrap items-center gap-x-4 text-sm">
-                      <span>
-                        🏸 {session.playerCount + session.guestPlayCount}{" "}
-                        {t("people")}
-                      </span>
-                      <span>
-                        🍻 {session.dinerCount + session.guestDineCount}{" "}
-                        {t("people")}
-                      </span>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Expanded: inline management for voting/confirmed sessions */}
-              {isExpanded && isActive && (
-                <div className="bg-background/50 space-y-3 rounded-b-xl border border-t-0 p-4">
-                  <CourtSelector
-                    sessionId={session.id}
-                    courts={courts}
-                    currentCourtId={session.courtId}
-                    currentCourtQuantity={session.courtQuantity}
-                  />
-                  <ShuttlecockSelector
-                    sessionId={session.id}
-                    brands={brands}
-                    currentShuttlecocks={session.shuttlecocks}
-                  />
-                  <AdminVoteManager
-                    sessionId={session.id}
-                    votes={session.votes}
-                    members={members}
-                    debtMap={session.debtMap}
-                    readOnly={false}
-                    adminGuestPlayCount={ag.play}
-                    adminGuestDineCount={ag.dine}
-                    sessionCosts={{
-                      courtPrice: session.courtPrice ?? 0,
-                      courtName: session.courtName,
-                      diningBill: session.diningBill,
-                      shuttlecocks: session.shuttlecocks.map((s) => ({
-                        brandName: s.brand?.name ?? "",
-                        quantity: s.quantityUsed,
-                        pricePerTube: s.pricePerTube,
-                      })),
-                      startTime: session.startTime ?? "20:30",
-                      endTime: session.endTime ?? "22:30",
-                      isCompleted: false,
-                    }}
-                  />
-                </div>
-              )}
-
-              {/* Expanded: unpaid debts for completed sessions */}
-              {isExpanded &&
-                effectiveStatus === "completed" &&
-                session.unpaidDebts.length > 0 && (
-                  <div className="bg-background/50 divide-y rounded-b-xl border border-t-0 p-4">
-                    {session.unpaidDebts.map((d) => (
-                      <div
-                        key={d.memberId}
-                        className="flex items-center justify-between py-2 text-sm"
-                      >
-                        <div className="flex items-center gap-3">
-                          <MemberAvatar
-                            memberId={d.memberId}
-                            avatarKey={d.memberAvatarKey}
-                            avatarUrl={d.memberAvatarUrl}
-                            size={28}
-                          />
-                          <span>{d.memberName}</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-destructive font-medium">
-                            {formatK(d.amount)}
+                    {/* Completed: counts (non-expandable) + payment status */}
+                    {effectiveStatus === "completed" && (
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                        <span className="text-primary">
+                          🏸{" "}
+                          <strong>
+                            {session.playerCount + session.guestPlayCount}
+                          </strong>{" "}
+                          <span className="text-foreground/80">
+                            {t("people")}
                           </span>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1 border-green-500/40 text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950/30"
+                        </span>
+                        <span className="text-orange-500 dark:text-orange-400">
+                          🍻{" "}
+                          <strong>
+                            {session.dinerCount + session.guestDineCount}
+                          </strong>{" "}
+                          <span className="text-foreground/80">
+                            {t("people")}
+                          </span>
+                        </span>
+                        {allPaid ? (
+                          <span className="ml-auto text-sm font-medium text-green-600 dark:text-green-400">
+                            ✓ {formatK(session.totalDebt)}
+                          </span>
+                        ) : (
+                          <button
                             onClick={() =>
-                              fireAction(() => confirmPaymentByAdmin(d.debtId))
+                              setExpandedId(isExpanded ? null : session.id)
                             }
+                            className="ml-auto inline-flex items-center gap-2 py-1 text-sm font-medium text-amber-600 dark:text-amber-400"
                           >
-                            <Check className="h-4 w-4" />
-                            {tF("received")}
-                          </Button>
-                        </div>
+                            <AlertTriangle className="h-4 w-4" />
+                            {t("stillOwingAmount", {
+                              amount: formatK(unpaidAmount),
+                            })}
+                            <ChevronDown
+                              className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                            />
+                          </button>
+                        )}
+                        {/* Mở lại để sửa — reverse fund_deductions, xóa attendees
+                          + debts, trả về voting. Confirm trước vì ảnh hưởng
+                          balance của member. */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setUnlockTarget(session.id);
+                          }}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-2.5 py-1 text-xs font-medium text-yellow-700 transition-colors hover:bg-yellow-500/20 dark:text-yellow-300"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          Mở lại
+                        </button>
                       </div>
-                    ))}
-                  </div>
-                )}
-            </div>
-          );
-        })}
+                    )}
 
-        {sessions.length === 0 && (
-          <div className="text-muted-foreground py-12 text-center">
-            {t("noSessions")}
-          </div>
-        )}
-      </div>
+                    {effectiveStatus === "cancelled" && (
+                      <div className="flex flex-wrap items-center gap-3 text-sm">
+                        <span className="text-muted-foreground">
+                          🏸 {session.playerCount + session.guestPlayCount}{" "}
+                          {t("people")}
+                        </span>
+                        <span className="text-muted-foreground">
+                          🍻 {session.dinerCount + session.guestDineCount}{" "}
+                          {t("people")}
+                        </span>
+                        {/* Mở lại — đưa buổi về voting để admin sửa lại config.
+                          Nếu đã có pass-sân, server reverse fund_contribution
+                          qua reversalOfId (audit trail đầy đủ). */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Optimistic: bỏ khỏi cancelledSessions set để hiện
+                            // lại như active (sau revalidate sẽ về voting thật).
+                            setCancelledSessions((prev) => {
+                              const n = new Set(prev);
+                              n.delete(session.id);
+                              return n;
+                            });
+                            fireAction(
+                              () => reopenSession(session.id),
+                              () =>
+                                setCancelledSessions((prev) =>
+                                  new Set(prev).add(session.id),
+                                ),
+                            );
+                          }}
+                          className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-green-500/40 bg-green-500/10 px-3 py-1.5 text-sm font-medium text-green-700 transition-colors hover:bg-green-500/20 dark:text-green-400"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          Mở lại
+                        </button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
 
-      {totalPages > 1 && (
-        <div className="mt-4 flex items-center justify-center gap-3">
-          <Button
-            variant="outline"
-            size="icon"
-            disabled={currentPage <= 1}
-            onClick={() => setPage(Math.max(1, currentPage - 1))}
-            className="h-11 w-11"
-            aria-label="Trang trước"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <span className="text-muted-foreground min-w-[5rem] text-center text-sm tabular-nums">
-            Trang <strong className="text-foreground">{currentPage}</strong> /{" "}
-            {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="icon"
-            disabled={currentPage >= totalPages}
-            onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
-            className="h-11 w-11"
-            aria-label="Trang sau"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      )}
+                {/* AdminVoteManager đã chuyển vào trong Card phía trên (gộp chung
+                  border với toggle counts). Không còn block tách rời ở đây. */}
 
-      <ConfirmDialog
-        open={cancelTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setCancelTarget(null);
-        }}
-        title={t("cancelSession")}
-        description={t("cancelConfirm")}
-        onConfirm={handleCancelConfirm}
-        confirmLabel={t("cancelSessionConfirmLabel")}
-      >
-        <div className="space-y-3">
-          <label className="hover:bg-accent/40 flex cursor-pointer items-start gap-2 rounded-lg border p-3 transition-colors">
-            <input
-              type="checkbox"
-              checked={cancelPassed}
-              onChange={(e) => setCancelPassed(e.target.checked)}
-              className="mt-0.5 h-4 w-4"
-            />
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-medium">Pass được sân</div>
-              <div className="text-muted-foreground text-xs">
-                Tick nếu admin đã thu được tiền từ team khác. Tiền sẽ tự động
-                vào quỹ admin.
+                {/* Expanded: unpaid debts for completed sessions */}
+                {isExpanded &&
+                  effectiveStatus === "completed" &&
+                  session.unpaidDebts.length > 0 && (
+                    <div className="bg-background/50 divide-y rounded-b-xl border border-t-0 p-4">
+                      {session.unpaidDebts.map((d) => (
+                        <div
+                          key={d.memberId}
+                          className="flex items-center justify-between py-2 text-sm"
+                        >
+                          <div className="flex items-center gap-3">
+                            <MemberAvatar
+                              memberId={d.memberId}
+                              avatarKey={d.memberAvatarKey}
+                              avatarUrl={d.memberAvatarUrl}
+                              size={28}
+                            />
+                            <span>{d.memberName}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-destructive font-medium">
+                              {formatK(d.amount)}
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-1 border-green-500/40 text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950/30"
+                              onClick={() =>
+                                fireAction(() =>
+                                  confirmPaymentByAdmin(d.debtId),
+                                )
+                              }
+                            >
+                              <Check className="h-4 w-4" />
+                              {tF("received")}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
               </div>
-            </div>
-          </label>
-          {cancelPassed && (
-            <div className="space-y-1.5">
-              <label className="text-muted-foreground text-xs font-medium">
-                Số tiền nhận lại (VND)
-              </label>
-              <input
-                type="number"
-                inputMode="numeric"
-                value={cancelPassRevenue}
-                onChange={(e) => setCancelPassRevenue(e.target.value)}
-                min={0}
-                step={10000}
-                className="bg-background min-h-11 w-full rounded-xl border px-3 text-base"
-                placeholder={tFundAdmin("passRevenuePlaceholder")}
-              />
-              <p className="text-muted-foreground text-xs">
-                Mặc định = giá thuê sân của buổi. Có thể chỉnh nếu khác.
-              </p>
+            );
+          })}
+
+          {sessions.length === 0 && (
+            <div className="text-muted-foreground py-12 text-center">
+              {t("noSessions")}
             </div>
           )}
         </div>
-      </ConfirmDialog>
-    </div>
+
+        {totalPages > 1 && (
+          <div className="mt-4 flex items-center justify-center gap-3">
+            <Button
+              variant="outline"
+              size="icon"
+              disabled={currentPage <= 1}
+              onClick={() => setPage(Math.max(1, currentPage - 1))}
+              className="h-11 w-11"
+              aria-label="Trang trước"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-muted-foreground min-w-[5rem] text-center text-sm tabular-nums">
+              Trang <strong className="text-foreground">{currentPage}</strong> /{" "}
+              {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="icon"
+              disabled={currentPage >= totalPages}
+              onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
+              className="h-11 w-11"
+              aria-label="Trang sau"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+
+        <ConfirmDialog
+          open={cancelTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) setCancelTarget(null);
+          }}
+          title={t("cancelSession")}
+          description={t("cancelConfirm")}
+          onConfirm={handleCancelConfirm}
+          confirmLabel={t("cancelSessionConfirmLabel")}
+        >
+          <div className="space-y-3">
+            <label className="hover:bg-accent/40 flex cursor-pointer items-start gap-2 rounded-lg border p-3 transition-colors">
+              <input
+                type="checkbox"
+                checked={cancelPassed}
+                onChange={(e) => setCancelPassed(e.target.checked)}
+                className="mt-0.5 h-4 w-4"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium">Pass được sân</div>
+                <div className="text-muted-foreground text-xs">
+                  Tick nếu admin đã thu được tiền từ team khác. Tiền sẽ tự động
+                  vào quỹ admin.
+                </div>
+              </div>
+            </label>
+            {cancelPassed && (
+              <div className="space-y-1.5">
+                <label className="text-muted-foreground text-xs font-medium">
+                  Số tiền nhận lại (VND)
+                </label>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={cancelPassRevenue}
+                  onChange={(e) => setCancelPassRevenue(e.target.value)}
+                  min={0}
+                  step={10000}
+                  className="bg-background min-h-11 w-full rounded-xl border px-3 text-base"
+                  placeholder={tFundAdmin("passRevenuePlaceholder")}
+                />
+                <p className="text-muted-foreground text-xs">
+                  Mặc định = giá thuê sân của buổi. Có thể chỉnh nếu khác.
+                </p>
+              </div>
+            )}
+          </div>
+        </ConfirmDialog>
+
+        {/* Confirm mở lại buổi đã completed — reverse tài chính + clear attendees/debts */}
+        <ConfirmDialog
+          open={unlockTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) setUnlockTarget(null);
+          }}
+          title="Mở lại buổi đã hoàn thành?"
+          description="Hệ thống sẽ hoàn lại các khoản trừ quỹ, xóa danh sách attendees và debts của buổi này. Sau đó admin có thể sửa lại thông tin và bấm 'Xác nhận buổi chơi' để chốt sổ lại."
+          confirmLabel="Mở lại"
+          onConfirm={() => {
+            if (!unlockTarget) return;
+            const id = unlockTarget;
+            setUnlockTarget(null);
+            // Optimistic: đánh dấu đã unlock để UI đổi style ngay; rollback nếu fail
+            setUnlockedSessions((prev) => new Set(prev).add(id));
+            fireAction(
+              () => unlockSession(id),
+              () =>
+                setUnlockedSessions((prev) => {
+                  const n = new Set(prev);
+                  n.delete(id);
+                  return n;
+                }),
+            );
+          }}
+        />
+      </div>
+    </Dialog>
   );
 }

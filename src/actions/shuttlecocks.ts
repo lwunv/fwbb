@@ -1,8 +1,12 @@
 "use server";
 
 import { db } from "@/db";
-import { shuttlecockBrands } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import {
+  shuttlecockBrands,
+  sessionShuttlecocks,
+  inventoryPurchases,
+} from "@/db/schema";
+import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { brandSchema } from "@/lib/validators";
 import { requireAdmin } from "@/lib/auth";
@@ -63,6 +67,39 @@ export async function toggleBrandActive(id: number) {
     .update(shuttlecockBrands)
     .set({ isActive: !brand.isActive })
     .where(eq(shuttlecockBrands.id, id));
+  revalidatePath("/admin/shuttlecocks");
+  return { success: true };
+}
+
+/**
+ * Hard delete hãng cầu. Block nếu còn purchase hoặc usage tham chiếu — khi
+ * đó admin nên dùng `toggleBrandActive` (vô hiệu hóa) để giữ lịch sử kho/giá.
+ */
+export async function deleteBrand(id: number) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
+  const brand = await db.query.shuttlecockBrands.findFirst({
+    where: eq(shuttlecockBrands.id, id),
+  });
+  if (!brand) return { error: "Không tìm thấy hãng cầu" };
+
+  const [{ usageCount }] = await db
+    .select({ usageCount: sql<number>`count(*)` })
+    .from(sessionShuttlecocks)
+    .where(eq(sessionShuttlecocks.brandId, id));
+  const [{ purchaseCount }] = await db
+    .select({ purchaseCount: sql<number>`count(*)` })
+    .from(inventoryPurchases)
+    .where(eq(inventoryPurchases.brandId, id));
+  const totalRefs = Number(usageCount) + Number(purchaseCount);
+  if (totalRefs > 0) {
+    return {
+      error: `Không xóa được — hãng có ${usageCount} lần sử dụng + ${purchaseCount} lần nhập kho. Hãy "Vô hiệu hóa" thay vì xóa.`,
+    };
+  }
+
+  await db.delete(shuttlecockBrands).where(eq(shuttlecockBrands.id, id));
   revalidatePath("/admin/shuttlecocks");
   return { success: true };
 }

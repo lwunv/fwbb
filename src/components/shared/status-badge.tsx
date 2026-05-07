@@ -30,9 +30,11 @@ const VARIANTS: Record<StatusVariant, string> = {
   paid: "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300",
   // "Chưa thanh toán" — đỏ
   unpaid: "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300",
-  // "Cần xác nhận" — xanh lá (member báo đã CK, admin pending)
+  // "Cần xác nhận" — cam đậm (warning hue). Trước rose-100 trùng tone với
+  // "Đã hủy" red-100 → khó phân biệt; orange-200 nằm hẳn ở dải warm khác,
+  // vẫn warning-coded mà không xung đột với cancelled (red) hay pink theme.
   needsConfirm:
-    "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300",
+    "bg-orange-200 text-orange-900 dark:bg-orange-400/25 dark:text-orange-100",
   // Legacy waiting — giữ amber để khỏi vỡ chỗ khác
   waiting:
     "bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200",

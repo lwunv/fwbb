@@ -3,7 +3,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Clock, MapPin, Navigation, Users } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { formatSessionDate } from "@/lib/date-format";
+import { formatSessionDate, ymdInVN } from "@/lib/date-format";
 import {
   StatusBadge,
   type StatusVariant,
@@ -36,6 +36,7 @@ export function SessionCard({
   guestDineCount,
 }: SessionCardProps) {
   const t = useTranslations("sessions");
+  const tF = useTranslations("finance");
   const locale = useLocale() as AppLocale;
 
   const statusKey = (status ?? "voting") as StatusVariant;
@@ -44,7 +45,14 @@ export function SessionCard({
       ? statusKey
       : "voting"
   ) as "voting" | "confirmed" | "completed" | "cancelled";
-  const isVoting = statusKey === "voting";
+  // Buổi đã qua nhưng vẫn voting/confirmed → "Cần xác nhận", không LED xanh.
+  const isPastPending =
+    (statusKey === "voting" || statusKey === "confirmed") && date < ymdInVN();
+  const isVoting = statusKey === "voting" && !isPastPending;
+  const badgeVariant: StatusVariant = isPastPending
+    ? "needsConfirm"
+    : statusKey;
+  const badgeText = isPastPending ? tF("needsConfirm") : t(statusLabelKey);
 
   const card = (
     <Card className={isVoting ? "ring-0" : ""}>
@@ -53,7 +61,7 @@ export function SessionCard({
           <h2 className="text-lg font-bold capitalize">
             {formatSessionDate(date, "weekdayLong", locale)}
           </h2>
-          <StatusBadge variant={statusKey}>{t(statusLabelKey)}</StatusBadge>
+          <StatusBadge variant={badgeVariant}>{badgeText}</StatusBadge>
         </div>
 
         <div className="space-y-2 text-sm">
@@ -90,12 +98,16 @@ export function SessionCard({
                 <strong className="text-primary tabular-nums">
                   {playerCount + guestPlayCount}
                 </strong>{" "}
-                <span className="text-white">{t("people")}</span>
+                <span className="text-foreground/80">{t("people")}</span>
                 {guestPlayCount > 0 && (
                   <span className="tabular-nums">
                     {" "}
-                    (<span className="text-primary">{guestPlayCount}</span>{" "}
-                    <span className="text-white">{t("guest")}</span>)
+                    (
+                    <span className="text-foreground/80">
+                      {t("including")}
+                    </span>{" "}
+                    <span className="text-primary">{guestPlayCount}</span>{" "}
+                    <span className="text-foreground/80">{t("guest")}</span>)
                   </span>
                 )}
               </span>
@@ -104,15 +116,18 @@ export function SessionCard({
                 <strong className="text-orange-600 tabular-nums dark:text-orange-400">
                   {dinerCount + guestDineCount}
                 </strong>{" "}
-                <span className="text-white">{t("people")}</span>
+                <span className="text-foreground/80">{t("people")}</span>
                 {guestDineCount > 0 && (
                   <span className="tabular-nums">
                     {" "}
                     (
+                    <span className="text-foreground/80">
+                      {t("including")}
+                    </span>{" "}
                     <span className="text-orange-600 dark:text-orange-400">
                       {guestDineCount}
                     </span>{" "}
-                    <span className="text-white">{t("guest")}</span>)
+                    <span className="text-foreground/80">{t("guest")}</span>)
                   </span>
                 )}
               </span>

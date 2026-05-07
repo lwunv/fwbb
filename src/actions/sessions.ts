@@ -23,6 +23,8 @@ import { requireAdmin } from "@/lib/auth";
 import { ymdInVN, ymdInVNAddDays, dayOfWeekVN } from "@/lib/date-format";
 import { admins } from "@/db/schema";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
+import { getDefaultCourt } from "@/actions/settings";
+import { assertEditable, type SessionStatus } from "@/lib/session-status";
 import {
   selectCourtSchema,
   addShuttlecockSchema,
@@ -78,6 +80,8 @@ export async function getNextSession() {
 
   // Không có session active trong [today, tomorrow] → auto-create nếu trong
   // khoảng đó có ngày Mon/Wed/Fri và chưa có row nào (kể cả completed/cancelled).
+  // Pre-fill court mặc định (THCS Tây Mỗ) — admin có thể đổi qua CourtSelector.
+  const defaultCourt = await getDefaultCourt();
   for (const candidate of [today, tomorrow]) {
     if (!SESSION_DAYS_OF_WEEK.has(dayOfWeekVN(candidate))) continue;
     const exists = await db.query.sessions.findFirst({
@@ -86,7 +90,12 @@ export async function getNextSession() {
     if (exists) continue; // có rồi (chắc completed/cancelled) → bỏ qua
     const [newSession] = await db
       .insert(sessions)
-      .values({ date: candidate, status: "voting" })
+      .values({
+        date: candidate,
+        status: "voting",
+        courtId: defaultCourt?.id ?? null,
+        courtPrice: defaultCourt?.pricePerSession ?? null,
+      })
       .returning();
     return db.query.sessions.findFirst({
       where: eq(sessions.id, newSession.id),
@@ -125,15 +134,22 @@ export async function getAdminUpcomingSession() {
   });
   if (todaySession) return todaySession;
 
-  // 2. Hôm nay là ngày chơi mà chưa có row → auto-create cho hôm nay
+  // 2. Hôm nay là ngày chơi mà chưa có row → auto-create cho hôm nay.
+  //    Pre-fill court mặc định (THCS Tây Mỗ) — admin có thể đổi sau.
   if (SESSION_DAYS_OF_WEEK.has(dayOfWeekVN(today))) {
     const exists = await db.query.sessions.findFirst({
       where: eq(sessions.date, today),
     });
     if (!exists) {
+      const defaultCourt = await getDefaultCourt();
       const [newSession] = await db
         .insert(sessions)
-        .values({ date: today, status: "voting" })
+        .values({
+          date: today,
+          status: "voting",
+          courtId: defaultCourt?.id ?? null,
+          courtPrice: defaultCourt?.pricePerSession ?? null,
+        })
         .returning();
       return db.query.sessions.findFirst({
         where: eq(sessions.id, newSession.id),
@@ -191,6 +207,15 @@ export async function selectCourt(
     return { error: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
   }
   const data = parsed.data;
+
+  // Guard fintech: không cho đổi giá sân khi đã chốt sổ — admin phải Mở lại trước.
+  const existing = await db.query.sessions.findFirst({
+    where: eq(sessions.id, data.sessionId),
+    columns: { status: true },
+  });
+  if (!existing) return { error: "Không tìm thấy buổi chơi" };
+  const editGuard = assertEditable(existing.status as SessionStatus);
+  if (!editGuard.ok) return { error: editGuard.error };
 
   const court = await db.query.courts.findFirst({
     where: eq(courts.id, data.courtId),
@@ -351,6 +376,192 @@ export async function cancelSession(
     revalidatePath("/admin/finance");
     revalidatePath("/my-fund");
   }
+  return { success: true };
+}
+
+/**
+ * Reopen một buổi đã hủy → đưa về `voting`.
+ *
+ * Nếu buổi từng có pass-sân (passRevenue đã ghi vào quỹ admin), reverse lại
+ * `fund_contribution` đó bằng một `fund_deduction` với `reversalOfId` trỏ tới
+ * record gốc — preserve audit trail. Skip reverse nếu đã có reversal trước đó
+ * (idempotent).
+ */
+export async function reopenSession(sessionId: number) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
+  const session = await db.query.sessions.findFirst({
+    where: eq(sessions.id, sessionId),
+  });
+  if (!session) return { error: "Không tìm thấy buổi chơi" };
+  if (session.status !== "cancelled") {
+    return { error: "Chỉ buổi đã hủy mới mở lại được" };
+  }
+
+  // Tìm pass-sân contribution gốc (nếu có) — match theo sessionId + type +
+  // direction để chắc chắn không reverse nhầm transaction khác.
+  const passContribution = await db.query.financialTransactions.findFirst({
+    where: and(
+      eq(financialTransactions.sessionId, sessionId),
+      eq(financialTransactions.type, "fund_contribution"),
+      eq(financialTransactions.direction, "in"),
+      isNull(financialTransactions.reversalOfId),
+    ),
+  });
+
+  // Đã có reversal cho contribution này chưa? (idempotency guard)
+  let alreadyReversed = false;
+  if (passContribution) {
+    const existingReversal = await db.query.financialTransactions.findFirst({
+      where: eq(financialTransactions.reversalOfId, passContribution.id),
+      columns: { id: true },
+    });
+    alreadyReversed = !!existingReversal;
+  }
+
+  try {
+    await db.transaction(async (tx) => {
+      if (passContribution && !alreadyReversed) {
+        const r = await recordFinancialTransaction(
+          {
+            type: "fund_deduction",
+            direction: "out",
+            amount: passContribution.amount,
+            memberId: passContribution.memberId,
+            sessionId,
+            reversalOfId: passContribution.id,
+            description: `Reverse pass-sân buổi ${session.date} — mở lại buổi`,
+            metadata: { source: "session_reopened", sessionId },
+          },
+          tx,
+        );
+        if ("error" in r) throw new Error(r.error);
+      }
+
+      await tx
+        .update(sessions)
+        .set({
+          status: "voting",
+          passRevenue: null,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(sessions.id, sessionId));
+    });
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Không mở lại được buổi",
+    };
+  }
+
+  revalidatePath("/admin/sessions");
+  revalidatePath(`/admin/sessions/${sessionId}`);
+  if (passContribution) {
+    revalidatePath("/admin/fund");
+    revalidatePath("/admin/finance");
+    revalidatePath("/my-fund");
+  }
+  return { success: true };
+}
+
+/**
+ * Unlock một buổi đã `completed` để admin có thể sửa lại config + finalize lại.
+ *
+ * Atomic transaction:
+ *  1. Reverse mọi `fund_deduction` của buổi qua `reversalOfId` → balance member
+ *     khôi phục về trước finalize.
+ *  2. NULL out `debtId` trên ledger rows trỏ vào debts của session (libsql
+ *     không enforce FK; phải null trước khi xóa debts để reconcile invariant
+ *     I7 không flag orphan refs).
+ *  3. Xóa `sessionAttendees` + `sessionDebts` của session — clean state.
+ *  4. Set `status = "voting"` để các action sửa lại được phép chạy.
+ *
+ * Sau khi unlock, admin sửa court/shuttle/votes/khách như buổi mới, rồi bấm
+ * "Xác nhận buổi chơi" → `finalizeSessionAuto` build attendees + debts mới.
+ *
+ * Idempotent: chạy lại an toàn nhờ check `reversalOfId IS NULL` trước khi
+ * insert reversal mới.
+ */
+export async function unlockSession(sessionId: number) {
+  const auth = await requireAdmin();
+  if (auth && "error" in auth) return auth;
+
+  const session = await db.query.sessions.findFirst({
+    where: eq(sessions.id, sessionId),
+  });
+  if (!session) return { error: "Không tìm thấy buổi chơi" };
+  if (session.status !== "completed") {
+    return { error: "Chỉ buổi đã hoàn thành mới mở lại để sửa được" };
+  }
+
+  try {
+    await db.transaction(async (tx) => {
+      // 1. Reverse fund_deductions (idempotent)
+      const priorDeductions = await tx.query.financialTransactions.findMany({
+        where: and(
+          eq(financialTransactions.sessionId, sessionId),
+          eq(financialTransactions.type, "fund_deduction"),
+          isNull(financialTransactions.reversalOfId),
+        ),
+      });
+      for (const ftx of priorDeductions) {
+        const alreadyReversed = await tx.query.financialTransactions.findFirst({
+          where: eq(financialTransactions.reversalOfId, ftx.id),
+          columns: { id: true },
+        });
+        if (alreadyReversed) continue;
+        const r = await recordFinancialTransaction(
+          {
+            type: "fund_contribution",
+            direction: "in",
+            amount: ftx.amount,
+            memberId: ftx.memberId,
+            sessionId: ftx.sessionId,
+            reversalOfId: ftx.id,
+            description: `Hoàn lại trừ quỹ khi mở lại buổi ${session.date}`,
+            metadata: { source: "session_unlocked", sessionId },
+          },
+          tx,
+        );
+        if ("error" in r) throw new Error(r.error);
+      }
+
+      // 2. NULL debtId trên ledger trước khi xóa debts (giữ audit history)
+      await tx
+        .update(financialTransactions)
+        .set({ debtId: null })
+        .where(eq(financialTransactions.sessionId, sessionId));
+
+      // 3. Wipe attendees + debts → state về "chưa finalize"
+      await tx
+        .delete(sessionAttendees)
+        .where(eq(sessionAttendees.sessionId, sessionId));
+      await tx
+        .delete(sessionDebts)
+        .where(eq(sessionDebts.sessionId, sessionId));
+
+      // 4. Status về voting
+      await tx
+        .update(sessions)
+        .set({
+          status: "voting",
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(sessions.id, sessionId));
+    });
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error ? err.message : "Không mở lại được buổi đã chốt",
+    };
+  }
+
+  revalidatePath("/admin/sessions");
+  revalidatePath(`/admin/sessions/${sessionId}`);
+  revalidatePath("/admin/fund");
+  revalidatePath("/admin/finance");
+  revalidatePath("/my-fund");
+  revalidatePath("/my-debts");
   return { success: true };
 }
 
@@ -527,12 +738,23 @@ export async function createSessionManually(
   });
   if (existing) return { error: "Da co buoi choi vao ngay nay" };
 
+  // Resolve court: admin chọn → dùng đó; không chọn → fallback default court.
+  let resolvedCourtId: number | null = null;
   let courtPrice: number | null = null;
   if (courtId) {
     const court = await db.query.courts.findFirst({
       where: eq(courts.id, courtId),
     });
-    if (court) courtPrice = court.pricePerSession;
+    if (court) {
+      resolvedCourtId = court.id;
+      courtPrice = court.pricePerSession;
+    }
+  } else {
+    const defaultCourt = await getDefaultCourt();
+    if (defaultCourt) {
+      resolvedCourtId = defaultCourt.id;
+      courtPrice = defaultCourt.pricePerSession;
+    }
   }
 
   await db.insert(sessions).values({
@@ -540,15 +762,17 @@ export async function createSessionManually(
     status: "voting",
     startTime: startTime || "20:30",
     endTime: endTime || "22:30",
-    courtId: courtId || null,
+    courtId: resolvedCourtId,
     courtPrice,
   });
   revalidatePath("/admin/sessions");
   revalidatePath("/");
 
   // Non-blocking Messenger notification
-  const court = courtId
-    ? await db.query.courts.findFirst({ where: eq(courts.id, courtId) })
+  const court = resolvedCourtId
+    ? await db.query.courts.findFirst({
+        where: eq(courts.id, resolvedCourtId),
+      })
     : null;
   const link = `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/vote/${date}`;
   sendGroupMessage(buildNewSessionMessage(date, court?.name ?? null, link));
@@ -573,6 +797,15 @@ export async function addSessionShuttlecocks(
     return { error: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
   }
   const data = parsed.data;
+
+  // Guard fintech: chặn add/edit shuttlecock khi đã chốt sổ.
+  const sessionRow = await db.query.sessions.findFirst({
+    where: eq(sessions.id, data.sessionId),
+    columns: { status: true },
+  });
+  if (!sessionRow) return { error: "Không tìm thấy buổi chơi" };
+  const editGuard = assertEditable(sessionRow.status as SessionStatus);
+  if (!editGuard.ok) return { error: editGuard.error };
 
   const brand = await db.query.shuttlecockBrands.findFirst({
     where: eq(shuttlecockBrands.id, data.brandId),
@@ -618,6 +851,15 @@ export async function removeSessionShuttlecock(id: number) {
   });
   if (!record) return { error: "Khong tim thay" };
 
+  // Guard fintech: chặn remove shuttlecock khi buổi đã chốt sổ.
+  const sessionRow = await db.query.sessions.findFirst({
+    where: eq(sessions.id, record.sessionId),
+    columns: { status: true },
+  });
+  if (!sessionRow) return { error: "Không tìm thấy buổi chơi" };
+  const editGuard = assertEditable(sessionRow.status as SessionStatus);
+  if (!editGuard.ok) return { error: editGuard.error };
+
   await db.delete(sessionShuttlecocks).where(eq(sessionShuttlecocks.id, id));
   revalidatePath(`/admin/sessions/${record.sessionId}`);
   return { success: true };
@@ -640,6 +882,15 @@ export async function setAdminGuestCount(
     return { error: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
   }
   const data = parsed.data;
+
+  // Guard fintech: admin guest count ảnh hưởng divisor → chặn khi đã chốt sổ.
+  const sessionRow = await db.query.sessions.findFirst({
+    where: eq(sessions.id, data.sessionId),
+    columns: { status: true },
+  });
+  if (!sessionRow) return { error: "Không tìm thấy buổi chơi" };
+  const editGuard = assertEditable(sessionRow.status as SessionStatus);
+  if (!editGuard.ok) return { error: editGuard.error };
 
   await db
     .update(sessions)

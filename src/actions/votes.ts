@@ -8,6 +8,7 @@ import { getUserFromCookie } from "@/lib/user-identity";
 import { requireAdmin } from "@/lib/auth";
 import { adminGuestCountSchema, voteSchema } from "@/lib/validators";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { assertEditable, type SessionStatus } from "@/lib/session-status";
 
 export async function submitVote(
   sessionId: number,
@@ -73,15 +74,16 @@ export async function submitVote(
   return { success: true };
 }
 
-// Admin: add/update a member's vote
+// Admin: add/update a member's vote — guard editable status với
+// `assertEditable` (cùng helper với cost-affecting actions để error message
+// nhất quán + hint admin bấm "Mở lại").
 async function assertSessionAllowsVoteEdits(sessionId: number) {
   const session = await db.query.sessions.findFirst({
     where: eq(sessions.id, sessionId),
   });
   if (!session) return { error: "Không tìm thấy buổi" } as const;
-  if (session.status !== "voting" && session.status !== "confirmed") {
-    return { error: "Buổi không còn mở chỉnh sửa vote" } as const;
-  }
+  const guard = assertEditable(session.status as SessionStatus);
+  if (!guard.ok) return { error: guard.error } as const;
   return { session } as const;
 }
 

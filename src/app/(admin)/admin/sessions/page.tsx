@@ -1,17 +1,54 @@
 import { db } from "@/db";
 import { sessions, courts, members, shuttlecockBrands } from "@/db/schema";
-import { desc, eq, sql } from "drizzle-orm";
-import { SessionList } from "./session-list";
+import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
+import { ymdInVN } from "@/lib/date-format";
+import { SessionList, type StatusFilter } from "./session-list";
 
 const PAGE_SIZE = 10;
+
+const STATUS_FILTERS = [
+  "all",
+  "voting",
+  "needsConfirm",
+  "completed",
+  "cancelled",
+] as const satisfies readonly StatusFilter[];
 
 export default async function SessionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; status?: string }>;
 }) {
   const sp = await searchParams;
   const pageNum = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
+  const statusParam = (sp.status ?? "all") as StatusFilter;
+  const statusFilter: StatusFilter = STATUS_FILTERS.includes(statusParam)
+    ? statusParam
+    : "all";
+
+  // Where clause theo status filter:
+  // - "voting"        → active upcoming/today (status voting/confirmed + date >= today)
+  // - "needsConfirm"  → past pending (status voting/confirmed + date < today)
+  // - "completed"     → status = completed
+  // - "cancelled"     → status = cancelled
+  // - "all"           → undefined (no filter)
+  const today = ymdInVN();
+  const whereClause =
+    statusFilter === "voting"
+      ? and(
+          inArray(sessions.status, ["voting", "confirmed"]),
+          gte(sessions.date, today),
+        )
+      : statusFilter === "needsConfirm"
+        ? and(
+            inArray(sessions.status, ["voting", "confirmed"]),
+            lt(sessions.date, today),
+          )
+        : statusFilter === "completed"
+          ? eq(sessions.status, "completed")
+          : statusFilter === "cancelled"
+            ? eq(sessions.status, "cancelled")
+            : undefined;
 
   // 2-wave fetch: count trước để clamp page, rồi fetch slice theo safePage.
   // Tránh case URL `?page=99` nhưng thực tế chỉ có 3 trang → fetch empty slice.
@@ -32,6 +69,7 @@ export default async function SessionsPage({
       db
         .select({ count: sql<number>`count(*)` })
         .from(sessions)
+        .where(whereClause)
         .then((r) => Number(r[0]?.count ?? 0)),
     ]);
 
@@ -40,6 +78,7 @@ export default async function SessionsPage({
   const offset = (safePage - 1) * PAGE_SIZE;
 
   const allSessions = await db.query.sessions.findMany({
+    where: whereClause,
     orderBy: [desc(sessions.date)],
     limit: PAGE_SIZE,
     offset,
@@ -128,6 +167,7 @@ export default async function SessionsPage({
         brands={activeBrands}
         currentPage={safePage}
         totalPages={totalPages}
+        currentStatusFilter={statusFilter}
       />
     </div>
   );

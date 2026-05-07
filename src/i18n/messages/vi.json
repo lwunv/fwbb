@@ -41,6 +41,7 @@
     "dining": "Nhậu",
     "people": "người",
     "guest": "khách",
+    "including": "gồm",
     "session": "Buổi chơi",
     "sessionCancelled": "Buổi chơi này đã bị hủy",
     "sessionCompleted": "Buổi chơi này đã hoàn thành",
@@ -72,7 +73,9 @@
     "linkCopied": "Đã copy",
     "directions": "Chỉ đường",
     "adminGuestButton": "+ Khách admin",
-    "stillOwingAmount": "Còn thiếu {amount}"
+    "stillOwingAmount": "Còn thiếu {amount}",
+    "filterAll": "Tất cả",
+    "filterUpcoming": "Sắp tới"
   },
   "voting": {
     "play": "Tăng 1 - Cầu lông",
@@ -222,7 +225,9 @@
     "add": "Thêm",
     "edit": "Sửa",
     "delete": "Xóa",
+    "disable": "Vô hiệu",
     "enable": "Bật",
+    "confirmHardDelete": "Xóa vĩnh viễn? Không thể khôi phục.",
     "save": "Lưu",
     "cancel": "Hủy",
     "active": "Hoạt động",

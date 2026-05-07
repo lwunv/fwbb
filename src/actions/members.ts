@@ -1,8 +1,16 @@
 "use server";
 
 import { db } from "@/db";
-import { members } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import {
+  members,
+  votes,
+  sessionAttendees,
+  sessionDebts,
+  fundMembers,
+  financialTransactions,
+  admins,
+} from "@/db/schema";
+import { eq, sql, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { getUserFromCookie } from "@/lib/user-identity";
@@ -183,6 +191,70 @@ export async function toggleMemberActive(id: number) {
     .update(members)
     .set({ isActive: !member.isActive })
     .where(eq(members.id, id));
+  revalidatePath("/admin/members");
+  return { success: true };
+}
+
+/**
+ * Hard delete thành viên. Block khi còn dữ liệu tham chiếu (vote, attendance,
+ * debt, fund, ledger, hoặc admin link). Member dính giao dịch tài chính phải
+ * giữ — admin nên dùng `toggleMemberActive` để vô hiệu hóa thay vì xóa
+ * (financial audit trail bị vỡ nếu hard-delete một member có ledger entry).
+ */
+export async function deleteMember(id: number) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
+  const member = await db.query.members.findFirst({
+    where: eq(members.id, id),
+  });
+  if (!member) return { error: "Không tìm thấy thành viên" };
+
+  const [{ voteCount }] = await db
+    .select({ voteCount: sql<number>`count(*)` })
+    .from(votes)
+    .where(eq(votes.memberId, id));
+  const [{ attendCount }] = await db
+    .select({ attendCount: sql<number>`count(*)` })
+    .from(sessionAttendees)
+    .where(
+      or(
+        eq(sessionAttendees.memberId, id),
+        eq(sessionAttendees.invitedById, id),
+      ),
+    );
+  const [{ debtCount }] = await db
+    .select({ debtCount: sql<number>`count(*)` })
+    .from(sessionDebts)
+    .where(eq(sessionDebts.memberId, id));
+  const [{ fundCount }] = await db
+    .select({ fundCount: sql<number>`count(*)` })
+    .from(fundMembers)
+    .where(eq(fundMembers.memberId, id));
+  const [{ ledgerCount }] = await db
+    .select({ ledgerCount: sql<number>`count(*)` })
+    .from(financialTransactions)
+    .where(eq(financialTransactions.memberId, id));
+  const [{ adminCount }] = await db
+    .select({ adminCount: sql<number>`count(*)` })
+    .from(admins)
+    .where(eq(admins.memberId, id));
+
+  const refs: string[] = [];
+  if (Number(voteCount) > 0) refs.push(`${voteCount} vote`);
+  if (Number(attendCount) > 0) refs.push(`${attendCount} buổi tham gia`);
+  if (Number(debtCount) > 0) refs.push(`${debtCount} khoản nợ`);
+  if (Number(fundCount) > 0) refs.push(`${fundCount} dòng quỹ`);
+  if (Number(ledgerCount) > 0) refs.push(`${ledgerCount} giao dịch`);
+  if (Number(adminCount) > 0) refs.push(`liên kết admin`);
+
+  if (refs.length > 0) {
+    return {
+      error: `Không xóa được — còn ${refs.join(", ")}. Hãy "Vô hiệu hóa" thay vì xóa.`,
+    };
+  }
+
+  await db.delete(members).where(eq(members.id, id));
   revalidatePath("/admin/members");
   return { success: true };
 }

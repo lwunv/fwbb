@@ -41,6 +41,7 @@
     "dining": "Dining",
     "people": "people",
     "guest": "guest(s)",
+    "including": "incl.",
     "session": "Session",
     "sessionCancelled": "This session has been cancelled",
     "sessionCompleted": "This session has been completed",
@@ -72,7 +73,9 @@
     "linkCopied": "Copied",
     "directions": "Directions",
     "adminGuestButton": "+ Admin guests",
-    "stillOwingAmount": "Still owing {amount}"
+    "stillOwingAmount": "Still owing {amount}",
+    "filterAll": "All",
+    "filterUpcoming": "Upcoming"
   },
   "voting": {
     "play": "Team 1 - Badminton",
@@ -222,7 +225,9 @@
     "add": "Add",
     "edit": "Edit",
     "delete": "Delete",
+    "disable": "Disable",
     "enable": "Turn on",
+    "confirmHardDelete": "Delete permanently? Cannot be undone.",
     "save": "Save",
     "cancel": "Cancel",
     "active": "Active",

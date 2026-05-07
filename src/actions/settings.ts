@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/db";
-import { appSettings } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { appSettings, courts } from "@/db/schema";
+import { and, eq, like } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 
@@ -11,6 +11,59 @@ export async function getAppName(): Promise<string> {
     where: eq(appSettings.key, "appName"),
   });
   return row?.value ?? "FWBB";
+}
+
+/**
+ * Sân mặc định khi auto-create buổi chơi mới.
+ * - Đọc `appSettings.defaultCourtId` trước (admin đã chỉ định).
+ * - Nếu chưa set, fallback: tìm court active có tên chứa "THCS Tây Mỗ".
+ * - Trả về null nếu không có court nào → caller skip pre-fill.
+ *
+ * Trả thẳng record để caller có cả `pricePerSession` (giá tháng) đặt làm
+ * `courtPrice` ban đầu — admin có thể đổi qua CourtSelector.
+ */
+export async function getDefaultCourt() {
+  const setting = await db.query.appSettings.findFirst({
+    where: eq(appSettings.key, "defaultCourtId"),
+  });
+  const settingId = setting?.value ? parseInt(setting.value, 10) : null;
+  if (settingId && Number.isFinite(settingId)) {
+    const court = await db.query.courts.findFirst({
+      where: and(eq(courts.id, settingId), eq(courts.isActive, true)),
+    });
+    if (court) return court;
+  }
+  // Fallback: tìm court active match "THCS Tây Mỗ".
+  const fallback = await db.query.courts.findFirst({
+    where: and(eq(courts.isActive, true), like(courts.name, "%THCS Tây Mỗ%")),
+  });
+  return fallback ?? null;
+}
+
+export async function setDefaultCourt(courtId: number) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
+  const exists = await db.query.courts.findFirst({
+    where: eq(courts.id, courtId),
+  });
+  if (!exists) return { error: "Sân không tồn tại" };
+
+  const value = String(courtId);
+  const existing = await db.query.appSettings.findFirst({
+    where: eq(appSettings.key, "defaultCourtId"),
+  });
+  if (existing) {
+    await db
+      .update(appSettings)
+      .set({ value })
+      .where(eq(appSettings.key, "defaultCourtId"));
+  } else {
+    await db.insert(appSettings).values({ key: "defaultCourtId", value });
+  }
+  revalidatePath("/admin/courts");
+  revalidatePath("/admin/sessions");
+  return { success: true };
 }
 
 export async function updateAppName(name: string) {

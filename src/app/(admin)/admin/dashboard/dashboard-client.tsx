@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useLocale } from "next-intl";
-import { formatSessionDate } from "@/lib/date-format";
+import { formatSessionDate, ymdInVN } from "@/lib/date-format";
 import type { AppLocale } from "@/lib/date-fns-locale";
 import { useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -162,8 +162,6 @@ export function DashboardClient({
   owingCount,
   topOwingMembers,
   totalStockQua,
-  lowStockBrandCount,
-  inventoryByBrand,
   activeMembersCount,
   sessionsThisMonth,
   completedSessionsThisMonth,
@@ -358,143 +356,153 @@ export function DashboardClient({
         </Card>
       )}
 
-      {/* Upcoming Session — wrap in LED border when in voting state.
+      {/* Upcoming Session — wrap in LED border when buổi sắp/đang diễn ra.
+       * Buổi đã qua nhưng chưa finalize (voting/confirmed + date < hôm nay)
+       * coi là "Cần xác nhận", không có LED, viền + badge amber. Quy tắc:
+       * "chỉ buổi sắp và đang diễn ra mới có LED viền xanh lá".
+       *
        * Card MUST keep an opaque bg (bg-card) so the rotating conic-gradient
        * sweep of .led-border doesn't leak through. Translucent tints
        * (bg-violet-50/40) cause the bright wedge to bleed across the card. */}
-      <div className={cn(upcomingSession?.status === "voting" && "led-border")}>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>{td("upcomingSession")}</span>
-              {upcomingSession && (
-                <Badge
-                  variant="outline"
-                  className={
-                    upcomingSession.status === "voting"
-                      ? "border-green-500 text-green-600 dark:border-green-600 dark:text-green-400"
-                      : upcomingSession.status === "confirmed"
-                        ? "border-green-500 text-green-600 dark:border-green-600 dark:text-green-400"
-                        : upcomingSession.status === "completed"
-                          ? "border-blue-500 text-blue-600 dark:border-blue-600 dark:text-blue-400"
-                          : "border-destructive text-destructive"
-                  }
-                >
-                  {ts(
-                    upcomingSession.status as
-                      | "voting"
-                      | "confirmed"
-                      | "completed"
-                      | "cancelled",
+      {(() => {
+        const status = upcomingSession?.status;
+        const isUpcomingActive = status === "voting" || status === "confirmed";
+        const isPastPending =
+          isUpcomingActive &&
+          !!upcomingSession &&
+          upcomingSession.date < ymdInVN();
+        const showLed = isUpcomingActive && !isPastPending;
+        const badgeClass = isPastPending
+          ? "border-yellow-400 bg-yellow-100 text-yellow-900 dark:border-yellow-400 dark:bg-yellow-400/20 dark:text-yellow-100"
+          : status === "voting" || status === "confirmed"
+            ? "border-green-500 text-green-600 dark:border-green-600 dark:text-green-400"
+            : status === "completed"
+              ? "border-blue-500 text-blue-600 dark:border-blue-600 dark:text-blue-400"
+              : "border-destructive text-destructive";
+        const badgeText = isPastPending
+          ? tf("needsConfirm")
+          : ts(status as "voting" | "confirmed" | "completed" | "cancelled");
+        return (
+          <div className={cn(showLed && "led-border")}>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>{td("upcomingSession")}</span>
+                  {upcomingSession && (
+                    <Badge variant="outline" className={badgeClass}>
+                      {badgeText}
+                    </Badge>
                   )}
-                </Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {upcomingSession ? (
-              <div className="space-y-3">
-                <div className="space-y-2.5">
-                  <div className="flex items-center gap-3 text-base">
-                    <CalendarDays className="text-muted-foreground h-5 w-5" />
-                    <span className="font-medium capitalize">
-                      {formatDateFull(upcomingSession.date)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 text-base">
-                    <Clock className="text-muted-foreground h-5 w-5" />
-                    <span>
-                      {upcomingSession.startTime} - {upcomingSession.endTime}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 text-base">
-                    <MapPin className="text-muted-foreground h-5 w-5" />
-                    <span>
-                      {upcomingSession.courtName || td("courtNotSelected")}
-                    </span>
-                    {upcomingSession.courtMapLink && (
-                      <a
-                        href={upcomingSession.courtMapLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary inline-flex items-center gap-1 text-sm hover:underline"
-                      >
-                        <Navigation className="h-4 w-4" /> {ts("directions")}
-                      </a>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {upcomingSession ? (
+                  <div className="space-y-3">
+                    <div className="space-y-2.5">
+                      <div className="flex items-center gap-3 text-base">
+                        <CalendarDays className="text-muted-foreground h-5 w-5" />
+                        <span className="font-medium capitalize">
+                          {formatDateFull(upcomingSession.date)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 text-base">
+                        <Clock className="text-muted-foreground h-5 w-5" />
+                        <span>
+                          {upcomingSession.startTime} -{" "}
+                          {upcomingSession.endTime}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 text-base">
+                        <MapPin className="text-muted-foreground h-5 w-5" />
+                        <span>
+                          {upcomingSession.courtName || td("courtNotSelected")}
+                        </span>
+                        {upcomingSession.courtMapLink && (
+                          <a
+                            href={upcomingSession.courtMapLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary inline-flex items-center gap-1 text-sm hover:underline"
+                          >
+                            <Navigation className="h-4 w-4" />{" "}
+                            {ts("directions")}
+                          </a>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-x-5 gap-y-1.5 pt-1 text-base">
+                        <span>
+                          🏸 {ts("badminton")}:{" "}
+                          <strong className="text-primary">
+                            {upcomingSession.playerCount +
+                              upcomingSession.guestPlayCount}
+                          </strong>{" "}
+                          {ts("people")}
+                          {upcomingSession.guestPlayCount > 0 && (
+                            <span className="tabular-nums">
+                              {" "}
+                              ({upcomingSession.guestPlayCount} {ts("guest")})
+                            </span>
+                          )}
+                        </span>
+                        <span>
+                          🍻 {ts("dining")}:{" "}
+                          <strong className="text-orange-500 dark:text-orange-400">
+                            {upcomingSession.dinerCount +
+                              upcomingSession.guestDineCount}
+                          </strong>{" "}
+                          {ts("people")}
+                          {upcomingSession.guestDineCount > 0 && (
+                            <span className="tabular-nums">
+                              {" "}
+                              ({upcomingSession.guestDineCount} {ts("guest")})
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Vote progress */}
+                    {upcomingSession.totalEligibleVoters > 0 && (
+                      <div className="bg-background/60 dark:bg-background/40 rounded-xl p-3">
+                        <div className="mb-1.5 flex items-baseline justify-between text-sm">
+                          <span className="text-muted-foreground">
+                            Tiến độ vote
+                          </span>
+                          <span className="text-foreground font-semibold tabular-nums">
+                            <span className="text-primary text-lg font-bold">
+                              {upcomingSession.votedCount}
+                            </span>
+                            <span className="text-muted-foreground">
+                              /{upcomingSession.totalEligibleVoters}
+                            </span>
+                          </span>
+                        </div>
+                        <div className="bg-muted h-2 overflow-hidden rounded-full">
+                          <div
+                            className="bg-primary h-full rounded-full transition-all"
+                            style={{ width: `${votedPct}%` }}
+                          />
+                        </div>
+                      </div>
                     )}
-                  </div>
-                  <div className="flex flex-wrap gap-x-5 gap-y-1.5 pt-1 text-base">
-                    <span>
-                      🏸 {ts("badminton")}:{" "}
-                      <strong className="text-primary">
-                        {upcomingSession.playerCount +
-                          upcomingSession.guestPlayCount}
-                      </strong>{" "}
-                      {ts("people")}
-                      {upcomingSession.guestPlayCount > 0 && (
-                        <span className="tabular-nums">
-                          {" "}
-                          ({upcomingSession.guestPlayCount} {ts("guest")})
-                        </span>
-                      )}
-                    </span>
-                    <span>
-                      🍻 {ts("dining")}:{" "}
-                      <strong className="text-orange-500 dark:text-orange-400">
-                        {upcomingSession.dinerCount +
-                          upcomingSession.guestDineCount}
-                      </strong>{" "}
-                      {ts("people")}
-                      {upcomingSession.guestDineCount > 0 && (
-                        <span className="tabular-nums">
-                          {" "}
-                          ({upcomingSession.guestDineCount} {ts("guest")})
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                </div>
 
-                {/* Vote progress */}
-                {upcomingSession.totalEligibleVoters > 0 && (
-                  <div className="bg-background/60 dark:bg-background/40 rounded-xl p-3">
-                    <div className="mb-1.5 flex items-baseline justify-between text-sm">
-                      <span className="text-muted-foreground">
-                        Tiến độ vote
-                      </span>
-                      <span className="text-foreground font-semibold tabular-nums">
-                        <span className="text-primary text-lg font-bold">
-                          {upcomingSession.votedCount}
-                        </span>
-                        <span className="text-muted-foreground">
-                          /{upcomingSession.totalEligibleVoters}
-                        </span>
-                      </span>
-                    </div>
-                    <div className="bg-muted h-2 overflow-hidden rounded-full">
-                      <div
-                        className="bg-primary h-full rounded-full transition-all"
-                        style={{ width: `${votedPct}%` }}
-                      />
-                    </div>
+                    <Link href="/admin/sessions">
+                      <Button size="lg" className="w-full">
+                        {td("manageSession")}
+                        <ArrowRight className="ml-1 h-4 w-4" />
+                      </Button>
+                    </Link>
                   </div>
+                ) : (
+                  <p className="text-muted-foreground text-sm">
+                    {td("noUpcoming")}
+                  </p>
                 )}
-
-                <Link href={`/admin/sessions/${upcomingSession.id}`}>
-                  <Button size="lg" className="w-full">
-                    {td("manageSession")}
-                    <ArrowRight className="ml-1 h-4 w-4" />
-                  </Button>
-                </Link>
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-sm">
-                {td("noUpcoming")}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+              </CardContent>
+            </Card>
+          </div>
+        );
+      })()}
 
       {/* Tình hình tài chính — emerald tint */}
       <Card className="border-emerald-200/50 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-950/20">

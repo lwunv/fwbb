@@ -151,13 +151,18 @@
   --color-hist-dine-icon-bg: color-mix(in oklab, #fb923c 18%, transparent);
 }
 
-/* ========== Pink Theme ========== */
+/* ========== Pink Theme ==========
+ * BG đậm hơn card để contrast rõ — trước đây bg #fff0f5 và card #fff5f8 quá
+ * gần nhau (cả 2 đều rất light pink) → card "tan" vào nền. Giờ:
+ *   - bg: #ffd6e7 (saturated soft pink, làm "khung")
+ *   - card: #ffffff (pure white, nổi bật trên nền hồng)
+ * Border vẫn dùng pink-200 nhạt để không ăn quá nhiều attention. */
 .pink {
-  --background: #fff0f5;
+  --background: #ffd6e7;
   --foreground: #831843;
-  --card: #fff5f8;
+  --card: #ffffff;
   --card-foreground: #831843;
-  --popover: #fff5f8;
+  --popover: #ffffff;
   --popover-foreground: #831843;
   --primary: #ec4899;
   --primary-foreground: #ffffff;
@@ -168,7 +173,7 @@
   --accent: #f472b6;
   --accent-foreground: #ffffff;
   --destructive: #e11d48;
-  --border: #fbcfe8;
+  --border: #f9a8c5;
   --input: #fbcfe8;
   --ring: #ec4899;
   --chart-1: #ec4899;
@@ -177,13 +182,13 @@
   --chart-4: #fda4af;
   --chart-5: #fecdd3;
   --radius: 0.75rem;
-  --sidebar: #ffe4ef;
+  --sidebar: #ffffff;
   --sidebar-foreground: #831843;
   --sidebar-primary: #ec4899;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #ffd6e7;
+  --sidebar-accent: #ffe4ef;
   --sidebar-accent-foreground: #831843;
-  --sidebar-border: #fbcfe8;
+  --sidebar-border: #f9a8c5;
   --sidebar-ring: #ec4899;
 }
 
@@ -385,4 +390,67 @@
 }
 .animate-led-dot {
   animation: led-dot-pulse 1.4s ease-in-out infinite;
+}
+
+/* ───────── Floating decorations (snowflakes + hearts) ─────────
+ * Bay từ ngoài đáy lên trên, drift ngang nhẹ để không thẳng đuột. Animation
+ * dài 18–32s (set inline qua animation-duration), `transform-only` để cheap
+ * trên GPU compositor — không trigger layout/paint mỗi frame.
+ *
+ * Gắn `--drift` (px) inline để mỗi item lệch trái/phải khác nhau, tạo hiệu
+ * ứng "rải rác" không sync. */
+@keyframes float-deco-rise {
+  0% {
+    transform: translate3d(0, 110vh, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(var(--drift, 30px), 50vh, 0) rotate(180deg);
+  }
+  100% {
+    transform: translate3d(0, -10vh, 0) rotate(360deg);
+  }
+}
+.float-deco {
+  top: 0;
+  animation-name: float-deco-rise;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .float-deco {
+    animation: none;
+    display: none;
+  }
+}
+
+/* Click-heart burst — spawn tại điểm click, tỏa theo (dx,dy) inline.
+ * Peak opacity giữ thấp (0.45) để cùng "vibe" subtle với floating-decorations
+ * (decoration nhẹ, không đè attention lên content). */
+@keyframes click-heart-burst {
+  0% {
+    transform: translate(-50%, -50%) scale(0.4) rotate(0deg);
+    opacity: 0;
+  }
+  20% {
+    transform: translate(-50%, -50%) scale(1)
+      rotate(calc(var(--burst-rot, 0deg) * 0.4));
+    opacity: 0.45;
+  }
+  100% {
+    transform: translate(
+        calc(-50% + var(--burst-dx, 0px)),
+        calc(-50% + var(--burst-dy, -60px))
+      )
+      scale(0.7) rotate(var(--burst-rot, 0deg));
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Tắt click hearts hoàn toàn cho user nhạy cảm motion (đồng bộ với
+     floating-decorations đã có handler tương tự). */
+  [style*="click-heart-burst"] {
+    animation: none !important;
+    display: none !important;
+  }
 }

@@ -96,36 +96,56 @@ export function CourtSelector({
     return <p className="text-muted-foreground text-sm">Chưa có sân nào.</p>;
   }
 
+  // Khớp với server-side `selectCourt`: sân thứ 1 = giá tháng (pricePerSession),
+  // sân thứ 2..N = giá lẻ (pricePerSessionRetail, fallback pricePerSession).
+  // VD THCS Tây Mỗ 200k/220k: 1 sân = 200k, 2 sân = 200k + 220k = 420k.
+  function totalForCourt(court: Court, qty: number) {
+    const monthly = court.pricePerSession;
+    const retail = court.pricePerSessionRetail ?? monthly;
+    const q = Math.max(1, qty);
+    return monthly + retail * (q - 1);
+  }
+
   const selectedCourt = courts.find((c) => c.id === localCourtId);
-  const totalPrice = selectedCourt
-    ? selectedCourt.pricePerSession * quantity
-    : 0;
+  const totalPrice = selectedCourt ? totalForCourt(selectedCourt, quantity) : 0;
 
   return (
     <div>
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => setOpen(!open)}
-        className={cn(
-          "bg-card hover:border-primary/50 flex h-12 w-full items-center justify-between rounded-xl border-2 px-4 text-base transition-colors",
-          open && "border-primary",
-        )}
-      >
-        <span
-          className={cn("truncate", !selectedCourt && "text-muted-foreground")}
-        >
-          {selectedCourt
-            ? `${selectedCourt.name} · ${quantity > 1 ? `${quantity} sân · ` : ""}${formatK(totalPrice)}`
-            : "Chọn sân..."}
-        </span>
-        <ChevronDown
+      {/* Trigger + total — same row, total OUTSIDE button (đồng bộ với layout
+          shuttle picker total). */}
+      <div className="flex items-center gap-2">
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={() => setOpen(!open)}
           className={cn(
-            "text-muted-foreground h-4 w-4 shrink-0 transition-transform",
-            open && "rotate-180",
+            "bg-card hover:border-primary/50 flex h-12 min-w-0 flex-1 items-center gap-2 rounded-xl border-2 px-4 text-base transition-colors",
+            open && "border-primary",
           )}
-        />
-      </button>
+        >
+          <span
+            className={cn(
+              "min-w-0 flex-1 truncate text-left",
+              !selectedCourt && "text-muted-foreground",
+            )}
+          >
+            {selectedCourt
+              ? `${selectedCourt.name}${quantity > 1 ? ` · ${quantity} sân` : ""}`
+              : "Chọn sân..."}
+          </span>
+          <ChevronDown
+            className={cn(
+              "text-muted-foreground h-4 w-4 shrink-0 transition-transform",
+              open && "rotate-180",
+            )}
+          />
+        </button>
+        {/* Min-w cố định để price column luôn cùng kích thước → trigger button
+            cùng width dù giá khác nhau (court vs shuttle vs other rows). */}
+        <span className="text-primary inline-block min-w-20 shrink-0 text-right text-base font-bold tabular-nums">
+          {selectedCourt ? formatK(totalPrice) : ""}
+        </span>
+      </div>
 
       {open &&
         createPortal(
@@ -154,7 +174,7 @@ export function CourtSelector({
             <div className="max-h-60 overflow-auto py-1">
               {courts.map((court) => {
                 const isSelected = court.id === localCourtId;
-                const courtTotal = court.pricePerSession * quantity;
+                const courtTotal = totalForCourt(court, quantity);
                 return (
                   <button
                     key={court.id}

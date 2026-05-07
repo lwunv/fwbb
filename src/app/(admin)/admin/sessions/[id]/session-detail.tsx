@@ -13,7 +13,7 @@ import { AdminVoteManager } from "@/components/sessions/admin-vote-manager";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { usePolling } from "@/lib/use-polling";
 import { ArrowLeft, XCircle } from "lucide-react";
-import { formatSessionDate } from "@/lib/date-format";
+import { formatSessionDate, ymdInVN } from "@/lib/date-format";
 import { StatusBadge } from "@/components/shared/status-badge";
 import type { InferSelectModel } from "drizzle-orm";
 import type {
@@ -60,6 +60,7 @@ export function SessionDetail({
 }) {
   const [localStatus, setLocalStatus] = useState(session.status);
   const t = useTranslations("sessions");
+  const tF = useTranslations("finance");
   usePolling();
 
   // Sync localStatus when server prop changes (after revalidation)
@@ -108,7 +109,12 @@ export function SessionDetail({
             )}
           </h1>
         </div>
-        <StatusBadge variant={statusKey}>{t(statusKey)}</StatusBadge>
+        <StatusBadge variant={statusKey}>
+          {(statusKey === "voting" || statusKey === "confirmed") &&
+          session.date < ymdInVN()
+            ? tF("needsConfirm")
+            : t(statusKey)}
+        </StatusBadge>
       </div>
 
       {/* Court Selector (only for voting status) */}

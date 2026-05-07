@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/db";
-import { courts } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { courts, sessions } from "@/db/schema";
+import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { courtSchema } from "@/lib/validators";
 import { requireAdmin } from "@/lib/auth";
@@ -77,6 +77,32 @@ export async function toggleCourtActive(id: number) {
     .update(courts)
     .set({ isActive: !court.isActive })
     .where(eq(courts.id, id));
+  revalidatePath("/admin/courts");
+  return { success: true };
+}
+
+/**
+ * Hard delete sân. Block nếu còn buổi chơi nào tham chiếu — khi đó admin
+ * nên dùng `toggleCourtActive` (vô hiệu hóa) thay thế để giữ lịch sử.
+ */
+export async function deleteCourt(id: number) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
+  const court = await db.query.courts.findFirst({ where: eq(courts.id, id) });
+  if (!court) return { error: "Không tìm thấy sân" };
+
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(sessions)
+    .where(eq(sessions.courtId, id));
+  if (Number(count) > 0) {
+    return {
+      error: `Không xóa được — sân đang gắn ${count} buổi chơi. Hãy "Vô hiệu hóa" thay vì xóa.`,
+    };
+  }
+
+  await db.delete(courts).where(eq(courts.id, id));
   revalidatePath("/admin/courts");
   return { success: true };
 }

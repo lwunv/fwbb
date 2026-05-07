@@ -41,6 +41,7 @@
     "dining": "聚餐",
     "people": "人",
     "guest": "嘉宾",
+    "including": "含",
     "session": "活动",
     "sessionCancelled": "此活动已被取消",
     "sessionCompleted": "此活动已完成",
@@ -72,7 +73,9 @@
     "linkCopied": "已复制",
     "directions": "导航",
     "adminGuestButton": "+ 管理员嘉宾",
-    "stillOwingAmount": "仍欠 {amount}"
+    "stillOwingAmount": "仍欠 {amount}",
+    "filterAll": "全部",
+    "filterUpcoming": "即将到来"
   },
   "voting": {
     "play": "队1 - 羽毛球",
@@ -222,7 +225,9 @@
     "add": "添加",
     "edit": "编辑",
     "delete": "删除",
+    "disable": "停用",
     "enable": "启用",
+    "confirmHardDelete": "永久删除？无法撤销。",
     "save": "保存",
     "cancel": "取消",
     "active": "活跃",

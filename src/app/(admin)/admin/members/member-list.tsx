@@ -7,6 +7,7 @@ import {
   createMember,
   updateMember,
   toggleMemberActive,
+  deleteMember,
 } from "@/actions/members";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,7 +33,9 @@ import {
   Check,
   X,
   Search,
+  Trash2,
 } from "lucide-react";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { confirmPaymentByAdmin } from "@/actions/finance";
 import { fireAction } from "@/lib/optimistic-action";
@@ -75,6 +78,8 @@ export function MemberList({
     {},
   );
   const [confirmedDebts, setConfirmedDebts] = useState<Set<number>>(new Set());
+  const [deleteTarget, setDeleteTarget] = useState<Member | null>(null);
+  const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
   const t = useTranslations("adminMembers");
   const tF = useTranslations("finance");
   const tCommon = useTranslations("common");
@@ -86,6 +91,22 @@ export function MemberList({
       () => toggleMemberActive(memberId),
       () =>
         setToggledMembers((prev) => ({ ...prev, [memberId]: currentActive })),
+    );
+  }
+
+  function handleHardDelete() {
+    if (!deleteTarget) return;
+    const id = deleteTarget.id;
+    setDeleteTarget(null);
+    setDeletedIds((prev) => new Set(prev).add(id));
+    fireAction(
+      () => deleteMember(id),
+      () =>
+        setDeletedIds((prev) => {
+          const n = new Set(prev);
+          n.delete(id);
+          return n;
+        }),
     );
   }
 
@@ -105,6 +126,9 @@ export function MemberList({
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
     const list = members.filter((m) => {
+      // ẩn member đã optimistic-delete; nếu server reject (vd còn nợ),
+      // fireAction rollback set → member xuất hiện lại.
+      if (deletedIds.has(m.id)) return false;
       // status filter
       if (statusFilter === "active" && !m.isActive) return false;
       if (statusFilter === "locked" && m.isActive) return false;
@@ -129,7 +153,7 @@ export function MemberList({
       if (debtA > 0 && debtB > 0) return debtB - debtA;
       return a.name.localeCompare(b.name);
     });
-  }, [members, search, statusFilter, debtsByMember]);
+  }, [members, search, statusFilter, debtsByMember, deletedIds]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -279,6 +303,16 @@ export function MemberList({
                           )}
                         </p>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDeleteTarget(member)}
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        title={tCommon("delete")}
+                        aria-label={tCommon("delete")}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                       <Button
                         variant={memberIsActive ? "destructive" : "default"}
                         size="sm"
@@ -471,6 +505,17 @@ export function MemberList({
           </Button>
         </div>
       )}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title={`${tCommon("delete")} ${deleteTarget?.name ?? ""}?`}
+        description={tCommon("confirmHardDelete")}
+        confirmLabel={tCommon("delete")}
+        onConfirm={handleHardDelete}
+      />
     </div>
   );
 }

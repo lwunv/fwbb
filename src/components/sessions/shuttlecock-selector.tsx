@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   addSessionShuttlecocks,
   removeSessionShuttlecock,
@@ -9,8 +10,8 @@ import { fireAction } from "@/lib/optimistic-action";
 import { formatK } from "@/lib/utils";
 import { calculateShuttlecockCost } from "@/lib/cost-calculator";
 import { NumberStepper } from "@/components/ui/number-stepper";
-import { CustomSelect } from "@/components/ui/custom-select";
-import { X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { InferSelectModel } from "drizzle-orm";
 import type {
   shuttlecockBrands as brandsTable,
@@ -32,14 +33,49 @@ export function ShuttlecockSelector({
   currentShuttlecocks: SessionShuttlecock[];
 }) {
   const [items, setItems] = useState<SessionShuttlecock[]>(currentShuttlecocks);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+  // Counter cấp id âm cho optimistic entry (chưa server-confirmed). Dùng
+  // ref counter thay `Date.now()` để tránh `react-hooks/purity` lint flag
+  // (Date.now là impure trong scope render-tracked).
+  const optimisticIdRef = useRef(-1);
 
   useEffect(() => {
     setItems(currentShuttlecocks);
   }, [currentShuttlecocks]);
 
-  // Brands already in use
-  const usedBrandIds = new Set(items.map((s) => s.brandId));
-  const availableBrands = brands.filter((b) => !usedBrandIds.has(b.id));
+  // Position dropdown over trigger when opened.
+  useEffect(() => {
+    if (!pickerOpen) return;
+    function update() {
+      const r = triggerRef.current?.getBoundingClientRect();
+      if (!r) return;
+      setPos({ top: r.bottom + 4, left: r.left, width: r.width });
+    }
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [pickerOpen]);
+
+  // Click outside closes the dropdown.
+  useEffect(() => {
+    if (!pickerOpen) return;
+    function onDown(e: MouseEvent) {
+      const t = e.target as Node;
+      if (triggerRef.current?.contains(t) || dropdownRef.current?.contains(t)) {
+        return;
+      }
+      setPickerOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [pickerOpen]);
 
   function handleQuantityChange(item: SessionShuttlecock, newQty: number) {
     const prevItems = items;
@@ -65,15 +101,13 @@ export function ShuttlecockSelector({
     );
   }
 
-  function handleAddBrand(val: string) {
-    const brandId = Number(val);
-    const brand = brands.find((b) => b.id === brandId);
-    if (!brand) return;
-
+  function handleAddBrand(brand: Brand) {
+    const optimisticId = optimisticIdRef.current;
+    optimisticIdRef.current -= 1;
     const optimisticEntry = {
-      id: -Date.now(),
+      id: optimisticId,
       sessionId,
-      brandId,
+      brandId: brand.id,
       quantityUsed: 1,
       pricePerTube: brand.pricePerTube,
       brand,
@@ -82,11 +116,20 @@ export function ShuttlecockSelector({
     const prevItems = items;
     setItems((prev) => [...prev, optimisticEntry]);
     fireAction(
-      () => addSessionShuttlecocks(sessionId, brandId, 1),
+      () => addSessionShuttlecocks(sessionId, brand.id, 1),
       () => {
         setItems(prevItems);
       },
     );
+  }
+
+  function handleToggleBrand(brand: Brand) {
+    const existing = items.find((s) => s.brandId === brand.id);
+    if (existing) {
+      handleRemove(existing);
+    } else {
+      handleAddBrand(brand);
+    }
   }
 
   if (brands.length === 0) {
@@ -99,63 +142,115 @@ export function ShuttlecockSelector({
     (sum, s) => sum + calculateShuttlecockCost(s.quantityUsed, s.pricePerTube),
     0,
   );
+  const selectedBrandIds = new Set(items.map((s) => s.brandId));
 
   return (
     <div className="space-y-2">
-      {/* Each brand = 1 row */}
-      {items.map((sc) => (
-        <div key={sc.id} className="flex items-center gap-2">
-          <div className="flex min-w-0 flex-1 items-baseline gap-2">
-            <span className="truncate text-base font-semibold">
-              🏸 {sc.brand.name}
-            </span>
-            <span className="text-primary shrink-0 text-base font-bold tabular-nums">
-              {formatK(
-                calculateShuttlecockCost(sc.quantityUsed, sc.pricePerTube),
-              )}
-            </span>
-          </div>
-          <NumberStepper
-            value={sc.quantityUsed}
-            onChange={(v) => handleQuantityChange(sc, v)}
-            min={1}
-            max={99}
-          />
+      {/* Tất cả info cầu (brands đã chọn + nút thêm + tổng) gom vào 1 card
+          mờ chung — tránh "385k" lặp 2 dòng nhìn rời rạc; chỉ còn 1 tổng ở
+          cuối card. Khi chưa chọn brand nào, card chỉ chứa nút trigger. */}
+      <div className="border-primary/25 bg-primary/[0.04] space-y-1.5 rounded-xl border p-2">
+        {/* Trigger thêm hãng + tổng tiền cầu cùng 1 hàng — alignment khớp
+            với row Court ([trigger flex-1] [price min-w-20]) để 2 row thẳng
+            cột số tiền. Bỏ row "Tổng cầu" footer riêng. */}
+        <div className="flex items-center gap-2">
           <button
+            ref={triggerRef}
             type="button"
-            onClick={() => handleRemove(sc)}
-            className="border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors"
+            onClick={() => setPickerOpen((o) => !o)}
+            className={cn(
+              "bg-card hover:border-primary/50 flex h-[42px] min-w-0 flex-1 items-center justify-between gap-2 rounded-xl border-2 px-3 text-sm transition-colors",
+              pickerOpen && "border-primary",
+              items.length === 0 && "text-muted-foreground",
+            )}
           >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      ))}
-
-      {/* Add new brand + Total on same row */}
-      <div className="flex items-center gap-3">
-        {availableBrands.length > 0 && (
-          <CustomSelect
-            value=""
-            onChange={handleAddBrand}
-            placeholder={
-              items.length === 0 ? "Chọn hãng cầu..." : "+ Thêm hãng cầu..."
-            }
-            className="min-w-0 flex-1"
-            options={availableBrands.map((b) => ({
-              value: String(b.id),
-              label: `${b.name} — ${formatK(b.pricePerTube)}/ống`,
-            }))}
-          />
-        )}
-        {totalCost > 0 && (
-          <span className="text-muted-foreground shrink-0 text-base">
-            Tổng:{" "}
-            <span className="text-primary text-lg font-bold tabular-nums">
-              {formatK(totalCost)}
+            <span className="min-w-0 flex-1 truncate text-left">
+              {items.length === 0 ? "Chọn hãng cầu..." : "+ Thêm hãng cầu..."}
             </span>
+            <ChevronDown
+              className={cn(
+                "text-muted-foreground h-4 w-4 shrink-0 transition-transform",
+                pickerOpen && "rotate-180",
+              )}
+            />
+          </button>
+          <span className="text-primary inline-block min-w-20 shrink-0 text-right text-base font-bold tabular-nums">
+            {totalCost > 0 ? formatK(totalCost) : ""}
           </span>
-        )}
+        </div>
+
+        {items.map((sc) => {
+          const cost = calculateShuttlecockCost(
+            sc.quantityUsed,
+            sc.pricePerTube,
+          );
+          return (
+            <div key={sc.id} className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate text-base font-semibold">
+                🏸 {sc.brand.name}
+              </span>
+              <NumberStepper
+                value={sc.quantityUsed}
+                onChange={(v) => handleQuantityChange(sc, v)}
+                min={1}
+                max={99}
+              />
+              <button
+                type="button"
+                onClick={() => handleRemove(sc)}
+                className="border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <span className="text-primary inline-block min-w-20 shrink-0 text-right text-base font-medium tabular-nums">
+                {formatK(cost)}
+              </span>
+            </div>
+          );
+        })}
       </div>
+
+      {pickerOpen &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={dropdownRef}
+            style={{
+              position: "fixed",
+              top: pos.top,
+              left: pos.left,
+              width: pos.width,
+            }}
+            className="bg-popover animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 z-[9999] max-h-72 overflow-auto rounded-xl border shadow-lg"
+          >
+            {brands.map((b) => {
+              const isSelected = selectedBrandIds.has(b.id);
+              return (
+                <label
+                  key={b.id}
+                  className={cn(
+                    "hover:bg-muted/50 flex cursor-pointer items-center gap-3 border-b px-4 py-3 transition-colors last:border-b-0",
+                    isSelected && "bg-primary/10",
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => handleToggleBrand(b)}
+                    className="accent-primary h-5 w-5 shrink-0 rounded"
+                  />
+                  <span className="min-w-0 flex-1 truncate text-base font-medium">
+                    {b.name}
+                  </span>
+                  <span className="text-primary shrink-0 text-sm font-medium tabular-nums">
+                    {formatK(b.pricePerTube)}/ống
+                  </span>
+                </label>
+              );
+            })}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

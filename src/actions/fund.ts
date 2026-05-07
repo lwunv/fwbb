@@ -160,13 +160,26 @@ export async function recordContribution(
     return { error: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
   }
 
-  const fm = await db.query.fundMembers.findFirst({
-    where: and(
-      eq(fundMembers.memberId, parsed.data.memberId),
-      eq(fundMembers.isActive, true),
-    ),
+  // Auto-enrol: theo merged Quỹ+Nợ model, mọi member đều có balance trong
+  // ledger. Bắt admin click "Thêm thành viên" trước khi đóng quỹ là thừa
+  // bước — đồng bộ với finalize (cũng auto-enrol). Insert/reactivate trước
+  // khi ghi giao dịch để pass invariant downstream.
+  const member = await db.query.members.findFirst({
+    where: eq(members.id, parsed.data.memberId),
+    columns: { id: true },
   });
-  if (!fm) return { error: "Thành viên không trong quỹ" };
+  if (!member) return { error: "Không tìm thấy thành viên" };
+  const existing = await db.query.fundMembers.findFirst({
+    where: eq(fundMembers.memberId, parsed.data.memberId),
+  });
+  if (!existing) {
+    await db.insert(fundMembers).values({ memberId: parsed.data.memberId });
+  } else if (!existing.isActive) {
+    await db
+      .update(fundMembers)
+      .set({ isActive: true, leftAt: null, joinedAt: new Date().toISOString() })
+      .where(eq(fundMembers.id, existing.id));
+  }
 
   const r = await recordFinancialTransaction({
     memberId: parsed.data.memberId,

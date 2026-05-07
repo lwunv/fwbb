@@ -2,7 +2,12 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { createCourt, updateCourt, toggleCourtActive } from "@/actions/courts";
+import {
+  createCourt,
+  updateCourt,
+  toggleCourtActive,
+  deleteCourt,
+} from "@/actions/courts";
 import { fireAction } from "@/lib/optimistic-action";
 import { formatK } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -18,7 +23,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Edit, MapPin, ToggleLeft, X, Navigation } from "lucide-react";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import {
+  Plus,
+  Edit,
+  MapPin,
+  ToggleLeft,
+  X,
+  Navigation,
+  Trash2,
+} from "lucide-react";
 import { usePolling } from "@/lib/use-polling";
 import type { InferSelectModel } from "drizzle-orm";
 import type { courts as courtsTable } from "@/db/schema";
@@ -33,6 +47,8 @@ export function CourtList({ courts }: { courts: Court[] }) {
   const [toggledCourts, setToggledCourts] = useState<Record<number, boolean>>(
     {},
   );
+  const [deleteTarget, setDeleteTarget] = useState<Court | null>(null);
+  const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
   const t = useTranslations("adminCourts");
   const tCommon = useTranslations("common");
   usePolling();
@@ -42,6 +58,24 @@ export function CourtList({ courts }: { courts: Court[] }) {
     fireAction(
       () => toggleCourtActive(courtId),
       () => setToggledCourts((prev) => ({ ...prev, [courtId]: currentActive })),
+    );
+  }
+
+  function handleHardDelete() {
+    if (!deleteTarget) return;
+    const id = deleteTarget.id;
+    setDeleteTarget(null);
+    // Optimistic ẩn khỏi list; rollback nếu server reject (vd: còn buổi
+    // tham chiếu → action trả error, fireAction toast + restore).
+    setDeletedIds((prev) => new Set(prev).add(id));
+    fireAction(
+      () => deleteCourt(id),
+      () =>
+        setDeletedIds((prev) => {
+          const n = new Set(prev);
+          n.delete(id);
+          return n;
+        }),
     );
   }
 
@@ -155,6 +189,7 @@ export function CourtList({ courts }: { courts: Court[] }) {
 
       <div className="grid gap-3">
         {[...courts]
+          .filter((c) => !deletedIds.has(c.id))
           .sort((a, b) => {
             const aActive = toggledCourts[a.id] ?? a.isActive;
             const bActive = toggledCourts[b.id] ?? b.isActive;
@@ -236,6 +271,16 @@ export function CourtList({ courts }: { courts: Court[] }) {
                       {tCommon("edit")}
                     </Button>
                     <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setDeleteTarget(court)}
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      title={tCommon("delete")}
+                      aria-label={tCommon("delete")}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                    <Button
                       variant={isActive ? "destructive" : "default"}
                       size="sm"
                       onClick={() => handleToggle(court.id, isActive)}
@@ -243,7 +288,7 @@ export function CourtList({ courts }: { courts: Court[] }) {
                       {isActive ? (
                         <>
                           <X className="mr-1.5 h-4 w-4" />
-                          {tCommon("delete")}
+                          {tCommon("disable")}
                         </>
                       ) : (
                         <>
@@ -258,6 +303,17 @@ export function CourtList({ courts }: { courts: Court[] }) {
             );
           })}
       </div>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title={`${tCommon("delete")} ${deleteTarget?.name ?? ""}?`}
+        description={tCommon("confirmHardDelete")}
+        confirmLabel={tCommon("delete")}
+        onConfirm={handleHardDelete}
+      />
     </div>
   );
 }

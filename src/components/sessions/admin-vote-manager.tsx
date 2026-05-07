@@ -48,6 +48,9 @@ interface AdminVoteManagerProps {
   sessionCosts?: SessionCosts;
   adminGuestPlayCount?: number;
   adminGuestDineCount?: number;
+  /** Ẩn block tóm tắt chi phí (Cầu/Sân/Tổng chi/per-head) — dùng khi caller
+   *  đã hiển thị tóm tắt riêng trong card (vd /admin/sessions list). */
+  hideCostSummary?: boolean;
 }
 
 // Local optimistic state types
@@ -68,6 +71,7 @@ export function AdminVoteManager({
   sessionCosts,
   adminGuestPlayCount = 0,
   adminGuestDineCount = 0,
+  hideCostSummary = false,
 }: AdminVoteManagerProps) {
   const t = useTranslations("voting");
   const tCommon = useTranslations("common");
@@ -160,13 +164,43 @@ export function AdminVoteManager({
     const newDine = tag === "dine" ? !current.willDine : current.willDine;
     const prev = { ...current };
 
-    // Optimistic
+    // Optimistic vote update
     setLocalVotes((s) => ({
       ...s,
       [memberId]: { willPlay: newPlay, willDine: newDine },
     }));
 
-    // API
+    // Khi tắt cờ play/dine, reset guest count tương ứng về 0 để tránh ghost
+    // guest: VD member bỏ tick "Nhậu" mà vẫn hiển thị "1 khách 🍻". Chỉ chạy
+    // khi đang tắt (true → false) và guest count > 0.
+    const togglingOffPlay = tag === "play" && current.willPlay && !newPlay;
+    const togglingOffDine = tag === "dine" && current.willDine && !newDine;
+    if (togglingOffPlay || togglingOffDine) {
+      const guests = getGuestCounts(memberId);
+      const needsReset =
+        (togglingOffPlay && guests.play > 0) ||
+        (togglingOffDine && guests.dine > 0);
+      if (needsReset) {
+        const prevGuests = { ...guests };
+        const nextGuests = {
+          play: togglingOffPlay ? 0 : guests.play,
+          dine: togglingOffDine ? 0 : guests.dine,
+        };
+        setLocalGuests((s) => ({ ...s, [memberId]: nextGuests }));
+        fireAsync(
+          () =>
+            adminSetGuestCount(
+              sessionId,
+              memberId,
+              nextGuests.play,
+              nextGuests.dine,
+            ),
+          () => setLocalGuests((s) => ({ ...s, [memberId]: prevGuests })),
+        );
+      }
+    }
+
+    // API: vote update
     fireAsync(
       () => adminSetVote(sessionId, memberId, newPlay, newDine),
       () => setLocalVotes((s) => ({ ...s, [memberId]: prev })),
@@ -321,8 +355,11 @@ export function AdminVoteManager({
   return (
     <div className="space-y-3">
       {/* Info card — luôn hiện khi có dữ liệu chi/người. Khi chưa completed
-          các con số là ước tính (per-head có thể thay đổi nếu thêm/bớt người). */}
-      {sc &&
+          các con số là ước tính (per-head có thể thay đổi nếu thêm/bớt người).
+          `hideCostSummary` = caller (vd /admin/sessions list) đã render tóm tắt
+          riêng → ẩn để tránh trùng lặp. */}
+      {!hideCostSummary &&
+        sc &&
         (sc.courtPrice > 0 ||
           sc.diningBill > 0 ||
           shuttlecockCost > 0 ||
@@ -458,7 +495,9 @@ export function AdminVoteManager({
             </div>
           )}
 
-          {/* Đã tham gia — mỗi row có nền primary nhẹ + ring để nổi hơn list "Chưa vote" */}
+          {/* Đã tham gia — mỗi row là card mờ riêng (border + bg nhẹ) để phân
+              tách rõ giữa các thành viên, nhưng đủ subtle để không "đè" lên
+              LED border của các nút active bên trong. */}
           <div className="space-y-2 py-2">
             {activeMembers.map((member) => {
               const v = getVote(member.id)!;
@@ -470,9 +509,9 @@ export function AdminVoteManager({
               return (
                 <div
                   key={member.id}
-                  className="bg-primary/[0.06] ring-primary/15 dark:bg-primary/[0.08] rounded-xl p-2 ring-1"
+                  className="border-primary/25 bg-primary/[0.04] rounded-xl border px-2 py-1.5"
                 >
-                  <div className="flex min-h-[3.5rem] items-center gap-3">
+                  <div className="flex min-h-[3.5rem] items-center gap-2">
                     <MemberAvatar
                       memberId={member.id}
                       avatarKey={member.avatarKey}
@@ -537,28 +576,41 @@ export function AdminVoteManager({
                         </button>
                       )}
 
-                      {/* + Khách button */}
-                      {!readOnly && (
-                        <button
-                          type="button"
-                          title="Thêm khách"
-                          onClick={() =>
+                      {/* + Khách — active (đang mở hoặc đã có khách): LED
+                          border + border tĩnh primary, đồng bộ với 🏸/🍻.
+                          Inactive: dashed mờ. */}
+                      {!readOnly &&
+                        (() => {
+                          const guests = getGuestCounts(member.id);
+                          const isActive =
+                            expandedGuest === member.id ||
+                            guests.play + guests.dine > 0;
+                          const onClick = () =>
                             setExpandedGuest(
                               expandedGuest === member.id ? null : member.id,
-                            )
-                          }
-                          className={`inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border text-xs font-bold transition-all hover:opacity-80 ${
-                            expandedGuest === member.id ||
-                            getGuestCounts(member.id).play +
-                              getGuestCounts(member.id).dine >
-                              0
-                              ? "bg-primary/10 text-primary border-primary"
-                              : "bg-muted text-muted-foreground border-transparent opacity-60"
-                          }`}
-                        >
-                          <Users className="h-5 w-5" />
-                        </button>
-                      )}
+                            );
+                          return isActive ? (
+                            <div className="led-border-sm primary inline-flex">
+                              <button
+                                type="button"
+                                title="Thêm khách"
+                                onClick={onClick}
+                                className="border-primary text-primary inline-flex h-12 w-12 cursor-pointer items-center justify-center border-2 bg-violet-50 transition-all hover:opacity-80 dark:bg-violet-950"
+                              >
+                                <Users className="h-5 w-5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              title="Thêm khách"
+                              onClick={onClick}
+                              className="border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed opacity-50 grayscale transition-all hover:opacity-80"
+                            >
+                              <Users className="h-5 w-5" />
+                            </button>
+                          );
+                        })()}
 
                       {/* Đã thanh toán */}
                       {debt ? (

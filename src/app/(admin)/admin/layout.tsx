@@ -1,5 +1,6 @@
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { AdminMobileNav } from "@/components/layout/admin-mobile-nav";
+import { AdminDefaultTheme } from "@/components/shared/admin-default-theme";
 import { getAdminFromCookie } from "@/lib/auth";
 import { getAppName } from "@/actions/settings";
 
@@ -19,6 +20,7 @@ export default async function AdminLayout({
 
   return (
     <div className="min-h-screen">
+      <AdminDefaultTheme />
       <AdminSidebar appName={appName} />
       <AdminMobileNav appName={appName} />
       <main className="p-4 pb-24 md:p-6 lg:ml-60">{children}</main>

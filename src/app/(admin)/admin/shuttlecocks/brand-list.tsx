@@ -6,6 +6,7 @@ import {
   createBrand,
   updateBrand,
   toggleBrandActive,
+  deleteBrand,
 } from "@/actions/shuttlecocks";
 import { fireAction } from "@/lib/optimistic-action";
 import { formatK } from "@/lib/utils";
@@ -22,7 +23,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Edit, CircleDot, ToggleLeft, X } from "lucide-react";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { Plus, Edit, CircleDot, ToggleLeft, X, Trash2 } from "lucide-react";
 import { usePolling } from "@/lib/use-polling";
 import type { InferSelectModel } from "drizzle-orm";
 import type { shuttlecockBrands as brandsTable } from "@/db/schema";
@@ -36,6 +38,8 @@ export function BrandList({ brands }: { brands: Brand[] }) {
   const [toggledBrands, setToggledBrands] = useState<Record<number, boolean>>(
     {},
   );
+  const [deleteTarget, setDeleteTarget] = useState<Brand | null>(null);
+  const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
   const t = useTranslations("adminShuttlecocks");
   const tCommon = useTranslations("common");
   usePolling();
@@ -45,6 +49,22 @@ export function BrandList({ brands }: { brands: Brand[] }) {
     fireAction(
       () => toggleBrandActive(brandId),
       () => setToggledBrands((prev) => ({ ...prev, [brandId]: currentActive })),
+    );
+  }
+
+  function handleHardDelete() {
+    if (!deleteTarget) return;
+    const id = deleteTarget.id;
+    setDeleteTarget(null);
+    setDeletedIds((prev) => new Set(prev).add(id));
+    fireAction(
+      () => deleteBrand(id),
+      () =>
+        setDeletedIds((prev) => {
+          const n = new Set(prev);
+          n.delete(id);
+          return n;
+        }),
     );
   }
 
@@ -119,6 +139,7 @@ export function BrandList({ brands }: { brands: Brand[] }) {
 
       <div className="grid gap-3">
         {[...brands]
+          .filter((b) => !deletedIds.has(b.id))
           .sort((a, b) => {
             const aActive = toggledBrands[a.id] ?? a.isActive;
             const bActive = toggledBrands[b.id] ?? b.isActive;
@@ -163,6 +184,16 @@ export function BrandList({ brands }: { brands: Brand[] }) {
                       {tCommon("edit")}
                     </Button>
                     <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setDeleteTarget(brand)}
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      title={tCommon("delete")}
+                      aria-label={tCommon("delete")}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                    <Button
                       variant={isActive ? "destructive" : "default"}
                       size="sm"
                       onClick={() => handleToggle(brand.id, isActive)}
@@ -170,7 +201,7 @@ export function BrandList({ brands }: { brands: Brand[] }) {
                       {isActive ? (
                         <>
                           <X className="mr-1.5 h-4 w-4" />
-                          {tCommon("delete")}
+                          {tCommon("disable")}
                         </>
                       ) : (
                         <>
@@ -185,6 +216,17 @@ export function BrandList({ brands }: { brands: Brand[] }) {
             );
           })}
       </div>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title={`${tCommon("delete")} ${deleteTarget?.name ?? ""}?`}
+        description={tCommon("confirmHardDelete")}
+        confirmLabel={tCommon("delete")}
+        onConfirm={handleHardDelete}
+      />
     </div>
   );
 }

@@ -144,27 +144,48 @@ export function FundDashboard({
       return;
     }
     const fmRow = localMembers.find((f) => f.memberId === selectedMemberId);
-    if (!fmRow) return;
+    // Auto-enrol path: nếu member chưa trong quỹ, dựng row mới từ
+    // allMembers và optimistic insert vào localMembers (backend sẽ
+    // auto-enrol). Nếu không tìm thấy ở cả allMembers → bail.
+    const memberRow =
+      fmRow?.member ?? allMembers.find((m) => m.id === selectedMemberId);
+    if (!memberRow) return;
+    const wasNotInFund = !fmRow;
 
     const prev = cloneFundState(localOverview, localMembers);
     const desc = description.trim() || undefined;
     setLocalMembers((ms) => {
-      const next = ms.map((fm) =>
-        fm.memberId === selectedMemberId
-          ? {
-              ...fm,
-              balance: {
-                ...fm.balance,
-                totalContributions: fm.balance.totalContributions + amountNum,
-                balance: fm.balance.balance + amountNum,
-              },
-            }
-          : fm,
-      );
+      const base: FundMemberWithBalance = fmRow ?? {
+        id: 0,
+        memberId: selectedMemberId,
+        isActive: true,
+        joinedAt: new Date().toISOString(),
+        leftAt: null,
+        member: memberRow,
+        balance: {
+          memberId: selectedMemberId,
+          totalContributions: 0,
+          totalDeductions: 0,
+          totalRefunds: 0,
+          balance: 0,
+        },
+      };
+      const updated: FundMemberWithBalance = {
+        ...base,
+        balance: {
+          ...base.balance,
+          totalContributions: base.balance.totalContributions + amountNum,
+          balance: base.balance.balance + amountNum,
+        },
+      };
+      const next = fmRow
+        ? ms.map((fm) => (fm.memberId === selectedMemberId ? updated : fm))
+        : [...ms, updated];
       return next.sort((a, b) => b.balance.balance - a.balance.balance);
     });
     setLocalOverview((o) => ({
       ...o,
+      memberCount: wasNotInFund ? o.memberCount + 1 : o.memberCount,
       totalBalance: o.totalBalance + amountNum,
       totalContributions: o.totalContributions + amountNum,
     }));
@@ -357,10 +378,16 @@ export function FundDashboard({
                     placeholder={t("selectMember")}
                     searchable
                     searchPlaceholder="Tìm thành viên..."
-                    options={localMembers.map((fm) => ({
-                      value: String(fm.memberId),
-                      label: `${fm.member.nickname || fm.member.name} (${formatVND(fm.balance.balance)})`,
-                    }))}
+                    options={allMembers.map((m) => {
+                      // Lookup balance từ fund row nếu có; mặc định 0đ cho
+                      // member chưa enrol (backend sẽ auto-enrol khi submit).
+                      const fm = localMembers.find((f) => f.memberId === m.id);
+                      const balance = fm?.balance.balance ?? 0;
+                      return {
+                        value: String(m.id),
+                        label: `${m.nickname || m.name} (${formatVND(balance)})`,
+                      };
+                    })}
                   />
                 </div>
                 <div>
