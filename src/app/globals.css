@@ -425,17 +425,16 @@
 }
 
 /* Click-heart burst — spawn tại điểm click, tỏa theo (dx,dy) inline.
- * Peak opacity giữ thấp (0.45) để cùng "vibe" subtle với floating-decorations
- * (decoration nhẹ, không đè attention lên content). */
+ * Bắt đầu scale=0 (xuất hiện từ tâm), nở to ra rồi mờ + bay xa. */
 @keyframes click-heart-burst {
   0% {
     transform: translate(-50%, -50%) scale(0.4) rotate(0deg);
     opacity: 0;
   }
   20% {
-    transform: translate(-50%, -50%) scale(1)
+    transform: translate(-50%, -50%) scale(1.1)
       rotate(calc(var(--burst-rot, 0deg) * 0.4));
-    opacity: 0.45;
+    opacity: 1;
   }
   100% {
     transform: translate(
@@ -444,13 +443,5 @@
       )
       scale(0.7) rotate(var(--burst-rot, 0deg));
     opacity: 0;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  /* Tắt click hearts hoàn toàn cho user nhạy cảm motion (đồng bộ với
-     floating-decorations đã có handler tương tự). */
-  [style*="click-heart-burst"] {
-    animation: none !important;
-    display: none !important;
   }
 }

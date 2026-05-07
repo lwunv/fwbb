@@ -1,0 +1,13 @@
+[     156ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://localhost:8888/admin/login:0
+[     179ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ https://localhost:8888/_next/static/chunks/0z_g_next_dist_0v7z86-._.js:2431
+[     191ms] [LOG] [HMR] connected @ https://localhost:8888/_next/static/chunks/0z_g_next_dist_0v7z86-._.js:2431
+[     299ms] [LOG] [Fast Refresh] rebuilding @ https://localhost:8888/_next/static/chunks/0z_g_next_dist_0v7z86-._.js:2431
+[     365ms] [LOG] [Fast Refresh] done in 167ms @ https://localhost:8888/_next/static/chunks/0z_g_next_dist_0v7z86-._.js:2431
+[   39324ms] [LOG] [Fast Refresh] rebuilding @ https://localhost:8888/_next/static/chunks/0z_g_next_dist_0v7z86-._.js:2431
+[   39401ms] [LOG] [Fast Refresh] done in 179ms @ https://localhost:8888/_next/static/chunks/0z_g_next_dist_0v7z86-._.js:2431
+[   69599ms] [LOG] [Fast Refresh] rebuilding @ https://localhost:8888/_next/static/chunks/0z_g_next_dist_0v7z86-._.js:2431
+[   69672ms] [LOG] [Fast Refresh] done in 176ms @ https://localhost:8888/_next/static/chunks/0z_g_next_dist_0v7z86-._.js:2431
+[   88640ms] [LOG] [Fast Refresh] rebuilding @ https://localhost:8888/_next/static/chunks/0z_g_next_dist_0v7z86-._.js:2431
+[   88704ms] [LOG] [Fast Refresh] done in 113ms @ https://localhost:8888/_next/static/chunks/0z_g_next_dist_0v7z86-._.js:2431
+[   90949ms] [LOG] [Fast Refresh] rebuilding @ https://localhost:8888/_next/static/chunks/0z_g_next_dist_0v7z86-._.js:2431
+[   92214ms] [LOG] [Fast Refresh] done in 1374ms @ https://localhost:8888/_next/static/chunks/0z_g_next_dist_0v7z86-._.js:2431

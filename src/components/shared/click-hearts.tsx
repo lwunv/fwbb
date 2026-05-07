@@ -23,11 +23,18 @@ interface Heart {
   dy: number; // px direction y (negative = up)
   rotation: number; // deg
   size: number; // px
-  hue: number; // shape variant offset
+  shape: string;
+  color: string; // CSS color cho ♥ glyph; emoji 💗 ignore
 }
 
-// Cùng pool shape với floating-decorations để cảm giác đồng bộ.
-const SHAPES = ["❄", "💗", "❤"];
+// Tất cả là text glyphs (không phải emoji với VS16) → nhận CSS `color` chuẩn,
+// không bị màu cố định của emoji. Mix tim + bông tuyết + sao cho đa dạng.
+//   ♥ U+2665 — heart suit (text)
+//   ❅ U+2745 — tight trifoliate snowflake (text)
+//   ❆ U+2746 — heavy chevron snowflake (text)
+//   ★ U+2605 — black star (text)
+//   ✦ U+2726 — black four pointed star (text)
+const SHAPES = ["♥", "❅", "❆", "★", "✦", "♥"];
 const ANIMATION_MS = 900;
 // Random 2–5 mỗi click — tránh quá tải khi user click liên tục.
 function randomCount() {
@@ -60,8 +67,10 @@ export function ClickHearts() {
           dx: Math.cos(angleRad) * distance,
           dy: Math.sin(angleRad) * distance,
           rotation: -30 + Math.random() * 60, // -30°..+30°
-          size: 12 + Math.random() * 18, // 12–30 px (đồng bộ floating-decorations)
-          hue: Math.floor(Math.random() * SHAPES.length),
+          size: 14 + Math.random() * 14, // 14–28 px
+          shape: SHAPES[Math.floor(Math.random() * SHAPES.length)],
+          // Random pink (#ec4899) hoặc white — ♥ glyph nhận, emoji 💗 ignore.
+          color: Math.random() < 0.5 ? "#ec4899" : "#ffffff",
         };
       });
       setHearts((prev) => [...prev, ...newHearts]);
@@ -80,7 +89,7 @@ export function ClickHearts() {
   return (
     <div
       aria-hidden
-      className="pointer-events-none fixed inset-0 z-[55] overflow-hidden"
+      className="pointer-events-none fixed inset-0 z-[60] overflow-hidden"
     >
       {hearts.map((h) => (
         <span
@@ -91,6 +100,7 @@ export function ClickHearts() {
               left: h.x,
               top: h.y,
               fontSize: `${h.size}px`,
+              color: h.color,
               animation: `click-heart-burst ${ANIMATION_MS}ms ease-out forwards`,
               ["--burst-dx" as string]: `${h.dx}px`,
               ["--burst-dy" as string]: `${h.dy}px`,
@@ -98,7 +108,7 @@ export function ClickHearts() {
             } as React.CSSProperties
           }
         >
-          {SHAPES[h.hue]}
+          {h.shape}
         </span>
       ))}
     </div>

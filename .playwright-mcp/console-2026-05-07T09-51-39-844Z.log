@@ -1,0 +1,10 @@
+[     713ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://localhost:8888/admin/login:0
+[     911ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ https://localhost:8888/_next/static/chunks/0z_g_next_dist_0v7z86-._.js:2431
+[     984ms] [LOG] [HMR] connected @ https://localhost:8888/_next/static/chunks/0z_g_next_dist_0v7z86-._.js:2431
+[    1128ms] [LOG] [Fast Refresh] rebuilding @ https://localhost:8888/_next/static/chunks/0z_g_next_dist_0v7z86-._.js:2431
+[    1319ms] [LOG] [Fast Refresh] done in 294ms @ https://localhost:8888/_next/static/chunks/0z_g_next_dist_0v7z86-._.js:2431
+[   34578ms] [LOG] [Fast Refresh] rebuilding @ https://localhost:8888/_next/static/chunks/0z_g_next_dist_0v7z86-._.js:2431
+[   34607ms] [LOG] [Fast Refresh] done in 136ms @ https://localhost:8888/_next/static/chunks/0z_g_next_dist_0v7z86-._.js:2431
+[  118308ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://localhost:8888/admin/login:0
+[  118333ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ https://localhost:8888/_next/static/chunks/0z_g_next_dist_0v7z86-._.js:2431
+[  118356ms] [LOG] [HMR] connected @ https://localhost:8888/_next/static/chunks/0z_g_next_dist_0v7z86-._.js:2431

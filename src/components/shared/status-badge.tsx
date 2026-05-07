@@ -25,33 +25,31 @@ export type StatusVariant =
   | "inStock"
   | "neutral";
 
+// Toàn bộ variants thống nhất 1 công thức:
+//   light: bg-{hue}-100 text-{hue}-800
+//   dark:  bg-{hue}-900/40 text-{hue}-200
+// → cùng saturation, cùng độ contrast, chỉ đổi hue. Bỏ line-through trên
+//   cancelled (icon CircleSlash + màu đỏ đã đủ semantic). Riêng `neutral`
+//   dùng theme tokens vì là default fallback, không có hue cố định.
 const VARIANTS: Record<StatusVariant, string> = {
-  // "Đã thanh toán" — màu xanh dương
-  paid: "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300",
-  // "Chưa thanh toán" — đỏ
-  unpaid: "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300",
-  // "Cần xác nhận" — cam đậm (warning hue). Trước rose-100 trùng tone với
-  // "Đã hủy" red-100 → khó phân biệt; orange-200 nằm hẳn ở dải warm khác,
-  // vẫn warning-coded mà không xung đột với cancelled (red) hay pink theme.
+  paid: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200",
+  unpaid: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200",
   needsConfirm:
-    "bg-orange-200 text-orange-900 dark:bg-orange-400/25 dark:text-orange-100",
-  // Legacy waiting — giữ amber để khỏi vỡ chỗ khác
+    "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
   waiting:
-    "bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200",
-  // "Đã thanh toán 1 phần" — vàng
+    "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
   partialPaid:
-    "bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200",
+    "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
   voting:
-    "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300",
+    "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200",
   confirmed:
-    "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300",
-  completed: "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300",
-  cancelled:
-    "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 line-through",
+    "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200",
+  completed: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200",
+  cancelled: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200",
   lowStock:
-    "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300",
+    "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200",
   inStock:
-    "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300",
+    "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200",
   neutral: "bg-muted text-muted-foreground",
 };
 

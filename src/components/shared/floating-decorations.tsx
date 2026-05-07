@@ -12,10 +12,11 @@ import { useEffect, useMemo, useState } from "react";
  * GPU compositor), không re-render React mỗi frame.
  */
 
-// Bỏ ❄ (snowflake render xám đậm, lệch tone) + ❤ (đỏ đậm). Giữ tone hồng-trắng:
-// `♥` là text glyph nhận color CSS → kiểm soát màu chuẩn (pink/white) thay vì
-// để emoji màu cố định. `💗` là pink emoji bổ sung biến thể visual.
-const SHAPES = ["♥", "💗", "♥"] as const;
+// Tất cả là text glyphs (không phải emoji với VS16) → nhận CSS `color` chuẩn:
+//   ♥ tim (heart suit), ❅/❆ bông tuyết (snowflake variants),
+//   ★ ngôi sao đặc, ✦ ngôi sao 4-pointed
+// Tone hồng/trắng kiểm soát qua CSS color random ở từng item.
+const SHAPES = ["♥", "❅", "❆", "★", "✦", "♥"] as const;
 const COUNT = 6;
 
 interface Item {

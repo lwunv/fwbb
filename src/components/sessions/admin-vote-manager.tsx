@@ -665,7 +665,6 @@ export function AdminVoteManager({
                   {!readOnly &&
                     (() => {
                       const guests = getGuestCounts(member.id);
-                      const totalGuests = guests.play + guests.dine;
                       const isOpen = expandedGuest === member.id;
                       return isOpen ? (
                         <div className="flex flex-wrap items-center gap-2 pt-2 pb-1">
@@ -699,23 +698,34 @@ export function AdminVoteManager({
                             </>
                           )}
                         </div>
-                      ) : totalGuests > 0 ? (
-                        <button
-                          type="button"
-                          onClick={() => setExpandedGuest(member.id)}
-                          className="text-primary hover:text-primary/80 pt-1 pb-1 text-left text-sm transition-colors"
-                        >
-                          {guests.play > 0 && (
-                            <span>🏸 {guests.play} khách</span>
-                          )}
-                          {guests.play > 0 && guests.dine > 0 && (
-                            <span className="mx-2">·</span>
-                          )}
-                          {guests.dine > 0 && (
-                            <span>🍻 {guests.dine} khách</span>
-                          )}
-                        </button>
-                      ) : null;
+                      ) : (
+                        (() => {
+                          // Chỉ hiện guest cho tag thực sự đang on (willPlay /
+                          // willDine) — match expanded view (steppers chỉ render
+                          // cho tag active). Tránh "ghost guest" khi data còn
+                          // guestDineCount > 0 từ trước nhưng willDine đã off.
+                          const showPlayGuest = v.willPlay && guests.play > 0;
+                          const showDineGuest = v.willDine && guests.dine > 0;
+                          if (!showPlayGuest && !showDineGuest) return null;
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => setExpandedGuest(member.id)}
+                              className="text-primary hover:text-primary/80 pt-1 pb-1 text-left text-sm transition-colors"
+                            >
+                              {showPlayGuest && (
+                                <span>🏸 {guests.play} khách</span>
+                              )}
+                              {showPlayGuest && showDineGuest && (
+                                <span className="mx-2">·</span>
+                              )}
+                              {showDineGuest && (
+                                <span>🍻 {guests.dine} khách</span>
+                              )}
+                            </button>
+                          );
+                        })()
+                      );
                     })()}
                 </div>
               );
