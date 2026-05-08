@@ -166,11 +166,8 @@ export function CourtRentClient({
       : null;
     const note = formNote.trim();
     const targetMonthKey = `${formYear}-${String(formMonth).padStart(2, "0")}`;
-
-    // Snapshot for rollback
-    const prevReport = report;
-    const prevPayments = payments;
-    const prevForm = { amount: formAmount, note: formNote };
+    const submittedYear = formYear;
+    const submittedMonth = formMonth;
 
     // Optimistic: ghost row + bump report totals if same view
     const ghostId = optimisticIdRef.current;
@@ -187,36 +184,52 @@ export function CourtRentClient({
       courtName,
     };
 
-    if (formYear === year && formMonth === selectedMonth) {
+    if (submittedYear === year && submittedMonth === selectedMonth) {
       setPayments((prev) => [ghostRow, ...prev]);
     }
-    setReport((prev) => patchReportTotal(prev, formYear, formMonth, amount));
-    // Reset form ngay (UX: input clear instantly)
+    setReport((prev) =>
+      patchReportTotal(prev, submittedYear, submittedMonth, amount),
+    );
+    // Reset form ngay (UX: input clear instantly). Không rollback form trên
+    // failure — user có thể đã type giá trị mới; ghi đè sẽ mất input của họ.
     setFormAmount("2400000");
     setFormNote("");
+
+    // Stable idempotencyKey per submit — DB UNIQUE chặn double-write nếu
+    // admin click 2 lần liên tiếp (form đã reset → trông như có thể submit lại)
+    // hoặc fireAction retry trên transient error.
+    const idempotencyKey =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `rent-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
     fireAction(
       () =>
         recordCourtRentPayment({
-          year: formYear,
-          month: formMonth,
+          year: submittedYear,
+          month: submittedMonth,
           amount,
           courtId: courtIdNum,
           note: note || undefined,
+          idempotencyKey,
         }),
       () => {
-        // Rollback all
-        setReport(prevReport);
-        setPayments(prevPayments);
-        setFormAmount(prevForm.amount);
-        setFormNote(prevForm.note);
+        // Inverse-op rollback: chỉ undo những gì optimistic vừa làm. An toàn
+        // khi user đã navigate (đổi year / month) mid-flight: filter no-op
+        // nếu ghost không còn trong list, patchReportTotal no-op nếu year
+        // không khớp.
+        setPayments((prev) => prev.filter((p) => p.id !== ghostId));
+        setReport((prev) =>
+          patchReportTotal(prev, submittedYear, submittedMonth, -amount),
+        );
       },
       {
         successMsg: "Đã ghi nhận thanh toán tiền sân",
         onSuccess: () => {
           // Refresh từ server để swap ghost row → row thật + đồng bộ totals
-          if (formYear === year) loadReport(year);
-          if (formYear === year && formMonth === selectedMonth) loadPayments();
+          if (submittedYear === year) loadReport(year);
+          if (submittedYear === year && submittedMonth === selectedMonth)
+            loadPayments();
         },
       },
     );
@@ -226,25 +239,32 @@ export function CourtRentClient({
     const target = payments.find((p) => p.id === paymentId);
     if (!target) return;
 
-    const prevReport = report;
-    const prevPayments = payments;
     const tm = target.targetMonth;
     const [tyStr, tmStr] = (tm ?? "").split("-");
     const ty = parseInt(tyStr ?? "", 10);
     const tmNum = parseInt(tmStr ?? "", 10);
+    const removedAmount = target.amount;
+    const removedRow = target;
 
     // Optimistic remove + bump totals down
     setPayments((prev) => prev.filter((p) => p.id !== paymentId));
     if (Number.isFinite(ty) && Number.isFinite(tmNum)) {
-      setReport((prev) => patchReportTotal(prev, ty, tmNum, -target.amount));
+      setReport((prev) => patchReportTotal(prev, ty, tmNum, -removedAmount));
     }
     setDeleteTarget(null);
 
     fireAction(
       () => deleteCourtRentPayment(paymentId),
       () => {
-        setReport(prevReport);
-        setPayments(prevPayments);
+        // Inverse-op rollback: re-insert row chỉ nếu list đang hiển thị
+        // tháng cũ (user chưa navigate); patchReportTotal no-op nếu year
+        // không khớp. Tránh ghi đè state hiện tại của user.
+        setPayments((prev) =>
+          prev.some((p) => p.id === paymentId) ? prev : [removedRow, ...prev],
+        );
+        if (Number.isFinite(ty) && Number.isFinite(tmNum)) {
+          setReport((prev) => patchReportTotal(prev, ty, tmNum, removedAmount));
+        }
       },
       {
         successMsg: "Đã xóa giao dịch",

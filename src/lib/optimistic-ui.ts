@@ -1,19 +1,32 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { fireAction } from "./optimistic-action";
 
 type ActionResult = { error?: string; success?: boolean } | void;
+type FireOptions = {
+  retry?: boolean;
+  successMsg?: string;
+  onSuccess?: () => void;
+};
 
 /**
  * useOptimisticState
  *
- * A hook that maintains a local state synced with a server-side prop.
- * It provides a 'fire' function to perform optimistic updates with automatic rollback.
+ * Maintains a local state synced with a server-side prop. Provides a `fire`
+ * function performing optimistic updates with automatic rollback on action
+ * failure.
+ *
+ * Concurrency note: rollback captures the value via the functional updater
+ * (read INSIDE setLocal), so two overlapping fires roll back to the value
+ * seen at fire-time, not a closure-bound snapshot. The most recent server
+ * prop also wins via `useEffect` re-sync.
  */
 export function useOptimisticState<T>(serverValue: T) {
   const [local, setLocal] = useState<T>(serverValue);
+  const localRef = useRef<T>(serverValue);
 
-  // Sync with server when props change (revalidation)
   useEffect(() => {
+    localRef.current = serverValue;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- optimistic local state must converge with server prop after revalidation.
     setLocal(serverValue);
   }, [serverValue]);
 
@@ -21,17 +34,24 @@ export function useOptimisticState<T>(serverValue: T) {
     (
       optimisticValue: T,
       action: () => Promise<ActionResult>,
-      options?: {
-        retry?: boolean;
-        successMsg?: string;
-        onSuccess?: () => void;
-      },
+      options?: FireOptions,
     ) => {
-      const prev = local;
-      setLocal(optimisticValue);
-      fireAction(action, () => setLocal(prev), options);
+      let prev: T;
+      setLocal((current) => {
+        prev = current;
+        localRef.current = optimisticValue;
+        return optimisticValue;
+      });
+      fireAction(
+        action,
+        () => {
+          setLocal(prev);
+          localRef.current = prev;
+        },
+        options,
+      );
     },
-    [local],
+    [],
   );
 
   return [local, fire, setLocal] as const;
@@ -40,30 +60,33 @@ export function useOptimisticState<T>(serverValue: T) {
 /**
  * useOptimisticSet
  *
- * Specifically for managing sets of IDs (e.g., 'completingSessions', 'cancelledSessions').
+ * Manages a Set of IDs (membership flags). Functional updaters for both
+ * apply + rollback so concurrent add/remove on different ids never collide.
  */
 export function useOptimisticSet<T>(initialValues: T[] = []) {
-  const [set, setSet] = useState(new Set<T>(initialValues));
+  const [set, setSet] = useState<Set<T>>(() => new Set<T>(initialValues));
 
   const addOptimistically = useCallback(
-    (
-      id: T,
-      action: () => Promise<ActionResult>,
-      options?: {
-        retry?: boolean;
-        successMsg?: string;
-        onSuccess?: () => void;
-      },
-    ) => {
-      setSet((prev) => new Set(prev).add(id));
+    (id: T, action: () => Promise<ActionResult>, options?: FireOptions) => {
+      let wasPresent = false;
+      setSet((prev) => {
+        wasPresent = prev.has(id);
+        if (wasPresent) return prev;
+        const next = new Set(prev);
+        next.add(id);
+        return next;
+      });
       fireAction(
         action,
-        () =>
+        () => {
+          if (wasPresent) return;
           setSet((prev) => {
+            if (!prev.has(id)) return prev;
             const next = new Set(prev);
             next.delete(id);
             return next;
-          }),
+          });
+        },
         options,
       );
     },
@@ -71,23 +94,26 @@ export function useOptimisticSet<T>(initialValues: T[] = []) {
   );
 
   const removeOptimistically = useCallback(
-    (
-      id: T,
-      action: () => Promise<ActionResult>,
-      options?: {
-        retry?: boolean;
-        successMsg?: string;
-        onSuccess?: () => void;
-      },
-    ) => {
+    (id: T, action: () => Promise<ActionResult>, options?: FireOptions) => {
+      let wasPresent = false;
       setSet((prev) => {
+        wasPresent = prev.has(id);
+        if (!wasPresent) return prev;
         const next = new Set(prev);
         next.delete(id);
         return next;
       });
       fireAction(
         action,
-        () => setSet((prev) => new Set(prev).add(id)),
+        () => {
+          if (!wasPresent) return;
+          setSet((prev) => {
+            if (prev.has(id)) return prev;
+            const next = new Set(prev);
+            next.add(id);
+            return next;
+          });
+        },
         options,
       );
     },
@@ -100,7 +126,9 @@ export function useOptimisticSet<T>(initialValues: T[] = []) {
 /**
  * useOptimisticRecord
  *
- * For managing key-value optimistic states (e.g., { [sessionId]: { play: 1, dine: 2 } }).
+ * Manages a key-value map. Captures the previous value of the SPECIFIC key
+ * via functional updater so concurrent updates on different keys don't
+ * stomp each other's rollback snapshots.
  */
 export function useOptimisticRecord<K extends string | number, V>(
   initial: Record<K, V> = {} as Record<K, V>,
@@ -112,23 +140,24 @@ export function useOptimisticRecord<K extends string | number, V>(
       key: K,
       value: V,
       action: () => Promise<ActionResult>,
-      options?: {
-        retry?: boolean;
-        successMsg?: string;
-        onSuccess?: () => void;
-      },
+      options?: FireOptions,
     ) => {
-      const prevValue = record[key];
-      setRecord((prev) => ({ ...prev, [key]: value }));
+      let prevValue: V | undefined;
+      let hadKey = false;
+      setRecord((prev) => {
+        hadKey = key in prev;
+        prevValue = prev[key];
+        return { ...prev, [key]: value };
+      });
       fireAction(
         action,
         () => {
           setRecord((prev) => {
             const next = { ...prev };
-            if (prevValue === undefined) {
+            if (!hadKey) {
               delete next[key];
             } else {
-              next[key] = prevValue;
+              next[key] = prevValue as V;
             }
             return next;
           });
@@ -136,18 +165,26 @@ export function useOptimisticRecord<K extends string | number, V>(
         options,
       );
     },
-    [record],
+    [],
   );
 
   return { record, updateOptimistically, setRecord };
 }
 
 /**
- * Hook for managing an optimistic list (e.g. adding ghost items, patching existing ones).
+ * useOptimisticList
+ *
+ * Adds / removes / patches items in a list. Re-syncs when `serverList`
+ * changes (revalidation). All operations use functional updaters so
+ * concurrent fires on different ids don't lose intermediate state.
+ *
+ * Constraint `T extends { id: ID }` — caller picks the id type via the
+ * second generic param so we don't accidentally compare `1 !== "1"`.
  */
-export function useOptimisticList<T extends { id: number | string }>(
-  serverList: T[],
-) {
+export function useOptimisticList<
+  ID extends number | string,
+  T extends { id: ID },
+>(serverList: T[]) {
   const [local, setLocal] = useState<T[]>(serverList);
 
   useEffect(() => {
@@ -158,61 +195,81 @@ export function useOptimisticList<T extends { id: number | string }>(
     (
       ghostItem: T,
       action: () => Promise<ActionResult>,
-      options?: {
-        retry?: boolean;
-        successMsg?: string;
-        onSuccess?: () => void;
-      },
+      options?: FireOptions,
     ) => {
-      const prev = local;
+      const ghostId = ghostItem.id;
       setLocal((current) => [ghostItem, ...current]);
-      fireAction(action, () => setLocal(prev), options);
+      fireAction(
+        action,
+        () =>
+          setLocal((current) =>
+            current.some((i) => i.id === ghostId)
+              ? current.filter((i) => i.id !== ghostId)
+              : current,
+          ),
+        options,
+      );
     },
-    [local],
+    [],
   );
 
   const removeOptimistically = useCallback(
-    (
-      id: number | string,
-      action: () => Promise<ActionResult>,
-      options?: {
-        retry?: boolean;
-        successMsg?: string;
-        onSuccess?: () => void;
-      },
-    ) => {
-      const prev = local;
-      setLocal((current) => current.filter((item) => item.id !== id));
-      fireAction(action, () => setLocal(prev), options);
+    (id: ID, action: () => Promise<ActionResult>, options?: FireOptions) => {
+      let removed: T | undefined;
+      let removedIndex = -1;
+      setLocal((current) => {
+        removedIndex = current.findIndex((item) => item.id === id);
+        if (removedIndex < 0) return current;
+        removed = current[removedIndex];
+        return current.filter((item) => item.id !== id);
+      });
+      fireAction(
+        action,
+        () => {
+          if (!removed || removedIndex < 0) return;
+          setLocal((current) => {
+            if (current.some((i) => i.id === id)) return current;
+            const next = [...current];
+            const insertAt = Math.min(removedIndex, next.length);
+            next.splice(insertAt, 0, removed!);
+            return next;
+          });
+        },
+        options,
+      );
     },
-    [local],
+    [],
   );
 
   const updateOptimistically = useCallback(
     (
-      id: number | string,
+      id: ID,
       patch: Partial<T> | ((item: T) => T),
       action: () => Promise<ActionResult>,
-      options?: {
-        retry?: boolean;
-        successMsg?: string;
-        onSuccess?: () => void;
-      },
+      options?: FireOptions,
     ) => {
-      const prev = local;
+      let prevItem: T | undefined;
       setLocal((current) =>
         current.map((item) => {
-          if (item.id === id) {
-            return typeof patch === "function"
-              ? patch(item)
-              : { ...item, ...patch };
-          }
-          return item;
+          if (item.id !== id) return item;
+          prevItem = item;
+          return typeof patch === "function"
+            ? patch(item)
+            : { ...item, ...patch };
         }),
       );
-      fireAction(action, () => setLocal(prev), options);
+      fireAction(
+        action,
+        () => {
+          if (!prevItem) return;
+          setLocal((current) =>
+            current.map((item) => (item.id === id ? prevItem! : item)),
+          );
+        },
+        options,
+      );
     },
-    [local],
+    [],
   );
 
   return {

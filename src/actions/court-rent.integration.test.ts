@@ -289,8 +289,9 @@ describe("court-rent actions (integration)", () => {
         amount: 600_000,
         courtId,
         note: "Trả T5 2 sân",
+        idempotencyKey: "test-rent-meta",
       });
-      expect(r).toEqual({ success: true });
+      expect(r).toEqual({ success: true, replayed: false });
 
       const rows = await testDb.query.financialTransactions.findMany({
         where: eq(financialTransactions.type, "court_rent_payment"),
@@ -309,24 +310,104 @@ describe("court-rent actions (integration)", () => {
         year: 2026,
         month: 4,
         amount: 100_000,
+        idempotencyKey: "test-rent-default-desc",
       });
-      expect(r).toEqual({ success: true });
+      expect(r).toEqual({ success: true, replayed: false });
       const row = await testDb.query.financialTransactions.findFirst({});
       expect(row?.description).toContain("04/2026");
     });
 
+    it("is idempotent: same key returns replayed without inserting twice", async () => {
+      const key = "test-rent-idempotent-1";
+      const r1 = await recordCourtRentPayment({
+        year: 2026,
+        month: 4,
+        amount: 100_000,
+        idempotencyKey: key,
+      });
+      expect(r1).toEqual({ success: true, replayed: false });
+      const r2 = await recordCourtRentPayment({
+        year: 2026,
+        month: 4,
+        amount: 100_000,
+        idempotencyKey: key,
+      });
+      expect(r2).toEqual({ success: true, replayed: true });
+      const rows = await testDb.query.financialTransactions.findMany({});
+      expect(rows).toHaveLength(1);
+    });
+
+    it("rejects missing/short idempotencyKey", async () => {
+      const r = await recordCourtRentPayment({
+        year: 2026,
+        month: 4,
+        amount: 100_000,
+        idempotencyKey: "x",
+      });
+      expect("error" in r).toBe(true);
+    });
+
     it.each([
-      { name: "year too low", input: { year: 1999, month: 4, amount: 1 } },
-      { name: "year too high", input: { year: 2200, month: 4, amount: 1 } },
-      { name: "year non-int", input: { year: 2026.5, month: 4, amount: 1 } },
-      { name: "month=0", input: { year: 2026, month: 0, amount: 1 } },
-      { name: "month=13", input: { year: 2026, month: 13, amount: 1 } },
-      { name: "amount=0", input: { year: 2026, month: 4, amount: 0 } },
-      { name: "amount negative", input: { year: 2026, month: 4, amount: -1 } },
-      { name: "amount float", input: { year: 2026, month: 4, amount: 1.5 } },
+      {
+        name: "year too low",
+        input: { year: 1999, month: 4, amount: 1, idempotencyKey: "test-iv-1" },
+      },
+      {
+        name: "year too high",
+        input: { year: 2200, month: 4, amount: 1, idempotencyKey: "test-iv-2" },
+      },
+      {
+        name: "year non-int",
+        input: {
+          year: 2026.5,
+          month: 4,
+          amount: 1,
+          idempotencyKey: "test-iv-3",
+        },
+      },
+      {
+        name: "month=0",
+        input: { year: 2026, month: 0, amount: 1, idempotencyKey: "test-iv-4" },
+      },
+      {
+        name: "month=13",
+        input: {
+          year: 2026,
+          month: 13,
+          amount: 1,
+          idempotencyKey: "test-iv-5",
+        },
+      },
+      {
+        name: "amount=0",
+        input: { year: 2026, month: 4, amount: 0, idempotencyKey: "test-iv-6" },
+      },
+      {
+        name: "amount negative",
+        input: {
+          year: 2026,
+          month: 4,
+          amount: -1,
+          idempotencyKey: "test-iv-7",
+        },
+      },
+      {
+        name: "amount float",
+        input: {
+          year: 2026,
+          month: 4,
+          amount: 1.5,
+          idempotencyKey: "test-iv-8",
+        },
+      },
       {
         name: "amount > 1B",
-        input: { year: 2026, month: 4, amount: 1_000_000_001 },
+        input: {
+          year: 2026,
+          month: 4,
+          amount: 1_000_000_001,
+          idempotencyKey: "test-iv-9",
+        },
       },
     ])("rejects invalid input: $name", async ({ input }) => {
       const r = await recordCourtRentPayment(input);
@@ -343,6 +424,7 @@ describe("court-rent actions (integration)", () => {
         month: 4,
         amount: 100_000,
         courtId: 9999,
+        idempotencyKey: "test-rent-bad-court",
       });
       expect("error" in r).toBe(true);
     });
@@ -352,8 +434,9 @@ describe("court-rent actions (integration)", () => {
         year: 2026,
         month: 4,
         amount: 100_000,
+        idempotencyKey: "test-rent-no-court",
       });
-      expect(r).toEqual({ success: true });
+      expect(r).toEqual({ success: true, replayed: false });
       const row = await testDb.query.financialTransactions.findFirst({});
       const meta = JSON.parse(row!.metadataJson!);
       expect(meta.courtId).toBeNull();
@@ -367,6 +450,7 @@ describe("court-rent actions (integration)", () => {
         year: 2026,
         month: 4,
         amount: 100_000,
+        idempotencyKey: "test-rent-no-auth",
       });
       expect("error" in r).toBe(true);
     });
@@ -380,8 +464,9 @@ describe("court-rent actions (integration)", () => {
         year: 2026,
         month: 4,
         amount: 100_000,
+        idempotencyKey: "test-rent-delete",
       });
-      expect(r1).toEqual({ success: true });
+      expect(r1).toEqual({ success: true, replayed: false });
       const row = await testDb.query.financialTransactions.findFirst({});
       const r2 = await deleteCourtRentPayment(row!.id);
       expect(r2).toEqual({ success: true });

@@ -211,7 +211,10 @@ export async function recordCourtRentPayment(input: {
   amount: number;
   courtId?: number | null;
   note?: string;
-}): Promise<{ success: true } | { error: string }> {
+  /** UUID per submit — DB UNIQUE INDEX trên `idempotency_key` chặn double-write
+   *  khi admin click 2 lần liên tiếp / mạng trễ → optimistic UI đã reset form. */
+  idempotencyKey: string;
+}): Promise<{ success: true; replayed: boolean } | { error: string }> {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
 
@@ -229,6 +232,14 @@ export async function recordCourtRentPayment(input: {
     return { error: "Số tiền không hợp lệ" };
   }
 
+  if (
+    !input.idempotencyKey ||
+    typeof input.idempotencyKey !== "string" ||
+    input.idempotencyKey.trim().length < 4
+  ) {
+    return { error: "Thiếu idempotencyKey" };
+  }
+
   let courtId: number | null = null;
   if (input.courtId) {
     const c = await db.query.courts.findFirst({
@@ -239,26 +250,46 @@ export async function recordCourtRentPayment(input: {
     courtId = c.id;
   }
 
-  const targetMonth = `${input.year}-${String(input.month).padStart(2, "0")}`;
-  await db.insert(financialTransactions).values({
-    type: "court_rent_payment",
-    direction: "out",
-    amount: input.amount,
-    memberId: null,
-    sessionId: null,
-    debtId: null,
-    description:
-      input.note ??
-      `Trả tiền sân tháng ${String(input.month).padStart(2, "0")}/${input.year}`,
-    metadataJson: JSON.stringify({
-      targetMonth,
-      courtId,
-    }),
+  // Idempotent path: nếu key đã tồn tại → coi như replay, không insert lại.
+  const existing = await db.query.financialTransactions.findFirst({
+    where: eq(financialTransactions.idempotencyKey, input.idempotencyKey),
+    columns: { id: true },
   });
+  if (existing) {
+    return { success: true, replayed: true };
+  }
+
+  const targetMonth = `${input.year}-${String(input.month).padStart(2, "0")}`;
+  try {
+    await db.insert(financialTransactions).values({
+      type: "court_rent_payment",
+      direction: "out",
+      amount: input.amount,
+      memberId: null,
+      sessionId: null,
+      debtId: null,
+      description:
+        input.note ??
+        `Trả tiền sân tháng ${String(input.month).padStart(2, "0")}/${input.year}`,
+      metadataJson: JSON.stringify({
+        targetMonth,
+        courtId,
+      }),
+      idempotencyKey: input.idempotencyKey,
+    });
+  } catch {
+    // Race: concurrent insert với cùng key → DB UNIQUE chặn → coi là replay.
+    const winner = await db.query.financialTransactions.findFirst({
+      where: eq(financialTransactions.idempotencyKey, input.idempotencyKey),
+      columns: { id: true },
+    });
+    if (winner) return { success: true, replayed: true };
+    return { error: "Không ghi được giao dịch" };
+  }
 
   revalidatePath("/admin/court-rent");
   revalidatePath("/admin/finance");
-  return { success: true };
+  return { success: true, replayed: false };
 }
 
 export async function deleteCourtRentPayment(

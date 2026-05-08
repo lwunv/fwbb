@@ -12,6 +12,7 @@ import {
 } from "@/actions/sessions";
 import { confirmPaymentByAdmin, finalizeSessionAuto } from "@/actions/finance";
 import { fireAction } from "@/lib/optimistic-action";
+import { useOptimisticSet } from "@/lib/optimistic-ui";
 import { formatK } from "@/lib/utils";
 import {
   calculateShuttlecockCost,
@@ -196,13 +197,14 @@ export function SessionList({
     new Set(),
   );
   // Optimistic finalize — admin bấm "Xác nhận buổi chơi" → status đổi ngay
-  // sang "completed" cho UI mà không chờ server. Rollback nếu finalize fail.
-  const [finalizingSessions, setFinalizingSessions] = useState<Set<number>>(
-    new Set(),
-  );
+  // sang "completed" cho UI; rollback tự động nếu finalize fail. useOptimisticSet
+  // dùng functional updater nên 2 buổi finalize concurrent không stomp nhau.
+  const finalizing = useOptimisticSet<number>();
+  const finalizingSessions = finalizing.set;
   // Optimistic confirm-payment — debtId nào đã được admin bấm "Đã nhận"
   // (chưa server-revalidated) sẽ filter khỏi unpaidDebts list ngay.
-  const [paidDebtIds, setPaidDebtIds] = useState<Set<number>>(new Set());
+  const paidDebts = useOptimisticSet<number>();
+  const paidDebtIds = paidDebts.set;
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [localAdminGuests, setLocalAdminGuests] = useState<
     Record<number, { play: number; dine: number }>
@@ -640,20 +642,10 @@ export function SessionList({
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   // Optimistic: đánh dấu finalizing → status
-                                  // xanh "completed" cho UI ngay; rollback nếu
-                                  // server fail (vd thiếu courtPrice).
-                                  const id = session.id;
-                                  setFinalizingSessions((prev) =>
-                                    new Set(prev).add(id),
-                                  );
-                                  fireAction(
-                                    () => finalizeSessionAuto(id),
-                                    () =>
-                                      setFinalizingSessions((prev) => {
-                                        const n = new Set(prev);
-                                        n.delete(id);
-                                        return n;
-                                      }),
+                                  // xanh "completed" cho UI ngay; rollback tự
+                                  // động nếu server fail (vd thiếu courtPrice).
+                                  finalizing.addOptimistically(session.id, () =>
+                                    finalizeSessionAuto(session.id),
                                   );
                                 }}
                                 className="bg-primary hover:bg-primary/90 active:bg-primary/95 shadow-primary/30 hover:shadow-primary/40 inline-flex h-[42px] w-1/2 shrink-0 items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md"
@@ -825,7 +817,17 @@ export function SessionList({
                             {t("people")}
                           </span>
                         </span>
-                        {allPaid ? (
+                        {/* Trong optimistic-finalize window, server chưa
+                          insert sessionDebts → totalDebt=0, allPaid lừa user
+                          thấy "✓ 0đ" tưởng đã trả hết. Hiện spinner "Đang
+                          chốt sổ..." cho tới khi server revalidate trả về
+                          totalDebt thật. */}
+                        {finalizingSessions.has(session.id) ? (
+                          <span className="text-muted-foreground ml-auto inline-flex items-center gap-1.5 text-sm">
+                            <span className="border-muted-foreground/40 border-t-primary inline-block h-3 w-3 animate-spin rounded-full border-2" />
+                            Đang chốt sổ...
+                          </span>
+                        ) : allPaid ? (
                           <span className="ml-auto text-sm font-medium text-green-600 dark:text-green-400">
                             ✓ {formatK(session.totalDebt)}
                           </span>
@@ -937,17 +939,22 @@ export function SessionList({
                               className="gap-1 border-green-500/40 text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950/30"
                               onClick={() => {
                                 const debtId = d.debtId;
-                                setPaidDebtIds((prev) =>
-                                  new Set(prev).add(debtId),
-                                );
-                                fireAction(
-                                  () => confirmPaymentByAdmin(debtId),
-                                  () =>
-                                    setPaidDebtIds((prev) => {
-                                      const n = new Set(prev);
-                                      n.delete(debtId);
-                                      return n;
-                                    }),
+                                const memberName = d.memberName;
+                                // Wrap action để toast lỗi gắn member name —
+                                // admin click nhiều row liên tiếp vẫn biết
+                                // row nào fail.
+                                paidDebts.addOptimistically(
+                                  debtId,
+                                  async () => {
+                                    const r =
+                                      await confirmPaymentByAdmin(debtId);
+                                    if (r && "error" in r && r.error) {
+                                      return {
+                                        error: `${memberName}: ${r.error}`,
+                                      };
+                                    }
+                                    return r;
+                                  },
                                 );
                               }}
                             >
