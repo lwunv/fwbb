@@ -152,12 +152,20 @@ export async function POST(req: NextRequest) {
 // ─── Handle: Renew Watch ───
 
 async function handleRenewWatch(req: NextRequest) {
-  // Verify auth: x-gmail-push-secret header OR internal cron secret
+  // Fail-closed: nếu GMAIL_PUSH_WEBHOOK_SECRET chưa set, refuse — trước đây
+  // pushSecret undefined → check `pushSecret && ...` short-circuit → ai cũng
+  // có thể trigger renew watch (Gmail API quota DoS + DB writes).
   const pushSecret = process.env.GMAIL_PUSH_WEBHOOK_SECRET;
+  if (!pushSecret) {
+    return NextResponse.json(
+      { error: "Server misconfigured: GMAIL_PUSH_WEBHOOK_SECRET missing" },
+      { status: 500 },
+    );
+  }
   const headerSecret = req.headers.get("x-gmail-push-secret");
   const cronSecret = req.headers.get("authorization")?.replace("Bearer ", "");
 
-  if (pushSecret && headerSecret !== pushSecret && cronSecret !== pushSecret) {
+  if (headerSecret !== pushSecret && cronSecret !== pushSecret) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

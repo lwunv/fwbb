@@ -8,7 +8,14 @@ import { ymdInVNAddDays, dayOfWeekVN } from "@/lib/date-format";
 const SESSION_DAYS = new Set([1, 3, 5]);
 
 export async function GET(request: NextRequest) {
-  // Verify cron secret
+  // Fail-closed nếu CRON_SECRET missing — tránh ai cũng trigger được tạo
+  // session tự động. Compare bằng `Bearer ${secret}` exact match.
+  if (!process.env.CRON_SECRET) {
+    return NextResponse.json(
+      { error: "Server misconfigured: CRON_SECRET missing" },
+      { status: 500 },
+    );
+  }
   const authHeader = request.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

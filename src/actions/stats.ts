@@ -5,6 +5,8 @@ import { sessions, sessionShuttlecocks, sessionDebts } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { calculateExactShuttlecockCost } from "@/lib/cost-calculator";
 import { roundToThousand } from "@/lib/utils";
+import { getUserFromCookie } from "@/lib/user-identity";
+import { getAdminFromCookie } from "@/lib/auth";
 
 /**
  * Date-range start cho biểu đồ chi phí, derive từ groupBy:
@@ -129,6 +131,15 @@ export async function getMonthlyExpenses(
   forMemberId?: number | null,
 ): Promise<MonthlyExpense[]> {
   if (forMemberId != null && forMemberId > 0) {
+    // Per-member expense breakdown is PII (financial profile of a person).
+    // Only the member themselves OR an admin may view it.
+    const [user, admin] = await Promise.all([
+      getUserFromCookie(),
+      getAdminFromCookie(),
+    ]);
+    const isOwner = user?.memberId === forMemberId;
+    const isAdmin = !!admin && admin.role === "admin";
+    if (!isOwner && !isAdmin) return [];
     return getMonthlyExpensesForMember(forMemberId, groupBy);
   }
 

@@ -302,6 +302,12 @@ export async function cancelSession(
   if (!session) return { error: "Khong tim thay buoi choi" };
   if (session.status === "completed")
     return { error: "Khong the huy buoi da hoan thanh" };
+  // Idempotent: gọi cancelSession lần 2 trên buổi đã cancelled = no-op,
+  // không nhân đôi pass-revenue. Trước đây check chỉ kiểm `completed` →
+  // double-click chèn 2 fund_contribution.
+  if (session.status === "cancelled") {
+    return { success: true as const, alreadyCancelled: true };
+  }
 
   const passed = options?.passed === true;
   const passRevenue =
@@ -348,6 +354,9 @@ export async function cancelSession(
         .where(eq(sessions.id, sessionId));
 
       if (passed && passRevenue > 0 && adminMemberId !== null) {
+        // idempotencyKey natural-keyed by sessionId — DB UNIQUE INDEX trên
+        // financial_transactions.idempotency_key chặn admin double-click
+        // (form đã reset → tưởng vẫn submit được).
         const r = await recordFinancialTransaction(
           {
             type: "fund_contribution",
@@ -357,6 +366,7 @@ export async function cancelSession(
             sessionId,
             description: `Pass sân buổi ${session.date} — admin nhận lại`,
             metadata: { source: "session_passed", sessionId },
+            idempotencyKey: `session-pass-${sessionId}`,
           },
           tx,
         );

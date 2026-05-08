@@ -193,9 +193,22 @@ export async function adminRemoveVote(sessionId: number, memberId: number) {
   return { success: true };
 }
 
+/** Trả về votes kèm member — REDACT PII (email/bankAccountNo/facebookId)
+ *  trước khi serialize về client. Hàm gọi từ cả public pages (home, /vote/:id)
+ *  lẫn admin pages; redact ngay tại nguồn để tránh leak qua RSC payload bất
+ *  kỳ caller nào. Admin nếu cần PII thật phải đi qua action admin-only riêng. */
 export async function getSessionVotes(sessionId: number) {
-  return db.query.votes.findMany({
+  const rows = await db.query.votes.findMany({
     where: eq(votes.sessionId, sessionId),
     with: { member: true },
   });
+  return rows.map((v) => ({
+    ...v,
+    member: {
+      ...v.member,
+      email: null,
+      bankAccountNo: null,
+      facebookId: "",
+    },
+  }));
 }
