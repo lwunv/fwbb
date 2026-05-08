@@ -298,7 +298,13 @@
     "quickLinks": "Truy cập nhanh",
     "appName": "Tên ứng dụng",
     "appNameSaved": "Đã lưu",
-    "lowStockBanner": "⚠ Cầu sắp hết! Còn {count} quả — mua thêm cầu!"
+    "lowStockBanner": "⚠ Cầu sắp hết! Còn {count} quả — mua thêm cầu!",
+    "defaultsTitle": "Mặc định khi tạo buổi",
+    "defaultsCourtLabel": "Sân mặc định",
+    "defaultsBrandLabel": "Hãng cầu mặc định",
+    "defaultsCourtPlaceholder": "Chọn sân...",
+    "defaultsBrandPlaceholder": "Chọn hãng cầu...",
+    "defaultsBrandPriceSuffix": "/ống"
   },
   "passwordChange": {
     "title": "Đổi mật khẩu",

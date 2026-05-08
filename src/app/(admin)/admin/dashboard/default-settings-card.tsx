@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Settings2 } from "lucide-react";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { SectionCard } from "@/components/shared/section-card";
@@ -39,6 +40,7 @@ export function DefaultSettingsCard({
   currentCourtId,
   currentBrandId,
 }: Props) {
+  const td = useTranslations("dashboard");
   const [courtId, setCourtId] = useState<string>(
     currentCourtId ? String(currentCourtId) : "",
   );
@@ -71,26 +73,16 @@ export function DefaultSettingsCard({
   if (courts.length === 0 && brands.length === 0) return null;
 
   return (
-    <SectionCard
-      tone="primary"
-      icon={Settings2}
-      title="Mặc định khi tạo buổi"
-      subtitle={
-        <p className="text-muted-foreground text-xs">
-          Sân + hãng cầu sẽ tự pre-fill khi auto-tạo buổi mới — có thể đổi ngay
-          trên thẻ buổi chơi.
-        </p>
-      }
-    >
+    <SectionCard tone="primary" icon={Settings2} title={td("defaultsTitle")}>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="text-muted-foreground mb-1 block text-xs font-medium">
-            Sân mặc định
+            {td("defaultsCourtLabel")}
           </label>
           <CustomSelect
             value={courtId}
             onChange={handleCourtChange}
-            placeholder="Chọn sân..."
+            placeholder={td("defaultsCourtPlaceholder")}
             options={courts.map((c) => ({
               value: String(c.id),
               label: `${c.name}${
@@ -101,16 +93,18 @@ export function DefaultSettingsCard({
         </div>
         <div>
           <label className="text-muted-foreground mb-1 block text-xs font-medium">
-            Hãng cầu mặc định
+            {td("defaultsBrandLabel")}
           </label>
           <CustomSelect
             value={brandId}
             onChange={handleBrandChange}
-            placeholder="Chọn hãng cầu..."
+            placeholder={td("defaultsBrandPlaceholder")}
             options={brands.map((b) => ({
               value: String(b.id),
               label: `${b.name}${
-                b.pricePerTube ? ` · ${formatK(b.pricePerTube)}/ống` : ""
+                b.pricePerTube
+                  ? ` · ${formatK(b.pricePerTube)}${td("defaultsBrandPriceSuffix")}`
+                  : ""
               }`,
             }))}
           />

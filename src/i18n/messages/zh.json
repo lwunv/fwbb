@@ -298,7 +298,13 @@
     "quickLinks": "快捷入口",
     "appName": "应用名称",
     "appNameSaved": "已保存",
-    "lowStockBanner": "⚠ 羽毛球库存不足！仅剩 {count} 个 — 请补货！"
+    "lowStockBanner": "⚠ 羽毛球库存不足！仅剩 {count} 个 — 请补货！",
+    "defaultsTitle": "新建活动默认值",
+    "defaultsCourtLabel": "默认场地",
+    "defaultsBrandLabel": "默认羽毛球品牌",
+    "defaultsCourtPlaceholder": "选择场地...",
+    "defaultsBrandPlaceholder": "选择品牌...",
+    "defaultsBrandPriceSuffix": "/筒"
   },
   "passwordChange": {
     "title": "修改密码",

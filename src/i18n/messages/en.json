@@ -298,7 +298,13 @@
     "quickLinks": "Quick links",
     "appName": "App name",
     "appNameSaved": "Saved",
-    "lowStockBanner": "⚠ Shuttles running low! Only {count} pieces left — restock!"
+    "lowStockBanner": "⚠ Shuttles running low! Only {count} pieces left — restock!",
+    "defaultsTitle": "Defaults for new sessions",
+    "defaultsCourtLabel": "Default court",
+    "defaultsBrandLabel": "Default shuttlecock brand",
+    "defaultsCourtPlaceholder": "Select court...",
+    "defaultsBrandPlaceholder": "Select brand...",
+    "defaultsBrandPriceSuffix": "/tube"
   },
   "passwordChange": {
     "title": "Change password",
