@@ -89,9 +89,14 @@ async function asMember(id: number) {
 }
 
 async function seedMember(name: string, fbId: string) {
+  // Bank account no UNIQUE → derive từ fbId để mỗi member có account riêng.
   const [m] = await testDb
     .insert(members)
-    .values({ name, facebookId: fbId, bankAccountNo: "0123456789" })
+    .values({
+      name,
+      facebookId: fbId,
+      bankAccountNo: `bank-${fbId}`,
+    })
     .returning({ id: members.id });
   await testDb.insert(fundMembers).values({ memberId: m.id, isActive: true });
   await testDb.insert(financialTransactions).values({

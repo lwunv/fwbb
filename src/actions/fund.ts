@@ -76,9 +76,12 @@ export async function removeFundMember(
   // same time can't double-refund: the second tx sees `isActive=false` and
   // bails out, OR (if both sneak past the isActive check) the
   // idempotency key on `fundMembers.id` collapses both refunds into one.
-  if (refundBalance) {
-    try {
-      await db.transaction(async (tx) => {
+  // Atomic: refund (nếu có) + flip isActive=false trong CÙNG transaction.
+  // Trước đây refund inside tx, isActive flip outside → contribution arriving
+  // giữa 2 query có thể leave member với positive balance + isActive=false.
+  try {
+    await db.transaction(async (tx) => {
+      if (refundBalance) {
         const txs = await tx.query.financialTransactions.findMany({
           where: eq(financialTransactions.memberId, memberId),
         });
@@ -105,21 +108,18 @@ export async function removeFundMember(
           );
           if ("error" in r) throw new Error(r.error);
         }
-      });
-    } catch (err) {
-      return {
-        error:
-          err instanceof Error
-            ? err.message
-            : "Không hoàn được quỹ khi rời nhóm",
-      };
-    }
-  }
+      }
 
-  await db
-    .update(fundMembers)
-    .set({ isActive: false, leftAt: new Date().toISOString() })
-    .where(eq(fundMembers.id, fm.id));
+      await tx
+        .update(fundMembers)
+        .set({ isActive: false, leftAt: new Date().toISOString() })
+        .where(eq(fundMembers.id, fm.id));
+    });
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Không rời được khỏi quỹ",
+    };
+  }
 
   revalidatePath("/admin/fund");
   revalidatePath("/my-fund");
@@ -160,36 +160,50 @@ export async function recordContribution(
     return { error: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
   }
 
-  // Auto-enrol: theo merged Quỹ+Nợ model, mọi member đều có balance trong
-  // ledger. Bắt admin click "Thêm thành viên" trước khi đóng quỹ là thừa
-  // bước — đồng bộ với finalize (cũng auto-enrol). Insert/reactivate trước
-  // khi ghi giao dịch để pass invariant downstream.
+  // Auto-enrol + record trong CÙNG transaction. Trước đây upsert ngoài tx
+  // có thể race khi 2 admin cùng đóng quỹ cho 1 member chưa enroll → DB
+  // UNIQUE (fundMembers.memberId) ném exception thứ 2 không catch được.
   const member = await db.query.members.findFirst({
     where: eq(members.id, parsed.data.memberId),
     columns: { id: true },
   });
   if (!member) return { error: "Không tìm thấy thành viên" };
-  const existing = await db.query.fundMembers.findFirst({
-    where: eq(fundMembers.memberId, parsed.data.memberId),
-  });
-  if (!existing) {
-    await db.insert(fundMembers).values({ memberId: parsed.data.memberId });
-  } else if (!existing.isActive) {
-    await db
-      .update(fundMembers)
-      .set({ isActive: true, leftAt: null, joinedAt: new Date().toISOString() })
-      .where(eq(fundMembers.id, existing.id));
-  }
 
-  const r = await recordFinancialTransaction({
-    memberId: parsed.data.memberId,
-    type: "fund_contribution",
-    direction: "in",
-    amount: parsed.data.amount,
-    description: parsed.data.description || "Đóng quỹ",
-    idempotencyKey,
-  });
-  if ("error" in r) return { error: r.error ?? "Không ghi được giao dịch" };
+  let replayed = false;
+  try {
+    await db.transaction(async (tx) => {
+      // onConflictDoUpdate — atomic upsert, không race vs concurrent insert.
+      await tx
+        .insert(fundMembers)
+        .values({ memberId: parsed.data.memberId })
+        .onConflictDoUpdate({
+          target: fundMembers.memberId,
+          set: {
+            isActive: true,
+            leftAt: null,
+            joinedAt: new Date().toISOString(),
+          },
+        });
+
+      const r = await recordFinancialTransaction(
+        {
+          memberId: parsed.data.memberId,
+          type: "fund_contribution",
+          direction: "in",
+          amount: parsed.data.amount,
+          description: parsed.data.description || "Đóng quỹ",
+          idempotencyKey,
+        },
+        tx,
+      );
+      if ("error" in r) throw new Error(r.error);
+      replayed = r.replayed === true;
+    });
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Không ghi được giao dịch",
+    };
+  }
 
   // Auto-settle outstanding session debts with the new balance.
   const { autoApplyFundToDebts } = await import("./auto-fund");
@@ -199,7 +213,7 @@ export async function recordContribution(
   revalidatePath("/admin/finance");
   revalidatePath("/my-fund");
   revalidatePath("/my-debts");
-  return { success: true, replayed: r.replayed === true };
+  return { success: true, replayed };
 }
 
 /**
@@ -717,6 +731,11 @@ export async function confirmFundClaim(notificationId: number) {
   const m = memo.match(/QUY\s+(\d{1,5})/);
   if (!m) return { error: "Không xác định được người đóng quỹ" };
   const memberId = parseInt(m[1], 10);
+  // Defensive bound — regex \d{1,5} có thể match "0" → memberId=0 query OK
+  // nhưng coi là invalid intent (members.id auto-increment bắt đầu từ 1).
+  if (!Number.isFinite(memberId) || memberId <= 0) {
+    return { error: "Member ID trong memo không hợp lệ" };
+  }
 
   // Verify member is in fund
   const fm = await db.query.fundMembers.findFirst({

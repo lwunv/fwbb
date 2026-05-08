@@ -33,8 +33,17 @@ export async function login(
     return { error: "Vui long nhap day du thong tin" };
   }
 
-  // 5 attempts per IP+username per 5 minutes
+  // Rate-limit 2-tầng:
+  // 1. Per (IP+username): 5 lần / 5 phút — chống guess password 1 user
+  // 2. Per IP: 20 lần / 5 phút — chống enum username (mỗi username mới
+  //    không reset bucket #1 → unbounded brute-force giữa nhiều username)
   const ip = await getClientIp();
+  const rlIp = await checkRateLimit(`login-ip:${ip}`, 20, 5 * 60_000);
+  if (!rlIp.ok) {
+    return {
+      error: `Quá nhiều lần đăng nhập, thử lại sau ${rlIp.retryAfter ?? 60}s`,
+    };
+  }
   const rl = await checkRateLimit(
     `login:${ip}:${parsed.data.username}`,
     5,

@@ -26,7 +26,7 @@ export const members = sqliteTable("members", {
   facebookId: text("facebook_id").notNull().unique(),
   avatarUrl: text("avatar_url"),
   email: text("email"),
-  bankAccountNo: text("bank_account_no"),
+  bankAccountNo: text("bank_account_no").unique(),
   isActive: integer("is_active", { mode: "boolean" }).default(true),
   createdAt: text("created_at").default(sql`(current_timestamp)`),
 });
@@ -74,7 +74,13 @@ export const sessions = sqliteTable(
     createdAt: text("created_at").default(sql`(current_timestamp)`),
     updatedAt: text("updated_at").default(sql`(current_timestamp)`),
   },
-  (table) => [index("idx_sessions_date").on(table.date)],
+  (table) => [
+    // UNIQUE on date — app logic giả định 1 session/ngày (cron + admin
+    // createSessionManually đều check existing trước insert, nhưng race
+    // không có UNIQUE → 2 admin trùng giây tạo 2 sessions/ngày → cost
+    // calc + finalize bị duplicate aggregates).
+    uniqueIndex("idx_sessions_date").on(table.date),
+  ],
 );
 
 export const votes = sqliteTable(
@@ -391,7 +397,12 @@ export const paymentNotifications = sqliteTable("payment_notifications", {
   transferContent: text("transfer_content"),
   senderAccountNo: text("sender_account_no"),
   matchedDebtId: integer("matched_debt_id").references(() => sessionDebts.id),
-  matchedTransactionId: integer("matched_transaction_id"),
+  // FK to financial_transactions — trước đây thiếu FK, dangling refs nếu
+  // ledger row bị hard-deleted (vd court-rent reversal cũ). Schema thực thi
+  // FK chỉ khi `PRAGMA foreign_keys=ON`, nhưng ít nhất ý định được khai báo.
+  matchedTransactionId: integer("matched_transaction_id").references(
+    () => financialTransactions.id,
+  ),
   status: text("status", {
     enum: ["pending", "matched", "ignored", "failed"],
   }).default("pending"),
