@@ -204,7 +204,7 @@ describe("court-rent actions (integration)", () => {
       });
     });
 
-    it("clamps negative remaining to zero (overpayment)", async () => {
+    it("returns negative remaining when overpayment (UI shows 'Trả thừa')", async () => {
       const courtId = await seedCourt();
       await testDb.insert(sessions).values({
         date: "2026-02-01",
@@ -215,13 +215,15 @@ describe("court-rent actions (integration)", () => {
       await testDb.insert(financialTransactions).values({
         type: "court_rent_payment",
         direction: "out",
-        amount: 500_000, // overpaid
+        amount: 500_000, // overpaid: 500k > expected 200k
         metadataJson: JSON.stringify({ targetMonth: "2026-02" }),
       });
       const r = await getCourtRentReport(2026);
       const feb = r.months.find((m) => m.month === 2)!;
-      expect(feb.remaining).toBe(0);
-      expect(r.yearTotal.remaining).toBe(0);
+      // Trả thừa 300k → remaining = -300k. UI render badge "Trả thừa: +300k"
+      // thay vì clamp về 0 (lặng lẽ giấu lỗi).
+      expect(feb.remaining).toBe(-300_000);
+      expect(r.yearTotal.remaining).toBe(-300_000);
     });
   });
 

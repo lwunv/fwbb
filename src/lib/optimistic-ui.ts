@@ -15,10 +15,17 @@ type FireOptions = {
  * function performing optimistic updates with automatic rollback on action
  * failure.
  *
- * Concurrency note: rollback captures the value via the functional updater
+ * Concurrency: rollback captures the value via the functional updater
  * (read INSIDE setLocal), so two overlapping fires roll back to the value
  * seen at fire-time, not a closure-bound snapshot. The most recent server
- * prop also wins via `useEffect` re-sync.
+ * prop wins via `useEffect` re-sync.
+ *
+ * ⚠ Server-prop overlap: nếu parent revalidate (đổi `serverValue`) trong
+ * lúc 1 action đang in-flight, useEffect sẽ ghi đè local optimistic value
+ * bằng value mới từ server — coi như rollback im lặng. Đây là tradeoff cố
+ * ý (server data thường là sự thật, optimistic là ước lượng), nhưng nếu
+ * caller cần ưu tiên optimistic, hãy debounce server prop hoặc dùng
+ * `fireAction` trực tiếp với local `useState`.
  */
 export function useOptimisticState<T>(serverValue: T) {
   const [local, setLocal] = useState<T>(serverValue);
@@ -180,6 +187,12 @@ export function useOptimisticRecord<K extends string | number, V>(
  *
  * Constraint `T extends { id: ID }` — caller picks the id type via the
  * second generic param so we don't accidentally compare `1 !== "1"`.
+ *
+ * ⚠ Server-prop overlap: cùng caveat như `useOptimisticState` — nếu parent
+ * revalidate `serverList` mid-flight, useEffect ghi đè local list. Ghost
+ * row có thể biến mất trước khi action return; rollback trên failure sẽ
+ * no-op. Acceptable cho hầu hết flow; nếu cần ưu tiên optimistic, debounce
+ * parent revalidation hoặc cache ghost ngoài hook.
  */
 export function useOptimisticList<
   ID extends number | string,

@@ -68,7 +68,11 @@ const MONTH_LABELS = [
 ];
 
 /** Cộng/trừ amount vào month + yearTotal khi optimistic add/remove payment.
- *  delta > 0 = ghi nhận thêm, < 0 = xóa. Pure → safe để dùng trong setState. */
+ *  delta > 0 = ghi nhận thêm, < 0 = xóa. Pure → safe để dùng trong setState.
+ *  Chỉ clamp `paidTotal` ≥ 0 (delete có thể âm tạm thời nếu state lệch);
+ *  KHÔNG clamp `remaining` về 0 ở client-only patch — server vẫn clamp khi
+ *  re-fetch, nhưng giữ remaining negative cho phép detect overpayment trong
+ *  optimistic window (UI sẽ render badge "Trả thừa"). */
 function patchReportTotal(
   prev: CourtRentReport,
   targetYear: number,
@@ -83,14 +87,14 @@ function patchReportTotal(
         ? {
             ...m,
             paidTotal: Math.max(0, m.paidTotal + delta),
-            remaining: Math.max(0, m.expectedTotal - (m.paidTotal + delta)),
+            remaining: m.expectedTotal - (m.paidTotal + delta),
           }
         : m,
     ),
     yearTotal: {
       ...prev.yearTotal,
       paid: Math.max(0, prev.yearTotal.paid + delta),
-      remaining: Math.max(0, prev.yearTotal.remaining - delta),
+      remaining: prev.yearTotal.remaining - delta,
     },
   };
 }
@@ -301,7 +305,9 @@ export function CourtRentClient({
         />
       </div>
 
-      {/* Year totals */}
+      {/* Year totals — `remaining` có thể âm khi overpayment (admin trả vượt
+          expectedTotal). Khi âm: hiện "Trả thừa" tone amber thay vì "Còn lại"
+          red, để admin biết và cân nhắc rút bớt thay vì lặng lẽ clamp về 0. */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <StatTile
           icon={TrendingUp}
@@ -315,12 +321,21 @@ export function CourtRentClient({
           value={formatVND(report.yearTotal.paid)}
           tone="green"
         />
-        <StatTile
-          icon={AlertTriangle}
-          label="Còn lại"
-          value={formatVND(report.yearTotal.remaining)}
-          tone={report.yearTotal.remaining > 0 ? "red" : "neutral"}
-        />
+        {report.yearTotal.remaining < 0 ? (
+          <StatTile
+            icon={AlertTriangle}
+            label="Trả thừa"
+            value={`+${formatVND(-report.yearTotal.remaining)}`}
+            tone="amber"
+          />
+        ) : (
+          <StatTile
+            icon={AlertTriangle}
+            label="Còn lại"
+            value={formatVND(report.yearTotal.remaining)}
+            tone={report.yearTotal.remaining > 0 ? "red" : "neutral"}
+          />
+        )}
         <StatTile
           icon={TrendingDown}
           label="Pass sân thu được"
@@ -391,20 +406,35 @@ export function CourtRentClient({
                   {formatK(monthData.paidTotal)}
                 </p>
               </div>
-              <div>
-                <p className="text-muted-foreground text-xs">Còn lại</p>
-                <p
-                  className={cn(
-                    "text-base font-bold tabular-nums",
-                    monthData.remaining > 0
-                      ? "text-destructive"
-                      : "text-muted-foreground",
-                  )}
-                >
-                  {formatK(monthData.remaining)}
-                </p>
-              </div>
+              {monthData.remaining < 0 ? (
+                <div>
+                  <p className="text-muted-foreground text-xs">Trả thừa</p>
+                  <p className="text-base font-bold text-amber-600 tabular-nums dark:text-amber-400">
+                    +{formatK(-monthData.remaining)}
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-muted-foreground text-xs">Còn lại</p>
+                  <p
+                    className={cn(
+                      "text-base font-bold tabular-nums",
+                      monthData.remaining > 0
+                        ? "text-destructive"
+                        : "text-muted-foreground",
+                    )}
+                  >
+                    {formatK(monthData.remaining)}
+                  </p>
+                </div>
+              )}
             </div>
+            {monthData.remaining < 0 && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-300">
+                ⚠️ Đã trả vượt {formatK(-monthData.remaining)} so với cần trả —
+                kiểm tra lại hoặc rút bớt nếu nhầm
+              </div>
+            )}
             {monthData.passRevenue > 0 && (
               <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-300">
                 ℹ️ Đã pass {formatK(monthData.passRevenue)} từ buổi hủy → đã vào
@@ -537,15 +567,26 @@ export function CourtRentClient({
                         </p>
                       )}
                       <p className="text-muted-foreground/70 text-xs">
-                        {p.createdAt
-                          ? new Date(p.createdAt).toLocaleString("vi-VN", {
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          : ""}
+                        {p.id < 0 ? (
+                          // Ghost row: client clock có thể lệch với server →
+                          // hiện "Đang lưu..." thay vì timestamp dễ gây nhầm
+                          // ordering. Sau revalidate sẽ thay bằng real
+                          // createdAt từ server.
+                          <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                            <span className="inline-block h-2.5 w-2.5 animate-spin rounded-full border-2 border-amber-500/40 border-t-amber-500" />
+                            Đang lưu...
+                          </span>
+                        ) : p.createdAt ? (
+                          new Date(p.createdAt).toLocaleString("vi-VN", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        ) : (
+                          ""
+                        )}
                       </p>
                     </div>
                     <Button

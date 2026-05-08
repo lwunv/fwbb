@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { parseAsInteger, useQueryState } from "nuqs";
 import {
@@ -219,6 +219,81 @@ export function SessionList({
   // Tính 1 lần / render thay vì gọi `ymdInVN()` lặp trong .map() bên dưới.
   const todayYmd = ymdInVN();
 
+  // Auto-prune optimistic sets khi server đã converge — tránh memory growth
+  // và tránh stale flag che data thật. finalizingSessions: drop khi
+  // session.status="completed" thật. paidDebtIds: drop khi debtId không còn
+  // trong unpaidDebts (tức server đã ghi nhận đã thanh toán).
+  useEffect(() => {
+    const completedIds = new Set(
+      sessions.filter((s) => s.status === "completed").map((s) => s.id),
+    );
+    const allUnpaidDebtIds = new Set<number>();
+    for (const s of sessions) {
+      for (const d of s.unpaidDebts) allUnpaidDebtIds.add(d.debtId);
+    }
+
+    finalizing.setSet((prev) => {
+      let changed = false;
+      const next = new Set<number>();
+      for (const id of prev) {
+        if (completedIds.has(id)) {
+          changed = true;
+        } else {
+          next.add(id);
+        }
+      }
+      return changed ? next : prev;
+    });
+
+    paidDebts.setSet((prev) => {
+      let changed = false;
+      const next = new Set<number>();
+      for (const id of prev) {
+        if (!allUnpaidDebtIds.has(id)) {
+          changed = true;
+        } else {
+          next.add(id);
+        }
+      }
+      return changed ? next : prev;
+    });
+
+    // Cancelled / unlocked sets cũng converge khi server status khớp.
+    setCancelledSessions((prev) => {
+      let changed = false;
+      const next = new Set<number>();
+      const cancelledIds = new Set(
+        sessions.filter((s) => s.status === "cancelled").map((s) => s.id),
+      );
+      for (const id of prev) {
+        if (cancelledIds.has(id)) {
+          changed = true;
+        } else {
+          next.add(id);
+        }
+      }
+      return changed ? next : prev;
+    });
+    setUnlockedSessions((prev) => {
+      let changed = false;
+      const next = new Set<number>();
+      const votingIds = new Set(
+        sessions
+          .filter((s) => s.status === "voting" || s.status === "confirmed")
+          .map((s) => s.id),
+      );
+      for (const id of prev) {
+        if (votingIds.has(id)) {
+          changed = true;
+        } else {
+          next.add(id);
+        }
+      }
+      return changed ? next : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- finalizing/paidDebts setters are stable from useOptimisticSet.
+  }, [sessions]);
+
   function handleCreate(formData: FormData) {
     const date = formData.get("date") as string;
     if (!date) {
@@ -408,12 +483,17 @@ export function SessionList({
 
         <div className="grid gap-3">
           {sessions.map((session) => {
-            // Optimistic status overrides:
-            // - cancelledSessions: cancel optimistic (pending server)
-            // - unlockedSessions: unlock optimistic → đã completed nhưng admin
-            //   vừa bấm "Mở lại" → hiển thị như voting cho tới khi server revalidate.
-            // - finalizingSessions: finalize optimistic → past-pending vừa bấm
-            //   "Xác nhận" → hiển thị như completed cho tới khi server revalidate.
+            // Optimistic status overrides — priority order matters:
+            // 1. cancelledSessions: cancel optimistic (pending server)
+            // 2. finalizingSessions: finalize optimistic → past-pending vừa bấm
+            //    "Xác nhận" → hiển thị như completed cho tới khi server revalidate.
+            // 3. unlockedSessions: unlock optimistic → đã completed nhưng admin
+            //    vừa bấm "Mở lại" → hiển thị như voting.
+            // Assumption: 1 buổi không thể đồng thời ở nhiều set tại 1 thời
+            // điểm — finalizing chỉ flip từ voting/confirmed; unlock chỉ flip
+            // từ completed; cancel có thể từ bất kỳ active state nào và win
+            // tất cả. Auto-prune ở useEffect bên trên drop entry khi server
+            // converge nên không tích lũy stale.
             const rawStatus = cancelledSessions.has(session.id)
               ? "cancelled"
               : finalizingSessions.has(session.id)

@@ -129,13 +129,16 @@ export async function getCourtRentReport(
     summary.paidTotal += p.amount;
   }
 
+  // KHÔNG clamp `remaining` về 0 — giữ giá trị âm nếu paid > expected để
+  // UI render badge "Trả thừa" cảnh báo admin. Trước đây clamp im lặng làm
+  // overpayment biến mất.
   const months: CourtRentMonthSummary[] = [];
   let expected = 0;
   let paid = 0;
   let passRevenueTotal = 0;
   for (let m = 1; m <= 12; m++) {
     const s = monthMap.get(m)!;
-    s.remaining = Math.max(0, s.expectedTotal - s.paidTotal);
+    s.remaining = s.expectedTotal - s.paidTotal;
     months.push(s);
     expected += s.expectedTotal;
     paid += s.paidTotal;
@@ -149,7 +152,7 @@ export async function getCourtRentReport(
       expected,
       paid,
       passRevenue: passRevenueTotal,
-      remaining: Math.max(0, expected - paid),
+      remaining: expected - paid,
     },
   };
 }
