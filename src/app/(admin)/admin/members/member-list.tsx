@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { TabSegment } from "@/components/shared/tab-segment";
 import {
   Dialog,
   DialogContent,
@@ -240,21 +241,18 @@ export function MemberList({
 
       {/* Status filter + count */}
       <div className="mb-4 flex items-center gap-2">
-        {filterButtons.map(({ key, label }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => handleFilter(key)}
-            className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
-              statusFilter === key
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:bg-muted/80"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-        <span className="text-muted-foreground ml-auto text-sm whitespace-nowrap">
+        <div className="min-w-0 flex-1">
+          <TabSegment<StatusFilter>
+            variant="pills"
+            value={statusFilter}
+            onChange={(v) => handleFilter(v)}
+            options={filterButtons.map(({ key, label }) => ({
+              value: key,
+              label,
+            }))}
+          />
+        </div>
+        <span className="text-muted-foreground shrink-0 text-sm whitespace-nowrap">
           {t("count", { count: filtered.length })}
         </span>
       </div>

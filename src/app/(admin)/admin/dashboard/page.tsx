@@ -1,5 +1,11 @@
 import { db } from "@/db";
-import { sessions, members, financialTransactions } from "@/db/schema";
+import {
+  sessions,
+  members,
+  financialTransactions,
+  courts,
+  shuttlecockBrands,
+} from "@/db/schema";
 import { eq, gte, lt, and } from "drizzle-orm";
 import {
   getFundMembersWithBalances,
@@ -10,7 +16,11 @@ import { getStockByBrand } from "@/actions/inventory";
 import { getAdminUpcomingSession } from "@/actions/sessions";
 import { getSessionVotes } from "@/actions/votes";
 import { DashboardClient } from "./dashboard-client";
-import { getAppName } from "@/actions/settings";
+import {
+  getAppName,
+  getDefaultCourt,
+  getDefaultBrand,
+} from "@/actions/settings";
 import { ymdInVN } from "@/lib/date-format";
 
 export default async function DashboardPage() {
@@ -231,6 +241,31 @@ export default async function DashboardPage() {
 
   const appName = await getAppName();
 
+  // Settings panel data — list courts/brands + currently-resolved defaults
+  // (đã fallback qua getDefault*).
+  const [allCourts, allBrands, defaultCourt, defaultBrand] = await Promise.all([
+    db.query.courts.findMany({
+      where: eq(courts.isActive, true),
+      orderBy: (c, { asc }) => [asc(c.name)],
+    }),
+    db.query.shuttlecockBrands.findMany({
+      where: eq(shuttlecockBrands.isActive, true),
+      orderBy: (b, { asc }) => [asc(b.name)],
+    }),
+    getDefaultCourt(),
+    getDefaultBrand(),
+  ]);
+  const settingsCourts = allCourts.map((c) => ({
+    id: c.id,
+    name: c.name,
+    pricePerSession: c.pricePerSession,
+  }));
+  const settingsBrands = allBrands.map((b) => ({
+    id: b.id,
+    name: b.name,
+    pricePerTube: b.pricePerTube,
+  }));
+
   return (
     <div className="space-y-6">
       <DashboardClient
@@ -255,6 +290,10 @@ export default async function DashboardPage() {
         recentTransactions={recentTransactions}
         currentMonth={monthVN}
         currentYear={yearVN}
+        settingsCourts={settingsCourts}
+        settingsBrands={settingsBrands}
+        defaultCourtId={defaultCourt?.id ?? null}
+        defaultBrandId={defaultBrand?.id ?? null}
       />
     </div>
   );

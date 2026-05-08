@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { StatTile } from "@/components/shared/stat-tile";
+import { InlineNotice } from "@/components/shared/inline-notice";
 import { formatVND, formatK, cn } from "@/lib/utils";
 import { fireAction } from "@/lib/optimistic-action";
 import {
@@ -430,16 +431,16 @@ export function CourtRentClient({
               )}
             </div>
             {monthData.remaining < 0 && (
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-300">
-                ⚠️ Đã trả vượt {formatK(-monthData.remaining)} so với cần trả —
+              <InlineNotice tone="warning" icon={AlertTriangle} size="sm">
+                Đã trả vượt {formatK(-monthData.remaining)} so với cần trả —
                 kiểm tra lại hoặc rút bớt nếu nhầm
-              </div>
+              </InlineNotice>
             )}
             {monthData.passRevenue > 0 && (
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-300">
-                ℹ️ Đã pass {formatK(monthData.passRevenue)} từ buổi hủy → đã vào
+              <InlineNotice tone="info" size="sm">
+                Đã pass {formatK(monthData.passRevenue)} từ buổi hủy → đã vào
                 quỹ admin
-              </div>
+              </InlineNotice>
             )}
           </CardContent>
         </Card>

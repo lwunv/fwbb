@@ -23,7 +23,7 @@ import { requireAdmin } from "@/lib/auth";
 import { ymdInVN, ymdInVNAddDays, dayOfWeekVN } from "@/lib/date-format";
 import { admins } from "@/db/schema";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
-import { getDefaultCourt } from "@/actions/settings";
+import { getDefaultCourt, getDefaultBrand } from "@/actions/settings";
 import { assertEditable, type SessionStatus } from "@/lib/session-status";
 import {
   selectCourtSchema,
@@ -80,8 +80,12 @@ export async function getNextSession() {
 
   // Không có session active trong [today, tomorrow] → auto-create nếu trong
   // khoảng đó có ngày Mon/Wed/Fri và chưa có row nào (kể cả completed/cancelled).
-  // Pre-fill court mặc định (THCS Tây Mỗ) — admin có thể đổi qua CourtSelector.
-  const defaultCourt = await getDefaultCourt();
+  // Pre-fill court + brand mặc định — admin có thể đổi qua CourtSelector /
+  // ShuttlecockSelector.
+  const [defaultCourt, defaultBrand] = await Promise.all([
+    getDefaultCourt(),
+    getDefaultBrand(),
+  ]);
   for (const candidate of [today, tomorrow]) {
     if (!SESSION_DAYS_OF_WEEK.has(dayOfWeekVN(candidate))) continue;
     const exists = await db.query.sessions.findFirst({
@@ -97,6 +101,14 @@ export async function getNextSession() {
         courtPrice: defaultCourt?.pricePerSession ?? null,
       })
       .returning();
+    if (defaultBrand) {
+      await db.insert(sessionShuttlecocks).values({
+        sessionId: newSession.id,
+        brandId: defaultBrand.id,
+        quantityUsed: 1,
+        pricePerTube: defaultBrand.pricePerTube,
+      });
+    }
     return db.query.sessions.findFirst({
       where: eq(sessions.id, newSession.id),
       with: { court: true, shuttlecocks: { with: { brand: true } } },
@@ -141,7 +153,10 @@ export async function getAdminUpcomingSession() {
       where: eq(sessions.date, today),
     });
     if (!exists) {
-      const defaultCourt = await getDefaultCourt();
+      const [defaultCourt, defaultBrand] = await Promise.all([
+        getDefaultCourt(),
+        getDefaultBrand(),
+      ]);
       const [newSession] = await db
         .insert(sessions)
         .values({
@@ -151,6 +166,14 @@ export async function getAdminUpcomingSession() {
           courtPrice: defaultCourt?.pricePerSession ?? null,
         })
         .returning();
+      if (defaultBrand) {
+        await db.insert(sessionShuttlecocks).values({
+          sessionId: newSession.id,
+          brandId: defaultBrand.id,
+          quantityUsed: 1,
+          pricePerTube: defaultBrand.pricePerTube,
+        });
+      }
       return db.query.sessions.findFirst({
         where: eq(sessions.id, newSession.id),
         with: { court: true, shuttlecocks: { with: { brand: true } } },
@@ -767,14 +790,27 @@ export async function createSessionManually(
     }
   }
 
-  await db.insert(sessions).values({
-    date,
-    status: "voting",
-    startTime: startTime || "20:30",
-    endTime: endTime || "22:30",
-    courtId: resolvedCourtId,
-    courtPrice,
-  });
+  const [newSession] = await db
+    .insert(sessions)
+    .values({
+      date,
+      status: "voting",
+      startTime: startTime || "20:30",
+      endTime: endTime || "22:30",
+      courtId: resolvedCourtId,
+      courtPrice,
+    })
+    .returning();
+  // Pre-fill brand mặc định để admin chỉ cần đổi ống nếu cần.
+  const defaultBrand = await getDefaultBrand();
+  if (defaultBrand && newSession) {
+    await db.insert(sessionShuttlecocks).values({
+      sessionId: newSession.id,
+      brandId: defaultBrand.id,
+      quantityUsed: 1,
+      pricePerTube: defaultBrand.pricePerTube,
+    });
+  }
   revalidatePath("/admin/sessions");
   revalidatePath("/");
 

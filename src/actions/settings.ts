@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { appSettings, courts } from "@/db/schema";
+import { appSettings, courts, shuttlecockBrands } from "@/db/schema";
 import { and, eq, like } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
@@ -63,6 +63,60 @@ export async function setDefaultCourt(courtId: number) {
   }
   revalidatePath("/admin/courts");
   revalidatePath("/admin/sessions");
+  revalidatePath("/admin/dashboard");
+  return { success: true };
+}
+
+/**
+ * Hãng cầu mặc định khi auto-create buổi chơi mới.
+ * - Đọc `appSettings.defaultBrandId`.
+ * - Nếu chưa set, fallback: brand active đầu tiên (theo id).
+ * - Trả null nếu không có brand active nào.
+ */
+export async function getDefaultBrand() {
+  const setting = await db.query.appSettings.findFirst({
+    where: eq(appSettings.key, "defaultBrandId"),
+  });
+  const settingId = setting?.value ? parseInt(setting.value, 10) : null;
+  if (settingId && Number.isFinite(settingId)) {
+    const brand = await db.query.shuttlecockBrands.findFirst({
+      where: and(
+        eq(shuttlecockBrands.id, settingId),
+        eq(shuttlecockBrands.isActive, true),
+      ),
+    });
+    if (brand) return brand;
+  }
+  const fallback = await db.query.shuttlecockBrands.findFirst({
+    where: eq(shuttlecockBrands.isActive, true),
+  });
+  return fallback ?? null;
+}
+
+export async function setDefaultBrand(brandId: number) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
+  const exists = await db.query.shuttlecockBrands.findFirst({
+    where: eq(shuttlecockBrands.id, brandId),
+  });
+  if (!exists) return { error: "Hãng cầu không tồn tại" };
+
+  const value = String(brandId);
+  const existing = await db.query.appSettings.findFirst({
+    where: eq(appSettings.key, "defaultBrandId"),
+  });
+  if (existing) {
+    await db
+      .update(appSettings)
+      .set({ value })
+      .where(eq(appSettings.key, "defaultBrandId"));
+  } else {
+    await db.insert(appSettings).values({ key: "defaultBrandId", value });
+  }
+  revalidatePath("/admin/shuttlecocks");
+  revalidatePath("/admin/sessions");
+  revalidatePath("/admin/dashboard");
   return { success: true };
 }
 

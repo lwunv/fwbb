@@ -6,6 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StockCard } from "@/components/inventory/stock-card";
 import { PurchaseForm } from "@/components/inventory/purchase-form";
+import { TabSegment } from "@/components/shared/tab-segment";
+import { EmptyState } from "@/components/shared/empty-state";
 import { formatK } from "@/lib/utils";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { Calendar, ArrowDown, ArrowUp, Pencil, Check, X } from "lucide-react";
@@ -80,46 +82,23 @@ export function InventoryClient({
       )}
 
       {/* Tab switcher */}
-      <div className="bg-muted flex gap-1 rounded-xl p-1.5">
-        <button
-          onClick={() => setActiveTab("stock")}
-          className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${
-            activeTab === "stock"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          {t("inventory")}
-        </button>
-        <button
-          onClick={() => setActiveTab("purchases")}
-          className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${
-            activeTab === "purchases"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          {t("purchase")}
-        </button>
-        <button
-          onClick={() => setActiveTab("usage")}
-          className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${
-            activeTab === "usage"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          {t("usage")}
-        </button>
-      </div>
+      <TabSegment
+        variant="rounded"
+        value={activeTab}
+        onChange={(v) => setActiveTab(v)}
+        ariaLabel={t("inventory")}
+        options={[
+          { value: "stock", label: t("inventory") },
+          { value: "purchases", label: t("purchase") },
+          { value: "usage", label: t("usage") },
+        ]}
+      />
 
       {/* Stock tab */}
       {activeTab === "stock" && (
         <div className="space-y-3">
           {stock.length === 0 ? (
-            <div className="text-muted-foreground py-8 text-center text-base">
-              {tStats("noData")}
-            </div>
+            <EmptyState variant="inline" title={tStats("noData")} />
           ) : (
             <>
               {stock.map((s) => (
@@ -137,9 +116,7 @@ export function InventoryClient({
 
           <h3 className="text-base font-semibold">{t("purchaseHistory")}</h3>
           {purchases.length === 0 ? (
-            <div className="text-muted-foreground py-8 text-center text-base">
-              {t("noPurchases")}
-            </div>
+            <EmptyState variant="inline" title={t("noPurchases")} />
           ) : (
             <div className="space-y-2">
               {purchases.map((p) => {
@@ -229,9 +206,7 @@ export function InventoryClient({
         <div className="space-y-2">
           <h3 className="text-base font-semibold">{t("usageHistory")}</h3>
           {usage.length === 0 ? (
-            <div className="text-muted-foreground py-8 text-center text-base">
-              {t("noUsage")}
-            </div>
+            <EmptyState variant="inline" title={t("noUsage")} />
           ) : (
             usage.map((u) => (
               <Card key={u.id} size="sm">

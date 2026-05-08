@@ -6,10 +6,18 @@ import { useLocale } from "next-intl";
 import { formatSessionDate, ymdInVN } from "@/lib/date-format";
 import type { AppLocale } from "@/lib/date-fns-locale";
 import { useTranslations } from "next-intl";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/shared/stat-card";
+import { StatTile } from "@/components/shared/stat-tile";
+import { SectionCard } from "@/components/shared/section-card";
+import { InlineNotice } from "@/components/shared/inline-notice";
+import { EmptyState } from "@/components/shared/empty-state";
+import { LedBorder } from "@/components/shared/led-border";
+import {
+  StatusBadge,
+  type StatusVariant,
+} from "@/components/shared/status-badge";
+import { DefaultSettingsCard } from "./default-settings-card";
 import { Input } from "@/components/ui/input";
 import { formatK, cn } from "@/lib/utils";
 import { MemberAvatar } from "@/components/shared/member-avatar";
@@ -88,6 +96,17 @@ interface RecentTx {
   memberAvatarUrl: string | null;
 }
 
+interface CourtOpt {
+  id: number;
+  name: string;
+  pricePerSession: number;
+}
+interface BrandOpt {
+  id: number;
+  name: string;
+  pricePerTube: number;
+}
+
 interface DashboardClientProps {
   appName?: string;
   totalOutstanding: number;
@@ -110,6 +129,10 @@ interface DashboardClientProps {
   recentTransactions: RecentTx[];
   currentMonth: number;
   currentYear: number;
+  settingsCourts: CourtOpt[];
+  settingsBrands: BrandOpt[];
+  defaultCourtId: number | null;
+  defaultBrandId: number | null;
 }
 
 const VN_MONTH_LABEL: Record<number, string> = {
@@ -175,6 +198,10 @@ export function DashboardClient({
   recentTransactions,
   currentMonth,
   currentYear,
+  settingsCourts,
+  settingsBrands,
+  defaultCourtId,
+  defaultBrandId,
 }: DashboardClientProps) {
   const tf = useTranslations("finance");
   const td = useTranslations("dashboard");
@@ -336,25 +363,30 @@ export function DashboardClient({
 
       {/* Low stock warning detail */}
       {totalStockQua < 12 && (
-        <Card className="border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-950/20">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <AlertTriangle className="h-4 w-4 text-red-500" />
-                <span className="text-sm">
-                  {td("lowStockBanner", { count: totalStockQua })}
-                </span>
-              </div>
-              <Link href="/admin/inventory">
-                <Button variant="ghost" size="sm">
-                  {tf("view")}
-                  <ArrowRight className="ml-1 h-4 w-4" />
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
+        <InlineNotice
+          tone="danger"
+          icon={AlertTriangle}
+          action={
+            <Link href="/admin/inventory">
+              <Button variant="ghost" size="sm">
+                {tf("view")}
+                <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
+            </Link>
+          }
+        >
+          {td("lowStockBanner", { count: totalStockQua })}
+        </InlineNotice>
       )}
+
+      {/* Default settings (sân + hãng cầu) — admin chỉ định 1 lần, các buổi
+       * tự auto-tạo / admin tạo mới sẽ pre-fill các giá trị này. */}
+      <DefaultSettingsCard
+        courts={settingsCourts}
+        brands={settingsBrands}
+        currentCourtId={defaultCourtId}
+        currentBrandId={defaultBrandId}
+      />
 
       {/* Upcoming Session — wrap in LED border when buổi sắp/đang diễn ra.
        * Buổi đã qua nhưng chưa finalize (voting/confirmed + date < hôm nay)
@@ -372,437 +404,398 @@ export function DashboardClient({
           !!upcomingSession &&
           upcomingSession.date < ymdInVN();
         const showLed = isUpcomingActive && !isPastPending;
-        const badgeClass = isPastPending
-          ? "border-yellow-400 bg-yellow-100 text-yellow-900 dark:border-yellow-400 dark:bg-yellow-400/20 dark:text-yellow-100"
-          : status === "voting" || status === "confirmed"
-            ? "border-green-500 text-green-600 dark:border-green-600 dark:text-green-400"
-            : status === "completed"
-              ? "border-blue-500 text-blue-600 dark:border-blue-600 dark:text-blue-400"
-              : "border-destructive text-destructive";
+        const badgeVariant: StatusVariant = isPastPending
+          ? "needsConfirm"
+          : (status as StatusVariant) || "neutral";
         const badgeText = isPastPending
           ? tf("needsConfirm")
           : ts(status as "voting" | "confirmed" | "completed" | "cancelled");
         return (
-          <div className={cn(showLed && "led-border")}>
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>{td("upcomingSession")}</span>
-                  {upcomingSession && (
-                    <Badge variant="outline" className={badgeClass}>
-                      {badgeText}
-                    </Badge>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {upcomingSession ? (
-                  <div className="space-y-3">
-                    <div className="space-y-2.5">
-                      <div className="flex items-center gap-3 text-base">
-                        <CalendarDays className="text-muted-foreground h-5 w-5" />
-                        <span className="font-medium capitalize">
-                          {formatDateFull(upcomingSession.date)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3 text-base">
-                        <Clock className="text-muted-foreground h-5 w-5" />
-                        <span>
-                          {upcomingSession.startTime} -{" "}
-                          {upcomingSession.endTime}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3 text-base">
-                        <MapPin className="text-muted-foreground h-5 w-5" />
-                        <span>
-                          {upcomingSession.courtName || td("courtNotSelected")}
-                        </span>
-                        {upcomingSession.courtMapLink && (
-                          <a
-                            href={upcomingSession.courtMapLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary inline-flex items-center gap-1 text-sm hover:underline"
-                          >
-                            <Navigation className="h-4 w-4" />{" "}
-                            {ts("directions")}
-                          </a>
+          <LedBorder active={showLed} variant="pink">
+            <SectionCard
+              tone="neutral"
+              icon={CalendarDays}
+              title={td("upcomingSession")}
+              action={
+                upcomingSession && (
+                  <StatusBadge variant={badgeVariant}>{badgeText}</StatusBadge>
+                )
+              }
+            >
+              {upcomingSession ? (
+                <div className="space-y-3">
+                  <div className="space-y-2.5">
+                    <div className="flex items-center gap-3 text-base">
+                      <CalendarDays className="text-muted-foreground h-5 w-5" />
+                      <span className="font-medium capitalize">
+                        {formatDateFull(upcomingSession.date)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-base">
+                      <Clock className="text-muted-foreground h-5 w-5" />
+                      <span>
+                        {upcomingSession.startTime} - {upcomingSession.endTime}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-base">
+                      <MapPin className="text-muted-foreground h-5 w-5" />
+                      <span>
+                        {upcomingSession.courtName || td("courtNotSelected")}
+                      </span>
+                      {upcomingSession.courtMapLink && (
+                        <a
+                          href={upcomingSession.courtMapLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary inline-flex items-center gap-1 text-sm hover:underline"
+                        >
+                          <Navigation className="h-4 w-4" /> {ts("directions")}
+                        </a>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-x-5 gap-y-1.5 pt-1 text-base">
+                      <span>
+                        🏸 {ts("badminton")}:{" "}
+                        <strong className="text-primary">
+                          {upcomingSession.playerCount +
+                            upcomingSession.guestPlayCount}
+                        </strong>{" "}
+                        {ts("people")}
+                        {upcomingSession.guestPlayCount > 0 && (
+                          <span className="tabular-nums">
+                            {" "}
+                            ({upcomingSession.guestPlayCount} {ts("guest")})
+                          </span>
                         )}
+                      </span>
+                      <span>
+                        🍻 {ts("dining")}:{" "}
+                        <strong className="text-orange-500 dark:text-orange-400">
+                          {upcomingSession.dinerCount +
+                            upcomingSession.guestDineCount}
+                        </strong>{" "}
+                        {ts("people")}
+                        {upcomingSession.guestDineCount > 0 && (
+                          <span className="tabular-nums">
+                            {" "}
+                            ({upcomingSession.guestDineCount} {ts("guest")})
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Vote progress */}
+                  {upcomingSession.totalEligibleVoters > 0 && (
+                    <div className="bg-background/60 dark:bg-background/40 ring-border/60 rounded-xl p-3 shadow-sm ring-1">
+                      <div className="mb-1.5 flex items-baseline justify-between text-sm">
+                        <span className="text-muted-foreground">
+                          Tiến độ vote
+                        </span>
+                        <span className="text-foreground font-semibold tabular-nums">
+                          <span className="text-primary text-lg font-bold">
+                            {upcomingSession.votedCount}
+                          </span>
+                          <span className="text-muted-foreground">
+                            /{upcomingSession.totalEligibleVoters}
+                          </span>
+                        </span>
                       </div>
-                      <div className="flex flex-wrap gap-x-5 gap-y-1.5 pt-1 text-base">
-                        <span>
-                          🏸 {ts("badminton")}:{" "}
-                          <strong className="text-primary">
-                            {upcomingSession.playerCount +
-                              upcomingSession.guestPlayCount}
-                          </strong>{" "}
-                          {ts("people")}
-                          {upcomingSession.guestPlayCount > 0 && (
-                            <span className="tabular-nums">
-                              {" "}
-                              ({upcomingSession.guestPlayCount} {ts("guest")})
-                            </span>
-                          )}
-                        </span>
-                        <span>
-                          🍻 {ts("dining")}:{" "}
-                          <strong className="text-orange-500 dark:text-orange-400">
-                            {upcomingSession.dinerCount +
-                              upcomingSession.guestDineCount}
-                          </strong>{" "}
-                          {ts("people")}
-                          {upcomingSession.guestDineCount > 0 && (
-                            <span className="tabular-nums">
-                              {" "}
-                              ({upcomingSession.guestDineCount} {ts("guest")})
-                            </span>
-                          )}
-                        </span>
+                      <div className="bg-muted h-2 overflow-hidden rounded-full">
+                        <div
+                          className="bg-primary h-full rounded-full transition-all"
+                          style={{ width: `${votedPct}%` }}
+                        />
                       </div>
                     </div>
+                  )}
 
-                    {/* Vote progress */}
-                    {upcomingSession.totalEligibleVoters > 0 && (
-                      <div className="bg-background/60 dark:bg-background/40 rounded-xl p-3">
-                        <div className="mb-1.5 flex items-baseline justify-between text-sm">
-                          <span className="text-muted-foreground">
-                            Tiến độ vote
-                          </span>
-                          <span className="text-foreground font-semibold tabular-nums">
-                            <span className="text-primary text-lg font-bold">
-                              {upcomingSession.votedCount}
-                            </span>
-                            <span className="text-muted-foreground">
-                              /{upcomingSession.totalEligibleVoters}
-                            </span>
-                          </span>
-                        </div>
-                        <div className="bg-muted h-2 overflow-hidden rounded-full">
-                          <div
-                            className="bg-primary h-full rounded-full transition-all"
-                            style={{ width: `${votedPct}%` }}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    <Link href="/admin/sessions">
-                      <Button size="lg" className="w-full">
-                        {td("manageSession")}
-                        <ArrowRight className="ml-1 h-4 w-4" />
-                      </Button>
-                    </Link>
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground text-sm">
-                    {td("noUpcoming")}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                  <Link href="/admin/sessions">
+                    <Button size="lg" className="w-full">
+                      {td("manageSession")}
+                      <ArrowRight className="ml-1 h-4 w-4" />
+                    </Button>
+                  </Link>
+                </div>
+              ) : (
+                <EmptyState variant="inline" title={td("noUpcoming")} />
+              )}
+            </SectionCard>
+          </LedBorder>
         );
       })()}
 
       {/* Tình hình tài chính — emerald tint */}
-      <Card className="border-emerald-200/50 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-950/20">
-        <CardHeader className="flex-row items-center justify-between gap-3 pb-3">
-          <CardTitle className="flex items-center gap-2">
-            <PiggyBank className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-            Tình hình tài chính
-          </CardTitle>
+      <SectionCard
+        tone="emerald"
+        icon={PiggyBank}
+        title="Tình hình tài chính"
+        action={
           <Link href="/admin/fund">
             <Button variant="outline" size="sm">
               Chi tiết
               <ArrowRight className="ml-1 h-4 w-4" />
             </Button>
           </Link>
-        </CardHeader>
-        <CardContent className="pb-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <div className="bg-background/60 dark:bg-background/40 rounded-xl p-3">
-              <div className="text-muted-foreground flex items-center gap-1.5 text-sm">
-                <Coins className="h-4 w-4 text-emerald-500" />
-                Quỹ còn dư
-              </div>
-              <div className="mt-1 text-xl font-bold text-emerald-600 tabular-nums dark:text-emerald-400">
-                {formatK(totalPositiveBalance)}
-              </div>
-            </div>
-            <div className="bg-background/60 dark:bg-background/40 rounded-xl p-3">
-              <div className="text-muted-foreground flex items-center gap-1.5 text-sm">
-                <AlertTriangle className="text-destructive h-4 w-4" />
-                Tổng nợ
-              </div>
-              <div className="text-destructive mt-1 text-xl font-bold tabular-nums">
+        }
+      >
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <StatTile
+            tone="neutral"
+            size="sm"
+            icon={Coins}
+            label="Quỹ còn dư"
+            value={formatK(totalPositiveBalance)}
+            valueClassName="text-emerald-600 dark:text-emerald-400 text-xl"
+          />
+          <StatTile
+            tone="neutral"
+            size="sm"
+            icon={AlertTriangle}
+            label="Tổng nợ"
+            value={
+              <>
                 −{formatK(totalOutstanding)}
-              </div>
-              <div className="text-muted-foreground mt-0.5 text-xs">
-                {owingCount} người
-              </div>
-            </div>
-            <div className="bg-background/60 dark:bg-background/40 col-span-2 rounded-xl p-3 sm:col-span-1">
-              <div className="text-muted-foreground flex items-center gap-1.5 text-sm">
-                <Wallet className="text-foreground h-4 w-4" />
-                Số dư ròng
-              </div>
-              <div
-                className={cn(
-                  "mt-1 text-xl font-bold tabular-nums",
-                  netCash >= 0
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-destructive",
-                )}
-              >
-                {netCash >= 0 ? "+" : ""}
-                {formatK(netCash)}
-              </div>
-            </div>
-          </div>
+                <div className="text-muted-foreground mt-0.5 text-xs font-normal">
+                  {owingCount} người
+                </div>
+              </>
+            }
+            valueClassName="text-destructive text-xl"
+          />
+          <StatTile
+            tone="neutral"
+            size="sm"
+            icon={Wallet}
+            label="Số dư ròng"
+            value={`${netCash >= 0 ? "+" : ""}${formatK(netCash)}`}
+            valueClassName={cn(
+              "text-xl",
+              netCash >= 0
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-destructive",
+            )}
+            className="col-span-2 sm:col-span-1"
+          />
+        </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <div className="rounded-xl border border-emerald-200/40 bg-emerald-100/40 p-3 dark:border-emerald-900/30 dark:bg-emerald-950/30">
-              <div className="text-muted-foreground flex items-center gap-1.5 text-sm">
-                <TrendingUp className="h-4 w-4 text-emerald-500" />
-                Thu {monthLabel}
-              </div>
-              <div className="mt-1 text-lg font-bold text-emerald-600 tabular-nums dark:text-emerald-400">
-                +{formatK(monthIn)}
-              </div>
-            </div>
-            <div className="rounded-xl border border-orange-200/40 bg-orange-100/40 p-3 dark:border-orange-900/30 dark:bg-orange-950/30">
-              <div className="text-muted-foreground flex items-center gap-1.5 text-sm">
-                <TrendingDown className="h-4 w-4 text-orange-500" />
-                Chi {monthLabel}
-              </div>
-              <div className="mt-1 text-lg font-bold text-orange-600 tabular-nums dark:text-orange-400">
-                −{formatK(monthOut)}
-              </div>
-            </div>
-            <div className="bg-background/60 dark:bg-background/40 col-span-2 rounded-xl border p-3 sm:col-span-1">
-              <div className="text-muted-foreground flex items-center gap-1.5 text-sm">
-                <ShoppingBag className="h-4 w-4 text-amber-500" />
-                Mua cầu {monthLabel}
-              </div>
-              <div className="mt-1 text-lg font-bold text-amber-600 tabular-nums dark:text-amber-400">
-                {formatK(monthInventorySpend)}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <StatTile
+            tone="emerald"
+            size="sm"
+            icon={TrendingUp}
+            label={`Thu ${monthLabel}`}
+            value={`+${formatK(monthIn)}`}
+          />
+          <StatTile
+            tone="orange"
+            size="sm"
+            icon={TrendingDown}
+            label={`Chi ${monthLabel}`}
+            value={`−${formatK(monthOut)}`}
+          />
+          <StatTile
+            tone="amber"
+            size="sm"
+            icon={ShoppingBag}
+            label={`Mua cầu ${monthLabel}`}
+            value={formatK(monthInventorySpend)}
+            className="col-span-2 sm:col-span-1"
+          />
+        </div>
+      </SectionCard>
 
       {/* Tiền sân tháng — cyan tint */}
-      <Card className="border-cyan-200/50 bg-cyan-50/40 dark:border-cyan-900/40 dark:bg-cyan-950/20">
-        <CardHeader className="flex-row items-center justify-between gap-3 pb-3">
-          <CardTitle className="flex items-center gap-2">
-            <Landmark className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
-            Tiền sân {monthLabel}
-          </CardTitle>
+      <SectionCard
+        tone="cyan"
+        icon={Landmark}
+        title={`Tiền sân ${monthLabel}`}
+        action={
           <Link href="/admin/court-rent">
             <Button variant="outline" size="sm">
               Đối soát
               <ArrowRight className="ml-1 h-4 w-4" />
             </Button>
           </Link>
-        </CardHeader>
-        <CardContent className="pb-4">
-          {sessionsThisMonth === 0 ? (
-            <p className="text-muted-foreground py-2 text-center text-sm">
-              Chưa có buổi nào trong tháng
-            </p>
-          ) : (
-            <>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="bg-background/60 dark:bg-background/40 rounded-xl p-3">
-                  <div className="text-muted-foreground text-xs">Cần trả</div>
-                  <div className="text-foreground mt-1 text-base font-bold tabular-nums sm:text-lg">
-                    {formatK(courtRentExpectedThisMonth)}
-                  </div>
-                </div>
-                <div className="bg-background/60 dark:bg-background/40 rounded-xl p-3">
-                  <div className="text-muted-foreground text-xs">Đã trả</div>
-                  <div className="mt-1 text-base font-bold text-emerald-600 tabular-nums sm:text-lg dark:text-emerald-400">
-                    {formatK(courtRentPaidThisMonth)}
-                  </div>
-                </div>
-                <div className="bg-background/60 dark:bg-background/40 rounded-xl p-3">
-                  <div className="text-muted-foreground text-xs">Còn lại</div>
-                  <div
-                    className={cn(
-                      "mt-1 text-base font-bold tabular-nums sm:text-lg",
-                      courtRentRemainingThisMonth === 0
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : "text-orange-600 dark:text-orange-400",
-                    )}
-                  >
-                    {formatK(courtRentRemainingThisMonth)}
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-muted mt-3 h-2 overflow-hidden rounded-full">
-                <div
-                  className={cn(
-                    "h-full rounded-full transition-all",
-                    courtRentPct >= 100 ? "bg-emerald-500" : "bg-cyan-500",
-                  )}
-                  style={{ width: `${courtRentPct}%` }}
-                />
-              </div>
-              <div className="text-muted-foreground mt-2 text-xs">
-                {sessionsThisMonth} buổi trong tháng ·{" "}
-                {completedSessionsThisMonth} đã chốt
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Members owing — top 5 — destructive tint. Ẩn nếu không có ai nợ. */}
-      {topOwingMembers.length > 0 && (
-        <Card className="border-rose-200/50 bg-rose-50/40 dark:border-rose-900/40 dark:bg-rose-950/20">
-          <CardHeader className="flex-row items-center justify-between gap-3 pb-3">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="text-destructive h-5 w-5" />
-                Thành viên còn nợ quỹ
-              </CardTitle>
-              <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-base">
-                <span className="text-muted-foreground">
-                  <strong className="text-destructive tabular-nums">
-                    {owingCount}
-                  </strong>{" "}
-                  người · tổng
-                </span>
-                <strong className="text-destructive text-2xl font-bold tabular-nums">
-                  {formatK(totalOutstanding)}
-                </strong>
-              </div>
+        }
+      >
+        {sessionsThisMonth === 0 ? (
+          <EmptyState variant="inline" title="Chưa có buổi nào trong tháng" />
+        ) : (
+          <>
+            <div className="grid grid-cols-3 gap-2">
+              <StatTile
+                tone="neutral"
+                size="sm"
+                label="Cần trả"
+                value={formatK(courtRentExpectedThisMonth)}
+              />
+              <StatTile
+                tone="neutral"
+                size="sm"
+                label="Đã trả"
+                value={formatK(courtRentPaidThisMonth)}
+                valueClassName="text-emerald-600 dark:text-emerald-400"
+              />
+              <StatTile
+                tone="neutral"
+                size="sm"
+                label="Còn lại"
+                value={formatK(courtRentRemainingThisMonth)}
+                valueClassName={cn(
+                  courtRentRemainingThisMonth === 0
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-orange-600 dark:text-orange-400",
+                )}
+              />
             </div>
+
+            <div className="bg-muted mt-3 h-2 overflow-hidden rounded-full">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all",
+                  courtRentPct >= 100 ? "bg-emerald-500" : "bg-cyan-500",
+                )}
+                style={{ width: `${courtRentPct}%` }}
+              />
+            </div>
+            <div className="text-muted-foreground mt-2 text-xs">
+              {sessionsThisMonth} buổi trong tháng ·{" "}
+              {completedSessionsThisMonth} đã chốt
+            </div>
+          </>
+        )}
+      </SectionCard>
+
+      {/* Members owing — top 5 — rose tint. Ẩn nếu không có ai nợ. */}
+      {topOwingMembers.length > 0 && (
+        <SectionCard
+          tone="rose"
+          icon={AlertTriangle}
+          title="Thành viên còn nợ quỹ"
+          subtitle={
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-base">
+              <span className="text-muted-foreground">
+                <strong className="text-destructive tabular-nums">
+                  {owingCount}
+                </strong>{" "}
+                người · tổng
+              </span>
+              <strong className="text-destructive text-2xl font-bold tabular-nums">
+                {formatK(totalOutstanding)}
+              </strong>
+            </div>
+          }
+          action={
             <Link href="/admin/fund">
               <Button variant="outline" size="sm">
                 Xem tất cả
                 <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
             </Link>
-          </CardHeader>
-          <CardContent className="pb-4">
-            <ul className="bg-background/60 dark:bg-background/40 divide-y rounded-xl">
-              {topOwingMembers.map((m) => (
-                <li
-                  key={m.memberId}
-                  className="flex items-center gap-3 px-3 py-2.5"
-                >
-                  <MemberAvatar
-                    memberId={m.memberId}
-                    avatarKey={m.memberAvatarKey}
-                    avatarUrl={m.memberAvatarUrl}
-                    size={32}
-                  />
-                  <span className="min-w-0 flex-1 truncate text-base font-medium">
-                    {m.memberName}
-                  </span>
-                  <span className="text-destructive shrink-0 text-base font-bold tabular-nums">
-                    −{formatK(m.amount)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
+          }
+        >
+          <ul className="bg-background/60 dark:bg-background/40 ring-border/60 divide-y rounded-xl shadow-sm ring-1">
+            {topOwingMembers.map((m) => (
+              <li
+                key={m.memberId}
+                className="flex items-center gap-3 px-3 py-2.5"
+              >
+                <MemberAvatar
+                  memberId={m.memberId}
+                  avatarKey={m.memberAvatarKey}
+                  avatarUrl={m.memberAvatarUrl}
+                  size={32}
+                />
+                <span className="min-w-0 flex-1 truncate text-base font-medium">
+                  {m.memberName}
+                </span>
+                <span className="text-destructive shrink-0 text-base font-bold tabular-nums">
+                  −{formatK(m.amount)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
       )}
 
       {/* Recent transactions — slate tint */}
-      <Card className="border-slate-200/50 bg-slate-50/40 dark:border-slate-800/40 dark:bg-slate-950/30">
-        <CardHeader className="flex-row items-center justify-between gap-3 pb-3">
-          <CardTitle className="flex items-center gap-2">
-            <Receipt className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-            Giao dịch gần đây
-          </CardTitle>
+      <SectionCard
+        tone="slate"
+        icon={Receipt}
+        title="Giao dịch gần đây"
+        action={
           <Link href="/admin/fund/transactions">
             <Button variant="outline" size="sm">
               Xem tất cả
               <ArrowRight className="ml-1 h-4 w-4" />
             </Button>
           </Link>
-        </CardHeader>
-        <CardContent className="pb-4">
-          {recentTransactions.length === 0 ? (
-            <p className="text-muted-foreground py-4 text-center text-sm">
-              Chưa có giao dịch nào
-            </p>
-          ) : (
-            <ul className="bg-background/60 dark:bg-background/40 divide-y rounded-xl">
-              {recentTransactions.map((tx) => {
-                const meta = TX_ICON[tx.type] ?? {
-                  icon: RotateCcw,
-                  cls: "text-muted-foreground",
-                };
-                const Icon = meta.icon;
-                const sign =
-                  tx.direction === "in"
-                    ? "+"
-                    : tx.direction === "out"
-                      ? "−"
-                      : "";
-                const amountColor =
-                  tx.direction === "in"
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : tx.direction === "out"
-                      ? "text-red-600 dark:text-red-400"
-                      : "text-foreground";
-                return (
-                  <li
-                    key={tx.id}
-                    className="flex items-center gap-3 px-3 py-2.5"
-                  >
-                    {tx.memberId !== null ? (
-                      <MemberAvatar
-                        memberId={tx.memberId}
-                        avatarKey={tx.memberAvatarKey}
-                        avatarUrl={tx.memberAvatarUrl}
-                        size={32}
-                      />
-                    ) : (
-                      <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
-                        <Icon className={cn("h-4 w-4", meta.cls)} />
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <Icon
-                          className={cn("h-3.5 w-3.5 shrink-0", meta.cls)}
-                        />
-                        <span className="truncate text-sm font-semibold">
-                          {tx.memberName ?? "Hệ thống"}
-                        </span>
-                      </div>
-                      {tx.description && (
-                        <p className="text-muted-foreground truncate text-xs">
-                          {tx.description}
-                        </p>
-                      )}
-                      <p className="text-muted-foreground text-xs tabular-nums">
-                        {shortDateTime(tx.createdAt, locale)}
-                      </p>
+        }
+      >
+        {recentTransactions.length === 0 ? (
+          <EmptyState variant="inline" title="Chưa có giao dịch nào" />
+        ) : (
+          <ul className="bg-background/60 dark:bg-background/40 ring-border/60 divide-y rounded-xl shadow-sm ring-1">
+            {recentTransactions.map((tx) => {
+              const meta = TX_ICON[tx.type] ?? {
+                icon: RotateCcw,
+                cls: "text-muted-foreground",
+              };
+              const Icon = meta.icon;
+              const sign =
+                tx.direction === "in" ? "+" : tx.direction === "out" ? "−" : "";
+              const amountColor =
+                tx.direction === "in"
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : tx.direction === "out"
+                    ? "text-red-600 dark:text-red-400"
+                    : "text-foreground";
+              return (
+                <li key={tx.id} className="flex items-center gap-3 px-3 py-2.5">
+                  {tx.memberId !== null ? (
+                    <MemberAvatar
+                      memberId={tx.memberId}
+                      avatarKey={tx.memberAvatarKey}
+                      avatarUrl={tx.memberAvatarUrl}
+                      size={32}
+                    />
+                  ) : (
+                    <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
+                      <Icon className={cn("h-4 w-4", meta.cls)} />
                     </div>
-                    <span
-                      className={cn(
-                        "shrink-0 text-base font-bold tabular-nums",
-                        amountColor,
-                      )}
-                    >
-                      {sign}
-                      {formatK(tx.amount)}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <Icon className={cn("h-3.5 w-3.5 shrink-0", meta.cls)} />
+                      <span className="truncate text-sm font-semibold">
+                        {tx.memberName ?? "Hệ thống"}
+                      </span>
+                    </div>
+                    {tx.description && (
+                      <p className="text-muted-foreground truncate text-xs">
+                        {tx.description}
+                      </p>
+                    )}
+                    <p className="text-muted-foreground text-xs tabular-nums">
+                      {shortDateTime(tx.createdAt, locale)}
+                    </p>
+                  </div>
+                  <span
+                    className={cn(
+                      "shrink-0 text-base font-bold tabular-nums",
+                      amountColor,
+                    )}
+                  >
+                    {sign}
+                    {formatK(tx.amount)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </SectionCard>
     </div>
   );
 }

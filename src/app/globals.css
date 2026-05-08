@@ -236,11 +236,17 @@
 
 /* LED running border — rotating conic gradient, used for sessions đang vote.
  * Uses transform-rotation on an oversized pseudo-element so the bright sweep
- * tracks the card's perimeter. Compatible with all evergreen browsers. */
+ * tracks the card's perimeter. Compatible with all evergreen browsers.
+ *
+ * Default = PINK NEON (theo yêu cầu UX: buổi đang vote phải nổi bật trên
+ * mọi theme — light/pink/dark — và pink khớp với primary của brand FWBB).
+ * Variants: `.led-border.green`, `.led-border.primary` để override khi
+ * cần xanh / màu primary.  */
 .led-border {
   position: relative;
-  border-radius: 0.875rem;
-  padding: 2px;
+  border-radius: 0.9rem;
+  /* Padding 3px — sweet spot giữa 2px (mỏng quá) và 4px (dày quá). */
+  padding: 3px;
   overflow: hidden;
   isolation: isolate;
   background: transparent;
@@ -253,14 +259,19 @@
   height: 200%;
   top: -50%;
   left: -50%;
+  /* Style cũ (sweep ngắn ~80°). Màu = `var(--primary)` của theme hiện hành:
+   *   light → indigo (#6366f1)
+   *   dark  → light indigo (#818cf8)
+   *   pink  → pink-500 (#ec4899)
+   * Sparkle = primary mix với white để tạo highlight sáng. */
   background: conic-gradient(
     from 0deg,
     transparent 0deg,
     transparent 280deg,
-    #22c55e 320deg,
-    #4ade80 340deg,
-    #86efac 350deg,
-    #4ade80 358deg,
+    var(--primary) 320deg,
+    color-mix(in oklab, var(--primary), white 20%) 340deg,
+    color-mix(in oklab, var(--primary), white 40%) 350deg,
+    color-mix(in oklab, var(--primary), white 20%) 358deg,
     transparent 360deg
   );
   animation: led-rotate 3.5s linear infinite;
@@ -278,8 +289,8 @@
     from 0deg,
     transparent 0deg,
     transparent 280deg,
-    rgba(34, 197, 94, 0.5) 320deg,
-    rgba(74, 222, 128, 0.6) 340deg,
+    color-mix(in oklab, var(--primary), transparent 50%) 320deg,
+    color-mix(in oklab, var(--primary), transparent 30%) 340deg,
     transparent 360deg
   );
   filter: blur(10px);
@@ -289,7 +300,55 @@
 .led-border > * {
   position: relative;
   z-index: 1;
-  border-radius: calc(0.875rem - 2px);
+  border-radius: calc(0.9rem - 3px);
+}
+
+/* GREEN variant — legacy. Cùng style cũ, hue xanh. */
+.led-border.green::before {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 280deg,
+    #22c55e 320deg,
+    #4ade80 340deg,
+    #86efac 350deg,
+    #4ade80 358deg,
+    transparent 360deg
+  );
+}
+.led-border.green::after {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 280deg,
+    rgba(34, 197, 94, 0.5) 320deg,
+    rgba(74, 222, 128, 0.6) 340deg,
+    transparent 360deg
+  );
+}
+
+/* PRIMARY variant — auto theo brand (`var(--primary)`). */
+.led-border.primary::before {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 280deg,
+    var(--primary) 320deg,
+    color-mix(in oklab, var(--primary), white 25%) 340deg,
+    color-mix(in oklab, var(--primary), white 45%) 350deg,
+    color-mix(in oklab, var(--primary), white 25%) 358deg,
+    transparent 360deg
+  );
+}
+.led-border.primary::after {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 280deg,
+    color-mix(in oklab, var(--primary), transparent 50%) 320deg,
+    color-mix(in oklab, var(--primary), transparent 30%) 340deg,
+    transparent 360deg
+  );
 }
 
 @keyframes led-rotate {

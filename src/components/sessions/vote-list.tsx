@@ -45,7 +45,7 @@ export function VoteList({
   return (
     <div className="space-y-4">
       {votedSorted.length > 0 && (
-        <div className="space-y-2">
+        <div className="bg-background/60 dark:bg-background/40 ring-border/60 divide-border/60 divide-y overflow-hidden rounded-xl shadow-sm ring-1">
           <AnimatePresence initial={false}>
             {votedSorted.map((member) => {
               const vote = voteMap.get(member.id)!;
@@ -57,7 +57,7 @@ export function VoteList({
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                  className="flex items-center gap-3 py-2.5"
+                  className="flex items-center gap-3 px-3 py-2.5"
                 >
                   <MemberAvatar
                     memberId={member.id}
@@ -100,27 +100,31 @@ export function VoteList({
           <p className="text-muted-foreground text-base font-semibold tracking-wider uppercase">
             {t("notVoted")} ({notVotedMembers.length})
           </p>
-          <AnimatePresence initial={false}>
-            {notVotedMembers.map((member) => (
-              <motion.div
-                key={member.id}
-                layout
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 0.5 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                className="flex items-center gap-3 py-2"
-              >
-                <MemberAvatar
-                  memberId={member.id}
-                  avatarKey={member.avatarKey}
-                  avatarUrl={member.avatarUrl}
-                  size={40}
-                />
-                <p className="truncate text-base font-medium">{member.name}</p>
-              </motion.div>
-            ))}
-          </AnimatePresence>
+          <div className="bg-background/60 dark:bg-background/40 ring-border/60 divide-border/60 divide-y overflow-hidden rounded-xl shadow-sm ring-1">
+            <AnimatePresence initial={false}>
+              {notVotedMembers.map((member) => (
+                <motion.div
+                  key={member.id}
+                  layout
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 0.6 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="flex items-center gap-3 px-3 py-2"
+                >
+                  <MemberAvatar
+                    memberId={member.id}
+                    avatarKey={member.avatarKey}
+                    avatarUrl={member.avatarUrl}
+                    size={40}
+                  />
+                  <p className="truncate text-base font-medium">
+                    {member.name}
+                  </p>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
         </div>
       )}
 

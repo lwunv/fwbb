@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { InlineNotice } from "@/components/shared/inline-notice";
+import { InfoRow } from "@/components/shared/info-row";
 import {
   ShieldCheck,
   Loader2,
@@ -57,73 +59,54 @@ export function ReconcilePanel() {
 
         {report && (
           <div className="space-y-3">
-            <div
-              className={cn(
-                "flex items-start gap-2 rounded-xl border p-3",
-                report.ok
-                  ? "border-green-500/40 bg-green-500/5"
-                  : "border-destructive/40 bg-destructive/5",
-              )}
+            <InlineNotice
+              tone={report.ok ? "success" : "danger"}
+              icon={report.ok ? CheckCircle2 : AlertTriangle}
             >
-              {report.ok ? (
-                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600 dark:text-green-400" />
-              ) : (
-                <AlertTriangle className="text-destructive mt-0.5 h-5 w-5 shrink-0" />
-              )}
-              <div className="min-w-0 flex-1 text-sm">
-                <p
-                  className={cn(
-                    "font-semibold",
-                    report.ok
-                      ? "text-green-700 dark:text-green-300"
-                      : "text-destructive",
-                  )}
-                >
-                  {report.ok
-                    ? t("reconcileBalanced")
-                    : t("reconcileErrorsFound", {
-                        count: report.issues.filter(
-                          (i) => i.severity === "error",
-                        ).length,
-                      })}
-                </p>
-                <p className="text-muted-foreground text-xs">
-                  {t("reconcileGeneratedAt", {
-                    time: new Date(report.generatedAt).toLocaleString(
-                      locale === "en" ? "en-US" : locale,
-                    ),
-                  })}
-                </p>
-              </div>
-            </div>
+              <p className="font-semibold">
+                {report.ok
+                  ? t("reconcileBalanced")
+                  : t("reconcileErrorsFound", {
+                      count: report.issues.filter((i) => i.severity === "error")
+                        .length,
+                    })}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                {t("reconcileGeneratedAt", {
+                  time: new Date(report.generatedAt).toLocaleString(
+                    locale === "en" ? "en-US" : locale,
+                  ),
+                })}
+              </p>
+            </InlineNotice>
 
-            <div className="grid gap-2 text-sm sm:grid-cols-2">
-              <Row
+            <div className="grid gap-2 sm:grid-cols-2">
+              <InfoRow
                 label={t("reconcileTotalIn")}
-                value={report.totals.totalIn}
+                value={formatVND(report.totals.totalIn)}
               />
-              <Row
+              <InfoRow
                 label={t("reconcileTotalOut")}
-                value={report.totals.totalOut}
+                value={formatVND(report.totals.totalOut)}
               />
-              <Row
+              <InfoRow
                 label={t("reconcileTotalRefund")}
-                value={report.totals.totalRefund}
+                value={formatVND(report.totals.totalRefund)}
               />
-              <Row
+              <InfoRow
                 label={t("reconcileBalanceFromTx")}
-                value={report.totals.netInternal}
-                accent="text-primary"
+                value={formatVND(report.totals.netInternal)}
+                valueClassName="text-primary"
               />
-              <Row
+              <InfoRow
                 label={t("reconcileSumPositive")}
-                value={report.totals.sumPositiveBalances}
-                accent="text-green-600 dark:text-green-400"
+                value={formatVND(report.totals.sumPositiveBalances)}
+                valueClassName="text-green-600 dark:text-green-400"
               />
-              <Row
+              <InfoRow
                 label={t("reconcileSumNegative")}
-                value={report.totals.sumNegativeBalances}
-                accent="text-destructive"
+                value={formatVND(report.totals.sumNegativeBalances)}
+                valueClassName="text-destructive"
               />
             </div>
 
@@ -158,22 +141,5 @@ export function ReconcilePanel() {
         )}
       </CardContent>
     </Card>
-  );
-}
-
-function Row({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: number;
-  accent?: string;
-}) {
-  return (
-    <div className="bg-muted/30 flex items-center justify-between gap-2 rounded-lg border px-3 py-2">
-      <span className="text-muted-foreground truncate">{label}</span>
-      <strong className={cn("tabular-nums", accent)}>{formatVND(value)}</strong>
-    </div>
   );
 }

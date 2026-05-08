@@ -221,7 +221,9 @@ export function VoteButtons({
   }
 
   return (
-    <div className="border-border/80 bg-muted/45 dark:bg-muted/25 space-y-3 rounded-xl border p-3">
+    // Bỏ wrapper card-in-card (trước đây bao thêm 1 lớp border + bg-muted)
+    // → giảm visual clutter (3 lớp border xuống còn 2: Card ngoài + viền item).
+    <div className="space-y-3">
       {/* Card: Play */}
       <div
         className={cn(

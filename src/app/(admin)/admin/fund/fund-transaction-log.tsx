@@ -12,6 +12,9 @@ import { useTranslations, useLocale } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { MemberAvatar } from "@/components/shared/member-avatar";
+import { TabSegment } from "@/components/shared/tab-segment";
+import { EmptyState } from "@/components/shared/empty-state";
+import { Input } from "@/components/ui/input";
 import { formatK } from "@/lib/utils";
 
 type FinancialTxType =
@@ -170,13 +173,13 @@ export function FundTransactionLog({ transactions }: Props) {
 
         <div className="grid gap-2 sm:grid-cols-[1fr_minmax(180px,220px)]">
           <div className="relative">
-            <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-            <input
+            <Search className="text-muted-foreground absolute top-1/2 left-3 z-10 h-4 w-4 -translate-y-1/2" />
+            <Input
               type="text"
               placeholder={t("logSearchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="bg-background dark:bg-background focus:ring-primary h-12 w-full rounded-xl border pr-4 pl-11 text-base outline-none focus:ring-1"
+              className="pr-4 pl-11"
             />
           </div>
           <CustomSelect
@@ -190,56 +193,26 @@ export function FundTransactionLog({ transactions }: Props) {
           />
         </div>
 
-        <div className="flex flex-wrap gap-1.5">
-          {(
-            [
-              {
-                key: "all" as const,
-                label: t("logSourceAll"),
-                count: counts.all,
-              },
-              {
-                key: "auto" as const,
-                label: t("logSourceAuto"),
-                count: counts.auto,
-              },
-              {
-                key: "admin" as const,
-                label: t("logSourceAdmin"),
-                count: counts.admin,
-              },
-            ] as const
-          ).map(({ key, label, count }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setSourceFilter(key)}
-              className={`min-h-11 rounded-xl px-3 py-2 text-sm font-medium transition-colors sm:px-4 ${
-                sourceFilter === key
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80"
-              }`}
-            >
-              {label}
-              <span
-                className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs font-bold tabular-nums ${
-                  sourceFilter === key
-                    ? "bg-primary-foreground/20 text-primary-foreground"
-                    : "bg-background/60 text-foreground"
-                }`}
-              >
-                {count}
-              </span>
-            </button>
-          ))}
-        </div>
+        <TabSegment<"all" | "auto" | "admin">
+          variant="pills"
+          value={sourceFilter}
+          onChange={(v) => setSourceFilter(v)}
+          options={[
+            { value: "all", label: t("logSourceAll"), badge: counts.all },
+            { value: "auto", label: t("logSourceAuto"), badge: counts.auto },
+            { value: "admin", label: t("logSourceAdmin"), badge: counts.admin },
+          ]}
+        />
 
         {filtered.length === 0 ? (
-          <div className="text-muted-foreground py-8 text-center text-sm">
-            {transactions.length === 0
-              ? t("logEmptyAll")
-              : t("logEmptyFiltered")}
-          </div>
+          <EmptyState
+            variant="inline"
+            title={
+              transactions.length === 0
+                ? t("logEmptyAll")
+                : t("logEmptyFiltered")
+            }
+          />
         ) : (
           <ul className="space-y-2">
             <AnimatePresence mode="popLayout">
