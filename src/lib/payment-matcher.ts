@@ -222,7 +222,9 @@ async function matchSessionDebt(
   member: { id: number; name: string } | null,
   notificationId?: number,
 ): Promise<MatchResult> {
-  let debt: { id: number; memberId: number; totalAmount: number } | undefined;
+  let debt:
+    | { id: number; memberId: number; totalAmount: number; sessionId: number }
+    | undefined;
 
   // Helper: load debt only if the parent session is NOT cancelled.
   async function loadDebtForSession(sessionId: number, memberId: number) {
@@ -238,7 +240,12 @@ async function matchSessionDebt(
           eq(sessionDebts.memberId, memberId),
           eq(sessionDebts.memberConfirmed, false),
         ),
-        columns: { id: true, memberId: true, totalAmount: true },
+        columns: {
+          id: true,
+          memberId: true,
+          totalAmount: true,
+          sessionId: true,
+        },
       })) ?? undefined
     );
   }
@@ -322,11 +329,15 @@ async function matchAllDebts(
     ),
     with: { session: { columns: { status: true } } },
     orderBy: [asc(sessionDebts.id)],
-    columns: { id: true, totalAmount: true },
+    columns: { id: true, totalAmount: true, sessionId: true },
   });
   const unpaid = candidateDebts
     .filter((d) => d.session?.status !== "cancelled")
-    .map((d) => ({ id: d.id, totalAmount: d.totalAmount }));
+    .map((d) => ({
+      id: d.id,
+      totalAmount: d.totalAmount,
+      sessionId: d.sessionId,
+    }));
 
   if (unpaid.length === 0) {
     // Không nợ — nếu là fund member thì coi như nạp quỹ
@@ -377,6 +388,7 @@ async function matchAllDebts(
             direction: "in",
             amount: debt.totalAmount,
             memberId,
+            sessionId: debt.sessionId,
             debtId: debt.id,
             description: `Thanh toán toàn bộ nợ — debt #${debt.id}`,
             metadata: {
@@ -406,6 +418,7 @@ async function matchAllDebts(
             direction: "neutral",
             amount: debt.totalAmount,
             memberId,
+            sessionId: debt.sessionId,
             debtId: debt.id,
             description: "Bank webhook tự xác nhận admin đã nhận tiền (bulk)",
             metadata: { transId: payment.transId, autoConfirmedByBank: true },
@@ -415,12 +428,16 @@ async function matchAllDebts(
         );
         if ("error" in audit) throw new Error(audit.error);
 
+        // sessionId set để deleteSession reverse được — trước đây sessionId
+        // null làm balance-fix tồn tại sau khi session bị xóa → member's
+        // balance bị inflate.
         const balanceFix = await recordFinancialTransaction(
           {
             type: "fund_contribution",
             direction: "in",
             amount: debt.totalAmount,
             memberId,
+            sessionId: debt.sessionId,
             debtId: debt.id,
             description: `Cân bằng quỹ — đã trả nợ #${debt.id} qua chuyển khoản (bulk)`,
             metadata: { transId: payment.transId, balancesDebt: true },
@@ -429,6 +446,26 @@ async function matchAllDebts(
           tx,
         );
         if ("error" in balanceFix) throw new Error(balanceFix.error);
+      }
+
+      // Overpay credit — member chuyển dư so với tổng nợ → ghi credit vào
+      // fund balance của member (không gắn debt/session). Trước đây overpay
+      // chỉ hiện trong success message; admin giữ tiền, member không được
+      // credit → mất tiền cho member.
+      if (overpay > 0) {
+        const overpayCredit = await recordFinancialTransaction(
+          {
+            type: "fund_contribution",
+            direction: "in",
+            amount: overpay,
+            memberId,
+            description: `Dư chuyển khoản (transId ${payment.transId}) — credit vào quỹ`,
+            metadata: { transId: payment.transId, overpay: true },
+            idempotencyKey: `bank-payment-overpay-${payment.transId}`,
+          },
+          tx,
+        );
+        if ("error" in overpayCredit) throw new Error(overpayCredit.error);
       }
 
       // Atomic notification update — committed together with the ledger.
@@ -474,7 +511,12 @@ async function matchOldestDebt(
     ),
     with: { session: { columns: { status: true } } },
     orderBy: [asc(sessionDebts.id)],
-    columns: { id: true, memberId: true, totalAmount: true },
+    columns: {
+      id: true,
+      memberId: true,
+      totalAmount: true,
+      sessionId: true,
+    },
   });
   const debt = candidates.find((d) => d.session?.status !== "cancelled");
 
@@ -509,12 +551,21 @@ async function matchOldestDebt(
 
 async function confirmDebtFromBankTransfer(
   payment: ParsedTimoPayment,
-  debt: { id: number; memberId: number; totalAmount: number },
+  debt: {
+    id: number;
+    memberId: number;
+    totalAmount: number;
+    sessionId: number;
+  },
   memberName: string,
   notificationId?: number,
 ): Promise<MatchResult> {
   const now = new Date().toISOString();
   let txId: number | undefined;
+  // Overpay = số tiền dư so với nợ (sau khi roundToThousand). Trước đây
+  // chỉ hiện trong success message — admin giữ tiền, member không được
+  // credit. Giờ ghi vào fund_contribution không gắn debt/session.
+  const overpay = Math.max(0, payment.amount - debt.totalAmount);
 
   try {
     await db.transaction(async (tx) => {
@@ -539,12 +590,13 @@ async function confirmDebtFromBankTransfer(
           direction: "in",
           amount: payment.amount,
           memberId: debt.memberId,
+          sessionId: debt.sessionId,
           debtId: debt.id,
           description: `Nhận chuyển khoản nợ #${debt.id}`,
           metadata: {
             transId: payment.transId,
             memo: payment.memo,
-            overpaidBy: payment.amount - debt.totalAmount,
+            overpaidBy: overpay,
           },
           // Idempotent at ledger level — `transId` is unique per Timo
           // transaction, and we may receive the same Pub/Sub message
@@ -557,17 +609,14 @@ async function confirmDebtFromBankTransfer(
       if ("error" in r) throw new Error(r.error);
       txId = r.id;
 
-      // Audit row mirroring `confirmPaymentByAdmin`'s ledger event so
-      // reconciliation can correlate "bank_payment_received" with an
-      // explicit "debt_admin_confirmed" event. Without this, the ledger
-      // history of an auto-confirmed debt is asymmetric vs. one
-      // confirmed manually by admin — same end-state, different audit.
+      // Audit row mirroring `confirmPaymentByAdmin`'s ledger event.
       const audit = await recordFinancialTransaction(
         {
           type: "debt_admin_confirmed",
           direction: "neutral",
           amount: debt.totalAmount,
           memberId: debt.memberId,
+          sessionId: debt.sessionId,
           debtId: debt.id,
           description: "Bank webhook tự xác nhận admin đã nhận tiền",
           metadata: {
@@ -580,19 +629,16 @@ async function confirmDebtFromBankTransfer(
       );
       if ("error" in audit) throw new Error(audit.error);
 
-      // Balance the merged Quỹ + Nợ ledger: when finalize ran, member
-      // got a `fund_deduction = -debt.totalAmount` → balance went
-      // negative ("còn nợ"). Now that money has actually arrived in the
-      // bank, insert a matching `fund_contribution = +debt.totalAmount`
-      // so the member's fund balance returns to whatever it was before
-      // the session debt was deducted. Without this, "my-fund" would
-      // still show a negative balance even after they paid.
+      // Balance fix — sessionId được set để deleteSession() reverse được
+      // (BLOCKER fix: trước đây sessionId null → deleteSession bỏ sót →
+      // member's balance bị inflate sau khi xóa session).
       const balanceFix = await recordFinancialTransaction(
         {
           type: "fund_contribution",
           direction: "in",
           amount: debt.totalAmount,
           memberId: debt.memberId,
+          sessionId: debt.sessionId,
           debtId: debt.id,
           description: `Cân bằng quỹ — đã trả nợ #${debt.id} qua chuyển khoản`,
           metadata: {
@@ -604,6 +650,23 @@ async function confirmDebtFromBankTransfer(
         tx,
       );
       if ("error" in balanceFix) throw new Error(balanceFix.error);
+
+      // Overpay credit — không gắn debt/session để member rút sau.
+      if (overpay > 0) {
+        const overpayCredit = await recordFinancialTransaction(
+          {
+            type: "fund_contribution",
+            direction: "in",
+            amount: overpay,
+            memberId: debt.memberId,
+            description: `Dư chuyển khoản (transId ${payment.transId}) — credit vào quỹ`,
+            metadata: { transId: payment.transId, overpay: true },
+            idempotencyKey: `bank-payment-overpay-${payment.transId}`,
+          },
+          tx,
+        );
+        if ("error" in overpayCredit) throw new Error(overpayCredit.error);
+      }
 
       // Atomic notification update — committed together with the ledger.
       await finalizeNotification(tx, notificationId, {
@@ -621,7 +684,6 @@ async function confirmDebtFromBankTransfer(
     };
   }
 
-  const overpay = payment.amount - debt.totalAmount;
   return {
     status: "matched_debt",
     debtId: debt.id,

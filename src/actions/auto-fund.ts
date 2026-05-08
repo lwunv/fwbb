@@ -1,10 +1,11 @@
 "use server";
 
 import { db } from "@/db";
-import { sessionDebts } from "@/db/schema";
+import { sessionDebts, financialTransactions } from "@/db/schema";
 import { eq, and, asc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { getFundBalance, isFundMember } from "@/lib/fund-calculator";
+import { isFundMember } from "@/lib/fund-calculator";
+import { computeBalanceFromTransactions } from "@/lib/fund-core";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
 import { getUserFromCookie } from "@/lib/user-identity";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -31,32 +32,36 @@ export async function autoApplyFundToDebts(
     return { appliedCount: 0, appliedTotal: 0, remainingBalance: 0 };
   }
 
-  const initial = await getFundBalance(memberId);
-  let balance = initial.balance;
-  if (balance <= 0) {
-    return { appliedCount: 0, appliedTotal: 0, remainingBalance: balance };
-  }
-
-  const unpaid = await db.query.sessionDebts.findMany({
-    where: and(
-      eq(sessionDebts.memberId, memberId),
-      eq(sessionDebts.memberConfirmed, false),
-      eq(sessionDebts.adminConfirmed, false),
-    ),
-    orderBy: [asc(sessionDebts.id)],
-    columns: { id: true, totalAmount: true, sessionId: true },
-  });
-
-  if (unpaid.length === 0) {
-    return { appliedCount: 0, appliedTotal: 0, remainingBalance: balance };
-  }
-
   let appliedCount = 0;
   let appliedTotal = 0;
+  let finalBalance = 0;
   const now = new Date().toISOString();
 
   try {
     await db.transaction(async (tx) => {
+      // Đọc balance INSIDE transaction (AGENTS.md rule: race-condition nếu
+      // đọc balance outside rồi write inside — 2 autoApply concurrent đều
+      // thấy stale balance → over-deduct).
+      const txs = await tx.query.financialTransactions.findMany({
+        where: eq(financialTransactions.memberId, memberId),
+      });
+      const initial = computeBalanceFromTransactions(memberId, txs);
+      let balance = initial.balance;
+      finalBalance = balance;
+
+      if (balance <= 0) return;
+
+      const unpaid = await tx.query.sessionDebts.findMany({
+        where: and(
+          eq(sessionDebts.memberId, memberId),
+          eq(sessionDebts.memberConfirmed, false),
+          eq(sessionDebts.adminConfirmed, false),
+        ),
+        orderBy: [asc(sessionDebts.id)],
+        columns: { id: true, totalAmount: true, sessionId: true },
+      });
+      if (unpaid.length === 0) return;
+
       for (const debt of unpaid) {
         if (balance < debt.totalAmount) break;
 
@@ -80,6 +85,7 @@ export async function autoApplyFundToDebts(
             debtId: debt.id,
             description: `Auto trừ quỹ — debt #${debt.id}`,
             metadata: { autoApplied: true },
+            idempotencyKey: `auto-apply-debt-${debt.id}`,
           },
           tx,
         );
@@ -89,14 +95,11 @@ export async function autoApplyFundToDebts(
         appliedTotal += debt.totalAmount;
         appliedCount++;
       }
+      finalBalance = balance;
     });
   } catch {
     // On error, balance reverts; return zero applied
-    return {
-      appliedCount: 0,
-      appliedTotal: 0,
-      remainingBalance: initial.balance,
-    };
+    return { appliedCount: 0, appliedTotal: 0, remainingBalance: 0 };
   }
 
   if (appliedCount > 0) {
@@ -107,7 +110,7 @@ export async function autoApplyFundToDebts(
     revalidatePath("/admin/fund");
   }
 
-  return { appliedCount, appliedTotal, remainingBalance: balance };
+  return { appliedCount, appliedTotal, remainingBalance: finalBalance };
 }
 
 /**

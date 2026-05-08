@@ -461,7 +461,7 @@ describe("court-rent actions (integration)", () => {
   // ─── deleteCourtRentPayment ───
 
   describe("deleteCourtRentPayment", () => {
-    it("deletes a payment row", async () => {
+    it("inserts a reversal row instead of hard-delete (audit trail)", async () => {
       const r1 = await recordCourtRentPayment({
         year: 2026,
         month: 4,
@@ -469,12 +469,46 @@ describe("court-rent actions (integration)", () => {
         idempotencyKey: "test-rent-delete",
       });
       expect(r1).toEqual({ success: true, replayed: false });
-      const row = await testDb.query.financialTransactions.findFirst({});
-      const r2 = await deleteCourtRentPayment(row!.id);
+      const original = await testDb.query.financialTransactions.findFirst({});
+      const r2 = await deleteCourtRentPayment(original!.id);
       expect(r2).toEqual({ success: true });
 
-      const after = await testDb.query.financialTransactions.findFirst({});
-      expect(after).toBeUndefined();
+      // Reversal pattern: original vẫn còn (audit), thêm row reversal trỏ về.
+      const all = await testDb.query.financialTransactions.findMany({});
+      expect(all).toHaveLength(2);
+      const reversal = all.find((t) => t.reversalOfId === original!.id);
+      expect(reversal).toBeDefined();
+      expect(reversal!.direction).toBe("in"); // ngược direction với original (out)
+      expect(reversal!.amount).toBe(original!.amount);
+
+      // Idempotent: gọi delete lần 2 không tạo thêm reversal mới.
+      const r3 = await deleteCourtRentPayment(original!.id);
+      expect(r3).toEqual({ success: true });
+      const all2 = await testDb.query.financialTransactions.findMany({});
+      expect(all2).toHaveLength(2);
+    });
+
+    it("getCourtRentPayments hides reversed pairs", async () => {
+      await recordCourtRentPayment({
+        year: 2026,
+        month: 4,
+        amount: 100_000,
+        idempotencyKey: "test-rent-hide-1",
+      });
+      await recordCourtRentPayment({
+        year: 2026,
+        month: 4,
+        amount: 200_000,
+        idempotencyKey: "test-rent-hide-2",
+      });
+      const rows = await testDb.query.financialTransactions.findMany({});
+      expect(rows).toHaveLength(2);
+
+      // Delete row đầu → reversal pair, list còn 1 row
+      await deleteCourtRentPayment(rows[0]!.id);
+      const list = await getCourtRentPayments(2026, 4);
+      expect(list).toHaveLength(1);
+      expect(list[0].amount).toBe(rows[1]!.amount);
     });
 
     it("rejects non-existent payment id", async () => {

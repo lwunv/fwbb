@@ -48,12 +48,20 @@ export function PurchaseForm({ brands }: PurchaseFormProps) {
     e.preventDefault();
     if (!selectedBrandId || selectedBrandId === "") return;
 
+    // idempotencyKey per submit — DB UNIQUE chặn double-write nếu admin
+    // double-click form (form đã reset → trông như submit lại được).
+    const idempotencyKey =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `purchase-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
     const formData = new FormData();
     formData.set("brandId", String(selectedBrandId));
     formData.set("tubes", String(tubes));
     formData.set("pricePerTube", String(pricePerTube));
     formData.set("purchasedAt", purchasedAt);
     formData.set("notes", notes);
+    formData.set("idempotencyKey", idempotencyKey);
 
     // Capture current values for rollback
     const prevTubes = tubes;

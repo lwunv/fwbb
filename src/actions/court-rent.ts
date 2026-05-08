@@ -74,10 +74,18 @@ export async function getCourtRentReport(
     },
   });
 
-  // Court rent payments
-  const payments = await db.query.financialTransactions.findMany({
+  // Court rent payments — exclude reversed pairs (original + its reversal
+  // cancel out. Skip both rows to avoid double-counting the original AND
+  // the +amount reversal).
+  const allPayments = await db.query.financialTransactions.findMany({
     where: eq(financialTransactions.type, "court_rent_payment"),
   });
+  const reversedIds = new Set(
+    allPayments.filter((p) => p.reversalOfId).map((p) => p.reversalOfId!),
+  );
+  const payments = allPayments.filter(
+    (p) => !p.reversalOfId && !reversedIds.has(p.id),
+  );
 
   function metaTargetMonth(metaJson: string | null): string | null {
     if (!metaJson) return null;
@@ -168,10 +176,16 @@ export async function getCourtRentPayments(
   if ("error" in auth) return [];
 
   const target = `${year}-${String(month).padStart(2, "0")}`;
-  const all = await db.query.financialTransactions.findMany({
+  const allRaw = await db.query.financialTransactions.findMany({
     where: eq(financialTransactions.type, "court_rent_payment"),
     orderBy: [desc(financialTransactions.createdAt)],
   });
+  // Bỏ cặp đã reverse (original + reversal cancel out → admin không thấy
+  // row đã xóa logic).
+  const reversedIds = new Set(
+    allRaw.filter((p) => p.reversalOfId).map((p) => p.reversalOfId!),
+  );
+  const all = allRaw.filter((p) => !p.reversalOfId && !reversedIds.has(p.id));
 
   const courtRows = await db.query.courts.findMany({
     columns: { id: true, name: true },
@@ -301,17 +315,39 @@ export async function deleteCourtRentPayment(
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
 
-  const tx = await db.query.financialTransactions.findFirst({
+  const original = await db.query.financialTransactions.findFirst({
     where: and(
       eq(financialTransactions.id, paymentId),
       eq(financialTransactions.type, "court_rent_payment"),
     ),
   });
-  if (!tx) return { error: "Không tìm thấy giao dịch" };
+  if (!original) return { error: "Không tìm thấy giao dịch" };
 
-  await db
-    .delete(financialTransactions)
-    .where(eq(financialTransactions.id, paymentId));
+  // Reversal pattern thay vì hard-delete — giữ audit trail. Trước đây
+  // hard-delete làm reconcile không phân biệt "xóa nhầm" vs "chưa từng tồn
+  // tại". Reversal row có `reversalOfId` trỏ về row gốc; khi list payments
+  // có thể filter (original ≠ none-reversed) để ẩn cặp đã reverse.
+  // Nếu đã có reversal rồi → idempotent no-op.
+  const existingReversal = await db.query.financialTransactions.findFirst({
+    where: eq(financialTransactions.reversalOfId, paymentId),
+    columns: { id: true },
+  });
+  if (existingReversal) {
+    revalidatePath("/admin/court-rent");
+    return { success: true };
+  }
+
+  await db.insert(financialTransactions).values({
+    type: "court_rent_payment",
+    direction: "in", // ngược direction với original (out → in)
+    amount: original.amount,
+    memberId: original.memberId,
+    sessionId: original.sessionId,
+    debtId: original.debtId,
+    reversalOfId: original.id,
+    description: `Hoàn tác trả tiền sân — ${original.description ?? ""}`.trim(),
+    metadataJson: original.metadataJson, // copy để filter list theo targetMonth vẫn match
+  });
 
   revalidatePath("/admin/court-rent");
   return { success: true };

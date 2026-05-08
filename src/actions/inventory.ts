@@ -16,6 +16,15 @@ export async function recordPurchase(formData: FormData) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
 
+  const idempotencyKey = (formData.get("idempotencyKey") as string) ?? "";
+  if (
+    !idempotencyKey ||
+    typeof idempotencyKey !== "string" ||
+    idempotencyKey.trim().length < 4
+  ) {
+    return { error: "Thiếu idempotencyKey" };
+  }
+
   const parsed = purchaseSchema.safeParse({
     brandId: Number(formData.get("brandId")),
     tubes: Number(formData.get("tubes")),
@@ -30,30 +39,52 @@ export async function recordPurchase(formData: FormData) {
 
   const totalPrice = parsed.data.tubes * parsed.data.pricePerTube;
 
-  const [purchase] = await db
-    .insert(inventoryPurchases)
-    .values({
-      brandId: parsed.data.brandId,
-      tubes: parsed.data.tubes,
-      pricePerTube: parsed.data.pricePerTube,
-      totalPrice,
-      purchasedAt: parsed.data.purchasedAt,
-      notes: parsed.data.notes ?? null,
-    })
-    .returning({ id: inventoryPurchases.id });
+  // Idempotent: nếu key đã tồn tại trên 1 ledger row → coi là replay, không
+  // insert thêm purchase + ledger. Trước đây admin double-click form ghi 2
+  // purchase row → stock count gấp đôi, finance overstate.
+  try {
+    await db.transaction(async (tx) => {
+      const existing = await tx.query.financialTransactions.findFirst({
+        where: (ft, { eq }) => eq(ft.idempotencyKey, idempotencyKey),
+        columns: { id: true },
+      });
+      if (existing) return;
 
-  await recordFinancialTransaction({
-    type: "inventory_purchase",
-    direction: "out",
-    amount: totalPrice,
-    inventoryPurchaseId: purchase.id,
-    description: parsed.data.notes || "Mua cầu",
-    metadata: {
-      brandId: parsed.data.brandId,
-      tubes: parsed.data.tubes,
-      pricePerTube: parsed.data.pricePerTube,
-    },
-  });
+      const [purchase] = await tx
+        .insert(inventoryPurchases)
+        .values({
+          brandId: parsed.data.brandId,
+          tubes: parsed.data.tubes,
+          pricePerTube: parsed.data.pricePerTube,
+          totalPrice,
+          purchasedAt: parsed.data.purchasedAt,
+          notes: parsed.data.notes ?? null,
+        })
+        .returning({ id: inventoryPurchases.id });
+
+      const r = await recordFinancialTransaction(
+        {
+          type: "inventory_purchase",
+          direction: "out",
+          amount: totalPrice,
+          inventoryPurchaseId: purchase.id,
+          description: parsed.data.notes || "Mua cầu",
+          metadata: {
+            brandId: parsed.data.brandId,
+            tubes: parsed.data.tubes,
+            pricePerTube: parsed.data.pricePerTube,
+          },
+          idempotencyKey,
+        },
+        tx,
+      );
+      if ("error" in r) throw new Error(r.error);
+    });
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Không ghi được giao dịch",
+    };
+  }
 
   revalidatePath("/admin/inventory");
   return { success: true };

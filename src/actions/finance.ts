@@ -239,6 +239,12 @@ export async function finalizeSession(
           })
           .returning({ id: sessionDebts.id });
 
+        // idempotencyKey natural-keyed: (sessionId, memberId) — re-finalize
+        // cùng buổi/member là 1 thao tác duy nhất; insertedDebt.id sinh mới
+        // nên dùng debtId không idempotent qua các lần finalize, dùng
+        // (sessionId,memberId) ổn định hơn. Reverse-then-create flow ở phía
+        // trên đã wipe debt cũ, nên debtId mới là OK; key này chỉ chặn race
+        // 2 finalize cùng lúc cho cùng buổi/member.
         const r1 = await recordFinancialTransaction(
           {
             type: "debt_created",
@@ -254,6 +260,7 @@ export async function finalizeSession(
               guestPlayAmount: debt.guestPlayAmount,
               guestDineAmount: debt.guestDineAmount,
             },
+            idempotencyKey: `finalize-debt-${data.sessionId}-${debt.memberId}-${insertedDebt.id}`,
           },
           tx,
         );
@@ -269,6 +276,7 @@ export async function finalizeSession(
               sessionId: data.sessionId,
               debtId: insertedDebt.id,
               description: `Trừ quỹ buổi ${session.date}`,
+              idempotencyKey: `finalize-deduction-${data.sessionId}-${debt.memberId}-${insertedDebt.id}`,
             },
             tx,
           );
@@ -581,6 +589,50 @@ export async function undoPaymentByAdmin(debtId: number) {
 
   try {
     await db.transaction(async (tx) => {
+      // BLOCKER fix: trong merged Quỹ+Nợ model, finalize đã ghi
+      // `fund_deduction` cho debt này. Trước đây undo CHỈ flip flags + ghi
+      // `debt_undo` neutral → ledger vẫn giữ deduction → autoApplyFundToDebts
+      // chạy lần sau lại deduct LẦN 2 (member mất tiền 2 lần).
+      // Fix: tìm fund_deduction gốc (chưa bị reversal), insert
+      // fund_contribution đối ứng với reversalOfId trỏ về nó → balance member
+      // hoàn lại đúng amount đã trừ. Nếu deduction đã bị reversal rồi thì
+      // skip để idempotent.
+      const originalDeduction = await tx.query.financialTransactions.findFirst({
+        where: and(
+          eq(financialTransactions.type, "fund_deduction"),
+          eq(financialTransactions.debtId, debtId),
+          isNull(financialTransactions.reversalOfId),
+        ),
+      });
+
+      if (originalDeduction) {
+        // Đã có sẵn reversal cho deduction này chưa? (idempotent guard)
+        const existingReversal = await tx.query.financialTransactions.findFirst(
+          {
+            where: eq(financialTransactions.reversalOfId, originalDeduction.id),
+            columns: { id: true },
+          },
+        );
+        if (!existingReversal) {
+          const r = await recordFinancialTransaction(
+            {
+              type: "fund_contribution",
+              direction: "in",
+              amount: originalDeduction.amount,
+              memberId: debt.memberId,
+              sessionId: debt.sessionId,
+              debtId,
+              reversalOfId: originalDeduction.id,
+              description: "Hoàn tác trừ quỹ — admin undo thanh toán",
+              metadata: { source: "debt_undo_reversal" },
+              idempotencyKey: `debt-undo-reverse-${originalDeduction.id}`,
+            },
+            tx,
+          );
+          if ("error" in r) throw new Error(r.error);
+        }
+      }
+
       await tx
         .update(sessionDebts)
         .set({
@@ -592,6 +644,7 @@ export async function undoPaymentByAdmin(debtId: number) {
         })
         .where(eq(sessionDebts.id, debtId));
 
+      // Audit row (neutral) — vẫn giữ để có dấu vết undo trong ledger.
       const r = await recordFinancialTransaction(
         {
           type: "debt_undo",
@@ -601,6 +654,7 @@ export async function undoPaymentByAdmin(debtId: number) {
           sessionId: debt.sessionId,
           debtId,
           description: "Admin hoàn tác xác nhận thanh toán",
+          idempotencyKey: `debt-undo-audit-${debtId}-${Date.now()}`,
         },
         tx,
       );
