@@ -13,7 +13,7 @@ import {
 import { confirmPaymentByAdmin, finalizeSessionAuto } from "@/actions/finance";
 import { fireAction } from "@/lib/optimistic-action";
 import { useOptimisticSet } from "@/lib/optimistic-ui";
-import { formatK } from "@/lib/utils";
+import { formatK, cn } from "@/lib/utils";
 import {
   calculateShuttlecockCost,
   computePerHeadCharges,
@@ -548,7 +548,7 @@ export function SessionList({
             return (
               <div key={session.id}>
                 <LedBorder active={showLed} variant="pink">
-                  <Card className={cardBgClass}>
+                  <Card className={cn("relative", cardBgClass)}>
                     <CardContent className="space-y-2 p-4">
                       {/* Header: Date + Status */}
                       <div className="flex items-start justify-between">
