@@ -23,10 +23,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { MemberAvatar } from "@/components/shared/member-avatar";
-import { NumberStepper } from "@/components/ui/number-stepper";
 import { CourtSelector } from "@/components/sessions/court-selector";
 import { ShuttlecockSelector } from "@/components/sessions/shuttlecock-selector";
 import { AdminVoteManager } from "@/components/sessions/admin-vote-manager";
+import { WeekStrip } from "@/components/sessions/week-strip";
 import {
   Dialog,
   DialogContent,
@@ -145,7 +145,10 @@ const statusStyles: Record<
   },
   cancelled: {
     labelKey: "cancelled",
-    cardBg: "ring-red-300/50 dark:ring-red-700/40",
+    // Buổi hủy: nền xám-đỏ desaturated để dễ phân biệt với active card (pink/white)
+    // — không chỉ ring outline mỏng. Opacity giảm thêm cảm giác "không còn relevant".
+    cardBg:
+      "bg-zinc-100 dark:bg-zinc-800/40 ring-red-300/60 dark:ring-red-700/40 opacity-85",
   },
 };
 
@@ -159,6 +162,7 @@ export function SessionList({
   currentPage = 1,
   totalPages = 1,
   currentStatusFilter = "all",
+  defaultCourtId = null,
 }: {
   sessions: SessionCard[];
   courts?: Court[];
@@ -167,6 +171,7 @@ export function SessionList({
   currentPage?: number;
   totalPages?: number;
   currentStatusFilter?: StatusFilter;
+  defaultCourtId?: number | null;
 }) {
   const [, setPage] = useQueryState(
     "page",
@@ -340,22 +345,6 @@ export function SessionList({
     );
   }
 
-  function handleAdminGuestChange(
-    sessionId: number,
-    session: SessionCard,
-    field: "play" | "dine",
-    value: number,
-  ) {
-    const current = getAdminGuests(sessionId, session);
-    const prev = { ...current };
-    const next = { ...current, [field]: value };
-    setLocalAdminGuests((s) => ({ ...s, [sessionId]: next }));
-    fireAction(
-      () => setAdminGuestCount(sessionId, next.play, next.dine),
-      () => setLocalAdminGuests((s) => ({ ...s, [sessionId]: prev })),
-    );
-  }
-
   function formatSessionDate(dateStr: string) {
     return fmtSessionDate(dateStr, "weekdayLong");
   }
@@ -395,22 +384,12 @@ export function SessionList({
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="startTime">{t("startTime")}</Label>
-                <Input
-                  id="startTime"
-                  name="startTime"
-                  type="time"
-                  defaultValue="20:30"
-                />
+                <Label>{t("startTime")}</Label>
+                <TimeSelect15 name="startTime" defaultValue="20:30" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="endTime">{t("endTime")}</Label>
-                <Input
-                  id="endTime"
-                  name="endTime"
-                  type="time"
-                  defaultValue="22:30"
-                />
+                <Label>{t("endTime")}</Label>
+                <TimeSelect15 name="endTime" defaultValue="22:30" />
               </div>
             </div>
             {courts.length > 0 && (
@@ -509,6 +488,10 @@ export function SessionList({
             // Tách visual khỏi "đang vote" để LED xanh chỉ giữ cho buổi sắp/đang
             // diễn ra (yêu cầu UX), còn buổi này hiện amber + badge "Cần xác nhận".
             const isPastPending = isActive && session.date < todayYmd;
+            // Cho phép admin finalize từ HÔM NAY (đánh xong là chốt được ngay).
+            // Future session vẫn block — chốt sớm thì lỗi thiếu attendees thật.
+            const canFinalize = isActive && session.date <= todayYmd;
+            const isFinalizing = finalizingSessions.has(session.id);
             const cardBgClass = isPastPending
               ? "bg-card border-rose-400 border-2 ring-2 ring-rose-200/50 dark:ring-rose-900/30"
               : status.cardBg;
@@ -553,10 +536,16 @@ export function SessionList({
                       {/* Header: Date + Status */}
                       <div className="flex items-start justify-between">
                         <div>
-                          <p className="flex items-center gap-2 text-base font-bold capitalize">
-                            <Calendar className="text-muted-foreground h-5 w-5" />
-                            {formatSessionDate(session.date)}
-                          </p>
+                          <div className="space-y-1.5">
+                            <p className="flex items-center gap-2 text-base font-bold capitalize">
+                              <Calendar className="text-muted-foreground h-5 w-5" />
+                              {formatSessionDate(session.date)}
+                            </p>
+                            <WeekStrip
+                              sessionDate={session.date}
+                              className="justify-center"
+                            />
+                          </div>
                           {(session.startTime || session.endTime) && (
                             <p className="text-muted-foreground mt-1 text-sm whitespace-nowrap">
                               ⏰ {session.startTime ?? "—"} –{" "}
@@ -633,6 +622,8 @@ export function SessionList({
                             courts={courts}
                             currentCourtId={session.courtId}
                             currentCourtQuantity={session.courtQuantity}
+                            sessionDate={session.date}
+                            defaultCourtId={defaultCourtId}
                           />
                           <ShuttlecockSelector
                             sessionId={session.id}
@@ -642,53 +633,8 @@ export function SessionList({
                         </div>
                       )}
 
-                      {/* Admin guest — khách của admin (luôn mở, không cần click) */}
-                      {isActive &&
-                        (() => {
-                          const ag = getAdminGuests(session.id, session);
-                          return (
-                            <div
-                              className="flex flex-wrap items-center gap-3 px-1"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <span className="text-muted-foreground text-sm font-medium">
-                                Khách:
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm">🏸</span>
-                                <NumberStepper
-                                  value={ag.play}
-                                  onChange={(v) =>
-                                    handleAdminGuestChange(
-                                      session.id,
-                                      session,
-                                      "play",
-                                      v,
-                                    )
-                                  }
-                                  min={0}
-                                  max={10}
-                                />
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm">🍻</span>
-                                <NumberStepper
-                                  value={ag.dine}
-                                  onChange={(v) =>
-                                    handleAdminGuestChange(
-                                      session.id,
-                                      session,
-                                      "dine",
-                                      v,
-                                    )
-                                  }
-                                  min={0}
-                                  max={10}
-                                />
-                              </div>
-                            </div>
-                          );
-                        })()}
+                      {/* Admin guest stepper đã chuyển vào trong AdminVoteManager
+                      (hiện ở khu mở rộng danh sách thành viên, trên search box). */}
 
                       {/* Tóm tắt chi phí — format đồng bộ với row Court/Shuttle:
                       [icon + label trái] ... [số tiền right-align, bold tabular].
@@ -698,15 +644,16 @@ export function SessionList({
                         (totalExpense > 0 ||
                           playCostPerHead > 0 ||
                           dineCostPerHead > 0 ||
-                          isPastPending) && (
+                          canFinalize) && (
                           <div className="pt-1 text-base">
-                            {/* Past-pending: button "Xác nhận" nằm BÊN TRÁI cùng hàng
-                            với Tổng chi (right-align) → tiết kiệm không gian +
-                            CTA gần ngay con số tổng admin cần verify. */}
+                            {/* Buổi hôm nay/past pending: button "Xác nhận" nằm BÊN TRÁI
+                            cùng hàng với Tổng chi (right-align) → tiết kiệm không gian
+                            + CTA gần con số tổng admin cần verify. */}
                             <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 font-bold">
-                              {isPastPending ? (
+                              {canFinalize ? (
                                 <button
                                   type="button"
+                                  disabled={isFinalizing}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     // Optimistic: đánh dấu finalizing → status
@@ -715,12 +662,17 @@ export function SessionList({
                                     finalizing.addOptimistically(
                                       session.id,
                                       () => finalizeSessionAuto(session.id),
+                                      {
+                                        successMsg: t("confirmedSuccess"),
+                                      },
                                     );
                                   }}
-                                  className="bg-primary hover:bg-primary/90 active:bg-primary/95 shadow-primary/30 hover:shadow-primary/40 inline-flex h-[42px] w-1/2 shrink-0 items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md"
+                                  className="bg-primary hover:bg-primary/90 active:bg-primary/95 shadow-primary/30 hover:shadow-primary/40 inline-flex h-[42px] w-1/2 shrink-0 items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                   <Check className="h-4 w-4" />
-                                  {t("confirmSession")}
+                                  {isFinalizing
+                                    ? t("confirming")
+                                    : t("confirmSession")}
                                 </button>
                               ) : (
                                 <span className="min-w-0 flex-1">
@@ -728,7 +680,7 @@ export function SessionList({
                                 </span>
                               )}
                               <span className="ml-auto flex items-center gap-1.5">
-                                {!isPastPending ? null : (
+                                {!canFinalize ? null : (
                                   <span className="font-semibold">
                                     💰 Tổng chi
                                   </span>
@@ -846,6 +798,33 @@ export function SessionList({
                                 readOnly={false}
                                 adminGuestPlayCount={ag.play}
                                 adminGuestDineCount={ag.dine}
+                                onAdminGuestChange={(play, dine) => {
+                                  // Optimistic local update + revert on server fail.
+                                  // Cùng path với handleAdminGuestChange cũ — chỉ
+                                  // hợp nhất 2 field thành 1 callback.
+                                  const prev = getAdminGuests(
+                                    session.id,
+                                    session,
+                                  );
+                                  const next = { play, dine };
+                                  setLocalAdminGuests((s) => ({
+                                    ...s,
+                                    [session.id]: next,
+                                  }));
+                                  fireAction(
+                                    () =>
+                                      setAdminGuestCount(
+                                        session.id,
+                                        next.play,
+                                        next.dine,
+                                      ),
+                                    () =>
+                                      setLocalAdminGuests((s) => ({
+                                        ...s,
+                                        [session.id]: prev,
+                                      })),
+                                  );
+                                }}
                                 sessionCosts={{
                                   courtPrice: session.courtPrice ?? 0,
                                   courtName: session.courtName,
@@ -1111,15 +1090,20 @@ export function SessionList({
                 <label className="text-muted-foreground text-xs font-medium">
                   Số tiền nhận lại (VND)
                 </label>
-                <input
-                  type="number"
+                <Input
+                  type="text"
                   inputMode="numeric"
-                  value={cancelPassRevenue}
-                  onChange={(e) => setCancelPassRevenue(e.target.value)}
-                  min={0}
-                  step={10000}
-                  className="bg-background min-h-11 w-full rounded-xl border px-3 text-base"
+                  value={
+                    cancelPassRevenue
+                      ? Number(cancelPassRevenue).toLocaleString("vi-VN")
+                      : ""
+                  }
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, "");
+                    setCancelPassRevenue(digits);
+                  }}
                   placeholder={tFundAdmin("passRevenuePlaceholder")}
+                  className="tabular-nums"
                 />
                 <p className="text-muted-foreground text-xs">
                   Mặc định = giá thuê sân của buổi. Có thể chỉnh nếu khác.
@@ -1157,5 +1141,56 @@ export function SessionList({
         />
       </div>
     </Dialog>
+  );
+}
+
+/**
+ * Time picker giới hạn phút theo mốc 15p (00 / 15 / 30 / 45). Native
+ * `<input type="time">` Chrome vẫn cho chọn mọi phút dù có `step="900"`,
+ * nên dùng 2 select tùy chọn + hidden input để form chấp nhận giá trị HH:MM.
+ *
+ * Khi `defaultValue` không nằm trên mốc (e.g. "20:35"), round xuống mốc gần
+ * nhất (35 → 30) để dropdown match được option hiện có.
+ */
+function TimeSelect15({
+  name,
+  defaultValue,
+}: {
+  name: string;
+  defaultValue: string;
+}) {
+  const [hRaw, mRaw] = defaultValue.split(":");
+  const hInit = String(parseInt(hRaw ?? "0", 10) || 0).padStart(2, "0");
+  const mInitNum = parseInt(mRaw ?? "0", 10) || 0;
+  const mInit = String(Math.floor(mInitNum / 15) * 15).padStart(2, "0");
+  const [hh, setHh] = useState(hInit);
+  const [mm, setMm] = useState(mInit);
+  const combined = `${hh}:${mm}`;
+
+  const hourOptions = Array.from({ length: 24 }, (_, i) => ({
+    value: String(i).padStart(2, "0"),
+    label: `${String(i).padStart(2, "0")}h`,
+  }));
+  const minuteOptions = ["00", "15", "30", "45"].map((m) => ({
+    value: m,
+    label: m,
+  }));
+
+  return (
+    <div className="flex gap-2">
+      <input type="hidden" name={name} value={combined} />
+      <CustomSelect
+        value={hh}
+        onChange={setHh}
+        options={hourOptions}
+        className="flex-1"
+      />
+      <CustomSelect
+        value={mm}
+        onChange={setMm}
+        options={minuteOptions}
+        className="flex-1"
+      />
+    </div>
   );
 }

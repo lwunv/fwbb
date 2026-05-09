@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useLocale } from "next-intl";
 import { formatSessionDate, ymdInVN } from "@/lib/date-format";
@@ -20,10 +20,31 @@ import {
 import { DefaultSettingsCard } from "./default-settings-card";
 import { Input } from "@/components/ui/input";
 import { formatK, cn } from "@/lib/utils";
+import {
+  calculateShuttlecockCost,
+  computePerHeadCharges,
+} from "@/lib/cost-calculator";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { updateAppName } from "@/actions/settings";
+import { setAdminGuestCount } from "@/actions/sessions";
+import { finalizeSessionAuto } from "@/actions/finance";
+import { recordContribution } from "@/actions/fund";
 import { fireAction } from "@/lib/optimistic-action";
+import { useOptimisticSet } from "@/lib/optimistic-ui";
 import { usePolling } from "@/lib/use-polling";
+import { CourtSelector } from "@/components/sessions/court-selector";
+import { ShuttlecockSelector } from "@/components/sessions/shuttlecock-selector";
+import { AdminVoteManager } from "@/components/sessions/admin-vote-manager";
+import { WeekStrip } from "@/components/sessions/week-strip";
+import { RecordContributionDialog } from "@/components/fund/record-contribution-dialog";
+import type { InferSelectModel } from "drizzle-orm";
+import type {
+  courts as courtsTable,
+  shuttlecockBrands as brandsTable,
+  sessionShuttlecocks as sessionShuttlecocksTable,
+  votes as votesTable,
+  members as membersTable,
+} from "@/db/schema";
 import {
   Wallet,
   AlertTriangle,
@@ -47,22 +68,42 @@ import {
   ArrowUpCircle,
   RotateCcw,
   PiggyBank,
+  ChevronDown,
+  Plus,
 } from "lucide-react";
+
+type Vote = InferSelectModel<typeof votesTable> & {
+  member: InferSelectModel<typeof membersTable>;
+};
 
 interface UpcomingSession {
   id: number;
   date: string;
   status: string;
+  courtId: number | null;
   courtName: string | null;
   courtMapLink: string | null;
+  courtQuantity: number;
+  courtPrice: number | null;
+  diningBill: number;
   startTime: string;
   endTime: string;
   playerCount: number;
   dinerCount: number;
   guestPlayCount: number;
   guestDineCount: number;
+  adminGuestPlayCount: number;
+  adminGuestDineCount: number;
   votedCount: number;
   totalEligibleVoters: number;
+  shuttlecocks: {
+    id: number;
+    brandId: number;
+    brandName: string;
+    quantityUsed: number;
+    pricePerTube: number;
+  }[];
+  votes: Vote[];
 }
 
 interface OwingMember {
@@ -107,6 +148,12 @@ interface BrandOpt {
   pricePerTube: number;
 }
 
+type Court = InferSelectModel<typeof courtsTable>;
+type Brand = InferSelectModel<typeof brandsTable>;
+type SessionShuttlecock = InferSelectModel<typeof sessionShuttlecocksTable> & {
+  brand: Brand;
+};
+
 interface DashboardClientProps {
   appName?: string;
   totalOutstanding: number;
@@ -131,8 +178,12 @@ interface DashboardClientProps {
   currentYear: number;
   settingsCourts: CourtOpt[];
   settingsBrands: BrandOpt[];
+  editorCourts: Court[];
+  editorBrands: Brand[];
+  editorMembers: InferSelectModel<typeof membersTable>[];
   defaultCourtId: number | null;
   defaultBrandId: number | null;
+  sessionDays: number[];
 }
 
 const VN_MONTH_LABEL: Record<number, string> = {
@@ -151,16 +202,16 @@ const VN_MONTH_LABEL: Record<number, string> = {
 };
 
 const TX_ICON: Record<string, { icon: typeof ArrowUpCircle; cls: string }> = {
-  fund_contribution: { icon: ArrowUpCircle, cls: "text-green-500" },
+  fund_contribution: { icon: ArrowUpCircle, cls: "text-blue-500" },
   fund_deduction: { icon: ArrowDownCircle, cls: "text-orange-500" },
   fund_refund: { icon: RotateCcw, cls: "text-red-500" },
   inventory_purchase: { icon: ShoppingBag, cls: "text-amber-500" },
   court_rent_payment: { icon: Landmark, cls: "text-cyan-500" },
-  bank_payment_received: { icon: ArrowUpCircle, cls: "text-green-500" },
+  bank_payment_received: { icon: ArrowUpCircle, cls: "text-blue-500" },
   manual_adjustment: { icon: RotateCcw, cls: "text-muted-foreground" },
   debt_created: { icon: ArrowDownCircle, cls: "text-amber-500" },
   debt_member_confirmed: { icon: ArrowUpCircle, cls: "text-blue-500" },
-  debt_admin_confirmed: { icon: ArrowUpCircle, cls: "text-emerald-500" },
+  debt_admin_confirmed: { icon: ArrowUpCircle, cls: "text-blue-500" },
   debt_undo: { icon: RotateCcw, cls: "text-muted-foreground" },
 };
 
@@ -200,8 +251,12 @@ export function DashboardClient({
   currentYear,
   settingsCourts,
   settingsBrands,
+  editorCourts,
+  editorBrands,
+  editorMembers,
   defaultCourtId,
   defaultBrandId,
+  sessionDays,
 }: DashboardClientProps) {
   const tf = useTranslations("finance");
   const td = useTranslations("dashboard");
@@ -213,21 +268,99 @@ export function DashboardClient({
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(appName);
   const [saved, setSaved] = useState(false);
+  // Optimistic finalize cho upcoming session — sync với /admin/sessions pattern.
+  const finalizing = useOptimisticSet<number>();
+  // Optimistic clear-debt: ẩn row debtor ngay khi click "Đã trả nợ", revert
+  // nếu server fail. Dùng Set để track multiple members concurrent.
+  const clearingDebt = useOptimisticSet<number>();
+
+  function handleClearDebt(memberId: number, amount: number) {
+    if (amount <= 0) return;
+    const idemKey = `dash-clear-${memberId}-${crypto.randomUUID()}`;
+    clearingDebt.addOptimistically(
+      memberId,
+      () => recordContribution(memberId, amount, "Đã trả nợ", idemKey),
+      { successMsg: `Đã ghi nhận ${formatK(amount)} → hết nợ` },
+    );
+  }
+
+  // "Nộp quỹ" popup state — dialog với member pre-selected & locked. Dùng
+  // chung `RecordContributionDialog` với /admin/fund (page kia mở dialog với
+  // selectableMembers list, ở đây mở với lockedMember).
+  const [contribFor, setContribFor] = useState<OwingMember | null>(null);
+  const [contribSubmitting, setContribSubmitting] = useState(false);
+
+  function closeContrib() {
+    setContribFor(null);
+    setContribSubmitting(false);
+  }
+
+  function handleContribSubmit(
+    memberId: number,
+    amount: number,
+    desc: string | undefined,
+  ) {
+    const idemKey = `dash-contrib-${memberId}-${crypto.randomUUID()}`;
+    setContribSubmitting(true);
+    fireAction(
+      () => recordContribution(memberId, amount, desc, idemKey),
+      () => setContribSubmitting(false),
+      {
+        successMsg: `Đã ghi nhận ${formatK(amount)}`,
+        onSuccess: closeContrib,
+      },
+    );
+  }
+  // Local admin-guest state — optimistic stepper cho dashboard.
+  const [localAdminGuests, setLocalAdminGuests] = useState<{
+    play: number;
+    dine: number;
+  } | null>(null);
+  // Expand/collapse cho khu danh sách thành viên (chứa Khách stepper + search +
+  // AdminVoteManager). Mặc định collapsed để dashboard không quá dài.
+  const [membersExpanded, setMembersExpanded] = useState(false);
   usePolling();
+
+  // Auto-prune finalizing set khi server đã chuyển status sang "completed".
+  // Reset local admin-guest state khi server converge để tránh stomp giá trị thật.
+  const upcomingSessionId = upcomingSession?.id;
+  const upcomingSessionStatus = upcomingSession?.status;
+  const serverAdminGuestPlay = upcomingSession?.adminGuestPlayCount ?? 0;
+  const serverAdminGuestDine = upcomingSession?.adminGuestDineCount ?? 0;
+  useEffect(() => {
+    if (
+      upcomingSessionId &&
+      (upcomingSessionStatus === "completed" ||
+        upcomingSessionStatus === "cancelled")
+    ) {
+      finalizing.setSet((prev) => {
+        if (!prev.has(upcomingSessionId)) return prev;
+        const next = new Set(prev);
+        next.delete(upcomingSessionId);
+        return next;
+      });
+    }
+    // Drop local override khi nó khớp server (avoid stale local state).
+    setLocalAdminGuests((prev) => {
+      if (!prev) return prev;
+      if (
+        prev.play === serverAdminGuestPlay &&
+        prev.dine === serverAdminGuestDine
+      ) {
+        return null;
+      }
+      return prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- finalizing.setSet is stable
+  }, [
+    upcomingSessionId,
+    upcomingSessionStatus,
+    serverAdminGuestPlay,
+    serverAdminGuestDine,
+  ]);
 
   const monthLabel = `${VN_MONTH_LABEL[currentMonth]}/${currentYear}`;
   const netCash = totalPositiveBalance - totalOutstanding;
-  const votedPct = upcomingSession
-    ? upcomingSession.totalEligibleVoters > 0
-      ? Math.min(
-          100,
-          Math.round(
-            (upcomingSession.votedCount / upcomingSession.totalEligibleVoters) *
-              100,
-          ),
-        )
-      : 0
-    : 0;
   const courtRentPct =
     courtRentExpectedThisMonth > 0
       ? Math.min(
@@ -304,7 +437,7 @@ export function DashboardClient({
           </button>
         )}
         {saved && (
-          <span className="text-xs text-green-600">{td("appNameSaved")}</span>
+          <span className="text-xs text-blue-600">{td("appNameSaved")}</span>
         )}
       </div>
 
@@ -325,7 +458,7 @@ export function DashboardClient({
               ? "bg-red-500/10 text-red-500"
               : totalStockQua <= 40
                 ? "bg-amber-500/10 text-amber-500"
-                : "bg-green-500/10 text-green-500"
+                : "bg-blue-500/10 text-blue-500"
           }
           label={tf("shuttleStock")}
           value={
@@ -335,7 +468,7 @@ export function DashboardClient({
                   ? "text-red-600"
                   : totalStockQua <= 40
                     ? "text-amber-600"
-                    : "text-green-600"
+                    : "text-blue-600"
               }
             >
               {totalStockQua} {tInv("piece")}
@@ -386,6 +519,7 @@ export function DashboardClient({
         brands={settingsBrands}
         currentCourtId={defaultCourtId}
         currentBrandId={defaultBrandId}
+        currentSessionDays={sessionDays}
       />
 
       {/* Upcoming Session — wrap in LED border when buổi sắp/đang diễn ra.
@@ -397,25 +531,97 @@ export function DashboardClient({
        * sweep of .led-border doesn't leak through. Translucent tints
        * (bg-violet-50/40) cause the bright wedge to bleed across the card. */}
       {(() => {
-        const status = upcomingSession?.status;
+        const todayYmd = ymdInVN();
+        const isOptimisticFinalizing =
+          !!upcomingSession && finalizing.set.has(upcomingSession.id);
+        // Optimistic override: vừa bấm "Xác nhận" → coi như completed cho tới
+        // khi server revalidate trả về status thật.
+        const status = isOptimisticFinalizing
+          ? "completed"
+          : upcomingSession?.status;
         const isUpcomingActive = status === "voting" || status === "confirmed";
         const isPastPending =
           isUpcomingActive &&
           !!upcomingSession &&
-          upcomingSession.date < ymdInVN();
+          upcomingSession.date < todayYmd;
+        // Cho phép finalize từ HÔM NAY trở đi (đồng bộ với /admin/sessions).
+        const canFinalize =
+          isUpcomingActive &&
+          !!upcomingSession &&
+          upcomingSession.date <= todayYmd;
         const showLed = isUpcomingActive && !isPastPending;
         const badgeVariant: StatusVariant = isPastPending
           ? "needsConfirm"
           : (status as StatusVariant) || "neutral";
         const badgeText = isPastPending
           ? tf("needsConfirm")
-          : ts(status as "voting" | "confirmed" | "completed" | "cancelled");
+          : ts(
+              (status ?? "voting") as
+                | "voting"
+                | "confirmed"
+                | "completed"
+                | "cancelled",
+            );
+        const adminGuestPlay =
+          localAdminGuests?.play ?? upcomingSession?.adminGuestPlayCount ?? 0;
+        const adminGuestDine =
+          localAdminGuests?.dine ?? upcomingSession?.adminGuestDineCount ?? 0;
+        const handleAdminGuestSet = (play: number, dine: number) => {
+          if (!upcomingSession) return;
+          const sessionId = upcomingSession.id;
+          const prev = {
+            play: adminGuestPlay,
+            dine: adminGuestDine,
+          };
+          const next = { play, dine };
+          setLocalAdminGuests(next);
+          fireAction(
+            () => setAdminGuestCount(sessionId, next.play, next.dine),
+            () => setLocalAdminGuests(prev),
+          );
+        };
+        // Title đổi theo state — "sắp tới" cho buổi đang vote/confirmed,
+        // "cần xác nhận" cho buổi past pending (đã qua nhưng chưa chốt sổ).
+        const sectionTitle = isPastPending
+          ? td("sessionNeedsConfirm")
+          : td("upcomingSession");
+        // Cost summary — tính cùng helper với cost-calculator để đồng bộ với
+        // /admin/sessions list/detail. Khách của admin (adminGuestPlay/Dine)
+        // được tính vào divisor → người thật bớt phải gánh.
+        const courtPriceVal = upcomingSession?.courtPrice ?? 0;
+        const shuttlecockCost =
+          upcomingSession?.shuttlecocks.reduce(
+            (sum, s) =>
+              sum + calculateShuttlecockCost(s.quantityUsed, s.pricePerTube),
+            0,
+          ) ?? 0;
+        const diningBillVal = upcomingSession?.diningBill ?? 0;
+        const totalExpense = courtPriceVal + shuttlecockCost + diningBillVal;
+        const totalPlayers = upcomingSession
+          ? upcomingSession.playerCount + upcomingSession.guestPlayCount
+          : 0;
+        const totalDiners = upcomingSession
+          ? upcomingSession.dinerCount + upcomingSession.guestDineCount
+          : 0;
+        const { playCostPerHead, dineCostPerHead } = computePerHeadCharges({
+          courtPrice: courtPriceVal,
+          shuttlecockCost,
+          diningBill: diningBillVal,
+          playerCount: totalPlayers,
+          dinerCount: totalDiners,
+        });
+        const showCostSummary =
+          !!upcomingSession &&
+          (totalExpense > 0 ||
+            playCostPerHead > 0 ||
+            dineCostPerHead > 0 ||
+            canFinalize);
         return (
           <LedBorder active={showLed} variant="pink">
             <SectionCard
               tone="neutral"
               icon={CalendarDays}
-              title={td("upcomingSession")}
+              title={sectionTitle}
               action={
                 upcomingSession && (
                   <StatusBadge variant={badgeVariant}>{badgeText}</StatusBadge>
@@ -424,13 +630,19 @@ export function DashboardClient({
             >
               {upcomingSession ? (
                 <div className="space-y-3">
-                  <div className="space-y-2.5">
-                    <div className="flex items-center gap-3 text-base">
-                      <CalendarDays className="text-muted-foreground h-5 w-5" />
-                      <span className="font-medium capitalize">
-                        {formatDateFull(upcomingSession.date)}
-                      </span>
+                  <div className="space-y-3">
+                    {/* Ngày trên, week strip dưới, strip căn giữa ngang —
+                        đồng bộ với /admin/sessions card. */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <CalendarDays className="text-primary h-6 w-6" />
+                        <span className="text-2xl font-bold capitalize sm:text-3xl">
+                          {formatDateFull(upcomingSession.date)}
+                        </span>
+                      </div>
+                      <WeekStrip sessionDate={upcomingSession.date} />
                     </div>
+
                     <div className="flex items-center gap-3 text-base">
                       <Clock className="text-muted-foreground h-5 w-5" />
                       <span>
@@ -453,69 +665,214 @@ export function DashboardClient({
                         </a>
                       )}
                     </div>
-                    <div className="flex flex-wrap gap-x-5 gap-y-1.5 pt-1 text-base">
-                      <span>
-                        🏸 {ts("badminton")}:{" "}
-                        <strong className="text-primary">
-                          {upcomingSession.playerCount +
-                            upcomingSession.guestPlayCount}
-                        </strong>{" "}
-                        {ts("people")}
-                        {upcomingSession.guestPlayCount > 0 && (
-                          <span className="tabular-nums">
-                            {" "}
-                            ({upcomingSession.guestPlayCount} {ts("guest")})
-                          </span>
-                        )}
-                      </span>
-                      <span>
-                        🍻 {ts("dining")}:{" "}
-                        <strong className="text-orange-500 dark:text-orange-400">
-                          {upcomingSession.dinerCount +
-                            upcomingSession.guestDineCount}
-                        </strong>{" "}
-                        {ts("people")}
-                        {upcomingSession.guestDineCount > 0 && (
-                          <span className="tabular-nums">
-                            {" "}
-                            ({upcomingSession.guestDineCount} {ts("guest")})
-                          </span>
-                        )}
-                      </span>
-                    </div>
+                    {/* Số người chơi/nhậu đã hiển thị trong khu mở rộng danh sách
+                        thành viên bên dưới — không lặp ở header. */}
                   </div>
 
-                  {/* Vote progress */}
-                  {upcomingSession.totalEligibleVoters > 0 && (
-                    <div className="bg-background/60 dark:bg-background/40 ring-border/60 rounded-xl p-3 shadow-sm ring-1">
-                      <div className="mb-1.5 flex items-baseline justify-between text-sm">
-                        <span className="text-muted-foreground">
-                          Tiến độ vote
-                        </span>
-                        <span className="text-foreground font-semibold tabular-nums">
-                          <span className="text-primary text-lg font-bold">
-                            {upcomingSession.votedCount}
-                          </span>
-                          <span className="text-muted-foreground">
-                            /{upcomingSession.totalEligibleVoters}
-                          </span>
-                        </span>
-                      </div>
-                      <div className="bg-muted h-2 overflow-hidden rounded-full">
-                        <div
-                          className="bg-primary h-full rounded-full transition-all"
-                          style={{ width: `${votedPct}%` }}
-                        />
-                      </div>
+                  {/* Inline editor — sửa sân + cầu (Khách stepper đã chuyển vào
+                      khu mở rộng danh sách thành viên bên dưới). */}
+                  {isUpcomingActive && (
+                    <div className="space-y-2 pt-0">
+                      <CourtSelector
+                        sessionId={upcomingSession.id}
+                        courts={editorCourts}
+                        currentCourtId={upcomingSession.courtId}
+                        currentCourtQuantity={upcomingSession.courtQuantity}
+                        sessionDate={upcomingSession.date}
+                        defaultCourtId={defaultCourtId}
+                      />
+                      <ShuttlecockSelector
+                        sessionId={upcomingSession.id}
+                        brands={editorBrands}
+                        currentShuttlecocks={upcomingSession.shuttlecocks.map(
+                          (s) =>
+                            ({
+                              id: s.id,
+                              sessionId: upcomingSession.id,
+                              brandId: s.brandId,
+                              quantityUsed: s.quantityUsed,
+                              pricePerTube: s.pricePerTube,
+                              brand:
+                                editorBrands.find((b) => b.id === s.brandId) ??
+                                ({
+                                  id: s.brandId,
+                                  name: s.brandName,
+                                  pricePerTube: s.pricePerTube,
+                                } as Brand),
+                            }) as SessionShuttlecock,
+                        )}
+                      />
                     </div>
                   )}
 
-                  <Link href="/admin/sessions">
-                    <Button size="lg" className="w-full">
-                      {td("manageSession")}
-                      <ArrowRight className="ml-1 h-4 w-4" />
-                    </Button>
-                  </Link>
+                  {/* Cost summary — đồng bộ format với /admin/sessions list:
+                      label trái + tổng + per-head bên phải, tabular-nums. */}
+                  {showCostSummary && (
+                    <div className="bg-primary/[0.04] border-primary/20 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl border px-3 py-2.5 text-base">
+                      <span className="font-semibold">💰 Tổng chi</span>
+                      <span className="ml-auto flex flex-wrap items-baseline justify-end gap-x-1.5">
+                        <span className="text-primary text-xl font-bold tabular-nums">
+                          {formatK(totalExpense)}
+                        </span>
+                        {(playCostPerHead > 0 || dineCostPerHead > 0) && (
+                          <span className="text-foreground/70 text-base font-semibold tabular-nums">
+                            (
+                            {playCostPerHead > 0 && (
+                              <span className="text-primary">
+                                🏸 {formatK(playCostPerHead)}
+                              </span>
+                            )}
+                            {playCostPerHead > 0 && dineCostPerHead > 0 && (
+                              <span className="text-foreground/50"> · </span>
+                            )}
+                            {dineCostPerHead > 0 && (
+                              <span className="text-orange-500 dark:text-orange-400">
+                                🍻 {formatK(dineCostPerHead)}
+                              </span>
+                            )}
+                            <span className="text-foreground/70 text-sm font-medium">
+                              /người)
+                            </span>
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Members block — toggle counts + expandable AdminVoteManager
+                      (chứa Khách stepper + search + member rows). Đồng bộ pattern
+                      /admin/sessions list card. */}
+                  {isUpcomingActive && (
+                    <div
+                      className={`border-primary/25 bg-primary/[0.04] overflow-hidden rounded-xl border transition-colors ${
+                        membersExpanded
+                          ? "border-primary/50"
+                          : "hover:border-primary/40"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setMembersExpanded((v) => !v)}
+                        className="flex w-full items-center justify-between p-3 text-base"
+                      >
+                        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-left">
+                          <span className="text-primary">
+                            🏸{" "}
+                            <strong>
+                              {upcomingSession.playerCount +
+                                upcomingSession.guestPlayCount}
+                            </strong>{" "}
+                            <span className="text-foreground/80">
+                              {ts("people")}
+                            </span>
+                            {upcomingSession.guestPlayCount > 0 && (
+                              <span className="tabular-nums">
+                                {" "}
+                                <span className="text-foreground/80">
+                                  ({ts("including")}{" "}
+                                </span>
+                                {upcomingSession.guestPlayCount}{" "}
+                                <span className="text-foreground/80">
+                                  {ts("guest")})
+                                </span>
+                              </span>
+                            )}
+                          </span>
+                          <span className="text-orange-500 dark:text-orange-400">
+                            🍻{" "}
+                            <strong>
+                              {upcomingSession.dinerCount +
+                                upcomingSession.guestDineCount}
+                            </strong>{" "}
+                            <span className="text-foreground/80">
+                              {ts("people")}
+                            </span>
+                            {upcomingSession.guestDineCount > 0 && (
+                              <span className="tabular-nums">
+                                {" "}
+                                <span className="text-foreground/80">
+                                  ({ts("including")}{" "}
+                                </span>
+                                {upcomingSession.guestDineCount}{" "}
+                                <span className="text-foreground/80">
+                                  {ts("guest")})
+                                </span>
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        <ChevronDown
+                          className={`text-muted-foreground h-5 w-5 shrink-0 transition-transform ${membersExpanded ? "rotate-180" : ""}`}
+                        />
+                      </button>
+                      {membersExpanded && (
+                        <div className="bg-background/40 border-t p-3">
+                          <AdminVoteManager
+                            sessionId={upcomingSession.id}
+                            votes={upcomingSession.votes}
+                            members={editorMembers}
+                            readOnly={false}
+                            adminGuestPlayCount={adminGuestPlay}
+                            adminGuestDineCount={adminGuestDine}
+                            onAdminGuestChange={handleAdminGuestSet}
+                            sessionCosts={{
+                              courtPrice: upcomingSession.courtPrice ?? 0,
+                              courtName: upcomingSession.courtName,
+                              diningBill: upcomingSession.diningBill,
+                              shuttlecocks: upcomingSession.shuttlecocks.map(
+                                (s) => ({
+                                  brandName: s.brandName,
+                                  quantity: s.quantityUsed,
+                                  pricePerTube: s.pricePerTube,
+                                }),
+                              ),
+                              startTime: upcomingSession.startTime,
+                              endTime: upcomingSession.endTime,
+                              isCompleted: false,
+                            }}
+                            hideCostSummary
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Action row: "Xác nhận buổi chơi" (when canFinalize) +
+                      link "Quản lý" sang /admin/sessions cho full edit. */}
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    {canFinalize && (
+                      <Button
+                        size="lg"
+                        className="flex-1 gap-2"
+                        disabled={isOptimisticFinalizing}
+                        onClick={() => {
+                          finalizing.addOptimistically(
+                            upcomingSession.id,
+                            () => finalizeSessionAuto(upcomingSession.id),
+                            { successMsg: ts("confirmedSuccess") },
+                          );
+                        }}
+                      >
+                        <Check className="h-4 w-4" />
+                        {isOptimisticFinalizing
+                          ? ts("confirming")
+                          : ts("confirmSession")}
+                      </Button>
+                    )}
+                    <Link
+                      href="/admin/sessions"
+                      className={canFinalize ? "sm:flex-1" : "flex-1"}
+                    >
+                      <Button
+                        size="lg"
+                        variant={canFinalize ? "outline" : "default"}
+                        className="w-full"
+                      >
+                        {td("manageSession")}
+                        <ArrowRight className="ml-1 h-4 w-4" />
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
               ) : (
                 <EmptyState variant="inline" title={td("noUpcoming")} />
@@ -527,7 +884,7 @@ export function DashboardClient({
 
       {/* Tình hình tài chính — emerald tint */}
       <SectionCard
-        tone="emerald"
+        tone="blue"
         icon={PiggyBank}
         title="Tình hình tài chính"
         action={
@@ -546,7 +903,7 @@ export function DashboardClient({
             icon={Coins}
             label="Quỹ còn dư"
             value={formatK(totalPositiveBalance)}
-            valueClassName="text-emerald-600 dark:text-emerald-400 text-xl"
+            valueClassName="text-blue-600 dark:text-blue-400 text-xl"
           />
           <StatTile
             tone="neutral"
@@ -572,7 +929,7 @@ export function DashboardClient({
             valueClassName={cn(
               "text-xl",
               netCash >= 0
-                ? "text-emerald-600 dark:text-emerald-400"
+                ? "text-blue-600 dark:text-blue-400"
                 : "text-destructive",
             )}
             className="col-span-2 sm:col-span-1"
@@ -581,7 +938,7 @@ export function DashboardClient({
 
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
           <StatTile
-            tone="emerald"
+            tone="blue"
             size="sm"
             icon={TrendingUp}
             label={`Thu ${monthLabel}`}
@@ -635,7 +992,7 @@ export function DashboardClient({
                 size="sm"
                 label="Đã trả"
                 value={formatK(courtRentPaidThisMonth)}
-                valueClassName="text-emerald-600 dark:text-emerald-400"
+                valueClassName="text-blue-600 dark:text-blue-400"
               />
               <StatTile
                 tone="neutral"
@@ -644,7 +1001,7 @@ export function DashboardClient({
                 value={formatK(courtRentRemainingThisMonth)}
                 valueClassName={cn(
                   courtRentRemainingThisMonth === 0
-                    ? "text-emerald-600 dark:text-emerald-400"
+                    ? "text-blue-600 dark:text-blue-400"
                     : "text-orange-600 dark:text-orange-400",
                 )}
               />
@@ -654,7 +1011,7 @@ export function DashboardClient({
               <div
                 className={cn(
                   "h-full rounded-full transition-all",
-                  courtRentPct >= 100 ? "bg-emerald-500" : "bg-cyan-500",
+                  courtRentPct >= 100 ? "bg-blue-500" : "bg-cyan-500",
                 )}
                 style={{ width: `${courtRentPct}%` }}
               />
@@ -696,25 +1053,48 @@ export function DashboardClient({
           }
         >
           <ul className="bg-background/60 dark:bg-background/40 ring-border/60 divide-y rounded-xl shadow-sm ring-1">
-            {topOwingMembers.map((m) => (
-              <li
-                key={m.memberId}
-                className="flex items-center gap-3 px-3 py-2.5"
-              >
-                <MemberAvatar
-                  memberId={m.memberId}
-                  avatarKey={m.memberAvatarKey}
-                  avatarUrl={m.memberAvatarUrl}
-                  size={32}
-                />
-                <span className="min-w-0 flex-1 truncate text-base font-medium">
-                  {m.memberName}
-                </span>
-                <span className="text-destructive shrink-0 text-base font-bold tabular-nums">
-                  −{formatK(m.amount)}
-                </span>
-              </li>
-            ))}
+            {topOwingMembers.map((m) => {
+              const isClearing = clearingDebt.set.has(m.memberId);
+              return (
+                <li
+                  key={m.memberId}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-2 transition-opacity",
+                    isClearing && "opacity-50",
+                  )}
+                >
+                  <MemberAvatar
+                    memberId={m.memberId}
+                    avatarKey={m.memberAvatarKey}
+                    avatarUrl={m.memberAvatarUrl}
+                    size={32}
+                  />
+                  <div className="flex min-w-0 flex-1 items-baseline gap-2">
+                    <span className="truncate text-sm font-medium">
+                      {m.memberName}
+                    </span>
+                    <span className="text-destructive shrink-0 text-base font-bold tabular-nums">
+                      −{formatK(m.amount)}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setContribFor(m)}
+                    className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-9 shrink-0 items-center justify-center gap-1 rounded-lg px-3 text-xs font-semibold shadow-sm transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Nộp quỹ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleClearDebt(m.memberId, m.amount)}
+                    disabled={isClearing}
+                    className="border-primary bg-card text-primary hover:bg-primary/10 inline-flex h-9 shrink-0 items-center justify-center gap-1 rounded-lg border-2 px-3 text-xs font-semibold shadow-sm transition-colors disabled:opacity-50"
+                  >
+                    <Check className="h-3.5 w-3.5" /> Đã trả nợ
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </SectionCard>
       )}
@@ -747,7 +1127,7 @@ export function DashboardClient({
                 tx.direction === "in" ? "+" : tx.direction === "out" ? "−" : "";
               const amountColor =
                 tx.direction === "in"
-                  ? "text-emerald-600 dark:text-emerald-400"
+                  ? "text-blue-600 dark:text-blue-400"
                   : tx.direction === "out"
                     ? "text-red-600 dark:text-red-400"
                     : "text-foreground";
@@ -796,6 +1176,27 @@ export function DashboardClient({
           </ul>
         )}
       </SectionCard>
+
+      {/* "Ghi nhận đóng quỹ" popup — shared component với /admin/fund.
+          lockedMember = member dòng đã click → ẩn select. Stepper +/- 100k
+          + free typing đều dùng được. */}
+      <RecordContributionDialog
+        open={contribFor !== null}
+        onClose={closeContrib}
+        onSubmit={handleContribSubmit}
+        lockedMember={
+          contribFor
+            ? {
+                id: contribFor.memberId,
+                name: contribFor.memberName,
+                avatarKey: contribFor.memberAvatarKey,
+                avatarUrl: contribFor.memberAvatarUrl,
+                balance: -contribFor.amount,
+              }
+            : null
+        }
+        submitting={contribSubmitting}
+      />
     </div>
   );
 }

@@ -497,13 +497,19 @@ export function CourtRentClient({
             <div className="col-span-2 sm:col-span-1">
               <Label className="text-xs">Số tiền (VND)</Label>
               <Input
-                type="number"
+                type="text"
                 inputMode="numeric"
-                value={formAmount}
-                onChange={(e) => setFormAmount(e.target.value)}
-                min={0}
-                step={10000}
-                className="bg-background dark:bg-background mt-1"
+                value={
+                  formAmount ? Number(formAmount).toLocaleString("vi-VN") : ""
+                }
+                onChange={(e) => {
+                  // Chỉ giữ digit; hiển thị format theo locale "vi-VN"
+                  // (dấu chấm phân tách nghìn) qua value prop ở trên.
+                  const digits = e.target.value.replace(/\D/g, "");
+                  setFormAmount(digits);
+                }}
+                placeholder="2.400.000"
+                className="mt-1 tabular-nums"
               />
             </div>
           </div>
@@ -513,7 +519,7 @@ export function CourtRentClient({
               value={formNote}
               onChange={(e) => setFormNote(e.target.value)}
               placeholder="VD: Trả tháng 4 cho sân Atus"
-              className="bg-background dark:bg-background mt-1"
+              className="mt-1"
             />
           </div>
           <Button type="button" onClick={handleSubmit} className="w-full">

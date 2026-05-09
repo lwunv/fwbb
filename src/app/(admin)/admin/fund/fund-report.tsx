@@ -9,13 +9,14 @@ import {
   RotateCcw,
   ChevronDown,
   Wallet,
-  Search,
   Plus,
   Minus,
+  Check,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/shared/search-input";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatVND, cn } from "@/lib/utils";
@@ -67,12 +68,12 @@ function statusFor(
   b: FilterKey,
   t: (key: "filterHasFund" | "filterOwing" | "filterDepleted") => string,
 ): {
-  variant: "paid" | "unpaid" | "neutral";
+  variant: "paid" | "unpaid" | "depleted";
   label: string;
 } {
   if (b === "hasFund") return { variant: "paid", label: t("filterHasFund") };
   if (b === "owing") return { variant: "unpaid", label: t("filterOwing") };
-  return { variant: "neutral", label: t("filterDepleted") };
+  return { variant: "depleted", label: t("filterDepleted") };
 }
 
 export function FundReport({ fundMembers, transactions }: Props) {
@@ -108,6 +109,33 @@ export function FundReport({ fundMembers, transactions }: Props) {
           sign === 1
             ? `Đã cộng ${formatVND(amount)} vào quỹ`
             : `Đã trừ ${formatVND(amount)} khỏi quỹ`,
+        onSuccess: () => {
+          setAdjusting(false);
+          setAdjustAmount("");
+          setAdjustDesc("");
+          setAdjustDirty(false);
+          setAdjustSign(1);
+        },
+      },
+    );
+  }
+
+  /**
+   * One-click clear debt: cộng đúng `-balance` để bring balance về 0. Lưu
+   * description "Đã hết nợ" để log dễ nhận diện. Idempotent qua
+   * `idemKey` (UUID/click) — DB UNIQUE INDEX trên financial_transactions
+   *  ngăn double-submit nếu user lỡ bấm liên tục.
+   */
+  function handleClearDebt(memberId: number, balance: number) {
+    if (balance >= 0) return;
+    const amount = -balance;
+    const idemKey = `clear-debt-${memberId}-${crypto.randomUUID()}`;
+    setAdjusting(true);
+    fireAction(
+      () => recordContribution(memberId, amount, "Đã hết nợ", idemKey),
+      () => setAdjusting(false),
+      {
+        successMsg: `Đã đóng ${formatVND(amount)} → hết nợ`,
         onSuccess: () => {
           setAdjusting(false);
           setAdjustAmount("");
@@ -168,15 +196,11 @@ export function FundReport({ fundMembers, transactions }: Props) {
   return (
     <Card>
       <CardContent className="space-y-4 p-4">
-        <div className="relative">
-          <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-          <Input
-            placeholder={t("searchMemberPlaceholder")}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="bg-background dark:bg-background pl-10"
-          />
-        </div>
+        <SearchInput
+          placeholder={t("searchMemberPlaceholder")}
+          value={search}
+          onChange={setSearch}
+        />
         <div className="flex flex-wrap gap-1.5">
           {FILTERS.map((f) => {
             const active = filter === f.key;
@@ -189,7 +213,7 @@ export function FundReport({ fundMembers, transactions }: Props) {
                   setExpandedId(null);
                 }}
                 className={cn(
-                  "min-h-11 rounded-full border px-4 text-sm font-medium transition-colors",
+                  "h-[42px] rounded-full border px-4 text-sm font-medium transition-colors",
                   active
                     ? "bg-primary text-primary-foreground border-primary"
                     : "bg-background text-muted-foreground hover:bg-muted/80",
@@ -229,50 +253,56 @@ export function FundReport({ fundMembers, transactions }: Props) {
               const status = statusFor(b, t);
               const balanceColor =
                 fm.balance.balance > 0
-                  ? "text-green-600 dark:text-green-400"
+                  ? "text-blue-600 dark:text-blue-400"
                   : fm.balance.balance < 0
-                    ? "text-red-600 dark:text-red-400"
-                    : "text-muted-foreground";
+                    ? "text-rose-600 dark:text-rose-400"
+                    : "text-yellow-600 dark:text-yellow-400";
 
+              // Card neutral — chỉ dùng accent ở viền trái + status badge
+              // top-right để nhận biết trạng thái. Tránh tô màu toàn card
+              // (xấu trên pink theme + chói mắt khi list dài).
               const tones =
                 b === "hasFund"
                   ? {
-                      bg: "bg-green-500/5 dark:bg-green-500/10",
-                      hover: "hover:bg-green-500/10 dark:hover:bg-green-500/15",
+                      bg: "bg-card",
+                      hover: "hover:bg-muted/40",
                       ring: isOpen
-                        ? "ring-2 ring-green-500/50"
-                        : "ring-1 ring-green-500/25 dark:ring-green-500/30",
-                      open: "bg-green-500/15 dark:bg-green-500/20",
-                      divider: "border-green-500/20",
+                        ? "ring-1 ring-blue-500/40"
+                        : "ring-1 ring-border",
+                      open: "",
+                      divider: "border-border",
+                      accent: "border-l-4 border-l-blue-500/60",
                     }
                   : b === "owing"
                     ? {
-                        bg: "bg-red-500/5 dark:bg-red-500/10",
-                        hover: "hover:bg-red-500/10 dark:hover:bg-red-500/15",
+                        bg: "bg-card",
+                        hover: "hover:bg-muted/40",
                         ring: isOpen
-                          ? "ring-2 ring-red-500/50"
-                          : "ring-1 ring-red-500/25 dark:ring-red-500/30",
-                        open: "bg-red-500/15 dark:bg-red-500/20",
-                        divider: "border-red-500/20",
+                          ? "ring-1 ring-rose-500/40"
+                          : "ring-1 ring-border",
+                        open: "",
+                        divider: "border-border",
+                        accent: "border-l-4 border-l-rose-500/60",
                       }
                     : {
-                        bg: "bg-muted/40",
-                        hover: "hover:bg-muted/60",
+                        bg: "bg-card",
+                        hover: "hover:bg-muted/40",
                         ring: isOpen
-                          ? "ring-2 ring-foreground/25"
+                          ? "ring-1 ring-yellow-500/40"
                           : "ring-1 ring-border",
-                        open: "bg-muted/70",
+                        open: "",
                         divider: "border-border",
+                        accent: "border-l-4 border-l-yellow-500/60",
                       };
 
               return (
-                <motion.div
+                <div
                   key={fm.memberId}
-                  layout
                   className={cn(
                     "overflow-hidden rounded-xl shadow-sm transition-colors",
                     tones.bg,
                     tones.ring,
+                    tones.accent,
                     isOpen && tones.open,
                   )}
                 >
@@ -280,7 +310,7 @@ export function FundReport({ fundMembers, transactions }: Props) {
                     type="button"
                     onClick={() => setExpandedId(isOpen ? null : fm.memberId)}
                     className={cn(
-                      "flex w-full items-center gap-3 p-3 text-left transition-colors",
+                      "flex w-full items-center gap-4 px-3 py-2 text-left transition-colors",
                       tones.hover,
                     )}
                   >
@@ -288,39 +318,31 @@ export function FundReport({ fundMembers, transactions }: Props) {
                       memberId={fm.memberId}
                       avatarKey={fm.member.avatarKey}
                       avatarUrl={fm.member.avatarUrl}
-                      size={40}
+                      size={32}
                     />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-base font-semibold">
-                        {fm.member.nickname || fm.member.name}
-                      </p>
-                      <p
-                        className={cn(
-                          "text-base font-bold tabular-nums",
-                          balanceColor,
-                        )}
-                      >
-                        {formatVND(fm.balance.balance)}
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1.5">
-                      <StatusBadge variant={status.variant}>
-                        {status.label}
-                      </StatusBadge>
-                      <span
-                        className={cn(
-                          "bg-background/60 text-muted-foreground inline-flex min-h-9 items-center rounded-lg border px-3 text-sm font-medium",
-                        )}
-                      >
-                        Chi tiết
-                        <ChevronDown
-                          className={cn(
-                            "ml-1 h-4 w-4 transition-transform",
-                            isOpen && "rotate-180",
-                          )}
-                        />
-                      </span>
-                    </div>
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                      {fm.member.nickname || fm.member.name}
+                    </span>
+                    <span
+                      className={cn(
+                        "min-w-24 shrink-0 text-right text-base font-bold tabular-nums",
+                        balanceColor,
+                      )}
+                    >
+                      {formatVND(fm.balance.balance)}
+                    </span>
+                    <StatusBadge
+                      variant={status.variant}
+                      className="w-[110px] shrink-0 justify-center"
+                    >
+                      {status.label}
+                    </StatusBadge>
+                    <ChevronDown
+                      className={cn(
+                        "text-muted-foreground h-4 w-4 shrink-0 transition-transform",
+                        isOpen && "rotate-180",
+                      )}
+                    />
                   </button>
 
                   <AnimatePresence initial={false}>
@@ -333,21 +355,21 @@ export function FundReport({ fundMembers, transactions }: Props) {
                         transition={{ duration: 0.2 }}
                         className={cn("border-t", tones.divider)}
                       >
-                        <div className="bg-background/40 grid grid-cols-3 gap-2 p-3 text-center">
+                        <div className="grid grid-cols-3 gap-2 p-3 text-center">
                           <SummaryTile
                             label="Đã đóng"
                             value={fm.balance.totalContributions}
-                            color="text-green-600 dark:text-green-400"
+                            color="text-blue-600 dark:text-blue-400"
                           />
                           <SummaryTile
                             label="Đã trừ"
                             value={fm.balance.totalDeductions}
-                            color="text-orange-600 dark:text-orange-400"
+                            color="text-amber-600 dark:text-amber-400"
                           />
                           <SummaryTile
                             label="Đã hoàn"
                             value={fm.balance.totalRefunds}
-                            color="text-red-600 dark:text-red-400"
+                            color="text-rose-600 dark:text-rose-400"
                           />
                         </div>
 
@@ -363,8 +385,36 @@ export function FundReport({ fundMembers, transactions }: Props) {
                             Điều chỉnh quỹ
                           </p>
 
-                          {/* Sign picker */}
-                          <div className="grid grid-cols-2 gap-2">
+                          {/* 3 actions cùng 1 row khi đang nợ ([Đã hết nợ |
+                              Cộng quỹ | Trừ quỹ]); fallback 2-col khi không nợ.
+                              Mỗi button 1 màu: primary (pink) cho clear-debt,
+                              blue cho cộng, rose cho trừ. */}
+                          <div
+                            className={cn(
+                              "grid gap-2",
+                              fm.balance.balance < 0
+                                ? "grid-cols-3"
+                                : "grid-cols-2",
+                            )}
+                          >
+                            {fm.balance.balance < 0 && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleClearDebt(
+                                    fm.memberId,
+                                    fm.balance.balance,
+                                  )
+                                }
+                                disabled={adjusting}
+                                className="border-primary bg-card text-primary hover:bg-primary/10 inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border-2 px-3 text-sm font-semibold shadow-sm transition-colors disabled:opacity-50"
+                              >
+                                <Check className="h-4 w-4" />
+                                <span className="truncate">
+                                  Hết nợ {formatVND(-fm.balance.balance)}
+                                </span>
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => setAdjustSign(1)}
@@ -372,7 +422,7 @@ export function FundReport({ fundMembers, transactions }: Props) {
                               className={cn(
                                 "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border-2 px-3 text-sm font-semibold transition-colors disabled:opacity-50",
                                 adjustSign === 1
-                                  ? "border-green-500/60 bg-green-500/15 text-green-700 dark:text-green-400"
+                                  ? "border-primary bg-primary text-primary-foreground shadow-sm"
                                   : "border-border text-muted-foreground hover:bg-muted/50",
                               )}
                             >
@@ -385,7 +435,7 @@ export function FundReport({ fundMembers, transactions }: Props) {
                               className={cn(
                                 "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border-2 px-3 text-sm font-semibold transition-colors disabled:opacity-50",
                                 adjustSign === -1
-                                  ? "border-red-500/60 bg-red-500/15 text-red-700 dark:text-red-400"
+                                  ? "border-rose-500 bg-rose-500 text-white shadow-sm"
                                   : "border-border text-muted-foreground hover:bg-muted/50",
                               )}
                             >
@@ -393,7 +443,7 @@ export function FundReport({ fundMembers, transactions }: Props) {
                             </button>
                           </div>
 
-                          <input
+                          <Input
                             type="text"
                             inputMode="numeric"
                             value={
@@ -410,11 +460,11 @@ export function FundReport({ fundMembers, transactions }: Props) {
                             onFocus={() => setAdjustFocused(true)}
                             onBlur={() => setAdjustFocused(false)}
                             placeholder="Số tiền (VND)"
-                            className="bg-card focus:border-primary min-h-11 w-full rounded-xl border-2 px-3 text-base tabular-nums transition-colors outline-none"
+                            className="tabular-nums"
                             aria-label="Số tiền điều chỉnh"
                             disabled={adjusting}
                           />
-                          <input
+                          <Input
                             type="text"
                             value={adjustDesc}
                             onChange={(e) => {
@@ -424,7 +474,6 @@ export function FundReport({ fundMembers, transactions }: Props) {
                             onFocus={() => setAdjustFocused(true)}
                             onBlur={() => setAdjustFocused(false)}
                             placeholder="Ghi chú (lưu vào log giao dịch)"
-                            className="bg-card focus:border-primary min-h-10 w-full rounded-xl border-2 px-3 text-sm transition-colors outline-none"
                             disabled={adjusting}
                           />
 
@@ -446,8 +495,8 @@ export function FundReport({ fundMembers, transactions }: Props) {
                                   className={cn(
                                     "inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl px-4 text-sm font-semibold text-white shadow-sm transition-colors disabled:opacity-50",
                                     adjustSign === 1
-                                      ? "bg-green-600 hover:bg-green-700"
-                                      : "bg-red-600 hover:bg-red-700",
+                                      ? "bg-primary hover:bg-primary/90 text-primary-foreground"
+                                      : "bg-rose-500 hover:bg-rose-600",
                                   )}
                                 >
                                   Lưu — {adjustSign === 1 ? "Cộng" : "Trừ"}{" "}
@@ -469,7 +518,7 @@ export function FundReport({ fundMembers, transactions }: Props) {
                       </motion.div>
                     )}
                   </AnimatePresence>
-                </motion.div>
+                </div>
               );
             })}
           </div>
@@ -508,13 +557,13 @@ function TxRow({ tx }: { tx: FundTransaction }) {
       ? ArrowDownCircle
       : RotateCcw;
   const iconColor = isContribution
-    ? "text-green-500"
+    ? "text-blue-500"
     : isDeduction
-      ? "text-orange-500"
-      : "text-red-500";
+      ? "text-amber-500"
+      : "text-rose-500";
   const amountColor = isContribution
-    ? "text-green-600 dark:text-green-400"
-    : "text-red-600 dark:text-red-400";
+    ? "text-blue-600 dark:text-blue-400"
+    : "text-rose-600 dark:text-rose-400";
   const sign = isContribution ? "+" : "−";
   const date = tx.createdAt
     ? formatSessionDate(tx.createdAt.slice(0, 10), "long")

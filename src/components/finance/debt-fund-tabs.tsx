@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { PaymentQR } from "@/components/payment/payment-qr";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatK, cn } from "@/lib/utils";
@@ -211,7 +212,7 @@ export function DebtFundTabs({
         {tab === "fund" && isFundMember && (
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <input
+              <Input
                 type="number"
                 inputMode="numeric"
                 value={fundAmount}
@@ -220,7 +221,7 @@ export function DebtFundTabs({
                 step={1000}
                 placeholder={tDashboard("fundAmountLabel")}
                 disabled={fundClaimed}
-                className="bg-background min-h-11 min-w-0 flex-1 rounded-xl border px-3 text-base disabled:opacity-60"
+                className="min-w-0 flex-1"
                 aria-label={tDashboard("fundAmountLabel")}
               />
               {fundClaimed && (
@@ -257,7 +258,7 @@ export function DebtFundTabs({
         {tab === "debt" && hasDebt && (
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <input
+              <Input
                 type="number"
                 inputMode="numeric"
                 value={fundAmount}
@@ -266,7 +267,7 @@ export function DebtFundTabs({
                 step={1000}
                 placeholder={tDashboard("debtAmountLabel")}
                 disabled={fundClaimed}
-                className="bg-background min-h-11 min-w-0 flex-1 rounded-xl border px-3 text-base disabled:opacity-60"
+                className="min-w-0 flex-1"
                 aria-label={tDashboard("debtAmountLabel")}
               />
               {fundClaimed && (

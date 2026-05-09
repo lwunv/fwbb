@@ -6,6 +6,7 @@ import { selectCourt } from "@/actions/sessions";
 import { fireAction } from "@/lib/optimistic-action";
 import { formatK } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { computeCourtTotal } from "@/lib/cost-calculator";
 import { ChevronDown } from "lucide-react";
 import type { InferSelectModel } from "drizzle-orm";
 import type { courts as courtsTable } from "@/db/schema";
@@ -17,11 +18,17 @@ export function CourtSelector({
   courts,
   currentCourtId,
   currentCourtQuantity = 1,
+  sessionDate,
+  defaultCourtId = null,
 }: {
   sessionId: number;
   courts: Court[];
   currentCourtId: number | null;
   currentCourtQuantity?: number;
+  /** YYYY-MM-DD — cần để tính buổi mặc định/lẻ. Nếu thiếu, fallback giá tháng. */
+  sessionDate?: string;
+  /** Default court id từ app-settings — quyết định buổi mặc định. */
+  defaultCourtId?: number | null;
 }) {
   const [localCourtId, setLocalCourtId] = useState(currentCourtId);
   const [quantity, setQuantity] = useState(currentCourtQuantity);
@@ -96,14 +103,27 @@ export function CourtSelector({
     return <p className="text-muted-foreground text-sm">Chưa có sân nào.</p>;
   }
 
-  // Khớp với server-side `selectCourt`: sân thứ 1 = giá tháng (pricePerSession),
-  // sân thứ 2..N = giá lẻ (pricePerSessionRetail, fallback pricePerSession).
-  // VD THCS Tây Mỗ 200k/220k: 1 sân = 200k, 2 sân = 200k + 220k = 420k.
+  // Khớp với server-side `selectCourt` (dùng cùng `computeCourtTotal`):
+  //  - Buổi mặc định (default court + ngày T2/T4/T6): sân #1 giá tháng,
+  //    sân #2..N giá lẻ.
+  //  - Buổi lẻ: TẤT CẢ sân giá lẻ.
+  // Nếu thiếu sessionDate (legacy caller), fallback regular formula để không
+  // underprice — admin chỉ thấy lệch 1 buổi đầu cho đến khi prop được truyền.
   function totalForCourt(court: Court, qty: number) {
-    const monthly = court.pricePerSession;
-    const retail = court.pricePerSessionRetail ?? monthly;
-    const q = Math.max(1, qty);
-    return monthly + retail * (q - 1);
+    if (!sessionDate) {
+      const monthly = court.pricePerSession;
+      const retail = court.pricePerSessionRetail ?? monthly;
+      const q = Math.max(1, qty);
+      return monthly + retail * (q - 1);
+    }
+    return computeCourtTotal({
+      monthlyPrice: court.pricePerSession,
+      retailPrice: court.pricePerSessionRetail,
+      courtQuantity: qty,
+      sessionDate,
+      selectedCourtId: court.id,
+      defaultCourtId,
+    });
   }
 
   const selectedCourt = courts.find((c) => c.id === localCourtId);
@@ -171,7 +191,7 @@ export function CourtSelector({
             </label>
 
             {/* Court list */}
-            <div className="max-h-60 overflow-auto py-1">
+            <div className="max-h-96 overflow-auto py-1">
               {courts.map((court) => {
                 const isSelected = court.id === localCourtId;
                 const courtTotal = totalForCourt(court, quantity);

@@ -11,9 +11,10 @@ import { MemberAvatar } from "@/components/shared/member-avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { SearchInput } from "@/components/shared/search-input";
 import { formatK } from "@/lib/utils";
 import { calculateShuttlecockCost } from "@/lib/cost-calculator";
-import { X, Search, Users } from "lucide-react";
+import { X, Users } from "lucide-react";
 import { confirmPaymentByAdmin, undoPaymentByAdmin } from "@/actions/finance";
 import type { InferSelectModel } from "drizzle-orm";
 import type { votes as votesTable, members as membersTable } from "@/db/schema";
@@ -48,6 +49,9 @@ interface AdminVoteManagerProps {
   sessionCosts?: SessionCosts;
   adminGuestPlayCount?: number;
   adminGuestDineCount?: number;
+  /** Khi cung cấp → render Khách-của-admin stepper bên trong (trên search box).
+   *  Gắn callback fire setAdminGuestCount + rollback ở caller. */
+  onAdminGuestChange?: (play: number, dine: number) => void;
   /** Ẩn block tóm tắt chi phí (Cầu/Sân/Tổng chi/per-head) — dùng khi caller
    *  đã hiển thị tóm tắt riêng trong card (vd /admin/sessions list). */
   hideCostSummary?: boolean;
@@ -71,6 +75,7 @@ export function AdminVoteManager({
   sessionCosts,
   adminGuestPlayCount = 0,
   adminGuestDineCount = 0,
+  onAdminGuestChange,
   hideCostSummary = false,
 }: AdminVoteManagerProps) {
   const t = useTranslations("voting");
@@ -472,344 +477,366 @@ export function AdminVoteManager({
           </Card>
         )}
 
-      {/* Search box — solid bg + border-2 cho dễ thấy hơn */}
-      {!readOnly && (
-        <div className="relative">
-          <Search className="text-muted-foreground absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder={`${tCommon("search")}...`}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="bg-card focus:border-primary h-12 w-full rounded-xl border-2 pr-4 pl-11 text-base transition-colors outline-none"
-          />
+      {/* Khách của admin (stepper) — hiện ở đầu khu danh sách, trên search.
+          Chỉ render khi caller cung cấp `onAdminGuestChange` (parent sở hữu state
+          để cost summary cùng tham chiếu một nguồn). */}
+      {!readOnly && onAdminGuestChange && (
+        <div className="flex flex-wrap items-center gap-3 px-1">
+          <span className="text-muted-foreground text-sm font-medium">
+            Khách của admin:
+          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm">🏸</span>
+            <NumberStepper
+              value={adminGuestPlayCount}
+              onChange={(v) => onAdminGuestChange(v, adminGuestDineCount)}
+              min={0}
+              max={10}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm">🍻</span>
+            <NumberStepper
+              value={adminGuestDineCount}
+              onChange={(v) => onAdminGuestChange(adminGuestPlayCount, v)}
+              min={0}
+              max={10}
+            />
+          </div>
         </div>
       )}
 
-      {/* Member list card — amber tint */}
-      <Card className="border-amber-200/40 bg-amber-50/30 !py-0 dark:border-amber-900/20 dark:bg-amber-950/10">
-        <CardContent className="space-y-2 px-3 py-0">
-          {error && (
-            <div className="bg-destructive/10 text-destructive rounded-md p-2 text-center text-xs">
-              {error}
-            </div>
-          )}
+      {/* Search box */}
+      {!readOnly && (
+        <SearchInput
+          placeholder={`${tCommon("search")}...`}
+          value={search}
+          onChange={setSearch}
+        />
+      )}
 
-          {/* Đã tham gia — mỗi row là card mờ riêng (border + bg nhẹ) để phân
-              tách rõ giữa các thành viên, nhưng đủ subtle để không "đè" lên
-              LED border của các nút active bên trong. */}
-          <div className="space-y-2 py-2">
-            {activeMembers.map((member) => {
-              const v = getVote(member.id)!;
-              const debt = debtMap[member.id];
-              const isConfirmed = getDebtConfirmed(member.id);
+      {/* Member list — không bọc Card riêng vì parent đã có Card chung. Mỗi
+          row member là card duy nhất nổi lên (bg-card đặc + shadow nhẹ) để
+          tách biệt rõ giữa các thành viên mà không gây "card-trong-card". */}
+      <div className="space-y-2">
+        {error && (
+          <div className="bg-destructive/10 text-destructive rounded-md p-2 text-center text-xs">
+            {error}
+          </div>
+        )}
 
-              const amountShown = displayMemberAmount(member.id);
+        {/* Đã tham gia */}
+        <div className="space-y-2">
+          {activeMembers.map((member) => {
+            const v = getVote(member.id)!;
+            const debt = debtMap[member.id];
+            const isConfirmed = getDebtConfirmed(member.id);
 
-              return (
-                <div
-                  key={member.id}
-                  className="border-primary/25 bg-primary/[0.04] rounded-xl border px-2 py-1.5"
-                >
-                  <div className="flex min-h-[3.5rem] items-center gap-2">
-                    <MemberAvatar
-                      memberId={member.id}
-                      avatarKey={member.avatarKey}
-                      avatarUrl={member.avatarUrl}
-                      size={36}
-                    />
-                    <span
-                      className="min-w-0 flex-1 truncate text-base font-semibold"
-                      title={member.name}
-                    >
-                      {member.name}
-                    </span>
+            const amountShown = displayMemberAmount(member.id);
 
-                    <div className="flex shrink-0 items-center gap-2">
-                      {/* Cầu — đã vote: LED border + border tĩnh primary; chưa vote: dashed mờ */}
-                      {v.willPlay ? (
-                        <div className="led-border-sm primary inline-flex">
-                          <button
-                            type="button"
-                            title="Cầu lông"
-                            disabled={readOnly}
-                            onClick={() => toggleTag(member.id, "play")}
-                            className="border-primary text-primary inline-flex h-12 w-12 cursor-pointer items-center justify-center border-2 bg-violet-50 text-lg transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 dark:bg-violet-950"
-                          >
-                            🏸
-                          </button>
-                        </div>
-                      ) : (
+            return (
+              <div
+                key={member.id}
+                className="bg-card border-primary/30 rounded-xl border px-2 py-1.5 shadow-sm"
+              >
+                <div className="flex min-h-[3.5rem] items-center gap-2">
+                  <MemberAvatar
+                    memberId={member.id}
+                    avatarKey={member.avatarKey}
+                    avatarUrl={member.avatarUrl}
+                    size={36}
+                  />
+                  <span
+                    className="min-w-0 flex-1 truncate text-base font-semibold"
+                    title={member.name}
+                  >
+                    {member.name}
+                  </span>
+
+                  <div className="flex shrink-0 items-center gap-2">
+                    {/* Cầu — đã vote: LED border + border tĩnh primary; chưa vote: dashed mờ */}
+                    {v.willPlay ? (
+                      <div className="led-border-sm primary inline-flex">
                         <button
                           type="button"
                           title="Cầu lông"
                           disabled={readOnly}
                           onClick={() => toggleTag(member.id, "play")}
-                          className="border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed text-lg opacity-50 grayscale transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50"
+                          className="border-primary text-primary inline-flex h-12 w-12 cursor-pointer items-center justify-center border-2 bg-violet-50 text-lg transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 dark:bg-violet-950"
                         >
                           🏸
                         </button>
-                      )}
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        title="Cầu lông"
+                        disabled={readOnly}
+                        onClick={() => toggleTag(member.id, "play")}
+                        className="border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed text-lg opacity-50 grayscale transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50"
+                      >
+                        🏸
+                      </button>
+                    )}
 
-                      {/* Nhậu — đã vote: LED border + border tĩnh cam; chưa vote: dashed mờ */}
-                      {v.willDine ? (
-                        <div className="led-border-sm orange inline-flex">
-                          <button
-                            type="button"
-                            title="Nhậu"
-                            disabled={readOnly}
-                            onClick={() => toggleTag(member.id, "dine")}
-                            className="inline-flex h-12 w-12 cursor-pointer items-center justify-center border-2 border-orange-500 bg-orange-50 text-lg text-orange-700 transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 dark:border-orange-400 dark:bg-orange-950 dark:text-orange-300"
-                          >
-                            🍻
-                          </button>
-                        </div>
-                      ) : (
+                    {/* Nhậu — đã vote: LED border + border tĩnh cam; chưa vote: dashed mờ */}
+                    {v.willDine ? (
+                      <div className="led-border-sm orange inline-flex">
                         <button
                           type="button"
                           title="Nhậu"
                           disabled={readOnly}
                           onClick={() => toggleTag(member.id, "dine")}
-                          className="border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed text-lg opacity-50 grayscale transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50"
+                          className="inline-flex h-12 w-12 cursor-pointer items-center justify-center border-2 border-orange-500 bg-orange-50 text-lg text-orange-700 transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 dark:border-orange-400 dark:bg-orange-950 dark:text-orange-300"
                         >
                           🍻
                         </button>
-                      )}
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        title="Nhậu"
+                        disabled={readOnly}
+                        onClick={() => toggleTag(member.id, "dine")}
+                        className="border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed text-lg opacity-50 grayscale transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50"
+                      >
+                        🍻
+                      </button>
+                    )}
 
-                      {/* + Khách — active (đang mở hoặc đã có khách): LED
+                    {/* + Khách — active (đang mở hoặc đã có khách): LED
                           border + border tĩnh primary, đồng bộ với 🏸/🍻.
                           Inactive: dashed mờ. */}
-                      {!readOnly &&
-                        (() => {
-                          const guests = getGuestCounts(member.id);
-                          const isActive =
-                            expandedGuest === member.id ||
-                            guests.play + guests.dine > 0;
-                          const onClick = () =>
-                            setExpandedGuest(
-                              expandedGuest === member.id ? null : member.id,
-                            );
-                          return isActive ? (
-                            <div className="led-border-sm primary inline-flex">
-                              <button
-                                type="button"
-                                title="Thêm khách"
-                                onClick={onClick}
-                                className="border-primary text-primary inline-flex h-12 w-12 cursor-pointer items-center justify-center border-2 bg-violet-50 transition-all hover:opacity-80 dark:bg-violet-950"
-                              >
-                                <Users className="h-5 w-5" />
-                              </button>
-                            </div>
-                          ) : (
+                    {!readOnly &&
+                      (() => {
+                        const guests = getGuestCounts(member.id);
+                        const isActive =
+                          expandedGuest === member.id ||
+                          guests.play + guests.dine > 0;
+                        const onClick = () =>
+                          setExpandedGuest(
+                            expandedGuest === member.id ? null : member.id,
+                          );
+                        return isActive ? (
+                          <div className="led-border-sm primary inline-flex">
                             <button
                               type="button"
                               title="Thêm khách"
                               onClick={onClick}
-                              className="border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed opacity-50 grayscale transition-all hover:opacity-80"
+                              className="border-primary text-primary inline-flex h-12 w-12 cursor-pointer items-center justify-center border-2 bg-violet-50 transition-all hover:opacity-80 dark:bg-violet-950"
                             >
                               <Users className="h-5 w-5" />
                             </button>
-                          );
-                        })()}
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            title="Thêm khách"
+                            onClick={onClick}
+                            className="border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed opacity-50 grayscale transition-all hover:opacity-80"
+                          >
+                            <Users className="h-5 w-5" />
+                          </button>
+                        );
+                      })()}
 
-                      {/* Đã thanh toán */}
-                      {debt ? (
-                        <button
-                          type="button"
-                          title={
-                            isConfirmed ? "Đã thanh toán" : "Chưa thanh toán"
-                          }
-                          onClick={() => togglePayment(member.id)}
-                          className={`inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border text-lg transition-all hover:opacity-80 ${
-                            isConfirmed
-                              ? "border-green-300 bg-green-100 text-green-700 dark:border-green-700 dark:bg-green-900/40 dark:text-green-300"
-                              : "bg-muted text-muted-foreground border-transparent opacity-40"
-                          }`}
-                        >
-                          🪙
-                        </button>
-                      ) : null}
-                    </div>
-
-                    <div className="flex min-w-[3.5rem] shrink-0 items-center justify-end gap-1.5">
-                      {sc?.isCompleted && amountShown != null && (
-                        <span
-                          className={`text-sm font-bold tabular-nums ${
-                            debt
-                              ? isConfirmed
-                                ? "text-green-600 dark:text-green-400"
-                                : "text-red-600 dark:text-red-400"
-                              : "text-foreground"
-                          }`}
-                        >
-                          {formatK(amountShown)}
-                        </span>
-                      )}
-                      {!readOnly && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setRemoveTarget({
-                              memberId: member.id,
-                              name: member.name,
-                            })
-                          }
-                          className="border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-colors"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  {/* Guest expand row */}
-                  {!readOnly &&
-                    (() => {
-                      const guests = getGuestCounts(member.id);
-                      const isOpen = expandedGuest === member.id;
-                      return isOpen ? (
-                        <div className="flex flex-wrap items-center gap-2 pt-2 pb-1">
-                          <span className="text-muted-foreground text-sm font-medium">
-                            Khách:
-                          </span>
-                          {v.willPlay && (
-                            <>
-                              <span className="text-sm">🏸</span>
-                              <NumberStepper
-                                value={guests.play}
-                                onChange={(val) =>
-                                  handleGuestChange(member.id, "play", val)
-                                }
-                                min={0}
-                                max={5}
-                              />
-                            </>
-                          )}
-                          {v.willDine && (
-                            <>
-                              <span className="text-sm">🍻</span>
-                              <NumberStepper
-                                value={guests.dine}
-                                onChange={(val) =>
-                                  handleGuestChange(member.id, "dine", val)
-                                }
-                                min={0}
-                                max={5}
-                              />
-                            </>
-                          )}
-                        </div>
-                      ) : (
-                        (() => {
-                          // Chỉ hiện guest cho tag thực sự đang on (willPlay /
-                          // willDine) — match expanded view (steppers chỉ render
-                          // cho tag active). Tránh "ghost guest" khi data còn
-                          // guestDineCount > 0 từ trước nhưng willDine đã off.
-                          const showPlayGuest = v.willPlay && guests.play > 0;
-                          const showDineGuest = v.willDine && guests.dine > 0;
-                          if (!showPlayGuest && !showDineGuest) return null;
-                          return (
-                            <button
-                              type="button"
-                              onClick={() => setExpandedGuest(member.id)}
-                              className="text-primary hover:text-primary/80 pt-1 pb-1 text-left text-sm transition-colors"
-                            >
-                              {showPlayGuest && (
-                                <span>🏸 {guests.play} khách</span>
-                              )}
-                              {showPlayGuest && showDineGuest && (
-                                <span className="mx-2">·</span>
-                              )}
-                              {showDineGuest && (
-                                <span>🍻 {guests.dine} khách</span>
-                              )}
-                            </button>
-                          );
-                        })()
-                      );
-                    })()}
-                </div>
-              );
-            })}
-            {activeMembers.length === 0 && (
-              <p className="text-muted-foreground py-4 text-center text-xs">
-                {tCommon("noOne")}
-              </p>
-            )}
-          </div>
-
-          {/* Chưa tham gia */}
-          {!readOnly &&
-            (() => {
-              const inactiveMembers = filterMembers(
-                members.filter((m) => {
-                  const v = getVote(m.id);
-                  return !v || (!v.willPlay && !v.willDine);
-                }),
-                search,
-              );
-              if (inactiveMembers.length === 0) return null;
-              return (
-                <div className="space-y-1 border-t pt-3">
-                  <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
-                    {t("notVoted")} ({inactiveMembers.length})
-                  </p>
-                  <div className="divide-y">
-                    {inactiveMembers.map((m) => (
-                      <div
-                        key={m.id}
-                        className="flex min-h-[3rem] items-center gap-3 py-3"
+                    {/* Đã thanh toán */}
+                    {debt ? (
+                      <button
+                        type="button"
+                        title={
+                          isConfirmed ? "Đã thanh toán" : "Chưa thanh toán"
+                        }
+                        onClick={() => togglePayment(member.id)}
+                        className={`inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border text-lg transition-all hover:opacity-80 ${
+                          isConfirmed
+                            ? "border-green-300 bg-green-100 text-green-700 dark:border-green-700 dark:bg-green-900/40 dark:text-green-300"
+                            : "bg-muted text-muted-foreground border-transparent opacity-40"
+                        }`}
                       >
-                        <MemberAvatar
-                          memberId={m.id}
-                          avatarKey={m.avatarKey}
-                          avatarUrl={m.avatarUrl}
-                          size={36}
-                        />
-                        <span className="min-w-0 flex-1 truncate text-base font-medium opacity-50">
-                          {m.name}
-                        </span>
-                        <div className="flex shrink-0 items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleAddMember(m.id, true, false)}
-                            className="border-primary hover:bg-primary/20 bg-muted/30 relative inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-dashed transition-all"
-                            title="Thêm chơi cầu"
-                          >
-                            <span className="text-lg opacity-30">🏸</span>
-                            <span className="text-primary absolute inset-0 flex items-center justify-center text-2xl font-black">
-                              +
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleAddMember(m.id, false, true)}
-                            className="bg-muted/30 relative inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-dashed border-orange-500 transition-all hover:bg-orange-900/30 dark:border-orange-400"
-                            title="Thêm nhậu"
-                          >
-                            <span className="text-lg opacity-30">🍻</span>
-                            <span className="absolute inset-0 flex items-center justify-center text-2xl font-black text-orange-500 dark:text-orange-400">
-                              +
-                            </span>
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                        🪙
+                      </button>
+                    ) : null}
+                  </div>
+
+                  <div className="flex min-w-[3.5rem] shrink-0 items-center justify-end gap-1.5">
+                    {sc?.isCompleted && amountShown != null && (
+                      <span
+                        className={`text-sm font-bold tabular-nums ${
+                          debt
+                            ? isConfirmed
+                              ? "text-green-600 dark:text-green-400"
+                              : "text-red-600 dark:text-red-400"
+                            : "text-foreground"
+                        }`}
+                      >
+                        {formatK(amountShown)}
+                      </span>
+                    )}
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setRemoveTarget({
+                            memberId: member.id,
+                            name: member.name,
+                          })
+                        }
+                        className="border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
-              );
-            })()}
-        </CardContent>
+                {/* Guest expand row */}
+                {!readOnly &&
+                  (() => {
+                    const guests = getGuestCounts(member.id);
+                    const isOpen = expandedGuest === member.id;
+                    return isOpen ? (
+                      <div className="flex flex-wrap items-center gap-2 pt-2 pb-1">
+                        <span className="text-muted-foreground text-sm font-medium">
+                          Khách:
+                        </span>
+                        {v.willPlay && (
+                          <>
+                            <span className="text-sm">🏸</span>
+                            <NumberStepper
+                              value={guests.play}
+                              onChange={(val) =>
+                                handleGuestChange(member.id, "play", val)
+                              }
+                              min={0}
+                              max={5}
+                            />
+                          </>
+                        )}
+                        {v.willDine && (
+                          <>
+                            <span className="text-sm">🍻</span>
+                            <NumberStepper
+                              value={guests.dine}
+                              onChange={(val) =>
+                                handleGuestChange(member.id, "dine", val)
+                              }
+                              min={0}
+                              max={5}
+                            />
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      (() => {
+                        // Chỉ hiện guest cho tag thực sự đang on (willPlay /
+                        // willDine) — match expanded view (steppers chỉ render
+                        // cho tag active). Tránh "ghost guest" khi data còn
+                        // guestDineCount > 0 từ trước nhưng willDine đã off.
+                        const showPlayGuest = v.willPlay && guests.play > 0;
+                        const showDineGuest = v.willDine && guests.dine > 0;
+                        if (!showPlayGuest && !showDineGuest) return null;
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => setExpandedGuest(member.id)}
+                            className="text-primary hover:text-primary/80 pt-1 pb-1 text-left text-sm transition-colors"
+                          >
+                            {showPlayGuest && (
+                              <span>🏸 {guests.play} khách</span>
+                            )}
+                            {showPlayGuest && showDineGuest && (
+                              <span className="mx-2">·</span>
+                            )}
+                            {showDineGuest && (
+                              <span>🍻 {guests.dine} khách</span>
+                            )}
+                          </button>
+                        );
+                      })()
+                    );
+                  })()}
+              </div>
+            );
+          })}
+          {activeMembers.length === 0 && (
+            <p className="text-muted-foreground py-4 text-center text-xs">
+              {tCommon("noOne")}
+            </p>
+          )}
+        </div>
 
-        <ConfirmDialog
-          open={removeTarget !== null}
-          onOpenChange={(open) => {
-            if (!open) setRemoveTarget(null);
-          }}
-          title={`Xóa ${removeTarget?.name ?? ""}?`}
-          description="Xóa khỏi danh sách buổi chơi này?"
-          onConfirm={handleRemoveConfirm}
-        />
-      </Card>
+        {/* Chưa tham gia */}
+        {!readOnly &&
+          (() => {
+            const inactiveMembers = filterMembers(
+              members.filter((m) => {
+                const v = getVote(m.id);
+                return !v || (!v.willPlay && !v.willDine);
+              }),
+              search,
+            );
+            if (inactiveMembers.length === 0) return null;
+            return (
+              <div className="space-y-1 border-t pt-3">
+                <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
+                  {t("notVoted")} ({inactiveMembers.length})
+                </p>
+                <div className="divide-y">
+                  {inactiveMembers.map((m) => (
+                    <div
+                      key={m.id}
+                      className="flex min-h-[3rem] items-center gap-3 py-3"
+                    >
+                      <MemberAvatar
+                        memberId={m.id}
+                        avatarKey={m.avatarKey}
+                        avatarUrl={m.avatarUrl}
+                        size={36}
+                      />
+                      <span className="min-w-0 flex-1 truncate text-base font-medium opacity-50">
+                        {m.name}
+                      </span>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleAddMember(m.id, true, false)}
+                          className="border-primary hover:bg-primary/20 bg-muted/30 relative inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-dashed transition-all"
+                          title="Thêm chơi cầu"
+                        >
+                          <span className="text-lg opacity-30">🏸</span>
+                          <span className="text-primary absolute inset-0 flex items-center justify-center text-2xl font-black">
+                            +
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAddMember(m.id, false, true)}
+                          className="bg-muted/30 relative inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-dashed border-orange-500 transition-all hover:bg-orange-900/30 dark:border-orange-400"
+                          title="Thêm nhậu"
+                        >
+                          <span className="text-lg opacity-30">🍻</span>
+                          <span className="absolute inset-0 flex items-center justify-center text-2xl font-black text-orange-500 dark:text-orange-400">
+                            +
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+      </div>
+
+      <ConfirmDialog
+        open={removeTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setRemoveTarget(null);
+        }}
+        title={`Xóa ${removeTarget?.name ?? ""}?`}
+        description="Xóa khỏi danh sách buổi chơi này?"
+        onConfirm={handleRemoveConfirm}
+      />
     </div>
   );
 }

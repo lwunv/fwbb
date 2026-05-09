@@ -120,6 +120,52 @@ export async function setDefaultBrand(brandId: number) {
   return { success: true };
 }
 
+/**
+ * Các thứ trong tuần được auto-tạo buổi (cron + auto-create today).
+ * Lưu dưới dạng comma-joined "1,3,5". 0=CN, 1=T2, …, 6=T7 (chuẩn JS getDay).
+ * Default fallback Mon/Wed/Fri để giữ behavior cũ nếu chưa set.
+ */
+const DEFAULT_SESSION_DAYS = [1, 3, 5] as const;
+
+export async function getSessionDaysOfWeek(): Promise<number[]> {
+  const setting = await db.query.appSettings.findFirst({
+    where: eq(appSettings.key, "sessionDaysOfWeek"),
+  });
+  if (!setting?.value) return [...DEFAULT_SESSION_DAYS];
+  const parsed = setting.value
+    .split(",")
+    .map((s) => parseInt(s.trim(), 10))
+    .filter((n) => Number.isFinite(n) && n >= 0 && n <= 6);
+  if (parsed.length === 0) return [...DEFAULT_SESSION_DAYS];
+  return Array.from(new Set(parsed)).sort((a, b) => a - b);
+}
+
+export async function setSessionDaysOfWeek(days: number[]) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
+  const valid = Array.from(
+    new Set(days.filter((n) => Number.isInteger(n) && n >= 0 && n <= 6)),
+  ).sort((a, b) => a - b);
+  if (valid.length === 0) return { error: "Phải chọn ít nhất 1 ngày" };
+
+  const value = valid.join(",");
+  const existing = await db.query.appSettings.findFirst({
+    where: eq(appSettings.key, "sessionDaysOfWeek"),
+  });
+  if (existing) {
+    await db
+      .update(appSettings)
+      .set({ value })
+      .where(eq(appSettings.key, "sessionDaysOfWeek"));
+  } else {
+    await db.insert(appSettings).values({ key: "sessionDaysOfWeek", value });
+  }
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/sessions");
+  return { success: true };
+}
+
 export async function updateAppName(name: string) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;

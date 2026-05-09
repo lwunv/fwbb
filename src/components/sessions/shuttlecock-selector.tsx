@@ -221,7 +221,7 @@ export function ShuttlecockSelector({
               left: pos.left,
               width: pos.width,
             }}
-            className="bg-popover animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 z-[9999] max-h-72 overflow-auto rounded-xl border shadow-lg"
+            className="bg-popover animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 z-[9999] max-h-96 overflow-auto rounded-xl border shadow-lg"
           >
             {brands.map((b) => {
               const isSelected = selectedBrandIds.has(b.id);

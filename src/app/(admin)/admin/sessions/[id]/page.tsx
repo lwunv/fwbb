@@ -3,6 +3,7 @@ import { getSessionVotes } from "@/actions/votes";
 import { getActiveCourts } from "@/actions/courts";
 import { getActiveBrands } from "@/actions/shuttlecocks";
 import { getActiveMembers } from "@/actions/members";
+import { getDefaultCourt } from "@/actions/settings";
 import { db } from "@/db";
 import { sessionDebts } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -18,20 +19,25 @@ export default async function SessionDetailPage({
   const sessionId = parseInt(id, 10);
   if (isNaN(sessionId)) notFound();
 
-  const [session, votes, courts, brands, members, debts] = await Promise.all([
-    getSession(sessionId),
-    getSessionVotes(sessionId),
-    getActiveCourts(),
-    getActiveBrands(),
-    getActiveMembers(),
-    db.query.sessionDebts.findMany({
-      where: eq(sessionDebts.sessionId, sessionId),
-    }),
-  ]);
+  const [session, votes, courts, brands, members, debts, defaultCourt] =
+    await Promise.all([
+      getSession(sessionId),
+      getSessionVotes(sessionId),
+      getActiveCourts(),
+      getActiveBrands(),
+      getActiveMembers(),
+      db.query.sessionDebts.findMany({
+        where: eq(sessionDebts.sessionId, sessionId),
+      }),
+      getDefaultCourt(),
+    ]);
 
   if (!session) notFound();
 
-  const debtMap: Record<number, { amount: number; adminConfirmed: boolean; debtId: number }> = {};
+  const debtMap: Record<
+    number,
+    { amount: number; adminConfirmed: boolean; debtId: number }
+  > = {};
   for (const d of debts) {
     debtMap[d.memberId] = {
       amount: d.totalAmount,
@@ -49,6 +55,7 @@ export default async function SessionDetailPage({
         brands={brands}
         members={members}
         debtMap={debtMap}
+        defaultCourtId={defaultCourt?.id ?? null}
       />
     </div>
   );

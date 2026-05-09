@@ -87,6 +87,8 @@ export async function recordPurchase(formData: FormData) {
   }
 
   revalidatePath("/admin/inventory");
+  revalidatePath("/admin/fund");
+  revalidatePath("/admin/shuttlecock-finance");
   return { success: true };
 }
 

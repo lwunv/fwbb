@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { sessions, courts, members, shuttlecockBrands } from "@/db/schema";
 import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { ymdInVN } from "@/lib/date-format";
+import { getDefaultCourt } from "@/actions/settings";
 import { SessionList, type StatusFilter } from "./session-list";
 
 const PAGE_SIZE = 10;
@@ -52,7 +53,7 @@ export default async function SessionsPage({
 
   // 2-wave fetch: count trước để clamp page, rồi fetch slice theo safePage.
   // Tránh case URL `?page=99` nhưng thực tế chỉ có 3 trang → fetch empty slice.
-  const [activeCourts, activeMembers, activeBrands, totalRows] =
+  const [activeCourts, activeMembers, activeBrands, totalRows, defaultCourt] =
     await Promise.all([
       db.query.courts.findMany({
         where: eq(courts.isActive, true),
@@ -71,6 +72,7 @@ export default async function SessionsPage({
         .from(sessions)
         .where(whereClause)
         .then((r) => Number(r[0]?.count ?? 0)),
+      getDefaultCourt(),
     ]);
 
   const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
@@ -168,6 +170,7 @@ export default async function SessionsPage({
         currentPage={safePage}
         totalPages={totalPages}
         currentStatusFilter={statusFilter}
+        defaultCourtId={defaultCourt?.id ?? null}
       />
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 import {
   CircleDot,
   TrendingUp,
@@ -10,23 +11,35 @@ import {
   ArrowUpCircle,
   ArrowDownCircle,
   Package,
-  Search,
+  Plus,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { CustomSelect } from "@/components/ui/custom-select";
+import { NumberStepper } from "@/components/ui/number-stepper";
+import { SearchInput } from "@/components/shared/search-input";
 import { StatTile } from "@/components/shared/stat-tile";
 import { formatVND, formatK, cn } from "@/lib/utils";
 import { formatSessionDate } from "@/lib/date-format";
+import { fireAction } from "@/lib/optimistic-action";
+import { recordPurchase } from "@/actions/inventory";
 import type {
   ShuttlecockFinanceSummary,
   PurchaseRow,
   UsageRow,
 } from "@/actions/shuttlecock-finance";
 
+interface BrandOpt {
+  id: number;
+  name: string;
+  pricePerTube: number;
+}
+
 interface Props {
   summary: ShuttlecockFinanceSummary;
   purchases: PurchaseRow[];
   usages: UsageRow[];
+  brands: BrandOpt[];
 }
 
 type Tab = "purchase" | "usage";
@@ -35,19 +48,112 @@ export function ShuttlecockFinanceClient({
   summary,
   purchases,
   usages,
+  brands,
 }: Props) {
   const [tab, setTab] = useState<Tab>("usage");
   const [search, setSearch] = useState("");
+  const [localSummary, setLocalSummary] = useState(summary);
+  const [localPurchases, setLocalPurchases] = useState(purchases);
+
+  // Sync server props back to local optimistic state when parent re-renders
+  // (e.g., after revalidatePath triggers a refetch).
+  const [prevSummary, setPrevSummary] = useState(summary);
+  const [prevPurchases, setPrevPurchases] = useState(purchases);
+  if (summary !== prevSummary || purchases !== prevPurchases) {
+    setPrevSummary(summary);
+    setPrevPurchases(purchases);
+    setLocalSummary(summary);
+    setLocalPurchases(purchases);
+  }
+
+  // Mua-cầu form state
+  const [showBuy, setShowBuy] = useState(false);
+  const [bsBrandId, setBsBrandId] = useState<number | null>(
+    brands[0]?.id ?? null,
+  );
+  const [bsTubes, setBsTubes] = useState(1);
+  const [bsPricePerTube, setBsPricePerTube] = useState<number>(
+    brands[0]?.pricePerTube ?? 0,
+  );
+  const [bsPurchasedAt, setBsPurchasedAt] = useState(
+    new Date().toISOString().split("T")[0],
+  );
+  const [bsNote, setBsNote] = useState("");
+
+  const bsTotal = bsTubes * bsPricePerTube;
+
+  function handleBuy() {
+    if (!bsBrandId) return;
+    if (!Number.isFinite(bsTubes) || bsTubes < 1) {
+      toast.error("Số ống không hợp lệ");
+      return;
+    }
+    if (!Number.isFinite(bsPricePerTube) || bsPricePerTube <= 0) {
+      toast.error("Giá / ống không hợp lệ");
+      return;
+    }
+    const total = bsTubes * bsPricePerTube;
+    const brand = brands.find((b) => b.id === bsBrandId);
+    if (!brand) return;
+
+    const prevSum = { ...localSummary };
+    const prevList = localPurchases;
+
+    // Optimistic: thêm 1 dòng "đã mua" tạm vào đầu list (id âm — sẽ được
+    // server thay sau revalidatePath). Cập nhật summary tile trùng với
+    // tăng totalSpent / tubes / qua. Profit giảm vì revenue chưa đổi.
+    const optimisticRow: PurchaseRow = {
+      id: -Date.now(),
+      brandId: bsBrandId,
+      brandName: brand.name,
+      tubes: bsTubes,
+      pricePerTube: bsPricePerTube,
+      totalPrice: total,
+      purchasedAt: `${bsPurchasedAt}T00:00:00.000Z`,
+      notes: bsNote.trim() || null,
+    };
+    setLocalPurchases((rows) => [optimisticRow, ...rows]);
+    setLocalSummary((s) => ({
+      ...s,
+      totalSpent: s.totalSpent + total,
+      totalTubesPurchased: s.totalTubesPurchased + bsTubes,
+      totalQuaPurchased: s.totalQuaPurchased + bsTubes * 12,
+      netProfit: s.netProfit - total,
+    }));
+
+    const idemKey =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? `buy-shuttle-sf-${crypto.randomUUID()}`
+        : `buy-shuttle-sf-${bsBrandId}-${bsTubes}-${bsPricePerTube}-${Date.now()}`;
+    const fd = new FormData();
+    fd.append("brandId", String(bsBrandId));
+    fd.append("tubes", String(bsTubes));
+    fd.append("pricePerTube", String(bsPricePerTube));
+    fd.append("purchasedAt", bsPurchasedAt);
+    if (bsNote.trim()) fd.append("notes", bsNote.trim());
+    fd.append("idempotencyKey", idemKey);
+    fireAction(
+      () => recordPurchase(fd),
+      () => {
+        setLocalSummary(prevSum);
+        setLocalPurchases(prevList);
+      },
+      { successMsg: `Đã ghi nhận mua cầu ${formatVND(total)}` },
+    );
+    setShowBuy(false);
+    setBsTubes(1);
+    setBsNote("");
+  }
 
   const filteredPurchases = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return purchases;
-    return purchases.filter(
+    if (!q) return localPurchases;
+    return localPurchases.filter(
       (p) =>
         p.brandName.toLowerCase().includes(q) ||
         (p.notes ?? "").toLowerCase().includes(q),
     );
-  }, [purchases, search]);
+  }, [localPurchases, search]);
 
   const filteredUsages = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -60,23 +166,23 @@ export function ShuttlecockFinanceClient({
   }, [usages, search]);
 
   const profitTone =
-    summary.netProfit > 0
+    localSummary.netProfit > 0
       ? "green"
-      : summary.netProfit < 0
+      : localSummary.netProfit < 0
         ? "red"
         : ("neutral" as const);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-24 md:pb-28">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="bg-primary/10 rounded-xl p-2">
           <CircleDot className="text-primary h-6 w-6" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold">Tiền cầu (Admin)</h1>
+          <h1 className="text-2xl font-bold">Tiền cầu</h1>
           <p className="text-muted-foreground text-sm">
-            Admin tự bỏ tiền mua cầu và bán lại theo số quả thực dùng mỗi buổi
+            Mua cầu trừ thẳng vào quỹ chung; bán theo số quả thực dùng mỗi buổi
           </p>
         </div>
       </div>
@@ -86,25 +192,25 @@ export function ShuttlecockFinanceClient({
         <StatTile
           icon={TrendingDown}
           label="Đã chi (mua cầu)"
-          value={formatVND(summary.totalSpent)}
+          value={formatVND(localSummary.totalSpent)}
           tone="orange"
         />
         <StatTile
           icon={TrendingUp}
           label="Đã thu (bán cầu)"
-          value={formatVND(summary.totalRevenue)}
+          value={formatVND(localSummary.totalRevenue)}
           tone="green"
         />
         <StatTile
           icon={Banknote}
-          label={summary.netProfit >= 0 ? "Lãi" : "Lỗ"}
-          value={formatVND(summary.netProfit)}
+          label={localSummary.netProfit >= 0 ? "Lãi" : "Lỗ"}
+          value={formatVND(localSummary.netProfit)}
           tone={profitTone}
         />
         <StatTile
           icon={Package}
           label="Đã mua / Đã dùng"
-          value={`${summary.totalQuaPurchased} / ${summary.totalQuaUsed} quả`}
+          value={`${localSummary.totalQuaPurchased} / ${localSummary.totalQuaUsed} quả`}
           tone="primary"
         />
       </div>
@@ -133,24 +239,20 @@ export function ShuttlecockFinanceClient({
               : "text-muted-foreground hover:text-foreground",
           )}
         >
-          Đã mua ({purchases.length})
+          Đã mua ({localPurchases.length})
         </button>
       </div>
 
       {/* Search */}
-      <div className="relative">
-        <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-        <Input
-          placeholder={
-            tab === "usage"
-              ? "Tìm theo hãng / ngày..."
-              : "Tìm theo hãng / ghi chú..."
-          }
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="bg-background dark:bg-background pl-10"
-        />
-      </div>
+      <SearchInput
+        placeholder={
+          tab === "usage"
+            ? "Tìm theo hãng / ngày..."
+            : "Tìm theo hãng / ghi chú..."
+        }
+        value={search}
+        onChange={setSearch}
+      />
 
       {/* Lists */}
       {tab === "usage" ? (
@@ -237,6 +339,155 @@ export function ShuttlecockFinanceClient({
           </AnimatePresence>
         </ul>
       )}
+
+      {/* Fixed bottom CTA — pill button h-[46px] thay vì full-bar dày để
+          không "nhô" qua popup overlay. Ẩn hẳn khi modal mở để tránh đè. */}
+      {!showBuy && (
+        <div className="pointer-events-none fixed right-0 bottom-0 left-0 z-30 flex justify-center px-4 pb-[max(1rem,env(safe-area-inset-bottom))] lg:left-60">
+          <motion.button
+            type="button"
+            onClick={() => setShowBuy(true)}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            whileTap={{ scale: 0.98 }}
+            className="bg-primary text-primary-foreground pointer-events-auto inline-flex h-[46px] items-center justify-center gap-2 rounded-full px-6 text-base font-semibold shadow-lg transition-opacity hover:opacity-90"
+          >
+            <Plus className="h-5 w-5" />
+            Mua cầu
+          </motion.button>
+        </div>
+      )}
+
+      {/* Mua cầu — chi quỹ chung; tăng stock + ghi ledger inventory_purchase. */}
+      <AnimatePresence>
+        {showBuy && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={() => setShowBuy(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-card w-full max-w-md rounded-2xl p-6 shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="mb-1 text-lg font-bold">Mua cầu (trừ quỹ)</h3>
+              <p className="text-muted-foreground mb-4 text-xs">
+                Tăng tồn kho + trừ thẳng quỹ tiền mặt. Không động đến số dư
+                member.
+              </p>
+              {brands.length === 0 ? (
+                <div className="text-muted-foreground py-6 text-center text-sm">
+                  Chưa có hãng cầu nào — vào /admin để cấu hình.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium">
+                      Hãng cầu
+                    </label>
+                    <CustomSelect
+                      value={bsBrandId ? String(bsBrandId) : ""}
+                      onChange={(v) => {
+                        const id = v ? Number(v) : null;
+                        setBsBrandId(id);
+                        const b = brands.find((x) => x.id === id);
+                        if (b) setBsPricePerTube(b.pricePerTube);
+                      }}
+                      placeholder="Chọn hãng..."
+                      options={brands.map((b) => ({
+                        value: String(b.id),
+                        label: `${b.name} (${formatK(b.pricePerTube)}/ống)`,
+                      }))}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-sm font-medium">
+                        Số ống
+                      </label>
+                      <NumberStepper
+                        value={bsTubes}
+                        onChange={setBsTubes}
+                        min={1}
+                        max={1000}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium">
+                        Giá / ống
+                      </label>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        value={
+                          bsPricePerTube
+                            ? bsPricePerTube.toLocaleString("vi-VN")
+                            : ""
+                        }
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D/g, "");
+                          setBsPricePerTube(digits ? Number(digits) : 0);
+                        }}
+                        placeholder="100000"
+                        className="tabular-nums"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium">
+                      Ngày mua
+                    </label>
+                    <Input
+                      type="date"
+                      value={bsPurchasedAt}
+                      onChange={(e) => setBsPurchasedAt(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium">
+                      Ghi chú
+                    </label>
+                    <Input
+                      type="text"
+                      value={bsNote}
+                      onChange={(e) => setBsNote(e.target.value)}
+                      placeholder="Mua cầu nhập từ đại lý..."
+                    />
+                  </div>
+                  <div className="bg-muted flex items-center justify-between rounded-xl px-4 py-3">
+                    <span className="text-sm font-medium">Tổng</span>
+                    <span className="text-base font-bold tabular-nums">
+                      {formatVND(bsTotal)}
+                    </span>
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={() => setShowBuy(false)}
+                      className="hover:bg-accent flex-1 rounded-xl border py-3 font-medium transition-colors"
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      onClick={handleBuy}
+                      disabled={
+                        !bsBrandId || bsTubes < 1 || bsPricePerTube <= 0
+                      }
+                      className="bg-primary text-primary-foreground flex-1 rounded-xl py-3 font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+                    >
+                      Xác nhận
+                    </button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -23,6 +23,7 @@ export type StatusVariant =
   | "cancelled"
   | "lowStock"
   | "inStock"
+  | "depleted" // quỹ đã hết — vàng (cảnh báo nhẹ, chưa âm)
   | "neutral";
 
 // Toàn bộ variants thống nhất 1 công thức:
@@ -33,7 +34,7 @@ export type StatusVariant =
 //   dùng theme tokens vì là default fallback, không có hue cố định.
 const VARIANTS: Record<StatusVariant, string> = {
   paid: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200",
-  unpaid: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200",
+  unpaid: "bg-red-200 text-red-900 dark:bg-red-900/50 dark:text-red-100",
   needsConfirm:
     "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
   waiting:
@@ -50,6 +51,8 @@ const VARIANTS: Record<StatusVariant, string> = {
     "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200",
   inStock:
     "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200",
+  depleted:
+    "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200",
   neutral: "bg-muted text-muted-foreground",
 };
 

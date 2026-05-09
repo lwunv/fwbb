@@ -1,4 +1,40 @@
 import { roundToThousand } from "./utils";
+import { isDefaultSessionDay } from "./date-format";
+
+/**
+ * Tính tổng tiền sân cho 1 buổi.
+ *
+ * Quy tắc kinh doanh (theo yêu cầu admin tháng 5/2026):
+ * - "Buổi mặc định" = chơi đúng `defaultCourtId` VÀO ngày subscription (T2/T4/T6).
+ *   Sân thứ 1 ăn giá tháng (`pricePerSession` = 200K), sân thứ 2..N ăn giá lẻ
+ *   (`pricePerSessionRetail` = 220K, fallback giá tháng nếu chưa cấu hình).
+ * - "Buổi lẻ" = thuê sân khác sân mặc định, HOẶC chơi vào ngày khác T2/T4/T6.
+ *   TẤT CẢ sân (kể cả sân thứ 1) đều ăn giá lẻ — admin không được "subsidy"
+ *   khi đặt buổi ngoài lịch cố định.
+ *
+ * Pure function — không đụng DB. Caller pass đầy đủ context.
+ */
+export function computeCourtTotal(input: {
+  monthlyPrice: number;
+  retailPrice: number | null;
+  courtQuantity: number;
+  /** YYYY-MM-DD theo VN local. */
+  sessionDate: string;
+  selectedCourtId: number;
+  defaultCourtId: number | null;
+}): number {
+  const monthly = input.monthlyPrice;
+  const retail = input.retailPrice ?? monthly;
+  const qty = Math.max(1, input.courtQuantity);
+  const isRegular =
+    input.defaultCourtId !== null &&
+    input.selectedCourtId === input.defaultCourtId &&
+    isDefaultSessionDay(input.sessionDate);
+  if (isRegular) {
+    return monthly + retail * (qty - 1);
+  }
+  return retail * qty;
+}
 
 export interface AttendeeInput {
   memberId: number | null;

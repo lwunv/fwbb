@@ -20,6 +20,7 @@ import {
   getAppName,
   getDefaultCourt,
   getDefaultBrand,
+  getSessionDaysOfWeek,
 } from "@/actions/settings";
 import { ymdInVN } from "@/lib/date-format";
 
@@ -119,29 +120,11 @@ export default async function DashboardPage() {
   let monthIn = 0;
   let monthOut = 0;
   let monthInventorySpend = 0;
-  let monthCourtRentPaid = 0;
   for (const t of monthTxs) {
     if (t.direction === "in") monthIn += t.amount;
     else if (t.direction === "out") monthOut += t.amount;
     if (t.type === "inventory_purchase" && t.direction === "out") {
       monthInventorySpend += t.amount;
-    }
-    if (t.type === "court_rent_payment" && t.direction === "out") {
-      // Only count payments targeted at this month
-      try {
-        const meta = t.metadataJson
-          ? (JSON.parse(t.metadataJson) as { targetMonth?: unknown })
-          : null;
-        const target =
-          meta && typeof meta.targetMonth === "string"
-            ? meta.targetMonth
-            : null;
-        if (target === `${yearVN}-${String(monthVN).padStart(2, "0")}`) {
-          monthCourtRentPaid += t.amount;
-        }
-      } catch {
-        // ignore malformed metadata
-      }
     }
   }
 
@@ -190,16 +173,30 @@ export default async function DashboardPage() {
     id: number;
     date: string;
     status: string;
+    courtId: number | null;
     courtName: string | null;
     courtMapLink: string | null;
+    courtQuantity: number;
+    courtPrice: number | null;
+    diningBill: number;
     startTime: string;
     endTime: string;
     playerCount: number;
     dinerCount: number;
     guestPlayCount: number;
     guestDineCount: number;
+    adminGuestPlayCount: number;
+    adminGuestDineCount: number;
     votedCount: number;
     totalEligibleVoters: number;
+    shuttlecocks: {
+      id: number;
+      brandId: number;
+      brandName: string;
+      quantityUsed: number;
+      pricePerTube: number;
+    }[];
+    votes: Awaited<ReturnType<typeof getSessionVotes>>;
   } | null = null;
 
   if (nextSession) {
@@ -211,8 +208,12 @@ export default async function DashboardPage() {
       id: nextSession.id,
       date: nextSession.date,
       status: nextSession.status as string,
+      courtId: nextSession.courtId ?? null,
       courtName: nextSession.court?.name || null,
       courtMapLink: nextSession.court?.mapLink || null,
+      courtQuantity: nextSession.courtQuantity ?? 1,
+      courtPrice: nextSession.courtPrice ?? null,
+      diningBill: nextSession.diningBill ?? 0,
       startTime: nextSession.startTime || "20:30",
       endTime: nextSession.endTime || "22:30",
       playerCount: sessionVotes.filter((v) => v.willPlay).length,
@@ -223,8 +224,18 @@ export default async function DashboardPage() {
       guestDineCount:
         sessionVotes.reduce((s, v) => s + (v.guestDineCount ?? 0), 0) +
         (nextSession.adminGuestDineCount ?? 0),
+      adminGuestPlayCount: nextSession.adminGuestPlayCount ?? 0,
+      adminGuestDineCount: nextSession.adminGuestDineCount ?? 0,
       votedCount,
       totalEligibleVoters: activeMembers.length,
+      shuttlecocks: nextSession.shuttlecocks.map((s) => ({
+        id: s.id,
+        brandId: s.brandId,
+        brandName: s.brand?.name ?? "",
+        quantityUsed: s.quantityUsed,
+        pricePerTube: s.pricePerTube,
+      })),
+      votes: sessionVotes,
     };
   }
 
@@ -243,18 +254,20 @@ export default async function DashboardPage() {
 
   // Settings panel data — list courts/brands + currently-resolved defaults
   // (đã fallback qua getDefault*).
-  const [allCourts, allBrands, defaultCourt, defaultBrand] = await Promise.all([
-    db.query.courts.findMany({
-      where: eq(courts.isActive, true),
-      orderBy: (c, { asc }) => [asc(c.name)],
-    }),
-    db.query.shuttlecockBrands.findMany({
-      where: eq(shuttlecockBrands.isActive, true),
-      orderBy: (b, { asc }) => [asc(b.name)],
-    }),
-    getDefaultCourt(),
-    getDefaultBrand(),
-  ]);
+  const [allCourts, allBrands, defaultCourt, defaultBrand, sessionDays] =
+    await Promise.all([
+      db.query.courts.findMany({
+        where: eq(courts.isActive, true),
+        orderBy: (c, { asc }) => [asc(c.name)],
+      }),
+      db.query.shuttlecockBrands.findMany({
+        where: eq(shuttlecockBrands.isActive, true),
+        orderBy: (b, { asc }) => [asc(b.name)],
+      }),
+      getDefaultCourt(),
+      getDefaultBrand(),
+      getSessionDaysOfWeek(),
+    ]);
   const settingsCourts = allCourts.map((c) => ({
     id: c.id,
     name: c.name,
@@ -265,6 +278,10 @@ export default async function DashboardPage() {
     name: b.name,
     pricePerTube: b.pricePerTube,
   }));
+  // Full schema records cho inline session editor (CourtSelector cần
+  // pricePerSessionRetail, mapLink; ShuttlecockSelector cần object Brand đầy đủ).
+  const editorCourts = allCourts;
+  const editorBrands = allBrands;
 
   return (
     <div className="space-y-6">
@@ -292,8 +309,12 @@ export default async function DashboardPage() {
         currentYear={yearVN}
         settingsCourts={settingsCourts}
         settingsBrands={settingsBrands}
+        editorCourts={editorCourts}
+        editorBrands={editorBrands}
+        editorMembers={activeMembers}
         defaultCourtId={defaultCourt?.id ?? null}
         defaultBrandId={defaultBrand?.id ?? null}
+        sessionDays={sessionDays}
       />
     </div>
   );

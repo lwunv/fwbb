@@ -2,12 +2,16 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Check, Search } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SearchInput } from "@/components/shared/search-input";
 
 export interface SelectOption {
   value: string;
   label: string;
+  /** Optional right-aligned info (price, count, badge…) — primary color,
+   *  shown on the right side of the row. Đồng bộ style với CourtSelector. */
+  rightLabel?: string;
 }
 
 interface CustomSelectProps {
@@ -117,7 +121,7 @@ export function CustomSelect({
           else setOpen(true);
         }}
         className={cn(
-          "bg-card hover:border-primary/50 flex h-12 w-full items-center justify-between rounded-xl border-2 px-4 text-base transition-colors",
+          "bg-card hover:border-primary/50 flex h-[42px] w-full items-center justify-between rounded-xl border px-4 text-base transition-colors",
           "disabled:pointer-events-none disabled:opacity-50",
           open && "border-primary",
         )}
@@ -147,20 +151,15 @@ export function CustomSelect({
           >
             {searchable && (
               <div className="border-b p-2">
-                <div className="relative">
-                  <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder={searchPlaceholder}
-                    className="bg-background focus:ring-primary h-10 w-full rounded-lg border pr-3 pl-9 text-sm outline-none focus:ring-1"
-                  />
-                </div>
+                <SearchInput
+                  ref={searchInputRef}
+                  value={query}
+                  onChange={setQuery}
+                  placeholder={searchPlaceholder}
+                />
               </div>
             )}
-            <div className="max-h-60 overflow-auto py-1">
+            <div className="max-h-96 overflow-auto py-1">
               {filteredOptions.map((option) => {
                 const isSelected = option.value === value;
                 return (
@@ -172,15 +171,20 @@ export function CustomSelect({
                       closeAndReset();
                     }}
                     className={cn(
-                      "flex w-full items-center gap-3 px-4 py-3 text-left text-base transition-colors",
+                      "mx-1 flex items-center justify-between gap-3 rounded-lg px-4 py-3 text-left text-base transition-colors first:mt-1 last:mb-1",
                       isSelected
-                        ? "text-primary font-medium"
+                        ? "bg-primary/15 font-medium"
                         : "hover:bg-muted/50",
                     )}
+                    style={{ width: "calc(100% - 0.5rem)" }}
                   >
-                    <span className="flex-1 truncate">{option.label}</span>
-                    {isSelected && (
-                      <Check className="text-primary h-4 w-4 shrink-0" />
+                    <span className="min-w-0 flex-1 truncate">
+                      {option.label}
+                    </span>
+                    {option.rightLabel && (
+                      <span className="text-primary shrink-0 text-sm font-medium">
+                        {option.rightLabel}
+                      </span>
                     )}
                   </button>
                 );

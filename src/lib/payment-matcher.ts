@@ -484,6 +484,14 @@ async function matchAllDebts(
     };
   }
 
+  // Overpay credit đã được ghi vào balance member trong tx — auto-settle nợ
+  // còn sót lại của member (nợ chưa nằm trong batch này, ví dụ nợ cũ chưa
+  // member-confirm). Trước đây overpay ngồi idle cho đến contribution kế.
+  if (overpay > 0) {
+    const { autoApplyFundToDebts } = await import("@/actions/auto-fund");
+    await autoApplyFundToDebts(memberId);
+  }
+
   return {
     status: "matched_debt",
     debtId: unpaid[0].id,
@@ -682,6 +690,13 @@ async function confirmDebtFromBankTransfer(
       message:
         err instanceof Error ? err.message : "Không ghi nhận được giao dịch",
     };
+  }
+
+  // Overpay credit đã được ghi — auto-apply vào nợ còn lại của member (nợ
+  // ngoài debt này, vd nợ cũ chưa member-confirm). Symmetric với matchAllDebts.
+  if (overpay > 0) {
+    const { autoApplyFundToDebts } = await import("@/actions/auto-fund");
+    await autoApplyFundToDebts(debt.memberId);
   }
 
   return {

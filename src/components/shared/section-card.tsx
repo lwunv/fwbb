@@ -79,14 +79,18 @@ export function SectionCard({
 }: SectionCardProps) {
   return (
     <Card className={cn("relative", TONE_CARD[tone], className)}>
-      {/* Action absolute ở góc phải để không phụ thuộc vào title length /
-       * wrapping. Title cần `pr-24` (tự padding tay) tránh đè onto action.
-       * Padding match CardHeader (px-4 pt-4 pb-3). */}
-      {action && <div className="absolute top-4 right-4 z-10">{action}</div>}
-      <div className={cn("px-4 pt-4 pb-3", action && "pr-28")}>
-        <div className="font-heading flex items-center gap-2 text-base leading-snug font-medium">
-          {Icon && <Icon className={cn("h-5 w-5 shrink-0", TONE_ICON[tone])} />}
-          <span className="truncate">{title}</span>
+      {/* Header dùng flex thay vì absolute action — tránh action button bị
+       * "dính" vào content bên dưới khi body có grid stat-tiles cao và
+       * extend dưới action. Title truncate ở giữa, action không co. */}
+      <div className="px-4 pt-4 pb-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="font-heading flex min-w-0 items-center gap-2 text-base leading-snug font-medium">
+            {Icon && (
+              <Icon className={cn("h-5 w-5 shrink-0", TONE_ICON[tone])} />
+            )}
+            <span className="truncate">{title}</span>
+          </div>
+          {action && <div className="shrink-0">{action}</div>}
         </div>
         {subtitle && <div className="mt-1.5">{subtitle}</div>}
       </div>

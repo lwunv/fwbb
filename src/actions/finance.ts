@@ -8,6 +8,7 @@ import {
   members,
   financialTransactions,
   fundMembers,
+  admins,
 } from "@/db/schema";
 import { eq, desc, and, isNull, asc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -69,9 +70,11 @@ export async function finalizeSession(
   // attendees/debts, then re-creates everything from the new payload.
 
   // Resolve admin's member record outside the tx (read-only).
-  // Hardened: only auto-confirm if exactly ONE member matches the admin username,
-  // to avoid confirming wrong member's debt when names collide.
-  const adminMemberId = await resolveAdminMemberId();
+  // Multi-admin safe: pass current admin id từ cookie để mỗi admin map đúng
+  // member của mình (trước đây findFirst() vô tình lấy admin #1 cho mọi
+  // request → admin #2+ tự nợ chính mình khi finalize).
+  const currentAdminId = parseInt(String(auth.admin.sub ?? ""), 10);
+  const adminMemberId = await resolveAdminMemberId(currentAdminId);
 
   // Always require admin to be linked to a member record when finalizing —
   // otherwise the cost-distribution loop below treats admin's own row as a
@@ -312,6 +315,7 @@ export async function finalizeSession(
 
   revalidatePath("/admin/sessions");
   revalidatePath(`/admin/sessions/${data.sessionId}`);
+  revalidatePath("/admin/dashboard");
   revalidatePath("/admin/finance");
   revalidatePath("/admin/fund");
   revalidatePath("/my-debts");
@@ -353,7 +357,8 @@ export async function finalizeSessionAuto(sessionId: number) {
     return { error: "Buổi đã hủy — không thể finalize" };
   }
 
-  const adminMemberId = await resolveAdminMemberId();
+  const currentAdminId = parseInt(String(auth.admin.sub ?? ""), 10);
+  const adminMemberId = await resolveAdminMemberId(currentAdminId);
   if (adminMemberId === null) {
     return {
       error:
@@ -429,9 +434,16 @@ export async function finalizeSessionAuto(sessionId: number) {
  * falls back to matching `admins.username === members.name` ONLY when exactly
  * one member matches (to avoid auto-confirming the wrong member's debt when
  * names collide).
+ *
+ * Multi-admin safe: takes the current admin's id (from JWT cookie) — trước
+ * đây dùng `findFirst()` không filter → mọi action đều resolve về admin #1
+ * regardless of who's logged in, khiến admin #2+ tự tạo nợ cho chính mình.
  */
-async function resolveAdminMemberId(): Promise<number | null> {
-  const admin = await db.query.admins.findFirst();
+async function resolveAdminMemberId(adminId: number): Promise<number | null> {
+  if (!Number.isFinite(adminId) || adminId <= 0) return null;
+  const admin = await db.query.admins.findFirst({
+    where: eq(admins.id, adminId),
+  });
   if (!admin) return null;
   if (admin.memberId != null) return admin.memberId;
   const matches = await db.query.members.findMany({
@@ -633,6 +645,54 @@ export async function undoPaymentByAdmin(debtId: number) {
         }
       }
 
+      // CRITICAL FIX: nếu debt được trả qua bank webhook, payment-matcher đã
+      // insert 1 `fund_contribution` "balance fix" (idempotencyKey
+      // `bank-payment-balance-${debtId}`) để cân bằng deduction → balance
+      // member = 0 sau khi trả. Trước đây undo CHỈ reverse deduction →
+      // balance bị +totalAmount excess (member được tặng tiền miễn phí).
+      // Fix: tìm tất cả fund_contribution chưa reverse có debtId này (ngoại
+      // trừ row reversal ta vừa insert ở trên) và reverse nốt. Cover cả
+      // bank balance-fix lẫn case admin tự confirm payment khi member nói
+      // "đã trả qua quỹ" — symmetric.
+      const linkedContributions = await tx.query.financialTransactions.findMany(
+        {
+          where: and(
+            eq(financialTransactions.type, "fund_contribution"),
+            eq(financialTransactions.debtId, debtId),
+            isNull(financialTransactions.reversalOfId),
+          ),
+        },
+      );
+      for (const contrib of linkedContributions) {
+        // Skip row reversal-from-deduction ta vừa tạo (nó cũng có debtId=debtId
+        // và type=fund_contribution nhưng có reversalOfId set → query đã
+        // filter `isNull(reversalOfId)` nên không lọt; defense in depth).
+        if (contrib.reversalOfId !== null) continue;
+        // Đã reverse rồi? skip (idempotent)
+        const already = await tx.query.financialTransactions.findFirst({
+          where: eq(financialTransactions.reversalOfId, contrib.id),
+          columns: { id: true },
+        });
+        if (already) continue;
+
+        const rr = await recordFinancialTransaction(
+          {
+            type: "fund_refund",
+            direction: "out",
+            amount: contrib.amount,
+            memberId: debt.memberId,
+            sessionId: debt.sessionId,
+            debtId,
+            reversalOfId: contrib.id,
+            description: `Hoàn tác cân bằng quỹ — admin undo thanh toán nợ #${debtId}`,
+            metadata: { source: "debt_undo_balance_fix_reversal" },
+            idempotencyKey: `debt-undo-balance-fix-${contrib.id}`,
+          },
+          tx,
+        );
+        if ("error" in rr) throw new Error(rr.error);
+      }
+
       await tx
         .update(sessionDebts)
         .set({
@@ -645,6 +705,10 @@ export async function undoPaymentByAdmin(debtId: number) {
         .where(eq(sessionDebts.id, debtId));
 
       // Audit row (neutral) — vẫn giữ để có dấu vết undo trong ledger.
+      // Idempotency key gắn với originalDeduction.id (mỗi cycle confirm→undo
+      // có 1 deduction unique). Trước đây dùng Date.now() → 2 click nhanh tạo
+      // 2 audit row trùng. Khi admin re-confirm → finalize tạo deduction mới
+      // có id khác → key mới → undo lần 2 vẫn ghi audit được.
       const r = await recordFinancialTransaction(
         {
           type: "debt_undo",
@@ -654,7 +718,9 @@ export async function undoPaymentByAdmin(debtId: number) {
           sessionId: debt.sessionId,
           debtId,
           description: "Admin hoàn tác xác nhận thanh toán",
-          idempotencyKey: `debt-undo-audit-${debtId}-${Date.now()}`,
+          idempotencyKey: `debt-undo-audit-${debtId}-${
+            originalDeduction?.id ?? "no-deduction"
+          }`,
         },
         tx,
       );

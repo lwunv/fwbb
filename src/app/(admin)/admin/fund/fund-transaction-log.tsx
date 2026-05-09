@@ -2,20 +2,18 @@
 
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Search,
-  ArrowUpCircle,
-  ArrowDownCircle,
-  RotateCcw,
-} from "lucide-react";
+import { ArrowUpCircle, ArrowDownCircle, RotateCcw, X } from "lucide-react";
 import { useTranslations, useLocale } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { TabSegment } from "@/components/shared/tab-segment";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Input } from "@/components/ui/input";
-import { formatK } from "@/lib/utils";
+import { SearchInput } from "@/components/shared/search-input";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { fireAction } from "@/lib/optimistic-action";
+import { reverseFinancialTransaction } from "@/actions/fund";
+import { formatK, cn } from "@/lib/utils";
 
 type FinancialTxType =
   | "fund_contribution"
@@ -43,7 +41,16 @@ export interface FinancialTransactionRow {
   sessionDate: string | null;
   paymentNotificationId: number | null;
   createdAt: string;
+  /** Row IS a reversal entry (reversalOfId !== null on DB). */
+  isReversal?: boolean;
+  /** Row đã bị 1 reversal trỏ về (đã hủy). */
+  isReversed?: boolean;
 }
+
+const REVERSIBLE_TYPES = new Set<FinancialTxType>([
+  "fund_contribution",
+  "fund_refund",
+]);
 
 const TX_TYPE_META: Record<
   FinancialTxType,
@@ -136,19 +143,28 @@ export function FundTransactionLog({ transactions }: Props) {
     "all",
   );
 
+  // Ẩn `debt_created` mặc định — nó là audit-only entry (record-keeping), không
+  // ảnh hưởng balance member. Mỗi `debt_created` luôn có 1 `fund_deduction`
+  // đối ứng đã thể hiện đầy đủ impact → để cả 2 nhìn như duplicate. Reconcile
+  // script vẫn truy DB trực tiếp được, admin UI không cần show.
+  const visibleTransactions = useMemo(
+    () => transactions.filter((tx) => tx.type !== "debt_created"),
+    [transactions],
+  );
+
   const counts = useMemo(() => {
     let auto = 0;
     let admin = 0;
-    for (const tx of transactions) {
+    for (const tx of visibleTransactions) {
       if (tx.paymentNotificationId !== null) auto++;
       else admin++;
     }
-    return { all: transactions.length, auto, admin };
-  }, [transactions]);
+    return { all: visibleTransactions.length, auto, admin };
+  }, [visibleTransactions]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return transactions.filter((tx) => {
+    return visibleTransactions.filter((tx) => {
       const isAuto = tx.paymentNotificationId !== null;
       if (sourceFilter === "auto" && !isAuto) return false;
       if (sourceFilter === "admin" && isAuto) return false;
@@ -161,7 +177,7 @@ export function FundTransactionLog({ transactions }: Props) {
       }
       return true;
     });
-  }, [transactions, search, sourceFilter, directionFilter]);
+  }, [visibleTransactions, search, sourceFilter, directionFilter]);
 
   return (
     <Card>
@@ -172,16 +188,11 @@ export function FundTransactionLog({ transactions }: Props) {
         </div>
 
         <div className="grid gap-2 sm:grid-cols-[1fr_minmax(180px,220px)]">
-          <div className="relative">
-            <Search className="text-muted-foreground absolute top-1/2 left-3 z-10 h-4 w-4 -translate-y-1/2" />
-            <Input
-              type="text"
-              placeholder={t("logSearchPlaceholder")}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pr-4 pl-11"
-            />
-          </div>
+          <SearchInput
+            placeholder={t("logSearchPlaceholder")}
+            value={search}
+            onChange={setSearch}
+          />
           <CustomSelect
             value={directionFilter}
             onChange={(v) => setDirectionFilter(v as "all" | "in" | "out")}
@@ -208,7 +219,7 @@ export function FundTransactionLog({ transactions }: Props) {
           <EmptyState
             variant="inline"
             title={
-              transactions.length === 0
+              visibleTransactions.length === 0
                 ? t("logEmptyAll")
                 : t("logEmptyFiltered")
             }
@@ -237,7 +248,10 @@ export function FundTransactionLog({ transactions }: Props) {
 
 function TxCard({ tx }: { tx: FinancialTransactionRow }) {
   const t = useTranslations("fundAdmin");
+  const tCommon = useTranslations("common");
   const locale = useLocale();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [reversing, setReversing] = useState(false);
   const meta = TX_TYPE_META[tx.type] ?? {
     labelKey: "txLabelManualAdjustment",
     icon: RotateCcw,
@@ -249,65 +263,151 @@ function TxCard({ tx }: { tx: FinancialTransactionRow }) {
   const sign = tx.direction === "in" ? "+" : tx.direction === "out" ? "−" : "";
   const amountColor =
     tx.direction === "in"
-      ? "text-green-600 dark:text-green-400"
+      ? "text-blue-600 dark:text-blue-400"
       : tx.direction === "out"
         ? "text-red-600 dark:text-red-400"
         : "text-foreground";
 
+  // Cancel button chỉ hiện khi:
+  //   - type ∈ {fund_contribution, fund_refund} (chuẩn fintech: không cho
+  //     hủy deduction allocation, debt, group expense — đã có flow riêng).
+  //   - Không phải auto từ QR webhook (tiền đã thật vào ngân hàng → không
+  //     thể hủy bằng admin click; cần xử lý qua refund kênh khác).
+  //   - Row chưa bị reversal nào trỏ về.
+  //   - Row chính nó không phải là reversal.
+  const canReverse =
+    !isAuto &&
+    !tx.isReversal &&
+    !tx.isReversed &&
+    REVERSIBLE_TYPES.has(tx.type);
+
+  function handleConfirm() {
+    setConfirmOpen(false);
+    setReversing(true);
+    const idemKey = `reverse-tx-${tx.id}-${
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : Date.now()
+    }`;
+    fireAction(
+      () => reverseFinancialTransaction(tx.id, idemKey),
+      () => setReversing(false),
+      {
+        successMsg: "Đã hủy giao dịch — tạo entry reversal trong ledger",
+      },
+    );
+  }
+
   return (
-    <Card size="sm">
-      <CardContent className="flex items-center gap-3 p-3">
-        {tx.memberId !== null ? (
-          <MemberAvatar
-            memberId={tx.memberId}
-            avatarKey={tx.memberAvatarKey}
-            avatarUrl={tx.memberAvatarUrl}
-            size={40}
-          />
-        ) : (
-          <div className="bg-muted flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
-            <Icon className={`h-5 w-5 ${meta.iconClass}`} />
-          </div>
+    <>
+      <Card
+        size="sm"
+        className={cn(
+          "transition-opacity",
+          (tx.isReversal || tx.isReversed) && "opacity-60",
         )}
-        <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Icon className={`h-4 w-4 shrink-0 ${meta.iconClass}`} />
-            <span className="truncate text-base font-semibold">
-              {tx.memberName ?? t("logSystem")}
-            </span>
-            <span className="text-muted-foreground shrink-0 text-sm">
-              · {label}
-            </span>
-            <span
-              className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${
-                isAuto
-                  ? "bg-blue-500/15 text-blue-600 dark:text-blue-400"
-                  : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-              }`}
-            >
-              {isAuto ? "QR" : "Admin"}
-            </span>
-          </div>
-          {/* Description đứng trước, đậm hơn để admin scan info nhanh */}
-          {tx.description && (
-            <p className="text-foreground truncate text-sm font-medium">
-              {tx.description}
-            </p>
+      >
+        <CardContent className="flex items-center gap-3 p-3">
+          {tx.memberId !== null ? (
+            <MemberAvatar
+              memberId={tx.memberId}
+              avatarKey={tx.memberAvatarKey}
+              avatarUrl={tx.memberAvatarUrl}
+              size={40}
+            />
+          ) : (
+            <div className="bg-muted flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
+              <Icon className={`h-5 w-5 ${meta.iconClass}`} />
+            </div>
           )}
-          <div className="text-muted-foreground flex flex-wrap gap-x-2 text-sm">
-            <span>{fmtDateTime(tx.createdAt, locale)}</span>
-            {tx.sessionDate && (
-              <span>· {t("logSession", { date: tx.sessionDate })}</span>
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Icon className={`h-4 w-4 shrink-0 ${meta.iconClass}`} />
+              <span
+                className={cn(
+                  "truncate text-base font-semibold",
+                  tx.isReversed && "line-through",
+                )}
+              >
+                {tx.memberName ?? t("logSystem")}
+              </span>
+              <span className="text-muted-foreground shrink-0 text-sm">
+                · {label}
+              </span>
+              <span
+                className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${
+                  isAuto
+                    ? "bg-blue-500/15 text-blue-600 dark:text-blue-400"
+                    : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                }`}
+              >
+                {isAuto ? "QR" : "Admin"}
+              </span>
+              {tx.isReversal && (
+                <span className="shrink-0 rounded-full bg-rose-500/15 px-2 py-0.5 text-xs font-semibold text-rose-700 uppercase dark:text-rose-300">
+                  Reversal
+                </span>
+              )}
+              {tx.isReversed && (
+                <span className="bg-muted text-muted-foreground shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold uppercase">
+                  Đã hủy
+                </span>
+              )}
+            </div>
+            {tx.description && (
+              <p
+                className={cn(
+                  "text-foreground truncate text-sm font-medium",
+                  tx.isReversed && "line-through",
+                )}
+              >
+                {tx.description}
+              </p>
             )}
+            <div className="text-muted-foreground flex flex-wrap gap-x-2 text-sm">
+              <span>{fmtDateTime(tx.createdAt, locale)}</span>
+              {tx.sessionDate && (
+                <span>· {t("logSession", { date: tx.sessionDate })}</span>
+              )}
+            </div>
           </div>
-        </div>
-        <span
-          className={`shrink-0 text-lg font-bold tabular-nums ${amountColor}`}
-        >
-          {sign}
-          {formatK(tx.amount)}
-        </span>
-      </CardContent>
-    </Card>
+          <span
+            className={cn(
+              "shrink-0 text-lg font-bold tabular-nums",
+              amountColor,
+              tx.isReversed && "line-through",
+            )}
+          >
+            {sign}
+            {formatK(tx.amount)}
+          </span>
+          {canReverse && (
+            <button
+              type="button"
+              onClick={() => setConfirmOpen(true)}
+              disabled={reversing}
+              className="border-destructive/30 text-destructive hover:bg-destructive/10 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors disabled:opacity-50"
+              aria-label="Hủy giao dịch"
+              title="Hủy giao dịch"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </CardContent>
+      </Card>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Hủy giao dịch?"
+        description={`Sẽ tạo 1 entry reversal trong ledger (${sign}${formatK(
+          tx.amount,
+        )} → đảo dấu). Row gốc vẫn được giữ làm audit trail. Tiếp tục?`}
+        confirmLabel="Hủy giao dịch"
+        cancelLabel={tCommon("cancel")}
+        variant="destructive"
+        onConfirm={handleConfirm}
+      />
+    </>
   );
 }

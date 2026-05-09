@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { formatVND } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { PaymentQR } from "@/components/payment/payment-qr";
 
 interface Props {
@@ -115,7 +116,7 @@ export function FundTopUpCard({ memberId, debtAmount, bare = false }: Props) {
         </button>
       </div>
 
-      <input
+      <Input
         type="text"
         inputMode="numeric"
         value={formattedAmount}
@@ -124,7 +125,7 @@ export function FundTopUpCard({ memberId, debtAmount, bare = false }: Props) {
           setCustomAmount(digits);
         }}
         placeholder={t("amountPlaceholder")}
-        className="bg-background min-h-11 w-full min-w-0 rounded-xl border p-2.5 text-base tabular-nums"
+        className="tabular-nums"
         aria-label={t("topUp")}
       />
 

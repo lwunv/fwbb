@@ -21,6 +21,7 @@ import {
   admins,
   members,
   financialTransactions,
+  appSettings,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
@@ -56,6 +57,7 @@ async function reset() {
   await client.execute("DELETE FROM admins");
   await client.execute("DELETE FROM members");
   await client.execute("DELETE FROM courts");
+  await client.execute("DELETE FROM app_settings");
 }
 
 async function seedAdmin(
@@ -279,7 +281,7 @@ describe("selectCourt — monthly + retail pricing (integration)", () => {
     } as never);
   });
 
-  it("uses monthly price for 1 court", async () => {
+  it("uses monthly price for 1 court (default court + default day = 'buổi mặc định')", async () => {
     const [c] = await testDb
       .insert(courts)
       .values({
@@ -288,6 +290,11 @@ describe("selectCourt — monthly + retail pricing (integration)", () => {
         pricePerSessionRetail: 220_000,
       })
       .returning({ id: courts.id });
+    // Cấu hình court này là court mặc định
+    await testDb
+      .insert(appSettings)
+      .values({ key: "defaultCourtId", value: String(c.id) });
+    // 2026-04-10 = Thứ Sáu (Mon/Wed/Fri = default session days)
     const sId = await seedSession("2026-04-10", "voting", 0);
 
     const r = await selectCourt(sId, c.id, 1);
@@ -300,7 +307,7 @@ describe("selectCourt — monthly + retail pricing (integration)", () => {
     expect(after?.courtQuantity).toBe(1);
   });
 
-  it("uses monthly + retail*(N-1) for multi-court", async () => {
+  it("uses monthly + retail*(N-1) for multi-court (buổi mặc định)", async () => {
     const [c] = await testDb
       .insert(courts)
       .values({
@@ -309,6 +316,9 @@ describe("selectCourt — monthly + retail pricing (integration)", () => {
         pricePerSessionRetail: 220_000,
       })
       .returning({ id: courts.id });
+    await testDb
+      .insert(appSettings)
+      .values({ key: "defaultCourtId", value: String(c.id) });
     const sId = await seedSession("2026-04-10", "voting", 0);
 
     const r = await selectCourt(sId, c.id, 2);
@@ -319,6 +329,62 @@ describe("selectCourt — monthly + retail pricing (integration)", () => {
     });
     expect(after?.courtPrice).toBe(200_000 + 220_000); // 420k
     expect(after?.courtQuantity).toBe(2);
+  });
+
+  it("uses retail price for ALL courts when session date is NOT default (T2/T4/T6)", async () => {
+    const [c] = await testDb
+      .insert(courts)
+      .values({
+        name: "Sân A",
+        pricePerSession: 200_000,
+        pricePerSessionRetail: 220_000,
+      })
+      .returning({ id: courts.id });
+    await testDb
+      .insert(appSettings)
+      .values({ key: "defaultCourtId", value: String(c.id) });
+    // 2026-04-12 = Chủ Nhật → buổi lẻ → tất cả sân giá 220k
+    const sId = await seedSession("2026-04-12", "voting", 0);
+
+    const r = await selectCourt(sId, c.id, 1);
+    expect(r).toEqual({ success: true });
+
+    const after = await testDb.query.sessions.findFirst({
+      where: eq(sessions.id, sId),
+    });
+    expect(after?.courtPrice).toBe(220_000);
+  });
+
+  it("uses retail price when court is NOT the default court (even on default day)", async () => {
+    const [defaultC] = await testDb
+      .insert(courts)
+      .values({
+        name: "Sân default",
+        pricePerSession: 200_000,
+        pricePerSessionRetail: 220_000,
+      })
+      .returning({ id: courts.id });
+    const [otherC] = await testDb
+      .insert(courts)
+      .values({
+        name: "Sân khác",
+        pricePerSession: 180_000,
+        pricePerSessionRetail: 210_000,
+      })
+      .returning({ id: courts.id });
+    await testDb
+      .insert(appSettings)
+      .values({ key: "defaultCourtId", value: String(defaultC.id) });
+    // Friday + sân KHÁC default → buổi lẻ → 210k
+    const sId = await seedSession("2026-04-10", "voting", 0);
+
+    const r = await selectCourt(sId, otherC.id, 1);
+    expect(r).toEqual({ success: true });
+
+    const after = await testDb.query.sessions.findFirst({
+      where: eq(sessions.id, sId),
+    });
+    expect(after?.courtPrice).toBe(210_000);
   });
 
   it("falls back to monthly price when retail not configured (no admin underprice)", async () => {

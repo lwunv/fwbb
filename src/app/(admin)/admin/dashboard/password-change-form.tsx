@@ -6,12 +6,7 @@ import { changePassword } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Lock, Eye, EyeOff, Check } from "lucide-react";
 
 export function PasswordChangeForm() {
@@ -30,14 +25,14 @@ export function PasswordChangeForm() {
       </CardHeader>
       <CardContent>
         {state?.success ? (
-          <div className="flex items-center gap-2 text-green-600 text-sm py-2">
+          <div className="flex items-center gap-2 py-2 text-sm text-blue-600">
             <Check className="h-4 w-4" />
             {t("success")}
           </div>
         ) : (
           <form action={formAction} className="space-y-3">
             {state?.error && (
-              <div className="text-destructive text-sm bg-destructive/10 p-2 rounded-md">
+              <div className="text-destructive bg-destructive/10 rounded-md p-2 text-sm">
                 {state.error}
               </div>
             )}
@@ -55,7 +50,7 @@ export function PasswordChangeForm() {
                 <button
                   type="button"
                   onClick={() => setShowCurrent(!showCurrent)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2"
                 >
                   {showCurrent ? (
                     <EyeOff className="h-4 w-4" />
@@ -80,7 +75,7 @@ export function PasswordChangeForm() {
                 <button
                   type="button"
                   onClick={() => setShowNew(!showNew)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2"
                 >
                   {showNew ? (
                     <EyeOff className="h-4 w-4" />
@@ -103,7 +98,12 @@ export function PasswordChangeForm() {
               />
             </div>
 
-            <Button type="submit" disabled={isPending} size="lg" className="w-full">
+            <Button
+              type="submit"
+              disabled={isPending}
+              size="lg"
+              className="w-full"
+            >
               {isPending ? t("processing") : t("submit")}
             </Button>
           </form>

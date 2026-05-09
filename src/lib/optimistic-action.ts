@@ -23,26 +23,40 @@ export function fireAction(
     if (successMsg) toast.success(successMsg);
   };
 
-  action().then((result) => {
-    const error = result && "error" in result ? result.error : undefined;
-    if (error) {
-      if (retry) {
-        // Retry once
-        action().then((r2) => {
-          const err2 = r2 && "error" in r2 ? r2.error : undefined;
-          if (err2) {
-            rollback?.();
-            toast.error(err2);
-          } else {
-            finishOk();
-          }
-        });
+  const handleThrow = (err: unknown) => {
+    rollback?.();
+    const msg =
+      err instanceof Error
+        ? err.message
+        : typeof err === "string"
+          ? err
+          : "Lỗi không xác định";
+    toast.error(msg);
+  };
+
+  action()
+    .then((result) => {
+      const error = result && "error" in result ? result.error : undefined;
+      if (error) {
+        if (retry) {
+          action()
+            .then((r2) => {
+              const err2 = r2 && "error" in r2 ? r2.error : undefined;
+              if (err2) {
+                rollback?.();
+                toast.error(err2);
+              } else {
+                finishOk();
+              }
+            })
+            .catch(handleThrow);
+        } else {
+          rollback?.();
+          toast.error(error);
+        }
       } else {
-        rollback?.();
-        toast.error(error);
+        finishOk();
       }
-    } else {
-      finishOk();
-    }
-  });
+    })
+    .catch(handleThrow);
 }

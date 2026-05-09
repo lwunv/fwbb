@@ -2,9 +2,10 @@
 
 import { db } from "@/db";
 import { financialTransactions, fundMembers, members } from "@/db/schema";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { eq, and, desc, inArray, isNotNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getFundBalance, getAllFundBalances } from "@/lib/fund-calculator";
+import { computeBalanceFromTransactions } from "@/lib/fund-core";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
 import { requireAdmin, getAdminFromCookie } from "@/lib/auth";
 import { getUserFromCookie } from "@/lib/user-identity";
@@ -381,17 +382,195 @@ export async function getAllFundTransactions() {
  * Fetch the most recent financial transactions across ALL types (fund flows,
  * court rent, inventory purchases, debt events, manual adjustments). Used by
  * the admin transaction log on /admin/finance.
+ *
+ * Each row is annotated with:
+ *  - `isReversal`: this row IS a reversal of another (reversalOfId !== null).
+ *  - `isReversed`: another row reverses THIS one — appears in `voidedBy` set.
+ *
+ * Admins use these flags to gray out reversed rows, hide the "Hủy" button on
+ * already-reversed rows, and label reversal entries clearly in the log.
  */
 export async function getRecentFinancialTransactions(limit = 100) {
   const auth = await requireAdmin();
   if ("error" in auth) return [];
 
-  const rows = await db.query.financialTransactions.findMany({
-    with: { member: true, session: true },
-    orderBy: [desc(financialTransactions.createdAt)],
-    limit,
+  // Two queries: 1) the window of recent rows, 2) ALL reversal pointers in
+  // the entire ledger (only `reversalOfId` column — cheap). We need the global
+  // view because a reversal entry might be outside the window while its
+  // original IS in it; without the global query, the original would falsely
+  // show as "not reversed" → admin sees the X button and can attempt re-void.
+  // Server idempotent guards catch the re-void at action time, but UI lying
+  // is bad UX.
+  const [rows, allReversalPointers] = await Promise.all([
+    db.query.financialTransactions.findMany({
+      with: { member: true, session: true },
+      orderBy: [desc(financialTransactions.createdAt)],
+      limit,
+    }),
+    db.query.financialTransactions.findMany({
+      where: isNotNull(financialTransactions.reversalOfId),
+      columns: { reversalOfId: true },
+    }),
+  ]);
+
+  const reversedIds = new Set<number>();
+  for (const r of allReversalPointers) {
+    if (r.reversalOfId !== null) reversedIds.add(r.reversalOfId);
+  }
+
+  return rows.map((r) => ({
+    ...r,
+    isReversal: r.reversalOfId !== null,
+    isReversed: reversedIds.has(r.id),
+  }));
+}
+
+/**
+ * Reverse a financial transaction (fintech-compliant void).
+ *
+ * KHÔNG hard-delete — chuẩn audit trail của ledger fintech là giữ nguyên row
+ * gốc + insert 1 counter-entry với `reversalOfId` trỏ về nó. Balance member
+ * tự cân bằng vì compute sum theo type/amount → +X rồi −X = 0.
+ *
+ * Cho phép reverse:
+ *   - `fund_contribution` (admin nhập sai số / nhầm member) → reversal
+ *     `fund_refund` cùng amount, `reversalOfId` = id gốc.
+ *   - `fund_refund` → reversal `fund_contribution` cùng amount.
+ *
+ * Không cho phép reverse:
+ *   - `fund_deduction` (allocation từ finalizeSession — cancel qua delete
+ *     session/finalize-undo).
+ *   - `debt_*` (lifecycle riêng qua action sessions).
+ *   - `inventory_purchase`, `court_rent_payment` (đã có flow delete riêng
+ *     reverse stock/lịch sử riêng).
+ *   - row đã là reversal (reversalOfId !== null).
+ *   - row đã bị reversed bởi entry khác (idempotent).
+ *
+ * idempotencyKey BẮT BUỘC để client double-click không insert đôi.
+ */
+export async function reverseFinancialTransaction(
+  txId: number,
+  idempotencyKey: string,
+  reason?: string,
+): Promise<{ success: true; replayed: boolean } | { error: string }> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return { error: auth.error };
+
+  if (
+    !idempotencyKey ||
+    typeof idempotencyKey !== "string" ||
+    idempotencyKey.trim().length < 4
+  ) {
+    return { error: "Thiếu idempotencyKey" };
+  }
+
+  const original = await db.query.financialTransactions.findFirst({
+    where: eq(financialTransactions.id, txId),
   });
-  return rows;
+  if (!original) return { error: "Không tìm thấy giao dịch" };
+
+  if (original.reversalOfId !== null) {
+    return { error: "Đây là entry reversal — không thể hủy reversal." };
+  }
+
+  const reversibleTypes = new Set(["fund_contribution", "fund_refund"]);
+  if (!reversibleTypes.has(original.type)) {
+    return {
+      error:
+        "Loại giao dịch này không hỗ trợ hủy. Chỉ cho phép hủy đóng quỹ / hoàn quỹ thủ công.",
+    };
+  }
+
+  // Đã có row reverse trỏ về tx này? → idempotent: return success replayed.
+  const existingReversal = await db.query.financialTransactions.findFirst({
+    where: eq(financialTransactions.reversalOfId, txId),
+    columns: { id: true },
+  });
+  if (existingReversal) {
+    return { success: true, replayed: true };
+  }
+
+  const reverseType =
+    original.type === "fund_contribution" ? "fund_refund" : "fund_contribution";
+  const reverseDirection = original.direction === "in" ? "out" : "in";
+  const baseDesc = original.description ?? "";
+  const reasonSuffix = reason?.trim() ? ` (${reason.trim()})` : "";
+  const desc = `Hủy: ${baseDesc}${reasonSuffix}`.slice(0, 500);
+
+  let replayed = false;
+  try {
+    await db.transaction(async (tx) => {
+      // Re-check inside tx — phòng race khi 2 admin cùng bấm Hủy: SQLite
+      // serialize writers, người thứ 2 sẽ thấy reversal entry đã insert.
+      const recheck = await tx.query.financialTransactions.findFirst({
+        where: eq(financialTransactions.reversalOfId, txId),
+        columns: { id: true },
+      });
+      if (recheck) {
+        replayed = true;
+        return;
+      }
+
+      // SAFETY GUARD: nếu reverse 1 fund_contribution mà sau đó
+      // autoApplyFundToDebts đã trừ tiền cho debt → balance hiện tại có thể
+      // < amount. Reverse sẽ kéo balance < 0 nhưng debt đã marked paid →
+      // invariant I8 broken (debt nói "đã trả thật" nhưng quỹ âm).
+      // Reject với hướng dẫn rõ: admin phải dùng deleteSession hoặc
+      // undoPaymentByAdmin trước.
+      if (original.type === "fund_contribution" && original.memberId !== null) {
+        const memberTxs = await tx.query.financialTransactions.findMany({
+          where: eq(financialTransactions.memberId, original.memberId),
+        });
+        const balance = computeBalanceFromTransactions(
+          original.memberId,
+          memberTxs,
+        ).balance;
+        if (balance < original.amount) {
+          throw new Error(
+            `Không thể hủy: số dư hiện tại (${formatVND(
+              balance,
+            )}) thấp hơn amount cần trả lại (${formatVND(
+              original.amount,
+            )}). Có thể tiền đã được tự động trừ vào nợ buổi nào đó. Vui lòng undo payment cho debt liên quan trước, hoặc xóa session đó.`,
+          );
+        }
+      }
+
+      const r = await recordFinancialTransaction(
+        {
+          memberId: original.memberId,
+          type: reverseType,
+          direction: reverseDirection,
+          amount: original.amount,
+          description: desc,
+          reversalOfId: original.id,
+          idempotencyKey,
+        },
+        tx,
+      );
+      if ("error" in r) throw new Error(r.error);
+      replayed = r.replayed === true;
+    });
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Không hủy được giao dịch",
+    };
+  }
+
+  // Auto-apply remaining balance to outstanding debts — nếu reverse 1
+  // contribution khiến balance tụt xuống nhưng vẫn > 0, không cần thêm logic.
+  // Nhưng nếu reverse 1 refund → balance tăng → có thể auto-apply vào debt.
+  if (original.memberId !== null && original.type === "fund_refund") {
+    const { autoApplyFundToDebts } = await import("./auto-fund");
+    await autoApplyFundToDebts(original.memberId);
+  }
+
+  revalidatePath("/admin/fund");
+  revalidatePath("/admin/fund/transactions");
+  revalidatePath("/admin/finance");
+  revalidatePath("/my-fund");
+  revalidatePath("/my-debts");
+  return { success: true, replayed };
 }
 
 export async function getFundOverview() {
@@ -404,10 +583,29 @@ export async function getFundOverview() {
       totalRefunds: 0,
       memberCount: 0,
       balances: [],
+      cashOnHand: 0,
+      totalGroupExpenses: 0,
+      groupExpenseCourtRent: 0,
+      groupExpenseInventory: 0,
     };
   }
 
-  const balances = await getAllFundBalances();
+  const [balances, groupTxs] = await Promise.all([
+    getAllFundBalances(),
+    db.query.financialTransactions.findMany({
+      where: inArray(financialTransactions.type, [
+        "court_rent_payment",
+        "inventory_purchase",
+      ]),
+      columns: {
+        id: true,
+        type: true,
+        direction: true,
+        amount: true,
+        reversalOfId: true,
+      },
+    }),
+  ]);
   const totalBalance = balances.reduce((sum, b) => sum + b.balance, 0);
   const totalContributions = balances.reduce(
     (sum, b) => sum + b.totalContributions,
@@ -420,6 +618,31 @@ export async function getFundOverview() {
   const totalRefunds = balances.reduce((sum, b) => sum + b.totalRefunds, 0);
   const memberCount = balances.length;
 
+  // Group expenses (memberId-agnostic real cash out): bỏ cặp original+reversal
+  // ra khỏi tổng để không double-count khi admin xóa 1 payment cũ
+  // (deleteCourtRentPayment ghi 1 row direction=in với reversalOfId trỏ về
+  // original). Còn lại: sum amount của out, trừ amount của in (mảnh reversal
+  // chưa được pair với original cùng có ở đây — phòng race).
+  const reversedIds = new Set(
+    groupTxs
+      .map((t) => t.reversalOfId)
+      .filter((id): id is number => id !== null),
+  );
+  let groupExpenseCourtRent = 0;
+  let groupExpenseInventory = 0;
+  for (const t of groupTxs) {
+    if (reversedIds.has(t.id)) continue; // bị reversal khác chỉ tới → bỏ
+    if (t.reversalOfId !== null) continue; // chính nó là reversal → bỏ
+    const signed = t.direction === "out" ? t.amount : -t.amount;
+    if (t.type === "court_rent_payment") groupExpenseCourtRent += signed;
+    else if (t.type === "inventory_purchase") groupExpenseInventory += signed;
+  }
+  const totalGroupExpenses = groupExpenseCourtRent + groupExpenseInventory;
+  // Cash flow công thức: contributions vào − refunds ra − chi quỹ chung ra.
+  // KHÔNG trừ totalDeductions (deduction từ finalizeSession là member-allocation,
+  // không phải cash movement — admin chưa thực sự đưa ai tiền).
+  const cashOnHand = totalContributions - totalRefunds - totalGroupExpenses;
+
   return {
     totalBalance,
     totalContributions,
@@ -427,6 +650,10 @@ export async function getFundOverview() {
     totalRefunds,
     memberCount,
     balances,
+    cashOnHand,
+    totalGroupExpenses,
+    groupExpenseCourtRent,
+    groupExpenseInventory,
   };
 }
 

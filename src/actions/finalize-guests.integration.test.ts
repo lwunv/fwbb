@@ -25,6 +25,7 @@ vi.mock("@/lib/auth", () => ({
   requireAdmin: vi.fn(async () => ({ admin: { sub: "1", role: "admin" } })),
   getAdminFromCookie: vi.fn(async () => ({ sub: "1", role: "admin" })),
 }));
+import { requireAdmin } from "@/lib/auth";
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/messenger", () => ({
   sendGroupMessage: vi.fn(),
@@ -63,11 +64,20 @@ async function seed() {
       { name: "Bob", facebookId: "fb-b" },
     ])
     .returning({ id: members.id });
-  await testDb.insert(adminsTable).values({
-    username: "Admin",
-    passwordHash: "x",
-    memberId: admin.id,
-  });
+  const [adminRow] = await testDb
+    .insert(adminsTable)
+    .values({
+      username: "Admin",
+      passwordHash: "x",
+      memberId: admin.id,
+    })
+    .returning({ id: adminsTable.id });
+  // Đồng bộ JWT.sub về đúng id của admin row vừa insert — `resolveAdminMemberId`
+  // dùng id này để lookup. SQLite auto-increment KHÔNG reset giữa test suites
+  // sau DELETE → id có thể không phải 1.
+  vi.mocked(requireAdmin).mockResolvedValue({
+    admin: { sub: String(adminRow.id), role: "admin" },
+  } as never);
   return { adminId: admin.id, aliceId: alice.id, bobId: bob.id };
 }
 

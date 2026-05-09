@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { sessions } from "@/db/schema";
+import { sessions, sessionShuttlecocks } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { ymdInVNAddDays, dayOfWeekVN } from "@/lib/date-format";
-
-// Lịch cố định: Mon=1, Wed=3, Fri=5 (theo giờ VN).
-const SESSION_DAYS = new Set([1, 3, 5]);
+import {
+  getDefaultCourt,
+  getDefaultBrand,
+  getSessionDaysOfWeek,
+} from "@/actions/settings";
 
 export async function GET(request: NextRequest) {
   // Fail-closed nếu CRON_SECRET missing — tránh ai cũng trigger được tạo
@@ -25,7 +27,9 @@ export async function GET(request: NextRequest) {
   const dateStr = ymdInVNAddDays(1);
   const dayOfWeek = dayOfWeekVN(dateStr);
 
-  if (!SESSION_DAYS.has(dayOfWeek)) {
+  // Lịch chơi đọc động từ /admin/dashboard setting (default Mon/Wed/Fri).
+  const sessionDays = new Set(await getSessionDaysOfWeek());
+  if (!sessionDays.has(dayOfWeek)) {
     return NextResponse.json({ message: "Not a session day" });
   }
 
@@ -38,7 +42,31 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "Session already exists" });
   }
 
-  await db.insert(sessions).values({ date: dateStr, status: "voting" });
+  // Pre-fill court + shuttlecock defaults từ /admin/dashboard settings — admin
+  // có thể đổi sau. Đồng bộ pattern với auto-create today trong sessions.ts.
+  const [defaultCourt, defaultBrand] = await Promise.all([
+    getDefaultCourt(),
+    getDefaultBrand(),
+  ]);
+
+  const [newSession] = await db
+    .insert(sessions)
+    .values({
+      date: dateStr,
+      status: "voting",
+      courtId: defaultCourt?.id ?? null,
+      courtPrice: defaultCourt?.pricePerSession ?? null,
+    })
+    .returning();
+
+  if (defaultBrand) {
+    await db.insert(sessionShuttlecocks).values({
+      sessionId: newSession.id,
+      brandId: defaultBrand.id,
+      quantityUsed: 1,
+      pricePerTube: defaultBrand.pricePerTube,
+    });
+  }
 
   return NextResponse.json({ message: `Session created for ${dateStr}` });
 }

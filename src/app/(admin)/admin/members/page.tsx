@@ -1,21 +1,32 @@
-import { getMembers } from "@/actions/members";
+import {
+  getMembers,
+  getCurrentAdminMemberId,
+  findDuplicateMembers,
+} from "@/actions/members";
 import { getAllDebts } from "@/actions/finance";
 import { MemberList } from "./member-list";
+import { DuplicateMembersBanner } from "./duplicate-members-banner";
 
 export default async function MembersPage() {
-  const [members, allDebts] = await Promise.all([
-    getMembers(),
-    getAllDebts(),
-  ]);
+  const [members, allDebts, currentAdminMemberId, dupGroups] =
+    await Promise.all([
+      getMembers(),
+      getAllDebts(),
+      getCurrentAdminMemberId(),
+      findDuplicateMembers(),
+    ]);
 
   // Group unpaid debts by memberId
-  const debtsByMember: Record<number, Array<{
-    id: number;
-    sessionId: number;
-    sessionDate: string;
-    totalAmount: number;
-    memberConfirmed: boolean;
-  }>> = {};
+  const debtsByMember: Record<
+    number,
+    Array<{
+      id: number;
+      sessionId: number;
+      sessionDate: string;
+      totalAmount: number;
+      memberConfirmed: boolean;
+    }>
+  > = {};
 
   for (const d of allDebts) {
     if (d.adminConfirmed) continue;
@@ -30,8 +41,13 @@ export default async function MembersPage() {
   }
 
   return (
-    <div>
-      <MemberList members={members} debtsByMember={debtsByMember} />
+    <div className="space-y-3">
+      {dupGroups.length > 0 && <DuplicateMembersBanner groups={dupGroups} />}
+      <MemberList
+        members={members}
+        debtsByMember={debtsByMember}
+        currentAdminMemberId={currentAdminMemberId}
+      />
     </div>
   );
 }

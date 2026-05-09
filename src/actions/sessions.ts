@@ -12,7 +12,19 @@ import {
   financialTransactions,
   paymentNotifications,
 } from "@/db/schema";
-import { eq, desc, and, gte, lt, lte, ne, isNull, inArray } from "drizzle-orm";
+import {
+  eq,
+  desc,
+  asc,
+  and,
+  gt,
+  gte,
+  lt,
+  lte,
+  ne,
+  isNull,
+  inArray,
+} from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
   sendGroupMessage,
@@ -23,7 +35,12 @@ import { requireAdmin } from "@/lib/auth";
 import { ymdInVN, ymdInVNAddDays, dayOfWeekVN } from "@/lib/date-format";
 import { admins } from "@/db/schema";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
-import { getDefaultCourt, getDefaultBrand } from "@/actions/settings";
+import { computeCourtTotal } from "@/lib/cost-calculator";
+import {
+  getDefaultCourt,
+  getDefaultBrand,
+  getSessionDaysOfWeek,
+} from "@/actions/settings";
 import { assertEditable, type SessionStatus } from "@/lib/session-status";
 import {
   selectCourtSchema,
@@ -56,7 +73,12 @@ export async function getSession(id: number) {
  * chưa có session active, auto-create cho ngày Mon/Wed/Fri gần nhất trong
  * khoảng đó.
  */
-const SESSION_DAYS_OF_WEEK = new Set([1, 3, 5]); // Mon=1, Wed=3, Fri=5 (VN)
+// Lịch chơi giờ là setting động (`appSettings.sessionDaysOfWeek` qua
+// /admin/dashboard). Default fallback Mon/Wed/Fri lo trong getSessionDaysOfWeek().
+async function getSessionDaysSet(): Promise<Set<number>> {
+  const days = await getSessionDaysOfWeek();
+  return new Set(days);
+}
 
 export async function getNextSession() {
   const today = ymdInVN();
@@ -82,12 +104,13 @@ export async function getNextSession() {
   // khoảng đó có ngày Mon/Wed/Fri và chưa có row nào (kể cả completed/cancelled).
   // Pre-fill court + brand mặc định — admin có thể đổi qua CourtSelector /
   // ShuttlecockSelector.
-  const [defaultCourt, defaultBrand] = await Promise.all([
+  const [defaultCourt, defaultBrand, sessionDays] = await Promise.all([
     getDefaultCourt(),
     getDefaultBrand(),
+    getSessionDaysSet(),
   ]);
   for (const candidate of [today, tomorrow]) {
-    if (!SESSION_DAYS_OF_WEEK.has(dayOfWeekVN(candidate))) continue;
+    if (!sessionDays.has(dayOfWeekVN(candidate))) continue;
     const exists = await db.query.sessions.findFirst({
       where: eq(sessions.date, candidate),
     });
@@ -148,7 +171,8 @@ export async function getAdminUpcomingSession() {
 
   // 2. Hôm nay là ngày chơi mà chưa có row → auto-create cho hôm nay.
   //    Pre-fill court mặc định (THCS Tây Mỗ) — admin có thể đổi sau.
-  if (SESSION_DAYS_OF_WEEK.has(dayOfWeekVN(today))) {
+  const sessionDays = await getSessionDaysSet();
+  if (sessionDays.has(dayOfWeekVN(today))) {
     const exists = await db.query.sessions.findFirst({
       where: eq(sessions.date, today),
     });
@@ -181,7 +205,24 @@ export async function getAdminUpcomingSession() {
     }
   }
 
-  // 3. Lùi về buổi pending gần nhất trong quá khứ (admin cần chốt sổ).
+  // 3. Buổi sắp tới gần nhất do admin tự tạo (vd CN/T7 ngoài MWF). Phải lấy
+  //    trước past-pending: admin vừa setup buổi tương lai thì kỳ vọng thấy
+  //    nó, không phải buổi cũ chưa chốt.
+  const futureSession = await db.query.sessions.findFirst({
+    where: and(
+      gt(sessions.date, today),
+      ne(sessions.status, "completed"),
+      ne(sessions.status, "cancelled"),
+    ),
+    orderBy: [asc(sessions.date)],
+    with: {
+      court: true,
+      shuttlecocks: { with: { brand: true } },
+    },
+  });
+  if (futureSession) return futureSession;
+
+  // 4. Lùi về buổi pending gần nhất trong quá khứ (admin cần chốt sổ).
   //    Không giới hạn 1 ngày: T6 chưa finalize phải vẫn hiện vào CN/T2 sau đó.
   const pastPending = await db.query.sessions.findFirst({
     where: and(
@@ -240,23 +281,36 @@ export async function selectCourt(
   const editGuard = assertEditable(existing.status as SessionStatus);
   if (!editGuard.ok) return { error: editGuard.error };
 
-  const court = await db.query.courts.findFirst({
-    where: eq(courts.id, data.courtId),
-  });
+  const [court, sessionRow, defaultCourt] = await Promise.all([
+    db.query.courts.findFirst({ where: eq(courts.id, data.courtId) }),
+    db.query.sessions.findFirst({
+      where: eq(sessions.id, data.sessionId),
+      columns: { date: true },
+    }),
+    getDefaultCourt(),
+  ]);
   if (!court) return { error: "San khong ton tai" };
+  if (!sessionRow) return { error: "Không tìm thấy buổi chơi" };
 
-  // Tính giá: sân thứ 1 = giá tháng (pricePerSession), sân thứ 2..N = giá lẻ.
-  // Nếu chưa cấu hình giá lẻ → fallback giá tháng (an toàn về phía admin: không underprice).
-  const monthlyPrice = court.pricePerSession;
-  const retailPrice = court.pricePerSessionRetail ?? monthlyPrice;
-  const qty = Math.max(1, data.courtQuantity);
-  const totalCourtPrice = monthlyPrice + retailPrice * (qty - 1);
+  // Quy tắc giá:
+  //  - Buổi MẶC ĐỊNH (sân default + ngày T2/T4/T6): sân #1 = giá tháng,
+  //    sân #2..N = giá lẻ.
+  //  - Buổi LẺ (sân khác / ngày khác): TẤT CẢ sân = giá lẻ.
+  // Pure logic ở `computeCourtTotal` để client preview cùng công thức.
+  const totalCourtPrice = computeCourtTotal({
+    monthlyPrice: court.pricePerSession,
+    retailPrice: court.pricePerSessionRetail,
+    courtQuantity: data.courtQuantity,
+    sessionDate: sessionRow.date,
+    selectedCourtId: data.courtId,
+    defaultCourtId: defaultCourt?.id ?? null,
+  });
 
   await db
     .update(sessions)
     .set({
       courtId: data.courtId,
-      courtQuantity: qty,
+      courtQuantity: Math.max(1, data.courtQuantity),
       courtPrice: totalCourtPrice,
       updatedAt: new Date().toISOString(),
     })
@@ -772,22 +826,34 @@ export async function createSessionManually(
   if (existing) return { error: "Da co buoi choi vao ngay nay" };
 
   // Resolve court: admin chọn → dùng đó; không chọn → fallback default court.
+  // Giá ban đầu tính qua computeCourtTotal — buổi lẻ (ngày khác T2/T4/T6,
+  // hoặc sân khác default) sẽ ăn giá retail; buổi mặc định ăn giá tháng.
+  const defaultCourt = await getDefaultCourt();
   let resolvedCourtId: number | null = null;
   let courtPrice: number | null = null;
+  let resolvedCourt: {
+    id: number;
+    pricePerSession: number;
+    pricePerSessionRetail: number | null;
+  } | null = null;
   if (courtId) {
     const court = await db.query.courts.findFirst({
       where: eq(courts.id, courtId),
     });
-    if (court) {
-      resolvedCourtId = court.id;
-      courtPrice = court.pricePerSession;
-    }
-  } else {
-    const defaultCourt = await getDefaultCourt();
-    if (defaultCourt) {
-      resolvedCourtId = defaultCourt.id;
-      courtPrice = defaultCourt.pricePerSession;
-    }
+    if (court) resolvedCourt = court;
+  } else if (defaultCourt) {
+    resolvedCourt = defaultCourt;
+  }
+  if (resolvedCourt) {
+    resolvedCourtId = resolvedCourt.id;
+    courtPrice = computeCourtTotal({
+      monthlyPrice: resolvedCourt.pricePerSession,
+      retailPrice: resolvedCourt.pricePerSessionRetail,
+      courtQuantity: 1,
+      sessionDate: date,
+      selectedCourtId: resolvedCourt.id,
+      defaultCourtId: defaultCourt?.id ?? null,
+    });
   }
 
   const [newSession] = await db

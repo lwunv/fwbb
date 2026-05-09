@@ -306,6 +306,7 @@ export async function recordCourtRentPayment(input: {
 
   revalidatePath("/admin/court-rent");
   revalidatePath("/admin/finance");
+  revalidatePath("/admin/fund");
   return { success: true, replayed: false };
 }
 
@@ -350,6 +351,7 @@ export async function deleteCourtRentPayment(
   });
 
   revalidatePath("/admin/court-rent");
+  revalidatePath("/admin/fund");
   return { success: true };
 }
 

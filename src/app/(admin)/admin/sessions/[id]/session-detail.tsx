@@ -47,6 +47,7 @@ export function SessionDetail({
   brands,
   members,
   debtMap = {},
+  defaultCourtId = null,
 }: {
   session: Session;
   votes: Vote[];
@@ -57,6 +58,7 @@ export function SessionDetail({
     number,
     { amount: number; adminConfirmed: boolean; debtId: number }
   >;
+  defaultCourtId?: number | null;
 }) {
   const [localStatus, setLocalStatus] = useState(session.status);
   const t = useTranslations("sessions");
@@ -126,6 +128,8 @@ export function SessionDetail({
               courts={courts}
               currentCourtId={session.courtId}
               currentCourtQuantity={session.courtQuantity ?? 1}
+              sessionDate={session.date}
+              defaultCourtId={defaultCourtId}
             />
           </CardContent>
         </Card>

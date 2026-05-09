@@ -8,10 +8,11 @@ import {
 } from "@/actions/fund";
 import { mergeLegacyDebtsIntoFund } from "@/actions/merge-debt-fund";
 import { db } from "@/db";
-import { members } from "@/db/schema";
+import { members, courts, shuttlecockBrands } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ymdInVN } from "@/lib/date-format";
 import { FundDashboard } from "./fund-dashboard";
 import { FundReport } from "./fund-report";
 import { ReconcilePanel } from "./reconcile-panel";
@@ -21,14 +22,31 @@ export default async function AdminFundPage() {
   // unified fund balance. Cheap when there's nothing to migrate.
   await mergeLegacyDebtsIntoFund();
 
-  const [overview, fundMembersWithBalances, transactions, allMembers, t] =
-    await Promise.all([
-      getFundOverview(),
-      getFundMembersWithBalances(),
-      getAllFundTransactions(),
-      db.query.members.findMany({ where: eq(members.isActive, true) }),
-      getTranslations("fundAdmin"),
-    ]);
+  const [
+    overview,
+    fundMembersWithBalances,
+    transactions,
+    allMembers,
+    courtList,
+    brandList,
+    t,
+  ] = await Promise.all([
+    getFundOverview(),
+    getFundMembersWithBalances(),
+    getAllFundTransactions(),
+    db.query.members.findMany({ where: eq(members.isActive, true) }),
+    db.query.courts.findMany({
+      where: eq(courts.isActive, true),
+      columns: { id: true, name: true, pricePerSession: true },
+      orderBy: (c, { asc }) => [asc(c.name)],
+    }),
+    db.query.shuttlecockBrands.findMany({
+      where: eq(shuttlecockBrands.isActive, true),
+      columns: { id: true, name: true, pricePerTube: true },
+      orderBy: (b, { asc }) => [asc(b.name)],
+    }),
+    getTranslations("fundAdmin"),
+  ]);
 
   // Merged Quỹ + Nợ: "Nợ chưa thu" = sum of negative balances.
   let totalOutstanding = 0;
@@ -40,6 +58,11 @@ export default async function AdminFundPage() {
     }
   }
 
+  // VN-local current year/month — default cho form "Trả sân tháng".
+  const todayVN = ymdInVN();
+  const currentYear = parseInt(todayVN.slice(0, 4), 10);
+  const currentMonth = parseInt(todayVN.slice(5, 7), 10);
+
   return (
     <div className="space-y-6">
       <FundDashboard
@@ -48,6 +71,10 @@ export default async function AdminFundPage() {
         allMembers={allMembers}
         totalOutstanding={totalOutstanding}
         owingCount={owingCount}
+        courts={courtList}
+        brands={brandList}
+        currentYear={currentYear}
+        currentMonth={currentMonth}
       />
       <FundReport
         fundMembers={fundMembersWithBalances}

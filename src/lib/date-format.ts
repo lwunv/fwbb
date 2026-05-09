@@ -32,22 +32,39 @@ export function formatSessionDate(
   return format(d, FORMATS[variant], { locale: getDateFnsLocale(locale) });
 }
 
+/** Default subscription days of the week — Mon(1), Wed(3), Fri(5). */
+export const DEFAULT_SESSION_DAYS = [1, 3, 5] as const;
+
 /**
  * Returns the next session day (Mon/Wed/Fri schedule) from a reference date.
  * If today IS a session day, returns today.
  */
 export function getNextSessionDay(ref: Date = new Date()): Date {
   const dow = ref.getDay(); // 0=Sun..6=Sat
-  // Mon=1, Wed=3, Fri=5 are session days. Find next forward.
-  const sessionDays = [1, 3, 5];
   let days = 7;
-  for (const sd of sessionDays) {
+  for (const sd of DEFAULT_SESSION_DAYS) {
     const diff = (sd - dow + 7) % 7;
     if (diff < days) days = diff;
   }
   const next = new Date(ref);
   next.setDate(ref.getDate() + days);
   return next;
+}
+
+/**
+ * True nếu YYYY-MM-DD rơi vào 1 trong các ngày subscription cố định
+ * (Mon/Wed/Fri). Dùng để quyết định giá sân: "buổi mặc định" ăn giá tháng
+ * (`pricePerSession`), "buổi lẻ" ăn `pricePerSessionRetail`.
+ *
+ * Parse trực tiếp Y/M/D ra `Date` UTC để KHÔNG lệch khi server chạy ở timezone
+ * khác VN (ymd là VN-local date string).
+ */
+export function isDefaultSessionDay(ymd: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return false;
+  const [y, m, d] = ymd.split("-").map(Number);
+  // UTC để getUTCDay() ổn định bất kể timezone server.
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return (DEFAULT_SESSION_DAYS as readonly number[]).includes(dow);
 }
 
 /** @deprecated Use {@link getNextSessionDay}. Kept for backward compatibility. */

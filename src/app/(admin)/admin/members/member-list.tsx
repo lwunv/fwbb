@@ -8,6 +8,7 @@ import {
   updateMember,
   toggleMemberActive,
   deleteMember,
+  linkAdminToMember,
 } from "@/actions/members";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { TabSegment } from "@/components/shared/tab-segment";
+import { SearchInput } from "@/components/shared/search-input";
 import {
   Dialog,
   DialogContent,
@@ -33,8 +35,8 @@ import {
   ChevronRight,
   Check,
   X,
-  Search,
   Trash2,
+  Crown,
 } from "lucide-react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { MemberAvatar } from "@/components/shared/member-avatar";
@@ -62,9 +64,12 @@ type StatusFilter = "all" | "active" | "locked" | "hasDebt";
 export function MemberList({
   members,
   debtsByMember = {},
+  currentAdminMemberId = null,
 }: {
   members: Member[];
   debtsByMember?: Record<number, MemberDebt[]>;
+  /** memberId của admin hiện tại — render 👑 + nút "Đặt làm admin". */
+  currentAdminMemberId?: number | null;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingNicknameId, setEditingNicknameId] = useState<number | null>(
@@ -81,6 +86,27 @@ export function MemberList({
   const [confirmedDebts, setConfirmedDebts] = useState<Set<number>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<Member | null>(null);
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
+  const [adminMemberId, setAdminMemberId] = useState<number | null>(
+    currentAdminMemberId,
+  );
+  // Sync khi prop đổi (sau revalidatePath)
+  const [prevAdminMemberId, setPrevAdminMemberId] = useState<number | null>(
+    currentAdminMemberId,
+  );
+  if (currentAdminMemberId !== prevAdminMemberId) {
+    setPrevAdminMemberId(currentAdminMemberId);
+    setAdminMemberId(currentAdminMemberId);
+  }
+
+  function handleLinkAdmin(memberId: number) {
+    const prev = adminMemberId;
+    setAdminMemberId(memberId);
+    fireAction(
+      () => linkAdminToMember(memberId),
+      () => setAdminMemberId(prev),
+      { successMsg: "Đã liên kết tài khoản admin" },
+    );
+  }
   const t = useTranslations("adminMembers");
   const tF = useTranslations("finance");
   const tCommon = useTranslations("common");
@@ -229,15 +255,12 @@ export function MemberList({
       </Dialog>
 
       {/* Search box */}
-      <div className="relative mb-3">
-        <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-        <Input
-          placeholder={t("searchPlaceholder")}
-          value={search}
-          onChange={(e) => handleSearch(e.target.value)}
-          className="pl-9"
-        />
-      </div>
+      <SearchInput
+        value={search}
+        onChange={handleSearch}
+        placeholder={t("searchPlaceholder")}
+        containerClassName="mb-3"
+      />
 
       {/* Status filter + count */}
       <div className="mb-4 flex items-center gap-2">
@@ -292,15 +315,43 @@ export function MemberList({
                         size={40}
                       />
                       <div className="min-w-0 flex-1">
-                        <p className="text-base font-semibold">
+                        <p className="flex items-center gap-1.5 text-base font-semibold">
                           {member.name}
                           {member.nickname && (
-                            <span className="text-muted-foreground ml-1.5 text-sm font-normal">
+                            <span className="text-muted-foreground text-sm font-normal">
                               ({member.nickname})
+                            </span>
+                          )}
+                          {adminMemberId === member.id && (
+                            <span
+                              className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400"
+                              title="Đây là tài khoản admin của bạn"
+                            >
+                              <Crown className="h-3 w-3" />
+                              Admin
                             </span>
                           )}
                         </p>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleLinkAdmin(member.id)}
+                        disabled={adminMemberId === member.id}
+                        className={
+                          adminMemberId === member.id
+                            ? "text-amber-600 dark:text-amber-400"
+                            : "text-muted-foreground hover:text-amber-600"
+                        }
+                        title={
+                          adminMemberId === member.id
+                            ? "Đã liên kết — đây là tài khoản admin"
+                            : "Đặt làm tài khoản admin (cần để chốt sổ buổi chơi)"
+                        }
+                        aria-label="Liên kết admin"
+                      >
+                        <Crown className="h-4 w-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"

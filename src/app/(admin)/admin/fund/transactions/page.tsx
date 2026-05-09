@@ -26,6 +26,8 @@ export default async function AdminFundTransactionsPage() {
     sessionDate: tx.session?.date ?? null,
     paymentNotificationId: tx.paymentNotificationId ?? null,
     createdAt: tx.createdAt ?? "",
+    isReversal: tx.isReversal,
+    isReversed: tx.isReversed,
   }));
 
   return (

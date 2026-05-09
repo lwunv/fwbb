@@ -10,7 +10,7 @@ import {
   financialTransactions,
   admins,
 } from "@/db/schema";
-import { eq, sql, or } from "drizzle-orm";
+import { eq, sql, or, ne, and, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { getUserFromCookie } from "@/lib/user-identity";
@@ -63,6 +63,25 @@ export async function getActiveMembers() {
   }));
 }
 
+/**
+ * Trùng tên member = bug hay gây nhầm lẫn trong danh sách quỹ/nợ. Chuẩn hóa
+ * bằng `LOWER(TRIM(name))` để "Liên" / "  liên " / "LIÊN" coi là cùng tên.
+ * `excludeId` để cho phép updateMember giữ nguyên tên cũ.
+ */
+async function isDuplicateName(name: string, excludeId?: number) {
+  const normalized = name.trim().toLowerCase();
+  if (!normalized) return false;
+  const conds = [
+    sql`lower(trim(${members.name})) = ${normalized}`,
+    excludeId ? ne(members.id, excludeId) : undefined,
+  ].filter(Boolean) as ReturnType<typeof sql>[];
+  const dup = await db.query.members.findFirst({
+    where: and(...conds),
+    columns: { id: true },
+  });
+  return !!dup;
+}
+
 export async function createMember(formData: FormData) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
@@ -73,6 +92,9 @@ export async function createMember(formData: FormData) {
   const parsed = memberSchema.safeParse(raw);
   if (!parsed.success) {
     return { error: parsed.error.issues[0].message };
+  }
+  if (await isDuplicateName(parsed.data.name)) {
+    return { error: `Đã có thành viên tên "${parsed.data.name.trim()}"` };
   }
   const nickname = (formData.get("nickname") as string)?.trim() || null;
   // Admin-created members get a placeholder facebookId (will be replaced on first FB login)
@@ -170,12 +192,64 @@ export async function updateMember(id: number, formData: FormData) {
   if (!parsed.success) {
     return { error: parsed.error.issues[0].message };
   }
+  if (await isDuplicateName(parsed.data.name, id)) {
+    return { error: `Đã có thành viên tên "${parsed.data.name.trim()}"` };
+  }
   const nickname = (formData.get("nickname") as string)?.trim() || null;
   await db
     .update(members)
     .set({ ...parsed.data, nickname })
     .where(eq(members.id, id));
   revalidatePath("/admin/members");
+  return { success: true };
+}
+
+/**
+ * Trả về memberId được liên kết với admin hiện tại (cookie). Null nếu chưa link.
+ * Dùng cho UI hiển thị 👑 trên member-list.
+ */
+export async function getCurrentAdminMemberId(): Promise<number | null> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return null;
+  const adminId = parseInt(String(auth.admin.sub ?? ""), 10);
+  if (!Number.isFinite(adminId)) return null;
+  const row = await db.query.admins.findFirst({
+    where: eq(admins.id, adminId),
+    columns: { memberId: true },
+  });
+  return row?.memberId ?? null;
+}
+
+/**
+ * Liên kết tài khoản admin hiện tại với 1 member. Cần thiết để `finalizeSession`
+ * /  `closeSession` chạy được — admin phải biết "tôi là member nào" để loại
+ * mình khỏi divisor + tránh tự tạo nợ cho chính mình.
+ *
+ * Pass `null` để hủy liên kết.
+ */
+export async function linkAdminToMember(memberId: number | null) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+  const adminId = parseInt(String(auth.admin.sub ?? ""), 10);
+  if (!Number.isFinite(adminId)) {
+    return { error: "Admin token không hợp lệ" };
+  }
+
+  if (memberId !== null) {
+    if (!Number.isInteger(memberId) || memberId <= 0) {
+      return { error: "memberId không hợp lệ" };
+    }
+    const m = await db.query.members.findFirst({
+      where: eq(members.id, memberId),
+      columns: { id: true },
+    });
+    if (!m) return { error: "Không tìm thấy member" };
+  }
+
+  await db.update(admins).set({ memberId }).where(eq(admins.id, adminId));
+
+  revalidatePath("/admin/members");
+  revalidatePath("/admin/sessions");
   return { success: true };
 }
 
@@ -256,5 +330,213 @@ export async function deleteMember(id: number) {
 
   await db.delete(members).where(eq(members.id, id));
   revalidatePath("/admin/members");
+  return { success: true };
+}
+
+/**
+ * Tìm các nhóm member trùng tên (case-insensitive, trim). Mỗi nhóm trả về
+ * đầy đủ id + balance (sum financialTransactions in - out) + ledger count
+ * + isActive để admin chọn ID giữ lại trước khi merge.
+ */
+export async function findDuplicateMembers() {
+  const auth = await requireAdmin();
+  if ("error" in auth) return [];
+
+  const rows = await db
+    .select({
+      id: members.id,
+      name: members.name,
+      nickname: members.nickname,
+      avatarKey: members.avatarKey,
+      avatarUrl: members.avatarUrl,
+      isActive: members.isActive,
+      facebookId: members.facebookId,
+      normalized: sql<string>`lower(trim(${members.name}))`,
+    })
+    .from(members);
+
+  const groups = new Map<string, typeof rows>();
+  for (const r of rows) {
+    if (!r.normalized) continue;
+    const list = groups.get(r.normalized) ?? [];
+    list.push(r);
+    groups.set(r.normalized, list);
+  }
+
+  const dupGroups = Array.from(groups.values()).filter((g) => g.length > 1);
+  if (dupGroups.length === 0) return [];
+
+  // Pre-compute balance + ledger count cho từng member trong các nhóm dupe.
+  const dupIds = dupGroups.flat().map((m) => m.id);
+  const ledger = await db
+    .select({
+      memberId: financialTransactions.memberId,
+      direction: financialTransactions.direction,
+      amount: financialTransactions.amount,
+    })
+    .from(financialTransactions)
+    .where(inArray(financialTransactions.memberId, dupIds));
+
+  const balanceById = new Map<number, { balance: number; count: number }>();
+  for (const id of dupIds) balanceById.set(id, { balance: 0, count: 0 });
+  for (const t of ledger) {
+    if (t.memberId == null) continue;
+    const cur = balanceById.get(t.memberId);
+    if (!cur) continue;
+    cur.count += 1;
+    if (t.direction === "in") cur.balance += t.amount;
+    else if (t.direction === "out") cur.balance -= t.amount;
+  }
+
+  return dupGroups.map((g) => ({
+    name: g[0].name,
+    members: g.map((m) => ({
+      id: m.id,
+      name: m.name,
+      nickname: m.nickname,
+      avatarKey: m.avatarKey,
+      avatarUrl: m.avatarUrl,
+      isActive: !!m.isActive,
+      facebookId: m.facebookId,
+      balance: balanceById.get(m.id)?.balance ?? 0,
+      ledgerCount: balanceById.get(m.id)?.count ?? 0,
+    })),
+  }));
+}
+
+/**
+ * Gộp `sourceId` vào `targetId`: chuyển toàn bộ FK (votes, attendees, debts,
+ * fund, ledger, admin link) từ source → target trong 1 transaction, rồi xóa
+ * row source. Conflict resolution: nếu target đã có row cho cùng session
+ * (votes / debts có UNIQUE constraint), giữ row của target, xóa của source.
+ *
+ * Ghi chú tài chính: balance được tính từ `financialTransactions`. Sau khi
+ * `UPDATE memberId` từ source → target, balance của target = sum cả 2 cũ.
+ * Đảm bảo `reconcile-fund` (I8) vẫn pass vì tổng in/out không đổi, chỉ đổi
+ * chủ sở hữu.
+ */
+export async function mergeMember(sourceId: number, targetId: number) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
+  if (!Number.isInteger(sourceId) || !Number.isInteger(targetId)) {
+    return { error: "ID không hợp lệ" };
+  }
+  if (sourceId === targetId) {
+    return { error: "Không thể gộp một thành viên với chính nó" };
+  }
+
+  const [source, target] = await Promise.all([
+    db.query.members.findFirst({ where: eq(members.id, sourceId) }),
+    db.query.members.findFirst({ where: eq(members.id, targetId) }),
+  ]);
+  if (!source) return { error: "Không tìm thấy member nguồn" };
+  if (!target) return { error: "Không tìm thấy member đích" };
+
+  await db.transaction(async (tx) => {
+    // 1. votes — UNIQUE (sessionId, memberId). Lấy danh sách session mà target
+    //    đã có vote → xóa source ở các session đó (giữ target). Còn lại update.
+    const targetVoteSessionIds = (
+      await tx
+        .select({ sessionId: votes.sessionId })
+        .from(votes)
+        .where(eq(votes.memberId, targetId))
+    ).map((r) => r.sessionId);
+    if (targetVoteSessionIds.length > 0) {
+      await tx
+        .delete(votes)
+        .where(
+          and(
+            eq(votes.memberId, sourceId),
+            inArray(votes.sessionId, targetVoteSessionIds),
+          ),
+        );
+    }
+    await tx
+      .update(votes)
+      .set({ memberId: targetId })
+      .where(eq(votes.memberId, sourceId));
+
+    // 2. sessionDebts — UNIQUE (sessionId, memberId). Cùng pattern. Không
+    //    cộng dồn amount: source coi như duplicate, giữ row target.
+    const targetDebtSessionIds = (
+      await tx
+        .select({ sessionId: sessionDebts.sessionId })
+        .from(sessionDebts)
+        .where(eq(sessionDebts.memberId, targetId))
+    ).map((r) => r.sessionId);
+    if (targetDebtSessionIds.length > 0) {
+      // Trước khi xóa debt source bị conflict, NULL out FK từ ledger để
+      // tránh dangling reference. Tương tự deleteSession pattern.
+      const conflictDebtIds = (
+        await tx
+          .select({ id: sessionDebts.id })
+          .from(sessionDebts)
+          .where(
+            and(
+              eq(sessionDebts.memberId, sourceId),
+              inArray(sessionDebts.sessionId, targetDebtSessionIds),
+            ),
+          )
+      ).map((r) => r.id);
+      if (conflictDebtIds.length > 0) {
+        await tx
+          .update(financialTransactions)
+          .set({ debtId: null })
+          .where(inArray(financialTransactions.debtId, conflictDebtIds));
+        await tx
+          .delete(sessionDebts)
+          .where(inArray(sessionDebts.id, conflictDebtIds));
+      }
+    }
+    await tx
+      .update(sessionDebts)
+      .set({ memberId: targetId })
+      .where(eq(sessionDebts.memberId, sourceId));
+
+    // 3. sessionAttendees — không UNIQUE, chỉ cần update.
+    await tx
+      .update(sessionAttendees)
+      .set({ memberId: targetId })
+      .where(eq(sessionAttendees.memberId, sourceId));
+    await tx
+      .update(sessionAttendees)
+      .set({ invitedById: targetId })
+      .where(eq(sessionAttendees.invitedById, sourceId));
+
+    // 4. financialTransactions — bulk update. Balance của target sẽ tự sum.
+    await tx
+      .update(financialTransactions)
+      .set({ memberId: targetId })
+      .where(eq(financialTransactions.memberId, sourceId));
+
+    // 5. fundMembers — UNIQUE memberId. Nếu target đã có row, xóa source row;
+    //    nếu chỉ source có, update sang target.
+    const targetFund = await tx.query.fundMembers.findFirst({
+      where: eq(fundMembers.memberId, targetId),
+    });
+    if (targetFund) {
+      await tx.delete(fundMembers).where(eq(fundMembers.memberId, sourceId));
+    } else {
+      await tx
+        .update(fundMembers)
+        .set({ memberId: targetId })
+        .where(eq(fundMembers.memberId, sourceId));
+    }
+
+    // 6. admins.memberId — chuyển link nếu source được link.
+    await tx
+      .update(admins)
+      .set({ memberId: targetId })
+      .where(eq(admins.memberId, sourceId));
+
+    // 7. Xóa member nguồn.
+    await tx.delete(members).where(eq(members.id, sourceId));
+  });
+
+  revalidatePath("/admin/members");
+  revalidatePath("/admin/fund");
+  revalidatePath("/admin/sessions");
+  revalidatePath("/admin/dashboard");
   return { success: true };
 }
