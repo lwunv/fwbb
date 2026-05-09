@@ -408,12 +408,32 @@ export function CourtRentClient({
                 </p>
               </div>
               {monthData.remaining < 0 ? (
-                <div>
-                  <p className="text-muted-foreground text-xs">Trả thừa</p>
-                  <p className="text-base font-bold text-amber-600 tabular-nums dark:text-amber-400">
-                    +{formatK(-monthData.remaining)}
-                  </p>
-                </div>
+                (() => {
+                  const now = new Date();
+                  const currentYear = now.getFullYear();
+                  const currentMonth = now.getMonth() + 1;
+                  const isPastMonth =
+                    report.year < currentYear ||
+                    (report.year === currentYear &&
+                      monthData.month < currentMonth);
+                  return (
+                    <div>
+                      <p className="text-muted-foreground text-xs">
+                        {isPastMonth ? "Trả thừa" : "Trả trước"}
+                      </p>
+                      <p
+                        className={cn(
+                          "text-base font-bold tabular-nums",
+                          isPastMonth
+                            ? "text-amber-600 dark:text-amber-400"
+                            : "text-blue-600 dark:text-blue-400",
+                        )}
+                      >
+                        +{formatK(-monthData.remaining)}
+                      </p>
+                    </div>
+                  );
+                })()
               ) : (
                 <div>
                   <p className="text-muted-foreground text-xs">Còn lại</p>
@@ -430,12 +450,34 @@ export function CourtRentClient({
                 </div>
               )}
             </div>
-            {monthData.remaining < 0 && (
-              <InlineNotice tone="warning" icon={AlertTriangle} size="sm">
-                Đã trả vượt {formatK(-monthData.remaining)} so với cần trả —
-                kiểm tra lại hoặc rút bớt nếu nhầm
-              </InlineNotice>
-            )}
+            {monthData.remaining < 0 &&
+              (() => {
+                // Tháng tương lai hoặc tháng hiện tại: admin trả trước cho cả
+                // tháng theo hợp đồng → bình thường, hiện info neutral.
+                // Tháng đã qua mà vẫn dư: bất thường (số buổi đã chốt nhưng
+                // paid > expected) → warning để admin check.
+                const now = new Date();
+                const currentYear = now.getFullYear();
+                const currentMonth = now.getMonth() + 1;
+                const isPastMonth =
+                  report.year < currentYear ||
+                  (report.year === currentYear &&
+                    monthData.month < currentMonth);
+                if (isPastMonth) {
+                  return (
+                    <InlineNotice tone="warning" icon={AlertTriangle} size="sm">
+                      Đã trả vượt {formatK(-monthData.remaining)} so với cần trả
+                      — kiểm tra lại hoặc rút bớt nếu nhầm
+                    </InlineNotice>
+                  );
+                }
+                return (
+                  <InlineNotice tone="info" size="sm">
+                    Đã thanh toán trước {formatK(-monthData.remaining)} cho
+                    tháng này (sẽ khớp khi đủ buổi)
+                  </InlineNotice>
+                );
+              })()}
             {monthData.passRevenue > 0 && (
               <InlineNotice tone="info" size="sm">
                 Đã pass {formatK(monthData.passRevenue)} từ buổi hủy → đã vào
