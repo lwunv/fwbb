@@ -98,16 +98,16 @@ export function MemberList({
     setAdminMemberId(currentAdminMemberId);
   }
 
+  const t = useTranslations("adminMembers");
   function handleLinkAdmin(memberId: number) {
     const prev = adminMemberId;
     setAdminMemberId(memberId);
     fireAction(
       () => linkAdminToMember(memberId),
       () => setAdminMemberId(prev),
-      { successMsg: "Đã liên kết tài khoản admin" },
+      { successMsg: t("toastLinkedAdmin") },
     );
   }
-  const t = useTranslations("adminMembers");
   const tF = useTranslations("finance");
   const tCommon = useTranslations("common");
   usePolling();
@@ -325,10 +325,10 @@ export function MemberList({
                           {adminMemberId === member.id && (
                             <span
                               className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400"
-                              title="Đây là tài khoản admin của bạn"
+                              title={t("thisIsAdminBadge")}
                             >
                               <Crown className="h-3 w-3" />
-                              Admin
+                              {t("adminBadge")}
                             </span>
                           )}
                         </p>
@@ -345,10 +345,10 @@ export function MemberList({
                         }
                         title={
                           adminMemberId === member.id
-                            ? "Đã liên kết — đây là tài khoản admin"
-                            : "Đặt làm tài khoản admin (cần để chốt sổ buổi chơi)"
+                            ? t("linkAdminTooltipLinked")
+                            : t("linkAdminTooltipSet")
                         }
-                        aria-label="Liên kết admin"
+                        aria-label={t("linkAdminAria")}
                       >
                         <Crown className="h-4 w-4" />
                       </Button>

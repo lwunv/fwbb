@@ -24,6 +24,7 @@ function GuestStepper({
   onCommit: (next: number) => void;
   accent: "primary" | "orange";
 }) {
+  const tc = useTranslations("common");
   const isPrimary = accent === "primary";
   const labelCls = isPrimary
     ? "text-primary/85"
@@ -54,7 +55,7 @@ function GuestStepper({
         <button
           type="button"
           id={`${id}-dec`}
-          aria-label="Giảm"
+          aria-label={tc("decrease")}
           disabled={disabled || value <= 0}
           onClick={(e) => {
             e.stopPropagation();
@@ -89,7 +90,7 @@ function GuestStepper({
         <button
           type="button"
           id={`${id}-inc`}
-          aria-label="Tăng"
+          aria-label={tc("increase")}
           disabled={disabled || value >= GUEST_MAX}
           onClick={(e) => {
             e.stopPropagation();

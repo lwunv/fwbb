@@ -132,10 +132,10 @@ export function FundReport({ fundMembers, transactions }: Props) {
     const idemKey = `clear-debt-${memberId}-${crypto.randomUUID()}`;
     setAdjusting(true);
     fireAction(
-      () => recordContribution(memberId, amount, "Đã hết nợ", idemKey),
+      () => recordContribution(memberId, amount, t("clearDebtNote"), idemKey),
       () => setAdjusting(false),
       {
-        successMsg: `Đã đóng ${formatVND(amount)} → hết nợ`,
+        successMsg: t("toastClearDebt", { amount: formatVND(amount) }),
         onSuccess: () => {
           setAdjusting(false);
           setAdjustAmount("");
@@ -459,9 +459,9 @@ export function FundReport({ fundMembers, transactions }: Props) {
                             }}
                             onFocus={() => setAdjustFocused(true)}
                             onBlur={() => setAdjustFocused(false)}
-                            placeholder="Số tiền (VND)"
+                            placeholder={t("adjustAmountPlaceholder")}
                             className="tabular-nums"
-                            aria-label="Số tiền điều chỉnh"
+                            aria-label={t("ariaAdjustAmount")}
                             disabled={adjusting}
                           />
                           <Input
@@ -473,7 +473,7 @@ export function FundReport({ fundMembers, transactions }: Props) {
                             }}
                             onFocus={() => setAdjustFocused(true)}
                             onBlur={() => setAdjustFocused(false)}
-                            placeholder="Ghi chú (lưu vào log giao dịch)"
+                            placeholder={t("adjustNotePlaceholder")}
                             disabled={adjusting}
                           />
 

@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   Copy,
   Check,
@@ -50,13 +51,15 @@ export function PaymentQR({
   amount,
   memo,
   variant = "inline",
-  title = "Chuyển khoản",
+  title,
   description,
   onClose,
   onPaymentReceived,
   disablePolling = false,
   compact = false,
 }: PaymentQRProps) {
+  const tF = useTranslations("finance");
+  const usedTitle = title ?? tF("bankTransfer");
   const [copied, setCopied] = useState<string | null>(null);
   const [paymentReceived, setPaymentReceived] = useState(false);
   const [paymentMatched, setPaymentMatched] = useState(false);
@@ -209,7 +212,7 @@ export function PaymentQR({
           {/* Header */}
           <div className="bg-card/95 sticky top-0 z-10 flex items-center justify-between rounded-t-2xl border-b px-5 py-4 backdrop-blur-sm">
             <div>
-              <h3 className="text-lg font-bold">{title}</h3>
+              <h3 className="text-lg font-bold">{usedTitle}</h3>
               {description && (
                 <p className="text-muted-foreground mt-0.5 text-sm">
                   {description}

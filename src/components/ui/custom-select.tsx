@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { SearchInput } from "@/components/shared/search-input";
 
@@ -32,13 +33,17 @@ export function CustomSelect({
   options,
   value,
   onChange,
-  placeholder = "Chọn...",
+  placeholder,
   disabled,
   className,
   name,
   searchable,
-  searchPlaceholder = "Tìm...",
+  searchPlaceholder,
 }: CustomSelectProps) {
+  const tCommon = useTranslations("common");
+  const usedPlaceholder = placeholder ?? tCommon("selectPlaceholder");
+  const usedSearchPlaceholder =
+    searchPlaceholder ?? tCommon("searchPlaceholder");
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -127,7 +132,7 @@ export function CustomSelect({
         )}
       >
         <span className={cn("truncate", !selected && "text-muted-foreground")}>
-          {selected?.label ?? placeholder}
+          {selected?.label ?? usedPlaceholder}
         </span>
         <ChevronDown
           className={cn(
@@ -155,7 +160,7 @@ export function CustomSelect({
                   ref={searchInputRef}
                   value={query}
                   onChange={setQuery}
-                  placeholder={searchPlaceholder}
+                  placeholder={usedSearchPlaceholder}
                 />
               </div>
             )}

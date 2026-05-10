@@ -559,7 +559,7 @@ export function AdminVoteManager({
                       <div className="led-border-sm primary inline-flex">
                         <button
                           type="button"
-                          title="Cầu lông"
+                          title={t("badmintonShort")}
                           disabled={readOnly}
                           onClick={() => toggleTag(member.id, "play")}
                           className="border-primary text-primary inline-flex h-12 w-12 cursor-pointer items-center justify-center border-2 bg-violet-50 text-lg transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 dark:bg-violet-950"
@@ -570,7 +570,7 @@ export function AdminVoteManager({
                     ) : (
                       <button
                         type="button"
-                        title="Cầu lông"
+                        title={t("badmintonShort")}
                         disabled={readOnly}
                         onClick={() => toggleTag(member.id, "play")}
                         className="border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed text-lg opacity-50 grayscale transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50"
@@ -584,7 +584,7 @@ export function AdminVoteManager({
                       <div className="led-border-sm orange inline-flex">
                         <button
                           type="button"
-                          title="Nhậu"
+                          title={t("diningShort")}
                           disabled={readOnly}
                           onClick={() => toggleTag(member.id, "dine")}
                           className="inline-flex h-12 w-12 cursor-pointer items-center justify-center border-2 border-orange-500 bg-orange-50 text-lg text-orange-700 transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 dark:border-orange-400 dark:bg-orange-950 dark:text-orange-300"
@@ -595,7 +595,7 @@ export function AdminVoteManager({
                     ) : (
                       <button
                         type="button"
-                        title="Nhậu"
+                        title={t("diningShort")}
                         disabled={readOnly}
                         onClick={() => toggleTag(member.id, "dine")}
                         className="border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed text-lg opacity-50 grayscale transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50"
@@ -621,7 +621,7 @@ export function AdminVoteManager({
                           <div className="led-border-sm primary inline-flex">
                             <button
                               type="button"
-                              title="Thêm khách"
+                              title={t("addGuestShort")}
                               onClick={onClick}
                               className="border-primary text-primary inline-flex h-12 w-12 cursor-pointer items-center justify-center border-2 bg-violet-50 transition-all hover:opacity-80 dark:bg-violet-950"
                             >
@@ -631,7 +631,7 @@ export function AdminVoteManager({
                         ) : (
                           <button
                             type="button"
-                            title="Thêm khách"
+                            title={t("addGuestShort")}
                             onClick={onClick}
                             className="border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed opacity-50 grayscale transition-all hover:opacity-80"
                           >
@@ -801,7 +801,7 @@ export function AdminVoteManager({
                           type="button"
                           onClick={() => handleAddMember(m.id, true, false)}
                           className="border-primary hover:bg-primary/20 bg-muted/30 relative inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-dashed transition-all"
-                          title="Thêm chơi cầu"
+                          title={t("addPlayer")}
                         >
                           <span className="text-lg opacity-30">🏸</span>
                           <span className="text-primary absolute inset-0 flex items-center justify-center text-2xl font-black">
@@ -812,7 +812,7 @@ export function AdminVoteManager({
                           type="button"
                           onClick={() => handleAddMember(m.id, false, true)}
                           className="bg-muted/30 relative inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-dashed border-orange-500 transition-all hover:bg-orange-900/30 dark:border-orange-400"
-                          title="Thêm nhậu"
+                          title={t("addDiner")}
                         >
                           <span className="text-lg opacity-30">🍻</span>
                           <span className="absolute inset-0 flex items-center justify-center text-2xl font-black text-orange-500 dark:text-orange-400">

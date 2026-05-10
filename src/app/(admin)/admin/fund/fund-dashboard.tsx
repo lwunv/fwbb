@@ -638,7 +638,7 @@ export function FundDashboard({
                       }}
                       disabled={(parseInt(crAmount, 10) || 0) <= 0}
                       className="bg-card hover:bg-muted/50 inline-flex h-[42px] w-11 shrink-0 items-center justify-center rounded-xl border-2 transition-colors disabled:opacity-40"
-                      aria-label="Giảm 100k"
+                      aria-label={t("ariaDecrease100k")}
                     >
                       <Minus className="h-4 w-4" />
                     </button>
@@ -659,7 +659,7 @@ export function FundDashboard({
                         setCrAmount(String(cur + 100000));
                       }}
                       className="bg-card hover:bg-muted/50 inline-flex h-[42px] w-11 shrink-0 items-center justify-center rounded-xl border-2 transition-colors disabled:opacity-40"
-                      aria-label="Tăng 100k"
+                      aria-label={t("ariaIncrease100k")}
                     >
                       <Plus className="h-4 w-4" />
                     </button>
@@ -673,7 +673,10 @@ export function FundDashboard({
                     type="text"
                     value={crNote}
                     onChange={(e) => setCrNote(e.target.value)}
-                    placeholder={`Trả tiền sân tháng ${String(crMonth).padStart(2, "0")}/${crYear}`}
+                    placeholder={t("courtRentNotePlaceholder", {
+                      month: String(crMonth).padStart(2, "0"),
+                      year: crYear,
+                    })}
                   />
                 </div>
                 <div className="flex gap-2 pt-2">
@@ -796,7 +799,7 @@ export function FundDashboard({
                       type="text"
                       value={bsNote}
                       onChange={(e) => setBsNote(e.target.value)}
-                      placeholder="Mua cầu nhập từ đại lý..."
+                      placeholder={t("buyShuttleNotePlaceholder")}
                     />
                   </div>
                   <div className="bg-muted flex items-center justify-between rounded-xl px-4 py-3">

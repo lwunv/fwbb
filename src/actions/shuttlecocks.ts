@@ -10,6 +10,7 @@ import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { brandSchema } from "@/lib/validators";
 import { requireAdmin } from "@/lib/auth";
+import { getTranslations } from "next-intl/server";
 
 export async function getBrands() {
   return db.query.shuttlecockBrands.findMany({
@@ -79,10 +80,11 @@ export async function deleteBrand(id: number) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
 
+  const t = await getTranslations("serverErrors");
   const brand = await db.query.shuttlecockBrands.findFirst({
     where: eq(shuttlecockBrands.id, id),
   });
-  if (!brand) return { error: "Không tìm thấy hãng cầu" };
+  if (!brand) return { error: t("brandNotFound") };
 
   const [{ usageCount }] = await db
     .select({ usageCount: sql<number>`count(*)` })
@@ -95,7 +97,10 @@ export async function deleteBrand(id: number) {
   const totalRefs = Number(usageCount) + Number(purchaseCount);
   if (totalRefs > 0) {
     return {
-      error: `Không xóa được — hãng có ${usageCount} lần sử dụng + ${purchaseCount} lần nhập kho. Hãy "Vô hiệu hóa" thay vì xóa.`,
+      error: t("brandInUse", {
+        usageCount: Number(usageCount),
+        purchaseCount: Number(purchaseCount),
+      }),
     };
   }
 

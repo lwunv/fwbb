@@ -47,6 +47,7 @@ import {
   addShuttlecockSchema,
   adminGuestCountSchema,
 } from "@/lib/validators";
+import { getTranslations } from "next-intl/server";
 
 export async function getSessions() {
   return db.query.sessions.findMany({
@@ -261,6 +262,7 @@ export async function selectCourt(
 ) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
 
   const parsed = selectCourtSchema.safeParse({
     sessionId,
@@ -268,7 +270,10 @@ export async function selectCourt(
     courtQuantity,
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
+    return {
+      error:
+        parsed.error.issues[0]?.message ?? t("invalidData", { detail: "" }),
+    };
   }
   const data = parsed.data;
 
@@ -277,7 +282,7 @@ export async function selectCourt(
     where: eq(sessions.id, data.sessionId),
     columns: { status: true },
   });
-  if (!existing) return { error: "Không tìm thấy buổi chơi" };
+  if (!existing) return { error: t("sessionNotFound") };
   const editGuard = assertEditable(existing.status as SessionStatus);
   if (!editGuard.ok) return { error: editGuard.error };
 
@@ -289,8 +294,8 @@ export async function selectCourt(
     }),
     getDefaultCourt(),
   ]);
-  if (!court) return { error: "San khong ton tai" };
-  if (!sessionRow) return { error: "Không tìm thấy buổi chơi" };
+  if (!court) return { error: t("courtNotExists") };
+  if (!sessionRow) return { error: t("sessionNotFound") };
 
   // Quy tắc giá:
   //  - Buổi MẶC ĐỊNH (sân default + ngày T2/T4/T6): sân #1 = giá tháng,
@@ -339,10 +344,32 @@ export async function confirmSession(sessionId: number) {
   });
   if (shuttles.length === 0) return { error: "Chua chon cau" };
 
+  // Recompute courtPrice từ current state (defensive). Trường hợp xảy ra
+  // khi default court / retail price đã đổi sau lúc admin select court ban
+  // đầu, hoặc cron đã tạo session lúc default court khác. Tại confirm
+  // time admin chính thức chốt → recompute để courtPrice = giá hiện tại
+  // theo formula (sân default trên ngày T2/T4/T6 = monthly, sân thứ 2 +
+  // sân ngày khác = retail). Buổi mở thêm với 1 sân lẻ → pure retail.
+  const [court, defaultCourt] = await Promise.all([
+    db.query.courts.findFirst({ where: eq(courts.id, session.courtId) }),
+    getDefaultCourt(),
+  ]);
+  const recomputedCourtPrice = court
+    ? computeCourtTotal({
+        monthlyPrice: court.pricePerSession,
+        retailPrice: court.pricePerSessionRetail,
+        courtQuantity: session.courtQuantity ?? 1,
+        sessionDate: session.date,
+        selectedCourtId: session.courtId,
+        defaultCourtId: defaultCourt?.id ?? null,
+      })
+    : (session.courtPrice ?? 0);
+
   await db
     .update(sessions)
     .set({
       status: "confirmed",
+      courtPrice: recomputedCourtPrice,
       updatedAt: new Date().toISOString(),
     })
     .where(eq(sessions.id, sessionId));
@@ -372,13 +399,14 @@ export async function cancelSession(
 ) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
 
   const session = await db.query.sessions.findFirst({
     where: eq(sessions.id, sessionId),
   });
-  if (!session) return { error: "Khong tim thay buoi choi" };
+  if (!session) return { error: t("sessionNotFound") };
   if (session.status === "completed")
-    return { error: "Khong the huy buoi da hoan thanh" };
+    return { error: t("cannotCancelCompleted") };
   // Idempotent: gọi cancelSession lần 2 trên buổi đã cancelled = no-op,
   // không nhân đôi pass-revenue. Trước đây check chỉ kiểm `completed` →
   // double-click chèn 2 fund_contribution.
@@ -396,7 +424,7 @@ export async function cancelSession(
 
   // Validate amount within sane bounds
   if (passed && (passRevenue < 0 || passRevenue > 1_000_000_000)) {
-    return { error: "Số tiền pass sân không hợp lệ" };
+    return { error: t("invalidPassRevenue") };
   }
 
   // Resolve admin's linked memberId for fund credit
@@ -477,13 +505,14 @@ export async function cancelSession(
 export async function reopenSession(sessionId: number) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
 
   const session = await db.query.sessions.findFirst({
     where: eq(sessions.id, sessionId),
   });
-  if (!session) return { error: "Không tìm thấy buổi chơi" };
+  if (!session) return { error: t("sessionNotFound") };
   if (session.status !== "cancelled") {
-    return { error: "Chỉ buổi đã hủy mới mở lại được" };
+    return { error: t("onlyCancelledCanReopen") };
   }
 
   // Tìm pass-sân contribution gốc (nếu có) — match theo sessionId + type +
@@ -537,7 +566,7 @@ export async function reopenSession(sessionId: number) {
     });
   } catch (err) {
     return {
-      error: err instanceof Error ? err.message : "Không mở lại được buổi",
+      error: err instanceof Error ? err.message : t("reopenFailed"),
     };
   }
 
@@ -572,13 +601,14 @@ export async function reopenSession(sessionId: number) {
 export async function unlockSession(sessionId: number) {
   const auth = await requireAdmin();
   if (auth && "error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
 
   const session = await db.query.sessions.findFirst({
     where: eq(sessions.id, sessionId),
   });
-  if (!session) return { error: "Không tìm thấy buổi chơi" };
+  if (!session) return { error: t("sessionNotFound") };
   if (session.status !== "completed") {
-    return { error: "Chỉ buổi đã hoàn thành mới mở lại để sửa được" };
+    return { error: t("onlyCompletedCanReopenForEdit") };
   }
 
   try {
@@ -680,11 +710,12 @@ export async function unlockSession(sessionId: number) {
 export async function deleteSession(sessionId: number) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
 
   const session = await db.query.sessions.findFirst({
     where: eq(sessions.id, sessionId),
   });
-  if (!session) return { error: "Không tìm thấy buổi chơi" };
+  if (!session) return { error: t("sessionNotFound") };
 
   try {
     await db.transaction(async (tx) => {
@@ -899,6 +930,7 @@ export async function addSessionShuttlecocks(
 ) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
 
   const parsed = addShuttlecockSchema.safeParse({
     sessionId,
@@ -906,7 +938,10 @@ export async function addSessionShuttlecocks(
     quantityUsed,
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
+    return {
+      error:
+        parsed.error.issues[0]?.message ?? t("invalidData", { detail: "" }),
+    };
   }
   const data = parsed.data;
 
@@ -915,14 +950,14 @@ export async function addSessionShuttlecocks(
     where: eq(sessions.id, data.sessionId),
     columns: { status: true },
   });
-  if (!sessionRow) return { error: "Không tìm thấy buổi chơi" };
+  if (!sessionRow) return { error: t("sessionNotFound") };
   const editGuard = assertEditable(sessionRow.status as SessionStatus);
   if (!editGuard.ok) return { error: editGuard.error };
 
   const brand = await db.query.shuttlecockBrands.findFirst({
     where: eq(shuttlecockBrands.id, data.brandId),
   });
-  if (!brand) return { error: "Khong tim thay hang cau" };
+  if (!brand) return { error: t("brandNotFound") };
 
   // Check if this brand already exists for this session
   const existing = await db.query.sessionShuttlecocks.findFirst({
@@ -957,18 +992,19 @@ export async function addSessionShuttlecocks(
 export async function removeSessionShuttlecock(id: number) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
 
   const record = await db.query.sessionShuttlecocks.findFirst({
     where: eq(sessionShuttlecocks.id, id),
   });
-  if (!record) return { error: "Khong tim thay" };
+  if (!record) return { error: t("notFound") };
 
   // Guard fintech: chặn remove shuttlecock khi buổi đã chốt sổ.
   const sessionRow = await db.query.sessions.findFirst({
     where: eq(sessions.id, record.sessionId),
     columns: { status: true },
   });
-  if (!sessionRow) return { error: "Không tìm thấy buổi chơi" };
+  if (!sessionRow) return { error: t("sessionNotFound") };
   const editGuard = assertEditable(sessionRow.status as SessionStatus);
   if (!editGuard.ok) return { error: editGuard.error };
 
@@ -984,6 +1020,7 @@ export async function setAdminGuestCount(
 ) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
 
   const parsed = adminGuestCountSchema.safeParse({
     sessionId,
@@ -991,7 +1028,10 @@ export async function setAdminGuestCount(
     guestDineCount,
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
+    return {
+      error:
+        parsed.error.issues[0]?.message ?? t("invalidData", { detail: "" }),
+    };
   }
   const data = parsed.data;
 
@@ -1000,7 +1040,7 @@ export async function setAdminGuestCount(
     where: eq(sessions.id, data.sessionId),
     columns: { status: true },
   });
-  if (!sessionRow) return { error: "Không tìm thấy buổi chơi" };
+  if (!sessionRow) return { error: t("sessionNotFound") };
   const editGuard = assertEditable(sessionRow.status as SessionStatus);
   if (!editGuard.ok) return { error: editGuard.error };
 

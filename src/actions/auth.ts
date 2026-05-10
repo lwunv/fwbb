@@ -9,6 +9,7 @@ import { redirect } from "next/navigation";
 import { loginSchema } from "@/lib/validators";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { headers } from "next/headers";
+import { getTranslations } from "next-intl/server";
 
 async function getClientIp(): Promise<string> {
   const h = await headers();
@@ -23,6 +24,7 @@ export async function login(
   _prevState: { error: string } | null,
   formData: FormData,
 ) {
+  const t = await getTranslations("serverErrors");
   const raw = {
     username: formData.get("username") as string,
     password: formData.get("password") as string,
@@ -30,7 +32,7 @@ export async function login(
 
   const parsed = loginSchema.safeParse(raw);
   if (!parsed.success) {
-    return { error: "Vui long nhap day du thong tin" };
+    return { error: t("missingFields") };
   }
 
   // Rate-limit 2-tầng:
@@ -41,7 +43,7 @@ export async function login(
   const rlIp = await checkRateLimit(`login-ip:${ip}`, 20, 5 * 60_000);
   if (!rlIp.ok) {
     return {
-      error: `Quá nhiều lần đăng nhập, thử lại sau ${rlIp.retryAfter ?? 60}s`,
+      error: t("tooManyLoginAttempts", { seconds: rlIp.retryAfter ?? 60 }),
     };
   }
   const rl = await checkRateLimit(
@@ -51,7 +53,7 @@ export async function login(
   );
   if (!rl.ok) {
     return {
-      error: `Quá nhiều lần đăng nhập, thử lại sau ${rl.retryAfter ?? 60}s`,
+      error: t("tooManyLoginAttempts", { seconds: rl.retryAfter ?? 60 }),
     };
   }
 
@@ -63,7 +65,7 @@ export async function login(
     !admin ||
     !(await bcrypt.compare(parsed.data.password, admin.passwordHash))
   ) {
-    return { error: "Sai ten dang nhap hoac mat khau" };
+    return { error: t("invalidCredentials") };
   }
 
   await setAdminCookie(admin.id);
@@ -79,6 +81,7 @@ export async function changePassword(
   _prevState: { error?: string; success?: boolean } | null,
   formData: FormData,
 ) {
+  const t = await getTranslations("serverErrors");
   // Auth gate — Server Action có thể bị gọi qua RPC từ bất kỳ HTTP endpoint
   // nào, không chỉ từ admin form. Trước đây thiếu check này → ai cũng có
   // thể spam guess current password.
@@ -91,7 +94,7 @@ export async function changePassword(
   const rl = await checkRateLimit(`change-password:${ip}`, 5, 5 * 60_000);
   if (!rl.ok) {
     return {
-      error: `Quá nhiều lần đổi mật khẩu, thử lại sau ${rl.retryAfter ?? 60}s`,
+      error: t("tooManyChangePassword", { seconds: rl.retryAfter ?? 60 }),
     };
   }
 
@@ -100,33 +103,33 @@ export async function changePassword(
   const confirmPassword = formData.get("confirmPassword") as string;
 
   if (!currentPassword || !newPassword || !confirmPassword) {
-    return { error: "Vui long nhap day du thong tin" };
+    return { error: t("missingFields") };
   }
 
   if (newPassword.length < 6) {
-    return { error: "Mat khau moi phai co it nhat 6 ky tu" };
+    return { error: t("newPasswordTooShort") };
   }
 
   if (newPassword !== confirmPassword) {
-    return { error: "Mat khau moi khong khop" };
+    return { error: t("newPasswordMismatch") };
   }
 
   // Resolve admin id from cookie (auth.admin.sub) thay vì findFirst() —
   // findFirst giả định 1 admin duy nhất, sai khi có >1 admin trong DB.
   const adminIdNum = parseInt(String(auth.admin.sub ?? ""), 10);
   if (!Number.isFinite(adminIdNum)) {
-    return { error: "Phiên admin không hợp lệ, đăng nhập lại" };
+    return { error: t("invalidAdminSession") };
   }
   const admin = await db.query.admins.findFirst({
     where: eq(admins.id, adminIdNum),
   });
   if (!admin) {
-    return { error: "Khong tim thay tai khoan admin" };
+    return { error: t("adminAccountNotFound") };
   }
 
   const isValid = await bcrypt.compare(currentPassword, admin.passwordHash);
   if (!isValid) {
-    return { error: "Mat khau hien tai khong dung" };
+    return { error: t("wrongCurrentPassword") };
   }
 
   const newHash = await bcrypt.hash(newPassword, 12);

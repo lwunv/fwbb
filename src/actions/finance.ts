@@ -23,6 +23,7 @@ import { getAdminFromCookie, requireAdmin } from "@/lib/auth";
 import { sendGroupMessage, buildDebtReminderMessage } from "@/lib/messenger";
 import { finalizeSessionSchema } from "@/lib/validators";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { getTranslations } from "next-intl/server";
 
 export interface FinalizeAttendee {
   memberId: number | null;
@@ -47,9 +48,12 @@ export async function finalizeSession(
     attendeeList,
     diningBill,
   });
+  const t = await getTranslations("serverErrors");
   if (!parsed.success) {
     return {
-      error: "Dữ liệu không hợp lệ: " + parsed.error.issues[0]?.message,
+      error: t("invalidData", {
+        detail: parsed.error.issues[0]?.message ?? "",
+      }),
     };
   }
   const data = parsed.data;
@@ -60,10 +64,10 @@ export async function finalizeSession(
     with: { shuttlecocks: true },
   });
 
-  if (!session) return { error: "Khong tim thay buoi choi" };
+  if (!session) return { error: t("sessionNotFound") };
   if (session.status === "cancelled")
-    return { error: "Buoi choi da bi huy — khong the chot so" };
-  if (!session.courtPrice) return { error: "Chua thiet lap gia san" };
+    return { error: t("sessionCancelledCannotFinalize") };
+  if (!session.courtPrice) return { error: t("courtPriceNotSet") };
   // Re-finalize a completed session (e.g., admin edited attendee list after
   // initial close) is intentionally allowed: the tx below reverses old
   // fund_deductions, nulls orphan debt-scoped ledger refs, deletes stale
@@ -82,10 +86,7 @@ export async function finalizeSession(
   // making admin "pay themselves". Failing fast here forces the admin to fix
   // the linkage first.
   if (adminMemberId === null) {
-    return {
-      error:
-        "Admin chưa được liên kết với member — vào /admin/members để gắn member của admin trước khi chốt sổ",
-    };
+    return { error: t("adminNotLinkedToMember") };
   }
 
   // Hard guard: admin set N guests on the session UI, but the finalize
@@ -103,12 +104,18 @@ export async function finalizeSession(
     ).length;
     if (adminGuestPlayInPayload < expectedAdminGuestPlay) {
       return {
-        error: `Thiếu khách của admin: cần ${expectedAdminGuestPlay} người chơi, payload chỉ có ${adminGuestPlayInPayload}`,
+        error: t("missingAdminGuestPlay", {
+          expected: expectedAdminGuestPlay,
+          actual: adminGuestPlayInPayload,
+        }),
       };
     }
     if (adminGuestDineInPayload < expectedAdminGuestDine) {
       return {
-        error: `Thiếu khách của admin: cần ${expectedAdminGuestDine} người ăn, payload chỉ có ${adminGuestDineInPayload}`,
+        error: t("missingAdminGuestDine", {
+          expected: expectedAdminGuestDine,
+          actual: adminGuestDineInPayload,
+        }),
       };
     }
   }
@@ -349,21 +356,19 @@ export async function finalizeSessionAuto(sessionId: number) {
       votes: { with: { member: true } },
     },
   });
-  if (!session) return { error: "Không tìm thấy buổi chơi" };
+  const t = await getTranslations("serverErrors");
+  if (!session) return { error: t("sessionNotFound") };
   if (session.status === "completed") {
-    return { error: "Buổi đã hoàn thành — không thể finalize lại tự động" };
+    return { error: t("finalizeAlreadyCompleted") };
   }
   if (session.status === "cancelled") {
-    return { error: "Buổi đã hủy — không thể finalize" };
+    return { error: t("finalizeAlreadyCancelled") };
   }
 
   const currentAdminId = parseInt(String(auth.admin.sub ?? ""), 10);
   const adminMemberId = await resolveAdminMemberId(currentAdminId);
   if (adminMemberId === null) {
-    return {
-      error:
-        "Admin chưa được liên kết với member — vào /admin/members để gắn member của admin trước khi chốt sổ",
-    };
+    return { error: t("adminNotLinkedToMember") };
   }
 
   const attendeeList: FinalizeAttendee[] = [];
@@ -455,11 +460,12 @@ async function resolveAdminMemberId(adminId: number): Promise<number | null> {
 }
 
 export async function confirmPaymentByMember(debtId: number) {
+  const t = await getTranslations("serverErrors");
   const user = await getUserFromCookie();
-  if (!user) return { error: "Vui lòng xác định danh tính trước" };
+  if (!user) return { error: t("requireIdentity") };
 
   if (!Number.isInteger(debtId) || debtId <= 0) {
-    return { error: "debtId không hợp lệ" };
+    return { error: t("invalidDebtId") };
   }
 
   // 30 confirm-payment attempts per member per minute (prevents ledger-spam
@@ -470,24 +476,24 @@ export async function confirmPaymentByMember(debtId: number) {
     60_000,
   );
   if (!rl.ok) {
-    return { error: `Quá nhiều thao tác, thử lại sau ${rl.retryAfter ?? 60}s` };
+    return { error: t("tooManyActions", { seconds: rl.retryAfter ?? 60 }) };
   }
 
   const debt = await db.query.sessionDebts.findFirst({
     where: eq(sessionDebts.id, debtId),
     with: { session: true },
   });
-  if (!debt) return { error: "Khong tim thay cong no" };
+  if (!debt) return { error: t("debtNotFound") };
   if (debt.memberId !== user.memberId) {
-    return { error: "Không thể xác nhận thay người khác" };
+    return { error: t("cannotConfirmForOthers") };
   }
   // Idempotent: re-confirm is no-op (prevents ledger spam by spamming the button).
   if (debt.memberConfirmed) return { success: true };
   if (debt.session.status === "cancelled") {
-    return { error: "Buổi chơi đã bị huỷ" };
+    return { error: t("sessionAlreadyCancelled") };
   }
   if (debt.session.status !== "completed") {
-    return { error: "Chỉ xác nhận thanh toán sau khi buổi đã chốt sổ" };
+    return { error: t("onlyConfirmAfterFinalize") };
   }
 
   try {
@@ -520,8 +526,7 @@ export async function confirmPaymentByMember(debtId: number) {
     });
   } catch (err) {
     return {
-      error:
-        err instanceof Error ? err.message : "Không xác nhận được thanh toán",
+      error: err instanceof Error ? err.message : t("paymentConfirmFailed"),
     };
   }
 
@@ -535,15 +540,16 @@ export async function confirmPaymentByMember(debtId: number) {
 export async function confirmPaymentByAdmin(debtId: number) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
 
   if (!Number.isInteger(debtId) || debtId <= 0) {
-    return { error: "debtId không hợp lệ" };
+    return { error: t("invalidDebtId") };
   }
 
   const debt = await db.query.sessionDebts.findFirst({
     where: eq(sessionDebts.id, debtId),
   });
-  if (!debt) return { error: "Khong tim thay cong no" };
+  if (!debt) return { error: t("debtNotFound") };
   if (debt.adminConfirmed) return { success: true };
 
   try {
@@ -574,8 +580,7 @@ export async function confirmPaymentByAdmin(debtId: number) {
     });
   } catch (err) {
     return {
-      error:
-        err instanceof Error ? err.message : "Không xác nhận được thanh toán",
+      error: err instanceof Error ? err.message : t("paymentConfirmFailed"),
     };
   }
 
@@ -589,15 +594,16 @@ export async function confirmPaymentByAdmin(debtId: number) {
 export async function undoPaymentByAdmin(debtId: number) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
 
   if (!Number.isInteger(debtId) || debtId <= 0) {
-    return { error: "debtId không hợp lệ" };
+    return { error: t("invalidDebtId") };
   }
 
   const debt = await db.query.sessionDebts.findFirst({
     where: eq(sessionDebts.id, debtId),
   });
-  if (!debt) return { error: "Không tìm thấy công nợ" };
+  if (!debt) return { error: t("debtNotFound") };
 
   try {
     await db.transaction(async (tx) => {

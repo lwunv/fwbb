@@ -5,6 +5,7 @@ import { appSettings, courts, shuttlecockBrands } from "@/db/schema";
 import { and, eq, like } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
+import { getTranslations } from "next-intl/server";
 
 export async function getAppName(): Promise<string> {
   const row = await db.query.appSettings.findFirst({
@@ -47,7 +48,10 @@ export async function setDefaultCourt(courtId: number) {
   const exists = await db.query.courts.findFirst({
     where: eq(courts.id, courtId),
   });
-  if (!exists) return { error: "Sân không tồn tại" };
+  if (!exists) {
+    const t = await getTranslations("serverErrors");
+    return { error: t("courtNotExists") };
+  }
 
   const value = String(courtId);
   const existing = await db.query.appSettings.findFirst({
@@ -100,7 +104,10 @@ export async function setDefaultBrand(brandId: number) {
   const exists = await db.query.shuttlecockBrands.findFirst({
     where: eq(shuttlecockBrands.id, brandId),
   });
-  if (!exists) return { error: "Hãng cầu không tồn tại" };
+  if (!exists) {
+    const t = await getTranslations("serverErrors");
+    return { error: t("brandNotExists") };
+  }
 
   const value = String(brandId);
   const existing = await db.query.appSettings.findFirst({
@@ -171,7 +178,10 @@ export async function updateAppName(name: string) {
   if ("error" in auth) return auth;
 
   const trimmed = name.trim();
-  if (!trimmed) return { error: "Tên không được để trống" };
+  if (!trimmed) {
+    const t = await getTranslations("serverErrors");
+    return { error: t("emptyName") };
+  }
 
   const existing = await db.query.appSettings.findFirst({
     where: eq(appSettings.key, "appName"),

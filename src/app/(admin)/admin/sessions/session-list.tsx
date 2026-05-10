@@ -596,7 +596,7 @@ export function SessionList({
                                   String(session.courtPrice ?? 200000),
                                 );
                               }}
-                              aria-label="Hủy buổi"
+                              aria-label={t("ariaCancelSession")}
                             >
                               <X className="h-4 w-4" />
                             </Button>
@@ -1038,7 +1038,7 @@ export function SessionList({
               disabled={currentPage <= 1}
               onClick={() => setPage(Math.max(1, currentPage - 1))}
               className="h-11 w-11"
-              aria-label="Trang trước"
+              aria-label={t("ariaPrevPage")}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -1052,7 +1052,7 @@ export function SessionList({
               disabled={currentPage >= totalPages}
               onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
               className="h-11 w-11"
-              aria-label="Trang sau"
+              aria-label={t("ariaNextPage")}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -1119,7 +1119,7 @@ export function SessionList({
           onOpenChange={(open) => {
             if (!open) setUnlockTarget(null);
           }}
-          title="Mở lại buổi đã hoàn thành?"
+          title={t("reopenCompletedTitle")}
           description="Hệ thống sẽ hoàn lại các khoản trừ quỹ, xóa danh sách attendees và debts của buổi này. Sau đó admin có thể sửa lại thông tin và bấm 'Xác nhận buổi chơi' để chốt sổ lại."
           confirmLabel="Mở lại"
           onConfirm={() => {

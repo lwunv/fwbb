@@ -7,6 +7,7 @@ import { setUserCookie, clearUserCookie } from "@/lib/user-identity";
 import { revalidatePath } from "next/cache";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { headers } from "next/headers";
+import { getTranslations } from "next-intl/server";
 
 interface FacebookUserInfo {
   id: string;
@@ -31,15 +32,17 @@ export async function facebookLogin(accessToken: string) {
     "unknown";
   const rl = await checkRateLimit(`fb-login:${ip}`, 10, 5 * 60_000);
   if (!rl.ok) {
+    const t = await getTranslations("serverErrors");
     return {
-      error: `Quá nhiều lần đăng nhập, thử lại sau ${rl.retryAfter ?? 60}s`,
+      error: t("tooManyLoginAttempts", { seconds: rl.retryAfter ?? 60 }),
     };
   }
 
   const appId = process.env.NEXT_PUBLIC_FB_APP_ID;
   const appSecret = process.env.FB_APP_SECRET;
   if (!appId || !appSecret) {
-    return { error: "Facebook app not configured" };
+    const t = await getTranslations("serverErrors");
+    return { error: t("fbAppNotConfigured") };
   }
 
   // 1a. debug_token: verify the access token was issued for OUR app and is valid

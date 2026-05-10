@@ -11,6 +11,7 @@ import { requireAdmin, getAdminFromCookie } from "@/lib/auth";
 import { getUserFromCookie } from "@/lib/user-identity";
 import { formatVND } from "@/lib/utils";
 import { fundContributionSchema, fundRefundSchema } from "@/lib/validators";
+import { getTranslations } from "next-intl/server";
 
 type FundTransactionType =
   | "fund_contribution"
@@ -27,12 +28,13 @@ const FUND_TRANSACTION_TYPES: FundTransactionType[] = [
 export async function addFundMember(memberId: number) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
 
   // Check if member exists
   const member = await db.query.members.findFirst({
     where: eq(members.id, memberId),
   });
-  if (!member) return { error: "Không tìm thấy thành viên" };
+  if (!member) return { error: t("memberNotFound") };
 
   // Check if already a fund member
   const existing = await db.query.fundMembers.findFirst({
@@ -40,7 +42,7 @@ export async function addFundMember(memberId: number) {
   });
 
   if (existing) {
-    if (existing.isActive) return { error: "Thành viên đã trong quỹ" };
+    if (existing.isActive) return { error: t("memberAlreadyInFund") };
 
     // Re-activate
     await db
@@ -63,13 +65,14 @@ export async function removeFundMember(
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
 
+  const t = await getTranslations("serverErrors");
   const fm = await db.query.fundMembers.findFirst({
     where: and(
       eq(fundMembers.memberId, memberId),
       eq(fundMembers.isActive, true),
     ),
   });
-  if (!fm) return { error: "Không tìm thấy thành viên trong quỹ" };
+  if (!fm) return { error: t("memberNotInFund") };
 
   // If refunding, check balance and create refund transaction. The whole
   // sequence (read balance → insert refund → flip isActive=false) runs in
@@ -143,13 +146,14 @@ export async function recordContribution(
 ): Promise<{ success: true; replayed: boolean } | { error: string }> {
   const auth = await requireAdmin();
   if ("error" in auth) return { error: auth.error };
+  const t = await getTranslations("serverErrors");
 
   if (
     !idempotencyKey ||
     typeof idempotencyKey !== "string" ||
     idempotencyKey.trim().length < 4
   ) {
-    return { error: "Thiếu idempotencyKey" };
+    return { error: t("missingIdempotencyKey") };
   }
 
   const parsed = fundContributionSchema.safeParse({
@@ -158,7 +162,10 @@ export async function recordContribution(
     description,
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
+    return {
+      error:
+        parsed.error.issues[0]?.message ?? t("invalidData", { detail: "" }),
+    };
   }
 
   // Auto-enrol + record trong CÙNG transaction. Trước đây upsert ngoài tx
@@ -168,7 +175,7 @@ export async function recordContribution(
     where: eq(members.id, parsed.data.memberId),
     columns: { id: true },
   });
-  if (!member) return { error: "Không tìm thấy thành viên" };
+  if (!member) return { error: t("memberNotFound") };
 
   let replayed = false;
   try {
@@ -455,22 +462,23 @@ export async function reverseFinancialTransaction(
 ): Promise<{ success: true; replayed: boolean } | { error: string }> {
   const auth = await requireAdmin();
   if ("error" in auth) return { error: auth.error };
+  const t = await getTranslations("serverErrors");
 
   if (
     !idempotencyKey ||
     typeof idempotencyKey !== "string" ||
     idempotencyKey.trim().length < 4
   ) {
-    return { error: "Thiếu idempotencyKey" };
+    return { error: t("missingIdempotencyKey") };
   }
 
   const original = await db.query.financialTransactions.findFirst({
     where: eq(financialTransactions.id, txId),
   });
-  if (!original) return { error: "Không tìm thấy giao dịch" };
+  if (!original) return { error: t("transactionNotFound") };
 
   if (original.reversalOfId !== null) {
-    return { error: "Đây là entry reversal — không thể hủy reversal." };
+    return { error: t("reversalCannotUndo") };
   }
 
   const reversibleTypes = new Set(["fund_contribution", "fund_refund"]);
@@ -944,24 +952,25 @@ export async function confirmFundClaim(notificationId: number) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
 
+  const t = await getTranslations("serverErrors");
   const { paymentNotifications } = await import("@/db/schema");
   const notif = await db.query.paymentNotifications.findFirst({
     where: eq(paymentNotifications.id, notificationId),
   });
-  if (!notif) return { error: "Không tìm thấy claim" };
-  if (notif.status !== "pending") return { error: "Claim đã được xử lý" };
+  if (!notif) return { error: t("claimNotFound") };
+  if (notif.status !== "pending") return { error: t("claimAlreadyProcessed") };
   if (!notif.transferContent || !notif.amount) {
-    return { error: "Claim thiếu thông tin" };
+    return { error: t("claimMissingInfo") };
   }
 
   const memo = notif.transferContent.toUpperCase();
   const m = memo.match(/QUY\s+(\d{1,5})/);
-  if (!m) return { error: "Không xác định được người đóng quỹ" };
+  if (!m) return { error: t("contributorUnknown") };
   const memberId = parseInt(m[1], 10);
   // Defensive bound — regex \d{1,5} có thể match "0" → memberId=0 query OK
   // nhưng coi là invalid intent (members.id auto-increment bắt đầu từ 1).
   if (!Number.isFinite(memberId) || memberId <= 0) {
-    return { error: "Member ID trong memo không hợp lệ" };
+    return { error: t("invalidMemberIdInMemo") };
   }
 
   // Verify member is in fund
@@ -971,7 +980,7 @@ export async function confirmFundClaim(notificationId: number) {
       eq(fundMembers.isActive, true),
     ),
   });
-  if (!fm) return { error: "Member không phải thành viên quỹ" };
+  if (!fm) return { error: t("memberNotFundMember") };
 
   // Record fund_contribution + mark notification matched. The notification id
   // is a natural idempotency key — re-confirming the same claim never produces
@@ -1021,7 +1030,8 @@ export async function updateMemberBankAccount(
 
   const trimmed = bankAccountNo.trim();
   if (trimmed && !/^\d{6,20}$/.test(trimmed)) {
-    return { error: "Số tài khoản không hợp lệ (chỉ chứa số, 6-20 ký tự)" };
+    const t = await getTranslations("serverErrors");
+    return { error: t("invalidBankAccount") };
   }
 
   await db

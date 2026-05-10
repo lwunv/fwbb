@@ -11,10 +11,12 @@ import { revalidatePath } from "next/cache";
 import { purchaseSchema } from "@/lib/validators";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
 import { requireAdmin } from "@/lib/auth";
+import { getTranslations } from "next-intl/server";
 
 export async function recordPurchase(formData: FormData) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
 
   const idempotencyKey = (formData.get("idempotencyKey") as string) ?? "";
   if (
@@ -22,7 +24,7 @@ export async function recordPurchase(formData: FormData) {
     typeof idempotencyKey !== "string" ||
     idempotencyKey.trim().length < 4
   ) {
-    return { error: "Thiếu idempotencyKey" };
+    return { error: t("missingIdempotencyKey") };
   }
 
   const parsed = purchaseSchema.safeParse({
@@ -82,7 +84,7 @@ export async function recordPurchase(formData: FormData) {
     });
   } catch (err) {
     return {
-      error: err instanceof Error ? err.message : "Không ghi được giao dịch",
+      error: err instanceof Error ? err.message : t("transactionWriteFailed"),
     };
   }
 
@@ -96,17 +98,18 @@ export async function updatePurchaseTubes(purchaseId: number, tubes: number) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
 
+  const t = await getTranslations("serverErrors");
   if (!Number.isInteger(purchaseId) || purchaseId <= 0) {
-    return { error: "purchaseId không hợp lệ" };
+    return { error: t("invalidPurchaseId") };
   }
   if (!Number.isInteger(tubes) || tubes < 1 || tubes > 10000) {
-    return { error: "Số ống phải là số nguyên 1-10000" };
+    return { error: t("invalidTubeCount") };
   }
 
   const purchase = await db.query.inventoryPurchases.findFirst({
     where: eq(inventoryPurchases.id, purchaseId),
   });
-  if (!purchase) return { error: "Không tìm thấy" };
+  if (!purchase) return { error: t("notFound") };
 
   const newTotalPrice = tubes * purchase.pricePerTube;
   const priceDelta = newTotalPrice - purchase.totalPrice;
@@ -146,7 +149,7 @@ export async function updatePurchaseTubes(purchaseId: number, tubes: number) {
     });
   } catch (err) {
     return {
-      error: err instanceof Error ? err.message : "Không cập nhật được ống cầu",
+      error: err instanceof Error ? err.message : t("purchaseUpdateFailed"),
     };
   }
 
@@ -158,11 +161,12 @@ export async function setStockQua(brandId: number, desiredQua: number) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
 
+  const t = await getTranslations("serverErrors");
   if (!Number.isInteger(brandId) || brandId <= 0) {
-    return { error: "brandId không hợp lệ" };
+    return { error: t("invalidBrandId") };
   }
   if (!Number.isInteger(desiredQua) || desiredQua < 0 || desiredQua > 100000) {
-    return { error: "Số lượng không hợp lệ" };
+    return { error: t("invalidQuantity") };
   }
 
   // Run read-then-write in a transaction so two admins editing concurrently
@@ -172,7 +176,7 @@ export async function setStockQua(brandId: number, desiredQua: number) {
       const brand = await tx.query.shuttlecockBrands.findFirst({
         where: eq(shuttlecockBrands.id, brandId),
       });
-      if (!brand) throw new Error("Không tìm thấy hãng cầu");
+      if (!brand) throw new Error(t("brandNotFound"));
 
       const purchases = await tx.query.inventoryPurchases.findMany({
         where: eq(inventoryPurchases.brandId, brandId),
@@ -197,7 +201,7 @@ export async function setStockQua(brandId: number, desiredQua: number) {
     });
   } catch (err) {
     return {
-      error: err instanceof Error ? err.message : "Không cập nhật được tồn kho",
+      error: err instanceof Error ? err.message : t("stockUpdateFailed"),
     };
   }
 

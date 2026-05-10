@@ -186,19 +186,49 @@ interface DashboardClientProps {
   sessionDays: number[];
 }
 
-const VN_MONTH_LABEL: Record<number, string> = {
-  1: "Th1",
-  2: "Th2",
-  3: "Th3",
-  4: "Th4",
-  5: "Th5",
-  6: "Th6",
-  7: "Th7",
-  8: "Th8",
-  9: "Th9",
-  10: "Th10",
-  11: "Th11",
-  12: "Th12",
+const MONTH_LABEL_BY_LOCALE: Record<string, Record<number, string>> = {
+  vi: {
+    1: "Th1",
+    2: "Th2",
+    3: "Th3",
+    4: "Th4",
+    5: "Th5",
+    6: "Th6",
+    7: "Th7",
+    8: "Th8",
+    9: "Th9",
+    10: "Th10",
+    11: "Th11",
+    12: "Th12",
+  },
+  en: {
+    1: "Jan",
+    2: "Feb",
+    3: "Mar",
+    4: "Apr",
+    5: "May",
+    6: "Jun",
+    7: "Jul",
+    8: "Aug",
+    9: "Sep",
+    10: "Oct",
+    11: "Nov",
+    12: "Dec",
+  },
+  zh: {
+    1: "1月",
+    2: "2月",
+    3: "3月",
+    4: "4月",
+    5: "5月",
+    6: "6月",
+    7: "7月",
+    8: "8月",
+    9: "9月",
+    10: "10月",
+    11: "11月",
+    12: "12月",
+  },
 };
 
 const TX_ICON: Record<string, { icon: typeof ArrowUpCircle; cls: string }> = {
@@ -279,8 +309,8 @@ export function DashboardClient({
     const idemKey = `dash-clear-${memberId}-${crypto.randomUUID()}`;
     clearingDebt.addOptimistically(
       memberId,
-      () => recordContribution(memberId, amount, "Đã trả nợ", idemKey),
-      { successMsg: `Đã ghi nhận ${formatK(amount)} → hết nợ` },
+      () => recordContribution(memberId, amount, td("clearDebtNote"), idemKey),
+      { successMsg: td("toastClearDebt", { amount: formatK(amount) }) },
     );
   }
 
@@ -306,7 +336,7 @@ export function DashboardClient({
       () => recordContribution(memberId, amount, desc, idemKey),
       () => setContribSubmitting(false),
       {
-        successMsg: `Đã ghi nhận ${formatK(amount)}`,
+        successMsg: td("toastContrib", { amount: formatK(amount) }),
         onSuccess: closeContrib,
       },
     );
@@ -359,7 +389,9 @@ export function DashboardClient({
     serverAdminGuestDine,
   ]);
 
-  const monthLabel = `${VN_MONTH_LABEL[currentMonth]}/${currentYear}`;
+  const monthLabelMap =
+    MONTH_LABEL_BY_LOCALE[locale] ?? MONTH_LABEL_BY_LOCALE.vi;
+  const monthLabel = `${monthLabelMap[currentMonth]}/${currentYear}`;
   const netCash = totalPositiveBalance - totalOutstanding;
   const courtRentPct =
     courtRentExpectedThisMonth > 0
@@ -407,7 +439,12 @@ export function DashboardClient({
               className="w-48"
               autoFocus
             />
-            <Button type="submit" size="sm" variant="outline" aria-label="Lưu">
+            <Button
+              type="submit"
+              size="sm"
+              variant="outline"
+              aria-label={td("ariaSaveAppName")}
+            >
               <Check className="h-4 w-4" />
             </Button>
             <Button
@@ -418,7 +455,7 @@ export function DashboardClient({
                 setNameValue(appName);
                 setEditingName(false);
               }}
-              aria-label="Hủy"
+              aria-label={td("ariaCancelAppName")}
             >
               <X className="h-4 w-4" />
             </Button>
@@ -709,7 +746,9 @@ export function DashboardClient({
                       label trái + tổng + per-head bên phải, tabular-nums. */}
                   {showCostSummary && (
                     <div className="bg-primary/[0.04] border-primary/20 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl border px-3 py-2.5 text-base">
-                      <span className="font-semibold">💰 Tổng chi</span>
+                      <span className="font-semibold">
+                        💰 {td("totalExpense")}
+                      </span>
                       <span className="ml-auto flex flex-wrap items-baseline justify-end gap-x-1.5">
                         <span className="text-primary text-xl font-bold tabular-nums">
                           {formatK(totalExpense)}
@@ -731,7 +770,7 @@ export function DashboardClient({
                               </span>
                             )}
                             <span className="text-foreground/70 text-sm font-medium">
-                              /người)
+                              {td("perPerson")})
                             </span>
                           </span>
                         )}
@@ -886,11 +925,11 @@ export function DashboardClient({
       <SectionCard
         tone="blue"
         icon={PiggyBank}
-        title="Tình hình tài chính"
+        title={td("financeOverviewTitle")}
         action={
           <Link href="/admin/fund">
             <Button variant="outline" size="sm">
-              Chi tiết
+              {td("details")}
               <ArrowRight className="ml-1 h-4 w-4" />
             </Button>
           </Link>
@@ -901,7 +940,7 @@ export function DashboardClient({
             tone="neutral"
             size="sm"
             icon={Coins}
-            label="Quỹ còn dư"
+            label={td("fundAvailable")}
             value={formatK(totalPositiveBalance)}
             valueClassName="text-blue-600 dark:text-blue-400 text-xl"
           />
@@ -909,12 +948,12 @@ export function DashboardClient({
             tone="neutral"
             size="sm"
             icon={AlertTriangle}
-            label="Tổng nợ"
+            label={td("totalDebt")}
             value={
               <>
                 −{formatK(totalOutstanding)}
                 <div className="text-muted-foreground mt-0.5 text-xs font-normal">
-                  {owingCount} người
+                  {td("peopleCount", { count: owingCount })}
                 </div>
               </>
             }
@@ -924,7 +963,7 @@ export function DashboardClient({
             tone="neutral"
             size="sm"
             icon={Wallet}
-            label="Số dư ròng"
+            label={td("netCash")}
             value={`${netCash >= 0 ? "+" : ""}${formatK(netCash)}`}
             valueClassName={cn(
               "text-xl",
@@ -941,21 +980,21 @@ export function DashboardClient({
             tone="blue"
             size="sm"
             icon={TrendingUp}
-            label={`Thu ${monthLabel}`}
+            label={td("monthIn", { label: monthLabel })}
             value={`+${formatK(monthIn)}`}
           />
           <StatTile
             tone="orange"
             size="sm"
             icon={TrendingDown}
-            label={`Chi ${monthLabel}`}
+            label={td("monthOut", { label: monthLabel })}
             value={`−${formatK(monthOut)}`}
           />
           <StatTile
             tone="amber"
             size="sm"
             icon={ShoppingBag}
-            label={`Mua cầu ${monthLabel}`}
+            label={td("monthInventorySpend", { label: monthLabel })}
             value={formatK(monthInventorySpend)}
             className="col-span-2 sm:col-span-1"
           />
@@ -966,38 +1005,38 @@ export function DashboardClient({
       <SectionCard
         tone="cyan"
         icon={Landmark}
-        title={`Tiền sân ${monthLabel}`}
+        title={td("courtRentMonthTitle", { label: monthLabel })}
         action={
           <Link href="/admin/court-rent">
             <Button variant="outline" size="sm">
-              Đối soát
+              {td("reconcile")}
               <ArrowRight className="ml-1 h-4 w-4" />
             </Button>
           </Link>
         }
       >
         {sessionsThisMonth === 0 ? (
-          <EmptyState variant="inline" title="Chưa có buổi nào trong tháng" />
+          <EmptyState variant="inline" title={td("emptySessionsInMonth")} />
         ) : (
           <>
             <div className="grid grid-cols-3 gap-2">
               <StatTile
                 tone="neutral"
                 size="sm"
-                label="Cần trả"
+                label={td("courtRentExpected")}
                 value={formatK(courtRentExpectedThisMonth)}
               />
               <StatTile
                 tone="neutral"
                 size="sm"
-                label="Đã trả"
+                label={td("courtRentPaid")}
                 value={formatK(courtRentPaidThisMonth)}
                 valueClassName="text-blue-600 dark:text-blue-400"
               />
               <StatTile
                 tone="neutral"
                 size="sm"
-                label="Còn lại"
+                label={td("courtRentRemaining")}
                 value={formatK(courtRentRemainingThisMonth)}
                 valueClassName={cn(
                   courtRentRemainingThisMonth === 0
@@ -1017,8 +1056,10 @@ export function DashboardClient({
               />
             </div>
             <div className="text-muted-foreground mt-2 text-xs">
-              {sessionsThisMonth} buổi trong tháng ·{" "}
-              {completedSessionsThisMonth} đã chốt
+              {td("sessionsThisMonthDetail", {
+                sessions: sessionsThisMonth,
+                completed: completedSessionsThisMonth,
+              })}
             </div>
           </>
         )}
@@ -1029,14 +1070,14 @@ export function DashboardClient({
         <SectionCard
           tone="rose"
           icon={AlertTriangle}
-          title="Thành viên còn nợ quỹ"
+          title={td("owingMembersTitle")}
           subtitle={
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-base">
               <span className="text-muted-foreground">
                 <strong className="text-destructive tabular-nums">
                   {owingCount}
                 </strong>{" "}
-                người · tổng
+                {td("owingSummary", { count: "" }).trim()}
               </span>
               <strong className="text-destructive text-2xl font-bold tabular-nums">
                 {formatK(totalOutstanding)}
@@ -1046,7 +1087,7 @@ export function DashboardClient({
           action={
             <Link href="/admin/fund">
               <Button variant="outline" size="sm">
-                Xem tất cả
+                {td("viewAll")}
                 <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
             </Link>
@@ -1082,7 +1123,7 @@ export function DashboardClient({
                     onClick={() => setContribFor(m)}
                     className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-9 shrink-0 items-center justify-center gap-1 rounded-lg px-3 text-xs font-semibold shadow-sm transition-colors"
                   >
-                    <Plus className="h-3.5 w-3.5" /> Nộp quỹ
+                    <Plus className="h-3.5 w-3.5" /> {td("contributeButton")}
                   </button>
                   <button
                     type="button"
@@ -1090,7 +1131,7 @@ export function DashboardClient({
                     disabled={isClearing}
                     className="border-primary bg-card text-primary hover:bg-primary/10 inline-flex h-9 shrink-0 items-center justify-center gap-1 rounded-lg border-2 px-3 text-xs font-semibold shadow-sm transition-colors disabled:opacity-50"
                   >
-                    <Check className="h-3.5 w-3.5" /> Đã trả nợ
+                    <Check className="h-3.5 w-3.5" /> {td("markPaidButton")}
                   </button>
                 </li>
               );
@@ -1103,18 +1144,18 @@ export function DashboardClient({
       <SectionCard
         tone="slate"
         icon={Receipt}
-        title="Giao dịch gần đây"
+        title={td("recentTxTitle")}
         action={
           <Link href="/admin/fund/transactions">
             <Button variant="outline" size="sm">
-              Xem tất cả
+              {td("viewAll")}
               <ArrowRight className="ml-1 h-4 w-4" />
             </Button>
           </Link>
         }
       >
         {recentTransactions.length === 0 ? (
-          <EmptyState variant="inline" title="Chưa có giao dịch nào" />
+          <EmptyState variant="inline" title={td("emptyTx")} />
         ) : (
           <ul className="bg-background/60 dark:bg-background/40 ring-border/60 divide-y rounded-xl shadow-sm ring-1">
             {recentTransactions.map((tx) => {
@@ -1149,7 +1190,7 @@ export function DashboardClient({
                     <div className="flex items-center gap-1.5">
                       <Icon className={cn("h-3.5 w-3.5 shrink-0", meta.cls)} />
                       <span className="truncate text-sm font-semibold">
-                        {tx.memberName ?? "Hệ thống"}
+                        {tx.memberName ?? td("system")}
                       </span>
                     </div>
                     {tx.description && (

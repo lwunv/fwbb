@@ -5,6 +5,7 @@ import { sessions, courts, financialTransactions } from "@/db/schema";
 import { eq, and, gte, lt, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
+import { getTranslations } from "next-intl/server";
 
 export interface CourtRentMonthSummary {
   /** YYYY-MM */
@@ -235,18 +236,19 @@ export async function recordCourtRentPayment(input: {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
 
+  const t = await getTranslations("serverErrors");
   if (!Number.isInteger(input.year) || input.year < 2020 || input.year > 2100) {
-    return { error: "Năm không hợp lệ" };
+    return { error: t("invalidYear") };
   }
   if (!Number.isInteger(input.month) || input.month < 1 || input.month > 12) {
-    return { error: "Tháng không hợp lệ" };
+    return { error: t("invalidMonth") };
   }
   if (
     !Number.isInteger(input.amount) ||
     input.amount <= 0 ||
     input.amount > 1_000_000_000
   ) {
-    return { error: "Số tiền không hợp lệ" };
+    return { error: t("invalidAmount") };
   }
 
   if (
@@ -254,7 +256,7 @@ export async function recordCourtRentPayment(input: {
     typeof input.idempotencyKey !== "string" ||
     input.idempotencyKey.trim().length < 4
   ) {
-    return { error: "Thiếu idempotencyKey" };
+    return { error: t("missingIdempotencyKey") };
   }
 
   let courtId: number | null = null;
@@ -263,7 +265,7 @@ export async function recordCourtRentPayment(input: {
       where: eq(courts.id, input.courtId),
       columns: { id: true },
     });
-    if (!c) return { error: "Sân không tồn tại" };
+    if (!c) return { error: t("courtNotExists") };
     courtId = c.id;
   }
 
@@ -301,7 +303,7 @@ export async function recordCourtRentPayment(input: {
       columns: { id: true },
     });
     if (winner) return { success: true, replayed: true };
-    return { error: "Không ghi được giao dịch" };
+    return { error: t("transactionWriteFailed") };
   }
 
   revalidatePath("/admin/court-rent");
@@ -322,7 +324,10 @@ export async function deleteCourtRentPayment(
       eq(financialTransactions.type, "court_rent_payment"),
     ),
   });
-  if (!original) return { error: "Không tìm thấy giao dịch" };
+  if (!original) {
+    const t = await getTranslations("serverErrors");
+    return { error: t("transactionNotFound") };
+  }
 
   // Reversal pattern thay vì hard-delete — giữ audit trail. Trước đây
   // hard-delete làm reconcile không phân biệt "xóa nhầm" vs "chưa từng tồn

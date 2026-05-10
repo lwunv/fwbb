@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import {
   CircleDot,
   TrendingUp,
@@ -50,6 +51,8 @@ export function ShuttlecockFinanceClient({
   usages,
   brands,
 }: Props) {
+  const t = useTranslations("adminShuttlecockFinance");
+  const tCommon = useTranslations("common");
   const [tab, setTab] = useState<Tab>("usage");
   const [search, setSearch] = useState("");
   const [localSummary, setLocalSummary] = useState(summary);
@@ -85,11 +88,11 @@ export function ShuttlecockFinanceClient({
   function handleBuy() {
     if (!bsBrandId) return;
     if (!Number.isFinite(bsTubes) || bsTubes < 1) {
-      toast.error("Số ống không hợp lệ");
+      toast.error(t("toastInvalidTubes"));
       return;
     }
     if (!Number.isFinite(bsPricePerTube) || bsPricePerTube <= 0) {
-      toast.error("Giá / ống không hợp lệ");
+      toast.error(t("toastInvalidPrice"));
       return;
     }
     const total = bsTubes * bsPricePerTube;
@@ -138,7 +141,7 @@ export function ShuttlecockFinanceClient({
         setLocalSummary(prevSum);
         setLocalPurchases(prevList);
       },
-      { successMsg: `Đã ghi nhận mua cầu ${formatVND(total)}` },
+      { successMsg: t("toastBuySuccess", { amount: formatVND(total) }) },
     );
     setShowBuy(false);
     setBsTubes(1);
@@ -180,10 +183,8 @@ export function ShuttlecockFinanceClient({
           <CircleDot className="text-primary h-6 w-6" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold">Tiền cầu</h1>
-          <p className="text-muted-foreground text-sm">
-            Mua cầu trừ thẳng vào quỹ chung; bán theo số quả thực dùng mỗi buổi
-          </p>
+          <h1 className="text-2xl font-bold">{t("title")}</h1>
+          <p className="text-muted-foreground text-sm">{t("subtitle")}</p>
         </div>
       </div>
 
@@ -191,26 +192,29 @@ export function ShuttlecockFinanceClient({
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatTile
           icon={TrendingDown}
-          label="Đã chi (mua cầu)"
+          label={t("statSpent")}
           value={formatVND(localSummary.totalSpent)}
           tone="orange"
         />
         <StatTile
           icon={TrendingUp}
-          label="Đã thu (bán cầu)"
+          label={t("statRevenue")}
           value={formatVND(localSummary.totalRevenue)}
           tone="green"
         />
         <StatTile
           icon={Banknote}
-          label={localSummary.netProfit >= 0 ? "Lãi" : "Lỗ"}
+          label={localSummary.netProfit >= 0 ? t("statProfit") : t("statLoss")}
           value={formatVND(localSummary.netProfit)}
           tone={profitTone}
         />
         <StatTile
           icon={Package}
-          label="Đã mua / Đã dùng"
-          value={`${localSummary.totalQuaPurchased} / ${localSummary.totalQuaUsed} quả`}
+          label={t("statStockLabel")}
+          value={t("statStockValue", {
+            purchased: localSummary.totalQuaPurchased,
+            used: localSummary.totalQuaUsed,
+          })}
           tone="primary"
         />
       </div>
@@ -227,7 +231,7 @@ export function ShuttlecockFinanceClient({
               : "text-muted-foreground hover:text-foreground",
           )}
         >
-          Đã bán ({usages.length})
+          {t("tabSold", { count: usages.length })}
         </button>
         <button
           type="button"
@@ -239,7 +243,7 @@ export function ShuttlecockFinanceClient({
               : "text-muted-foreground hover:text-foreground",
           )}
         >
-          Đã mua ({localPurchases.length})
+          {t("tabBought", { count: localPurchases.length })}
         </button>
       </div>
 
@@ -247,8 +251,8 @@ export function ShuttlecockFinanceClient({
       <SearchInput
         placeholder={
           tab === "usage"
-            ? "Tìm theo hãng / ngày..."
-            : "Tìm theo hãng / ghi chú..."
+            ? t("searchSoldPlaceholder")
+            : t("searchBoughtPlaceholder")
         }
         value={search}
         onChange={setSearch}
@@ -257,7 +261,7 @@ export function ShuttlecockFinanceClient({
       {/* Lists */}
       {tab === "usage" ? (
         filteredUsages.length === 0 ? (
-          <EmptyState message="Chưa có giao dịch bán cầu" />
+          <EmptyState message={t("emptySold")} />
         ) : (
           <ul className="space-y-2">
             <AnimatePresence mode="popLayout">
@@ -283,7 +287,7 @@ export function ShuttlecockFinanceClient({
                           </span>
                         </p>
                         <p className="text-muted-foreground truncate text-xs">
-                          Buổi{" "}
+                          {t("sessionLabel")}{" "}
                           {u.sessionDate
                             ? formatSessionDate(u.sessionDate, "long")
                             : `#${u.sessionId}`}
@@ -300,7 +304,7 @@ export function ShuttlecockFinanceClient({
           </ul>
         )
       ) : filteredPurchases.length === 0 ? (
-        <EmptyState message="Chưa có giao dịch mua cầu" />
+        <EmptyState message={t("emptyBought")} />
       ) : (
         <ul className="space-y-2">
           <AnimatePresence mode="popLayout">
@@ -353,7 +357,7 @@ export function ShuttlecockFinanceClient({
             className="bg-primary text-primary-foreground pointer-events-auto inline-flex h-[46px] items-center justify-center gap-2 rounded-full px-6 text-base font-semibold shadow-lg transition-opacity hover:opacity-90"
           >
             <Plus className="h-5 w-5" />
-            Mua cầu
+            {t("buyButton")}
           </motion.button>
         </div>
       )}
@@ -375,20 +379,19 @@ export function ShuttlecockFinanceClient({
               className="bg-card w-full max-w-md rounded-2xl p-6 shadow-xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="mb-1 text-lg font-bold">Mua cầu (trừ quỹ)</h3>
+              <h3 className="mb-1 text-lg font-bold">{t("modalBuyTitle")}</h3>
               <p className="text-muted-foreground mb-4 text-xs">
-                Tăng tồn kho + trừ thẳng quỹ tiền mặt. Không động đến số dư
-                member.
+                {t("modalBuyHint")}
               </p>
               {brands.length === 0 ? (
                 <div className="text-muted-foreground py-6 text-center text-sm">
-                  Chưa có hãng cầu nào — vào /admin để cấu hình.
+                  {t("noBrandsAvailable")}
                 </div>
               ) : (
                 <div className="space-y-4">
                   <div>
                     <label className="mb-1 block text-sm font-medium">
-                      Hãng cầu
+                      {t("brandLabel")}
                     </label>
                     <CustomSelect
                       value={bsBrandId ? String(bsBrandId) : ""}
@@ -398,7 +401,7 @@ export function ShuttlecockFinanceClient({
                         const b = brands.find((x) => x.id === id);
                         if (b) setBsPricePerTube(b.pricePerTube);
                       }}
-                      placeholder="Chọn hãng..."
+                      placeholder={t("brandPlaceholder")}
                       options={brands.map((b) => ({
                         value: String(b.id),
                         label: `${b.name} (${formatK(b.pricePerTube)}/ống)`,
@@ -408,7 +411,7 @@ export function ShuttlecockFinanceClient({
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="mb-1 block text-sm font-medium">
-                        Số ống
+                        {t("tubesLabel")}
                       </label>
                       <NumberStepper
                         value={bsTubes}
@@ -419,7 +422,7 @@ export function ShuttlecockFinanceClient({
                     </div>
                     <div>
                       <label className="mb-1 block text-sm font-medium">
-                        Giá / ống
+                        {t("pricePerTubeLabel")}
                       </label>
                       <Input
                         type="text"
@@ -440,7 +443,7 @@ export function ShuttlecockFinanceClient({
                   </div>
                   <div>
                     <label className="mb-1 block text-sm font-medium">
-                      Ngày mua
+                      {t("purchasedAtLabel")}
                     </label>
                     <Input
                       type="date"
@@ -450,17 +453,19 @@ export function ShuttlecockFinanceClient({
                   </div>
                   <div>
                     <label className="mb-1 block text-sm font-medium">
-                      Ghi chú
+                      {t("noteFieldLabel")}
                     </label>
                     <Input
                       type="text"
                       value={bsNote}
                       onChange={(e) => setBsNote(e.target.value)}
-                      placeholder="Mua cầu nhập từ đại lý..."
+                      placeholder={t("notePlaceholder")}
                     />
                   </div>
                   <div className="bg-muted flex items-center justify-between rounded-xl px-4 py-3">
-                    <span className="text-sm font-medium">Tổng</span>
+                    <span className="text-sm font-medium">
+                      {t("totalLabel")}
+                    </span>
                     <span className="text-base font-bold tabular-nums">
                       {formatVND(bsTotal)}
                     </span>
@@ -470,7 +475,7 @@ export function ShuttlecockFinanceClient({
                       onClick={() => setShowBuy(false)}
                       className="hover:bg-accent flex-1 rounded-xl border py-3 font-medium transition-colors"
                     >
-                      Hủy
+                      {tCommon("cancel")}
                     </button>
                     <button
                       onClick={handleBuy}
@@ -479,7 +484,7 @@ export function ShuttlecockFinanceClient({
                       }
                       className="bg-primary text-primary-foreground flex-1 rounded-xl py-3 font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
                     >
-                      Xác nhận
+                      {tCommon("confirm")}
                     </button>
                   </div>
                 </div>

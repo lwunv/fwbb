@@ -9,6 +9,7 @@ import { computeBalanceFromTransactions } from "@/lib/fund-core";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
 import { getUserFromCookie } from "@/lib/user-identity";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { getTranslations } from "next-intl/server";
 
 export interface AutoApplyResult {
   appliedCount: number;
@@ -132,8 +133,9 @@ export async function claimFundContribution(
   amount: number,
   idempotencyKey?: string,
 ): Promise<{ success: true; replayed?: boolean } | { error: string }> {
+  const t = await getTranslations("serverErrors");
   const user = await getUserFromCookie();
-  if (!user) return { error: "Vui lòng đăng nhập trước" };
+  if (!user) return { error: t("requireLogin") };
   const memberId = user.memberId;
 
   if (
@@ -142,17 +144,17 @@ export async function claimFundContribution(
     amount < 1_000 ||
     amount > 100_000_000
   ) {
-    return { error: "Số tiền không hợp lệ (1.000đ – 100.000.000đ)" };
+    return { error: t("invalidContribAmount") };
   }
   const inFund = await isFundMember(memberId);
   if (!inFund) {
-    return { error: "Bạn chưa tham gia quỹ" };
+    return { error: t("notInFund") };
   }
 
   const rl = await checkRateLimit(`claim-fund:${memberId}`, 10, 5 * 60_000);
   if (!rl.ok) {
     return {
-      error: `Quá nhiều thao tác, thử lại sau ${rl.retryAfter ?? 300}s`,
+      error: t("tooManyActions", { seconds: rl.retryAfter ?? 300 }),
     };
   }
 

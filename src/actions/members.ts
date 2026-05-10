@@ -85,6 +85,7 @@ async function isDuplicateName(name: string, excludeId?: number) {
 export async function createMember(formData: FormData) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
 
   const raw = {
     name: formData.get("name") as string,
@@ -94,7 +95,9 @@ export async function createMember(formData: FormData) {
     return { error: parsed.error.issues[0].message };
   }
   if (await isDuplicateName(parsed.data.name)) {
-    return { error: `Đã có thành viên tên "${parsed.data.name.trim()}"` };
+    return {
+      error: t("memberNameTaken", { name: parsed.data.name.trim() }),
+    };
   }
   const nickname = (formData.get("nickname") as string)?.trim() || null;
   // Admin-created members get a placeholder facebookId (will be replaced on first FB login)
@@ -184,6 +187,7 @@ export async function updateMyProfile(
 export async function updateMember(id: number, formData: FormData) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
 
   const raw = {
     name: formData.get("name") as string,
@@ -193,7 +197,9 @@ export async function updateMember(id: number, formData: FormData) {
     return { error: parsed.error.issues[0].message };
   }
   if (await isDuplicateName(parsed.data.name, id)) {
-    return { error: `Đã có thành viên tên "${parsed.data.name.trim()}"` };
+    return {
+      error: t("memberNameTaken", { name: parsed.data.name.trim() }),
+    };
   }
   const nickname = (formData.get("nickname") as string)?.trim() || null;
   await db
@@ -230,20 +236,21 @@ export async function getCurrentAdminMemberId(): Promise<number | null> {
 export async function linkAdminToMember(memberId: number | null) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
   const adminId = parseInt(String(auth.admin.sub ?? ""), 10);
   if (!Number.isFinite(adminId)) {
-    return { error: "Admin token không hợp lệ" };
+    return { error: t("invalidAdminToken") };
   }
 
   if (memberId !== null) {
     if (!Number.isInteger(memberId) || memberId <= 0) {
-      return { error: "memberId không hợp lệ" };
+      return { error: t("invalidMemberId") };
     }
     const m = await db.query.members.findFirst({
       where: eq(members.id, memberId),
       columns: { id: true },
     });
-    if (!m) return { error: "Không tìm thấy member" };
+    if (!m) return { error: t("memberNotFoundShort") };
   }
 
   await db.update(admins).set({ memberId }).where(eq(admins.id, adminId));
@@ -256,11 +263,12 @@ export async function linkAdminToMember(memberId: number | null) {
 export async function toggleMemberActive(id: number) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
 
   const member = await db.query.members.findFirst({
     where: eq(members.id, id),
   });
-  if (!member) return { error: "Khong tim thay thanh vien" };
+  if (!member) return { error: t("memberNotFound") };
   await db
     .update(members)
     .set({ isActive: !member.isActive })
@@ -278,11 +286,12 @@ export async function toggleMemberActive(id: number) {
 export async function deleteMember(id: number) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
 
   const member = await db.query.members.findFirst({
     where: eq(members.id, id),
   });
-  if (!member) return { error: "Không tìm thấy thành viên" };
+  if (!member) return { error: t("memberNotFound") };
 
   const [{ voteCount }] = await db
     .select({ voteCount: sql<number>`count(*)` })
@@ -315,16 +324,21 @@ export async function deleteMember(id: number) {
     .where(eq(admins.memberId, id));
 
   const refs: string[] = [];
-  if (Number(voteCount) > 0) refs.push(`${voteCount} vote`);
-  if (Number(attendCount) > 0) refs.push(`${attendCount} buổi tham gia`);
-  if (Number(debtCount) > 0) refs.push(`${debtCount} khoản nợ`);
-  if (Number(fundCount) > 0) refs.push(`${fundCount} dòng quỹ`);
-  if (Number(ledgerCount) > 0) refs.push(`${ledgerCount} giao dịch`);
-  if (Number(adminCount) > 0) refs.push(`liên kết admin`);
+  if (Number(voteCount) > 0)
+    refs.push(t("refVote", { count: Number(voteCount) }));
+  if (Number(attendCount) > 0)
+    refs.push(t("refAttendance", { count: Number(attendCount) }));
+  if (Number(debtCount) > 0)
+    refs.push(t("refDebt", { count: Number(debtCount) }));
+  if (Number(fundCount) > 0)
+    refs.push(t("refFund", { count: Number(fundCount) }));
+  if (Number(ledgerCount) > 0)
+    refs.push(t("refLedger", { count: Number(ledgerCount) }));
+  if (Number(adminCount) > 0) refs.push(t("refAdminLink"));
 
   if (refs.length > 0) {
     return {
-      error: `Không xóa được — còn ${refs.join(", ")}. Hãy "Vô hiệu hóa" thay vì xóa.`,
+      error: t("memberInUse", { refs: refs.join(", ") }),
     };
   }
 
@@ -418,20 +432,21 @@ export async function findDuplicateMembers() {
 export async function mergeMember(sourceId: number, targetId: number) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
 
   if (!Number.isInteger(sourceId) || !Number.isInteger(targetId)) {
-    return { error: "ID không hợp lệ" };
+    return { error: t("invalidId") };
   }
   if (sourceId === targetId) {
-    return { error: "Không thể gộp một thành viên với chính nó" };
+    return { error: t("cannotMergeSelf") };
   }
 
   const [source, target] = await Promise.all([
     db.query.members.findFirst({ where: eq(members.id, sourceId) }),
     db.query.members.findFirst({ where: eq(members.id, targetId) }),
   ]);
-  if (!source) return { error: "Không tìm thấy member nguồn" };
-  if (!target) return { error: "Không tìm thấy member đích" };
+  if (!source) return { error: t("sourceMemberNotFound") };
+  if (!target) return { error: t("targetMemberNotFound") };
 
   await db.transaction(async (tx) => {
     // 1. votes — UNIQUE (sessionId, memberId). Lấy danh sách session mà target

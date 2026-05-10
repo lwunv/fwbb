@@ -293,7 +293,7 @@ function TxCard({ tx }: { tx: FinancialTransactionRow }) {
       () => reverseFinancialTransaction(tx.id, idemKey),
       () => setReversing(false),
       {
-        successMsg: "Đã hủy giao dịch — tạo entry reversal trong ledger",
+        successMsg: t("toastUndoTransaction"),
       },
     );
   }
@@ -387,8 +387,8 @@ function TxCard({ tx }: { tx: FinancialTransactionRow }) {
               onClick={() => setConfirmOpen(true)}
               disabled={reversing}
               className="border-destructive/30 text-destructive hover:bg-destructive/10 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors disabled:opacity-50"
-              aria-label="Hủy giao dịch"
-              title="Hủy giao dịch"
+              aria-label={t("ariaUndoTransaction")}
+              title={t("ariaUndoTransaction")}
             >
               <X className="h-4 w-4" />
             </button>
@@ -399,7 +399,7 @@ function TxCard({ tx }: { tx: FinancialTransactionRow }) {
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title="Hủy giao dịch?"
+        title={t("undoConfirmTitle")}
         description={`Sẽ tạo 1 entry reversal trong ledger (${sign}${formatK(
           tx.amount,
         )} → đảo dấu). Row gốc vẫn được giữ làm audit trail. Tiếp tục?`}

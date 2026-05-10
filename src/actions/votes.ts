@@ -9,6 +9,7 @@ import { requireAdmin } from "@/lib/auth";
 import { adminGuestCountSchema, voteSchema } from "@/lib/validators";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { assertEditable, type SessionStatus } from "@/lib/session-status";
+import { getTranslations } from "next-intl/server";
 
 export async function submitVote(
   sessionId: number,
@@ -17,14 +18,15 @@ export async function submitVote(
   guestPlayCount: number,
   guestDineCount: number,
 ) {
+  const t = await getTranslations("serverErrors");
   const user = await getUserFromCookie();
-  if (!user) return { error: "Vui long xac nhan danh tinh truoc" };
+  if (!user) return { error: t("requireIdentity") };
 
   // 60 vote-toggles per minute per member is plenty for normal use; spamming
   // the toggle (which writes to votes + revalidates) is rate-limited here.
   const rl = await checkRateLimit(`vote:${user.memberId}`, 60, 60_000);
   if (!rl.ok) {
-    return { error: `Quá nhiều thao tác, thử lại sau ${rl.retryAfter ?? 60}s` };
+    return { error: t("tooManyActions", { seconds: rl.retryAfter ?? 60 }) };
   }
 
   const parsed = voteSchema.safeParse({
@@ -35,16 +37,19 @@ export async function submitVote(
     guestDineCount,
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
+    return {
+      error:
+        parsed.error.issues[0]?.message ?? t("invalidData", { detail: "" }),
+    };
   }
   const data = parsed.data;
 
   const session = await db.query.sessions.findFirst({
     where: eq(sessions.id, data.sessionId),
   });
-  if (!session) return { error: "Khong tim thay buoi choi" };
+  if (!session) return { error: t("sessionNotFound") };
   if (session.status !== "voting" && session.status !== "confirmed") {
-    return { error: "Buổi chơi không còn nhận vote" };
+    return { error: t("voteNotAccepted") };
   }
 
   await db
@@ -81,7 +86,10 @@ async function assertSessionAllowsVoteEdits(sessionId: number) {
   const session = await db.query.sessions.findFirst({
     where: eq(sessions.id, sessionId),
   });
-  if (!session) return { error: "Không tìm thấy buổi" } as const;
+  if (!session) {
+    const t = await getTranslations("serverErrors");
+    return { error: t("sessionNotFoundShort") } as const;
+  }
   const guard = assertEditable(session.status as SessionStatus);
   if (!guard.ok) return { error: guard.error } as const;
   return { session } as const;
@@ -96,10 +104,11 @@ export async function adminSetVote(
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
 
+  const t = await getTranslations("serverErrors");
   if (!Number.isInteger(sessionId) || sessionId <= 0)
-    return { error: "sessionId không hợp lệ" };
+    return { error: t("invalidSessionId") };
   if (!Number.isInteger(memberId) || memberId <= 0)
-    return { error: "memberId không hợp lệ" };
+    return { error: t("invalidMemberId") };
 
   const allow = await assertSessionAllowsVoteEdits(sessionId);
   if ("error" in allow) return allow;
@@ -145,8 +154,9 @@ export async function adminSetGuestCount(
       guestDineCount,
     });
   if (!parsed.success) {
+    const t = await getTranslations("serverErrors");
     return {
-      error: parsed.error.issues[0]?.message ?? "Số khách không hợp lệ",
+      error: parsed.error.issues[0]?.message ?? t("invalidQuantity"),
     };
   }
 

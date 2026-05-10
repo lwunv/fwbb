@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { financialTransactions } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { getTranslations } from "next-intl/server";
 
 type DbLike = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -44,7 +45,8 @@ export async function recordFinancialTransaction(
   tx: DbLike = db,
 ) {
   if (!Number.isInteger(input.amount) || input.amount < 0) {
-    return { error: "Số tiền giao dịch phải là số nguyên không âm" };
+    const t = await getTranslations("serverErrors");
+    return { error: t("ledgerInvalidAmount") };
   }
 
   // Idempotent path: if a row with the same key already exists, return its id
@@ -91,10 +93,11 @@ export async function recordFinancialTransaction(
       if (winner)
         return { success: true as const, id: winner.id, replayed: true };
     }
+    const t = await getTranslations("serverErrors");
     return {
-      error:
-        "Không ghi được giao dịch: " +
-        (err instanceof Error ? err.message : "lỗi không xác định"),
+      error: t("transactionWriteFailedDetail", {
+        detail: err instanceof Error ? err.message : t("unknownError"),
+      }),
     };
   }
 }

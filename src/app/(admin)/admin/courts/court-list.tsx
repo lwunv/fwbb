@@ -148,9 +148,7 @@ export function CourtList({ courts }: { courts: Court[] }) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="pricePerSession">
-                Giá thuê tháng (200k/2h cho sân chính)
-              </Label>
+              <Label htmlFor="pricePerSession">{t("monthlyPriceLabel")}</Label>
               <NumberStepper
                 value={price}
                 onChange={setPrice}
@@ -160,12 +158,12 @@ export function CourtList({ courts }: { courts: Court[] }) {
                 className="flex w-full"
               />
               <p className="text-muted-foreground text-xs">
-                Áp dụng khi đã ký hợp đồng tháng — sân chính của buổi.
+                {t("monthlyPriceHint")}
               </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="pricePerSessionRetail">
-                Giá thuê lẻ (220k/2h cho sân thuê thêm)
+                {t("retailPriceLabel")}
               </Label>
               <NumberStepper
                 value={retailPrice}
@@ -176,8 +174,7 @@ export function CourtList({ courts }: { courts: Court[] }) {
                 className="flex w-full"
               />
               <p className="text-muted-foreground text-xs">
-                Áp dụng cho sân thứ 2 thuê thêm hoặc khi không có hợp đồng
-                tháng.
+                {t("retailPriceHint")}
               </p>
             </div>
             <Button type="submit" className="w-full">
@@ -215,14 +212,14 @@ export function CourtList({ courts }: { courts: Court[] }) {
                       )}
                       <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-sm">
                         <span className="text-primary font-medium">
-                          Tháng:{" "}
+                          {t("monthlyShort")}:{" "}
                           <strong className="tabular-nums">
                             {formatK(court.pricePerSession)}
                           </strong>
                           {t("perSession")}
                         </span>
                         <span className="text-muted-foreground">
-                          Lẻ:{" "}
+                          {t("retailShort")}:{" "}
                           <strong className="tabular-nums">
                             {formatK(
                               court.pricePerSessionRetail ??

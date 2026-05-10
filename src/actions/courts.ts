@@ -6,6 +6,7 @@ import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { courtSchema } from "@/lib/validators";
 import { requireAdmin } from "@/lib/auth";
+import { getTranslations } from "next-intl/server";
 
 export async function getCourts() {
   return db.query.courts.findMany({
@@ -89,8 +90,9 @@ export async function deleteCourt(id: number) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
 
+  const t = await getTranslations("serverErrors");
   const court = await db.query.courts.findFirst({ where: eq(courts.id, id) });
-  if (!court) return { error: "Không tìm thấy sân" };
+  if (!court) return { error: t("courtNotFound") };
 
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)` })
@@ -98,7 +100,7 @@ export async function deleteCourt(id: number) {
     .where(eq(sessions.courtId, id));
   if (Number(count) > 0) {
     return {
-      error: `Không xóa được — sân đang gắn ${count} buổi chơi. Hãy "Vô hiệu hóa" thay vì xóa.`,
+      error: t("courtInUse", { count: Number(count) }),
     };
   }
 

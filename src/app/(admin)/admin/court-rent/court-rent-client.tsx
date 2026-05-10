@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import { useTranslations, useLocale } from "next-intl";
 import {
   Banknote,
   Plus,
@@ -53,20 +54,50 @@ interface Props {
   courts: CourtOpt[];
 }
 
-const MONTH_LABELS = [
-  "T1",
-  "T2",
-  "T3",
-  "T4",
-  "T5",
-  "T6",
-  "T7",
-  "T8",
-  "T9",
-  "T10",
-  "T11",
-  "T12",
-];
+const MONTH_LABELS_BY_LOCALE: Record<string, string[]> = {
+  vi: [
+    "T1",
+    "T2",
+    "T3",
+    "T4",
+    "T5",
+    "T6",
+    "T7",
+    "T8",
+    "T9",
+    "T10",
+    "T11",
+    "T12",
+  ],
+  en: [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ],
+  zh: [
+    "1月",
+    "2月",
+    "3月",
+    "4月",
+    "5月",
+    "6月",
+    "7月",
+    "8月",
+    "9月",
+    "10月",
+    "11月",
+    "12月",
+  ],
+};
 
 /** Cộng/trừ amount vào month + yearTotal khi optimistic add/remove payment.
  *  delta > 0 = ghi nhận thêm, < 0 = xóa. Pure → safe để dùng trong setState.
@@ -106,6 +137,13 @@ export function CourtRentClient({
   availableYears,
   courts,
 }: Props) {
+  const t = useTranslations("adminCourtRent");
+  const tCommon = useTranslations("common");
+  const locale = useLocale();
+  const MONTH_LABELS =
+    MONTH_LABELS_BY_LOCALE[locale] ?? MONTH_LABELS_BY_LOCALE.vi;
+  const dateLocale =
+    locale === "zh" ? "zh-CN" : locale === "en" ? "en-US" : "vi-VN";
   const [year, setYear] = useState(initialYear);
   const [report, setReport] = useState<CourtRentReport>(initialReport);
   const [loading, setLoading] = useState(false);
@@ -161,7 +199,7 @@ export function CourtRentClient({
   function handleSubmit() {
     const amount = parseInt(formAmount, 10) || 0;
     if (amount <= 0) {
-      toast.error("Số tiền phải > 0");
+      toast.error(t("toastInvalidAmount"));
       return;
     }
 
@@ -182,7 +220,10 @@ export function CourtRentClient({
       amount,
       description:
         note ||
-        `Trả tiền sân tháng ${String(formMonth).padStart(2, "0")}/${formYear}`,
+        t("defaultDescription", {
+          month: String(formMonth).padStart(2, "0"),
+          year: formYear,
+        }),
       createdAt: new Date().toISOString(),
       targetMonth: targetMonthKey,
       courtId: courtIdNum,
@@ -229,7 +270,7 @@ export function CourtRentClient({
         );
       },
       {
-        successMsg: "Đã ghi nhận thanh toán tiền sân",
+        successMsg: t("toastSuccess"),
         onSuccess: () => {
           // Refresh từ server để swap ghost row → row thật + đồng bộ totals
           if (submittedYear === year) loadReport(year);
@@ -272,7 +313,7 @@ export function CourtRentClient({
         }
       },
       {
-        successMsg: "Đã xóa giao dịch",
+        successMsg: t("toastDeleted"),
         onSuccess: () => {
           if (Number.isFinite(ty) && ty === year) loadReport(year);
         },
@@ -289,10 +330,8 @@ export function CourtRentClient({
             <Banknote className="text-primary h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">Tiền sân</h1>
-            <p className="text-muted-foreground text-sm">
-              Quản lý thanh toán tiền thuê sân theo tháng
-            </p>
+            <h1 className="text-2xl font-bold">{t("title")}</h1>
+            <p className="text-muted-foreground text-sm">{t("subtitle")}</p>
           </div>
         </div>
         <CustomSelect
@@ -300,7 +339,7 @@ export function CourtRentClient({
           onChange={(v) => setYear(parseInt(v, 10))}
           options={availableYears.map((y) => ({
             value: String(y),
-            label: `Năm ${y}`,
+            label: t("yearOption", { year: y }),
           }))}
           className="w-32"
         />
@@ -312,34 +351,34 @@ export function CourtRentClient({
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <StatTile
           icon={TrendingUp}
-          label="Cần trả (cả năm)"
+          label={t("yearExpected")}
           value={formatVND(report.yearTotal.expected)}
           tone="primary"
         />
         <StatTile
           icon={CheckCircle2}
-          label="Đã trả"
+          label={t("yearPaid")}
           value={formatVND(report.yearTotal.paid)}
           tone="green"
         />
         {report.yearTotal.remaining < 0 ? (
           <StatTile
             icon={AlertTriangle}
-            label="Trả thừa"
+            label={t("yearOverpaid")}
             value={`+${formatVND(-report.yearTotal.remaining)}`}
             tone="amber"
           />
         ) : (
           <StatTile
             icon={AlertTriangle}
-            label="Còn lại"
+            label={t("yearRemaining")}
             value={formatVND(report.yearTotal.remaining)}
             tone={report.yearTotal.remaining > 0 ? "red" : "neutral"}
           />
         )}
         <StatTile
           icon={TrendingDown}
-          label="Pass sân thu được"
+          label={t("passRevenue")}
           value={formatVND(report.yearTotal.passRevenue)}
           tone="amber"
         />
@@ -381,28 +420,36 @@ export function CourtRentClient({
         <Card>
           <CardContent className="space-y-3 p-4">
             <h2 className="text-base font-semibold">
-              Tháng {monthData.month}/{report.year}
+              {t("monthOf", { month: monthData.month, year: report.year })}
             </h2>
             <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
               <div>
-                <p className="text-muted-foreground text-xs">Số buổi</p>
+                <p className="text-muted-foreground text-xs">
+                  {t("sessionCountLabel")}
+                </p>
                 <p className="text-base font-bold tabular-nums">
                   {monthData.sessionCount}
                   {monthData.extraCourtSessions > 0 && (
                     <span className="text-muted-foreground ml-1 text-xs font-normal">
-                      ({monthData.extraCourtSessions} có 2+ sân)
+                      {t("extraCourtSessions", {
+                        count: monthData.extraCourtSessions,
+                      })}
                     </span>
                   )}
                 </p>
               </div>
               <div>
-                <p className="text-muted-foreground text-xs">Cần trả</p>
+                <p className="text-muted-foreground text-xs">
+                  {t("monthExpected")}
+                </p>
                 <p className="text-primary text-base font-bold tabular-nums">
                   {formatK(monthData.expectedTotal)}
                 </p>
               </div>
               <div>
-                <p className="text-muted-foreground text-xs">Đã trả</p>
+                <p className="text-muted-foreground text-xs">
+                  {t("monthPaid")}
+                </p>
                 <p className="text-base font-bold text-green-600 tabular-nums dark:text-green-400">
                   {formatK(monthData.paidTotal)}
                 </p>
@@ -419,7 +466,7 @@ export function CourtRentClient({
                   return (
                     <div>
                       <p className="text-muted-foreground text-xs">
-                        {isPastMonth ? "Trả thừa" : "Trả trước"}
+                        {isPastMonth ? t("monthOverpaid") : t("monthPrepaid")}
                       </p>
                       <p
                         className={cn(
@@ -436,7 +483,9 @@ export function CourtRentClient({
                 })()
               ) : (
                 <div>
-                  <p className="text-muted-foreground text-xs">Còn lại</p>
+                  <p className="text-muted-foreground text-xs">
+                    {t("monthRemaining")}
+                  </p>
                   <p
                     className={cn(
                       "text-base font-bold tabular-nums",
@@ -466,22 +515,25 @@ export function CourtRentClient({
                 if (isPastMonth) {
                   return (
                     <InlineNotice tone="warning" icon={AlertTriangle} size="sm">
-                      Đã trả vượt {formatK(-monthData.remaining)} so với cần trả
-                      — kiểm tra lại hoặc rút bớt nếu nhầm
+                      {t("overpaidWarning", {
+                        amount: formatK(-monthData.remaining),
+                      })}
                     </InlineNotice>
                   );
                 }
                 return (
                   <InlineNotice tone="info" size="sm">
-                    Đã thanh toán trước {formatK(-monthData.remaining)} cho
-                    tháng này (sẽ khớp khi đủ buổi)
+                    {t("prepaidInfo", {
+                      amount: formatK(-monthData.remaining),
+                    })}
                   </InlineNotice>
                 );
               })()}
             {monthData.passRevenue > 0 && (
               <InlineNotice tone="info" size="sm">
-                Đã pass {formatK(monthData.passRevenue)} từ buổi hủy → đã vào
-                quỹ admin
+                {t("passNotice", {
+                  amount: formatK(monthData.passRevenue),
+                })}
               </InlineNotice>
             )}
           </CardContent>
@@ -493,11 +545,13 @@ export function CourtRentClient({
         <CardContent className="space-y-3 p-4">
           <div className="flex items-center gap-2">
             <Plus className="text-primary h-5 w-5" />
-            <h3 className="text-base font-semibold">Ghi nhận thanh toán mới</h3>
+            <h3 className="text-base font-semibold">
+              {t("recordPaymentTitle")}
+            </h3>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <div>
-              <Label className="text-xs">Năm</Label>
+              <Label className="text-xs">{t("yearLabel")}</Label>
               <CustomSelect
                 value={String(formYear)}
                 onChange={(v) => setFormYear(parseInt(v, 10))}
@@ -509,7 +563,7 @@ export function CourtRentClient({
               />
             </div>
             <div>
-              <Label className="text-xs">Tháng</Label>
+              <Label className="text-xs">{t("monthLabel")}</Label>
               <CustomSelect
                 value={String(formMonth)}
                 onChange={(v) => setFormMonth(parseInt(v, 10))}
@@ -521,13 +575,13 @@ export function CourtRentClient({
               />
             </div>
             <div className="col-span-2 sm:col-span-1">
-              <Label className="text-xs">Sân (optional)</Label>
+              <Label className="text-xs">{t("courtFieldLabel")}</Label>
               <CustomSelect
                 value={formCourtId}
                 onChange={(v) => setFormCourtId(v)}
-                placeholder="— Chung —"
+                placeholder={t("courtPlaceholder")}
                 options={[
-                  { value: "", label: "— Chung —" },
+                  { value: "", label: t("courtPlaceholder") },
                   ...courts.map((c) => ({
                     value: String(c.id),
                     label: c.name,
@@ -537,16 +591,16 @@ export function CourtRentClient({
               />
             </div>
             <div className="col-span-2 sm:col-span-1">
-              <Label className="text-xs">Số tiền (VND)</Label>
+              <Label className="text-xs">{t("amountLabel")}</Label>
               <Input
                 type="text"
                 inputMode="numeric"
                 value={
-                  formAmount ? Number(formAmount).toLocaleString("vi-VN") : ""
+                  formAmount
+                    ? Number(formAmount).toLocaleString(dateLocale)
+                    : ""
                 }
                 onChange={(e) => {
-                  // Chỉ giữ digit; hiển thị format theo locale "vi-VN"
-                  // (dấu chấm phân tách nghìn) qua value prop ở trên.
                   const digits = e.target.value.replace(/\D/g, "");
                   setFormAmount(digits);
                 }}
@@ -556,17 +610,17 @@ export function CourtRentClient({
             </div>
           </div>
           <div>
-            <Label className="text-xs">Ghi chú (optional)</Label>
+            <Label className="text-xs">{t("noteLabel")}</Label>
             <Input
               value={formNote}
               onChange={(e) => setFormNote(e.target.value)}
-              placeholder="VD: Trả tháng 4 cho sân Atus"
+              placeholder={t("notePlaceholder")}
               className="mt-1"
             />
           </div>
           <Button type="button" onClick={handleSubmit} className="w-full">
             <Plus className="mr-1 h-4 w-4" />
-            Ghi nhận thanh toán
+            {t("recordPayment")}
           </Button>
         </CardContent>
       </Card>
@@ -575,7 +629,7 @@ export function CourtRentClient({
       <Card>
         <CardContent className="space-y-3 p-4">
           <h3 className="text-base font-semibold">
-            Danh sách giao dịch — Tháng {selectedMonth}/{year}
+            {t("listTitle", { month: selectedMonth, year })}
           </h3>
           {paymentsLoading || loading ? (
             <div className="flex justify-center py-6">
@@ -583,7 +637,7 @@ export function CourtRentClient({
             </div>
           ) : payments.length === 0 ? (
             <p className="text-muted-foreground py-4 text-center text-sm">
-              Tháng này chưa có giao dịch trả tiền sân
+              {t("listEmpty")}
             </p>
           ) : (
             <ul className="space-y-2">
@@ -623,10 +677,10 @@ export function CourtRentClient({
                           // createdAt từ server.
                           <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
                             <span className="inline-block h-2.5 w-2.5 animate-spin rounded-full border-2 border-amber-500/40 border-t-amber-500" />
-                            Đang lưu...
+                            {t("saving")}
                           </span>
                         ) : p.createdAt ? (
-                          new Date(p.createdAt).toLocaleString("vi-VN", {
+                          new Date(p.createdAt).toLocaleString(dateLocale, {
                             day: "2-digit",
                             month: "2-digit",
                             year: "numeric",
@@ -660,8 +714,9 @@ export function CourtRentClient({
       <ConfirmDialog
         open={deleteTarget !== null}
         onOpenChange={(o) => !o && setDeleteTarget(null)}
-        title="Xóa giao dịch"
-        description="Bạn có chắc muốn xóa giao dịch trả tiền sân này?"
+        title={t("deleteTitle")}
+        description={t("deleteDesc")}
+        confirmLabel={tCommon("delete")}
         onConfirm={() => {
           if (deleteTarget !== null) handleDelete(deleteTarget);
         }}
