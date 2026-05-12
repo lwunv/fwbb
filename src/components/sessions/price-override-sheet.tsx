@@ -18,7 +18,7 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import { formatVND } from "@/lib/utils";
-import { Pencil, RotateCcw } from "lucide-react";
+import { Minus, Pencil, Plus, RotateCcw } from "lucide-react";
 
 interface PriceOverrideSheetProps {
   open: boolean;
@@ -72,6 +72,12 @@ function OverrideHeader({ title }: { title: string }) {
   );
 }
 
+/** Format chuỗi chữ số "330000" → "330.000" (vi-VN). Rỗng → rỗng. */
+function formatDigitsVi(digits: string): string {
+  if (!digits) return "";
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
 function OverrideBody({
   inputLabel,
   defaultValue,
@@ -86,32 +92,65 @@ function OverrideBody({
   setValue: (v: string) => void;
 }) {
   const t = useTranslations("priceOverride");
+
+  /** Đổi value theo bước (±5k). Floor về bội số 5k để bấm 1 lần luôn về số
+   * tròn (vd nhập 27.000 bấm + → 30.000 chứ không phải 32.000). */
+  function bump(delta: number) {
+    const current = value.length > 0 ? Number(value) : 0;
+    const STEP = 5000;
+    const aligned = Math.floor(current / STEP) * STEP;
+    const next = Math.max(
+      0,
+      delta > 0
+        ? (aligned === current ? current : aligned) + STEP
+        : aligned === current
+          ? current - STEP
+          : aligned,
+    );
+    setValue(String(next));
+  }
+
   return (
     <div className="space-y-2 py-2">
       <label className="text-foreground block text-sm font-medium">
         {inputLabel}
       </label>
-      <Input
-        inputMode="numeric"
-        pattern="[0-9]*"
-        autoFocus
-        value={value}
-        onChange={(e) => {
-          // Giữ duy nhất chữ số — chống admin paste "200.000đ".
-          const digits = e.target.value.replace(/[^\d]/g, "");
-          setValue(digits);
-        }}
-        placeholder="0"
-        className="h-12 text-lg tabular-nums"
-      />
+      <div className="bg-background flex h-12 items-stretch overflow-hidden rounded-xl border-2">
+        <button
+          type="button"
+          onClick={() => bump(-1)}
+          disabled={(value.length > 0 ? Number(value) : 0) <= 0}
+          className="hover:bg-accent flex w-12 shrink-0 items-center justify-center border-r transition-colors disabled:opacity-40"
+          aria-label="-5.000"
+        >
+          <Minus className="h-5 w-5" />
+        </button>
+        <Input
+          inputMode="numeric"
+          pattern="[0-9.]*"
+          autoFocus
+          value={formatDigitsVi(value)}
+          onChange={(e) => {
+            // Strip mọi ký tự không phải chữ số — admin có thể nhập / paste
+            // "200.000đ", "200,000", "200 000"... đều OK; state luôn giữ raw
+            // digits, display luôn format vi-VN với dấu chấm.
+            const digits = e.target.value.replace(/[^\d]/g, "");
+            setValue(digits);
+          }}
+          placeholder="0"
+          className="h-full min-w-0 flex-1 rounded-none border-0 bg-transparent text-center text-lg font-bold tabular-nums focus-visible:ring-0"
+        />
+        <button
+          type="button"
+          onClick={() => bump(1)}
+          className="hover:bg-accent flex w-12 shrink-0 items-center justify-center border-l transition-colors"
+          aria-label="+5.000"
+        >
+          <Plus className="h-5 w-5" />
+        </button>
+      </div>
       <p className="text-muted-foreground text-xs">
-        {t.rich("defaultHint", {
-          amount: () => (
-            <span className="text-foreground font-medium tabular-nums">
-              {formatVND(defaultValue)}
-            </span>
-          ),
-        })}
+        {t("defaultHint", { amount: formatVND(defaultValue) })}
         {isOverridden ? ` ${t("customSuffix")}` : ""}
       </p>
     </div>

@@ -40,19 +40,20 @@ describe("formatVND", () => {
 });
 
 describe("formatK", () => {
-  it("should format to K units rounding up", () => {
-    expect(formatK(214000)).toBe("214k");
-    expect(formatK(24555)).toBe("25k");
-    expect(formatK(1000)).toBe("1k");
+  it("should format as vi-VN thousands, rounded UP to nearest 1k", () => {
+    expect(formatK(214000)).toBe("214.000");
+    expect(formatK(24555)).toBe("25.000");
+    expect(formatK(1000)).toBe("1.000");
+    expect(formatK(330000)).toBe("330.000");
   });
 
   it("should round up partial thousands", () => {
-    expect(formatK(1001)).toBe("2k");
-    expect(formatK(999)).toBe("1k");
+    expect(formatK(1001)).toBe("2.000");
+    expect(formatK(999)).toBe("1.000");
   });
 
   it("should handle 0", () => {
-    expect(formatK(0)).toBe("0k");
+    expect(formatK(0)).toBe("0");
   });
 });
 
