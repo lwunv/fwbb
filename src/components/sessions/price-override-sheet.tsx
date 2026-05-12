@@ -1,0 +1,322 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetFooter,
+} from "@/components/ui/sheet";
+import { formatVND } from "@/lib/utils";
+import { Pencil, RotateCcw } from "lucide-react";
+
+interface PriceOverrideSheetProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  /** Label hiển thị bên trên input, vd: "Tiền sân (VND)" hoặc "Giá/ống (VND)" */
+  inputLabel: string;
+  /** Giá hiện tại đang dùng cho buổi này (có thể là giá đã override hoặc auto). */
+  currentValue: number;
+  /** Giá auto/mặc định để gợi ý — hiển thị bên dưới input. */
+  defaultValue: number;
+  /** True nếu giá đang là override → cho phép Reset. */
+  isOverridden: boolean;
+  /** Gọi với số VND nguyên khi admin lưu. */
+  onSave: (value: number) => void | Promise<void>;
+  /** Gọi khi admin bấm "Reset về mặc định" (chỉ enabled nếu `isOverridden`). */
+  onReset: () => void | Promise<void>;
+}
+
+function useIsMobile(breakpoint = 640) {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, [breakpoint]);
+  return isMobile;
+}
+
+/**
+ * Bottom sheet (mobile) / centered dialog (desktop) để admin nhập giá override.
+ * Input lấy số nguyên VND (no decimals). Có 2 nút action:
+ *   - "Lưu" → onSave(value)
+ *   - "Về mặc định" → onReset() (disable nếu chưa override)
+ */
+export function PriceOverrideSheet(props: PriceOverrideSheetProps) {
+  const isMobile = useIsMobile();
+  return isMobile ? <MobileSheet {...props} /> : <DesktopDialog {...props} />;
+}
+
+function OverrideHeader({ title }: { title: string }) {
+  return (
+    <span className="flex items-center gap-3">
+      <span className="bg-primary/10 inline-flex rounded-full p-2">
+        <Pencil className="text-primary h-5 w-5" />
+      </span>
+      <span className="text-base font-semibold">{title}</span>
+    </span>
+  );
+}
+
+function OverrideBody({
+  inputLabel,
+  defaultValue,
+  isOverridden,
+  value,
+  setValue,
+}: {
+  inputLabel: string;
+  defaultValue: number;
+  isOverridden: boolean;
+  value: string;
+  setValue: (v: string) => void;
+}) {
+  const t = useTranslations("priceOverride");
+  return (
+    <div className="space-y-2 py-2">
+      <label className="text-foreground block text-sm font-medium">
+        {inputLabel}
+      </label>
+      <Input
+        inputMode="numeric"
+        pattern="[0-9]*"
+        autoFocus
+        value={value}
+        onChange={(e) => {
+          // Giữ duy nhất chữ số — chống admin paste "200.000đ".
+          const digits = e.target.value.replace(/[^\d]/g, "");
+          setValue(digits);
+        }}
+        placeholder="0"
+        className="h-12 text-lg tabular-nums"
+      />
+      <p className="text-muted-foreground text-xs">
+        {t.rich("defaultHint", {
+          amount: () => (
+            <span className="text-foreground font-medium tabular-nums">
+              {formatVND(defaultValue)}
+            </span>
+          ),
+        })}
+        {isOverridden ? ` ${t("customSuffix")}` : ""}
+      </p>
+    </div>
+  );
+}
+
+function OverrideActions({
+  loading,
+  canSave,
+  canReset,
+  onCancel,
+  onSave,
+  onReset,
+  saveLabel,
+  resetLabel,
+  cancelLabel,
+}: {
+  loading: boolean;
+  canSave: boolean;
+  canReset: boolean;
+  onCancel: () => void;
+  onSave: () => void | Promise<void>;
+  onReset: () => void | Promise<void>;
+  saveLabel: string;
+  resetLabel: string;
+  cancelLabel: string;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <Button
+        variant="outline"
+        onClick={onReset}
+        disabled={loading || !canReset}
+        className="gap-1"
+      >
+        <RotateCcw className="h-4 w-4" />
+        {resetLabel}
+      </Button>
+      <Button variant="outline" onClick={onCancel} disabled={loading}>
+        {cancelLabel}
+      </Button>
+      <Button onClick={onSave} disabled={loading || !canSave}>
+        {saveLabel}
+      </Button>
+    </div>
+  );
+}
+
+function DesktopDialog({
+  open,
+  onOpenChange,
+  title,
+  inputLabel,
+  currentValue,
+  defaultValue,
+  isOverridden,
+  onSave,
+  onReset,
+}: PriceOverrideSheetProps) {
+  const tCommon = useTranslations("common");
+  const tOverride = useTranslations("priceOverride");
+  const [value, setValue] = useState(String(currentValue));
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setValue(String(currentValue));
+      setLoading(false);
+    }
+  }, [open, currentValue]);
+
+  const parsed = value.length > 0 ? Number(value) : NaN;
+  const canSave =
+    Number.isFinite(parsed) && parsed >= 0 && parsed !== currentValue;
+
+  async function handleSave() {
+    if (!canSave) return;
+    setLoading(true);
+    try {
+      await onSave(parsed);
+      onOpenChange(false);
+    } finally {
+      setLoading(false);
+    }
+  }
+  async function handleReset() {
+    setLoading(true);
+    try {
+      await onReset();
+      onOpenChange(false);
+    } finally {
+      setLoading(false);
+    }
+  }
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="text-base">
+            <OverrideHeader title={title} />
+          </DialogTitle>
+        </DialogHeader>
+        <OverrideBody
+          inputLabel={inputLabel}
+          defaultValue={defaultValue}
+          isOverridden={isOverridden}
+          value={value}
+          setValue={setValue}
+        />
+        <OverrideActions
+          loading={loading}
+          canSave={canSave}
+          canReset={isOverridden}
+          onCancel={() => onOpenChange(false)}
+          onSave={handleSave}
+          onReset={handleReset}
+          saveLabel={tCommon("save")}
+          resetLabel={tOverride("resetButton")}
+          cancelLabel={tCommon("cancel")}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MobileSheet({
+  open,
+  onOpenChange,
+  title,
+  inputLabel,
+  currentValue,
+  defaultValue,
+  isOverridden,
+  onSave,
+  onReset,
+}: PriceOverrideSheetProps) {
+  const tCommon = useTranslations("common");
+  const tOverride = useTranslations("priceOverride");
+  const [value, setValue] = useState(String(currentValue));
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setValue(String(currentValue));
+      setLoading(false);
+    }
+  }, [open, currentValue]);
+
+  const parsed = value.length > 0 ? Number(value) : NaN;
+  const canSave =
+    Number.isFinite(parsed) && parsed >= 0 && parsed !== currentValue;
+
+  async function handleSave() {
+    if (!canSave) return;
+    setLoading(true);
+    try {
+      await onSave(parsed);
+      onOpenChange(false);
+    } finally {
+      setLoading(false);
+    }
+  }
+  async function handleReset() {
+    setLoading(true);
+    try {
+      await onReset();
+      onOpenChange(false);
+    } finally {
+      setLoading(false);
+    }
+  }
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="bottom"
+        className="bg-popover rounded-t-2xl border-t pb-[env(safe-area-inset-bottom)]"
+      >
+        <SheetHeader>
+          <SheetTitle className="text-base">
+            <OverrideHeader title={title} />
+          </SheetTitle>
+        </SheetHeader>
+        <div className="px-4">
+          <OverrideBody
+            inputLabel={inputLabel}
+            defaultValue={defaultValue}
+            isOverridden={isOverridden}
+            value={value}
+            setValue={setValue}
+          />
+        </div>
+        <SheetFooter>
+          <OverrideActions
+            loading={loading}
+            canSave={canSave}
+            canReset={isOverridden}
+            onCancel={() => onOpenChange(false)}
+            onSave={handleSave}
+            onReset={handleReset}
+            saveLabel={tCommon("save")}
+            resetLabel={tOverride("resetButton")}
+            cancelLabel={tCommon("cancel")}
+          />
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
+  );
+}

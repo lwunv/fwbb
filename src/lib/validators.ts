@@ -109,3 +109,21 @@ export const addShuttlecockSchema = z.object({
   brandId: z.number().int().positive(),
   quantityUsed: z.number().int().min(1).max(1000),
 });
+
+/**
+ * Override giá sân thủ công cho 1 buổi. `customPrice = null` → reset về auto
+ * (recompute theo formula `computeCourtTotal`).
+ */
+export const courtPriceOverrideSchema = z.object({
+  sessionId: z.number().int().positive(),
+  customPrice: moneyVnd.nullable(),
+});
+
+/**
+ * Override giá/ống của 1 row `session_shuttlecocks` cụ thể. `customPricePerTube = null`
+ * → reset về giá hãng hiện tại tại brand master.
+ */
+export const shuttlecockPriceOverrideSchema = z.object({
+  sessionShuttlecockId: z.number().int().positive(),
+  customPricePerTube: moneyVnd.nullable(),
+});

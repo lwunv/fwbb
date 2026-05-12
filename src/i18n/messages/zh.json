@@ -838,5 +838,18 @@
     "toastInvalidTubes": "筒数无效",
     "toastInvalidPrice": "每筒价格无效",
     "toastBuySuccess": "已记录购入 {amount}"
+  },
+  "priceOverride": {
+    "courtAria": "修改场地费",
+    "courtTitle": "为本场修改场地费",
+    "courtInputLabel": "场地总费 (VND)",
+    "courtCustomCaption": "自定义场地费 · 默认 {amount}",
+    "shuttleAria": "修改 {brand} 的价格",
+    "shuttleTitle": "修改羽毛球价格 — {brand}",
+    "shuttleInputLabel": "每筒价格 (VND)",
+    "shuttleCustomSuffix": "{amount}/筒",
+    "defaultHint": "默认: {amount}",
+    "customSuffix": "· 使用自定义价格",
+    "resetButton": "恢复默认"
   }
 }

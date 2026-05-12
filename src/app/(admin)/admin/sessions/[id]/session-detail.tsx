@@ -128,6 +128,8 @@ export function SessionDetail({
               courts={courts}
               currentCourtId={session.courtId}
               currentCourtQuantity={session.courtQuantity ?? 1}
+              currentCourtPrice={session.courtPrice ?? null}
+              isCourtPriceOverridden={session.courtPriceOverridden ?? false}
               sessionDate={session.date}
               defaultCourtId={defaultCourtId}
             />

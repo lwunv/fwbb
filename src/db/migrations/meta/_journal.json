@@ -36,6 +36,13 @@
       "when": 1778220214937,
       "tag": "0004_woozy_bulldozer",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1778569926170,
+      "tag": "0005_add_court_price_overridden",
+      "breakpoints": true
     }
   ]
 }

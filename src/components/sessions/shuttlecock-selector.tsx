@@ -5,13 +5,16 @@ import { createPortal } from "react-dom";
 import {
   addSessionShuttlecocks,
   removeSessionShuttlecock,
+  setSessionShuttlecockPriceOverride,
 } from "@/actions/sessions";
 import { fireAction } from "@/lib/optimistic-action";
 import { formatK } from "@/lib/utils";
 import { calculateShuttlecockCost } from "@/lib/cost-calculator";
 import { NumberStepper } from "@/components/ui/number-stepper";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown, Pencil, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
+import { PriceOverrideSheet } from "@/components/sessions/price-override-sheet";
 import type { InferSelectModel } from "drizzle-orm";
 import type {
   shuttlecockBrands as brandsTable,
@@ -34,9 +37,11 @@ export function ShuttlecockSelector({
 }) {
   const [items, setItems] = useState<SessionShuttlecock[]>(currentShuttlecocks);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [overrideTargetId, setOverrideTargetId] = useState<number | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+  const tOverride = useTranslations("priceOverride");
   // Counter cấp id âm cho optimistic entry (chưa server-confirmed). Dùng
   // ref counter thay `Date.now()` để tránh `react-hooks/purity` lint flag
   // (Date.now là impure trong scope render-tracked).
@@ -132,6 +137,37 @@ export function ShuttlecockSelector({
     }
   }
 
+  function handlePriceOverrideSave(rowId: number, newPrice: number) {
+    const prevItems = items;
+    setItems((prev) =>
+      prev.map((s) => (s.id === rowId ? { ...s, pricePerTube: newPrice } : s)),
+    );
+    fireAction(
+      () => setSessionShuttlecockPriceOverride(rowId, newPrice),
+      () => {
+        setItems(prevItems);
+      },
+    );
+  }
+
+  function handlePriceOverrideReset(rowId: number, brandDefaultPrice: number) {
+    // Optimistic: hiển thị giá brand mặc định ngay; server sẽ snapshot lại từ
+    // brand hiện tại — nếu giá brand đổi giữa lúc bấm reset và server ack thì
+    // revalidate sẽ sync về số chính xác. Đủ tốt cho UX.
+    const prevItems = items;
+    setItems((prev) =>
+      prev.map((s) =>
+        s.id === rowId ? { ...s, pricePerTube: brandDefaultPrice } : s,
+      ),
+    );
+    fireAction(
+      () => setSessionShuttlecockPriceOverride(rowId, null),
+      () => {
+        setItems(prevItems);
+      },
+    );
+  }
+
   if (brands.length === 0) {
     return (
       <p className="text-muted-foreground text-sm">Chưa có hãng cầu nào.</p>
@@ -184,10 +220,19 @@ export function ShuttlecockSelector({
             sc.quantityUsed,
             sc.pricePerTube,
           );
+          const isOverridden = sc.pricePerTube !== sc.brand.pricePerTube;
           return (
             <div key={sc.id} className="flex items-center gap-2">
               <span className="min-w-0 flex-1 truncate text-base font-semibold">
                 🏸 {sc.brand.name}
+                {isOverridden && (
+                  <span className="ml-1 text-xs font-normal text-amber-600 tabular-nums dark:text-amber-400">
+                    ·{" "}
+                    {tOverride("shuttleCustomSuffix", {
+                      amount: formatK(sc.pricePerTube),
+                    })}
+                  </span>
+                )}
               </span>
               <NumberStepper
                 value={sc.quantityUsed}
@@ -202,13 +247,54 @@ export function ShuttlecockSelector({
               >
                 <X className="h-4 w-4" />
               </button>
-              <span className="text-primary inline-block min-w-20 shrink-0 text-right text-base font-medium tabular-nums">
-                {formatK(cost)}
-              </span>
+              <button
+                type="button"
+                onClick={() => setOverrideTargetId(sc.id)}
+                className={cn(
+                  "group hover:bg-muted/60 inline-flex min-w-20 shrink-0 items-center justify-end gap-1 rounded-lg px-1 py-0.5 text-right text-base font-medium tabular-nums transition-colors",
+                  isOverridden
+                    ? "text-amber-600 dark:text-amber-400"
+                    : "text-primary",
+                )}
+                aria-label={tOverride("shuttleAria", { brand: sc.brand.name })}
+              >
+                <Pencil
+                  className={cn(
+                    "h-3 w-3 shrink-0 transition-opacity",
+                    isOverridden
+                      ? "opacity-90"
+                      : "opacity-40 group-hover:opacity-90",
+                  )}
+                />
+                <span>{formatK(cost)}</span>
+              </button>
             </div>
           );
         })}
       </div>
+
+      {(() => {
+        const target = items.find((s) => s.id === overrideTargetId);
+        if (!target) return null;
+        const isOverridden = target.pricePerTube !== target.brand.pricePerTube;
+        return (
+          <PriceOverrideSheet
+            open={overrideTargetId !== null}
+            onOpenChange={(open) => {
+              if (!open) setOverrideTargetId(null);
+            }}
+            title={tOverride("shuttleTitle", { brand: target.brand.name })}
+            inputLabel={tOverride("shuttleInputLabel")}
+            currentValue={target.pricePerTube}
+            defaultValue={target.brand.pricePerTube}
+            isOverridden={isOverridden}
+            onSave={(value) => handlePriceOverrideSave(target.id, value)}
+            onReset={() =>
+              handlePriceOverrideReset(target.id, target.brand.pricePerTube)
+            }
+          />
+        );
+      })()}
 
       {pickerOpen &&
         typeof document !== "undefined" &&

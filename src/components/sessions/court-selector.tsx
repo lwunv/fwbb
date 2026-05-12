@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { selectCourt } from "@/actions/sessions";
+import { selectCourt, setSessionCourtPriceOverride } from "@/actions/sessions";
 import { fireAction } from "@/lib/optimistic-action";
 import { formatK } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { computeCourtTotal } from "@/lib/cost-calculator";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Pencil } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { PriceOverrideSheet } from "@/components/sessions/price-override-sheet";
 import type { InferSelectModel } from "drizzle-orm";
 import type { courts as courtsTable } from "@/db/schema";
 
@@ -18,6 +20,8 @@ export function CourtSelector({
   courts,
   currentCourtId,
   currentCourtQuantity = 1,
+  currentCourtPrice = null,
+  isCourtPriceOverridden = false,
   sessionDate,
   defaultCourtId = null,
 }: {
@@ -25,6 +29,10 @@ export function CourtSelector({
   courts: Court[];
   currentCourtId: number | null;
   currentCourtQuantity?: number;
+  /** Tiền sân hiện tại lưu trên session (có thể là override hoặc auto). */
+  currentCourtPrice?: number | null;
+  /** True nếu admin đã override giá sân thủ công cho buổi này. */
+  isCourtPriceOverridden?: boolean;
   /** YYYY-MM-DD — cần để tính buổi mặc định/lẻ. Nếu thiếu, fallback giá tháng. */
   sessionDate?: string;
   /** Default court id từ app-settings — quyết định buổi mặc định. */
@@ -33,6 +41,16 @@ export function CourtSelector({
   const [localCourtId, setLocalCourtId] = useState(currentCourtId);
   const [quantity, setQuantity] = useState(currentCourtQuantity);
   const [open, setOpen] = useState(false);
+  const [overrideOpen, setOverrideOpen] = useState(false);
+  // Mirror price overridden state ở client để price column update optimistic
+  // ngay khi admin lưu / reset, tránh "nhấp nháy" chờ revalidate.
+  const [overriddenLocal, setOverriddenLocal] = useState(
+    isCourtPriceOverridden,
+  );
+  const [overridePriceLocal, setOverridePriceLocal] = useState<number | null>(
+    isCourtPriceOverridden ? (currentCourtPrice ?? null) : null,
+  );
+  const tOverride = useTranslations("priceOverride");
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
@@ -43,6 +61,14 @@ export function CourtSelector({
   useEffect(() => {
     setQuantity(currentCourtQuantity);
   }, [currentCourtQuantity]);
+  // Resync override state khi server prop đổi (sau revalidate, hoặc khi
+  // selectCourt() reset cờ về false ở server).
+  useEffect(() => {
+    setOverriddenLocal(isCourtPriceOverridden);
+    setOverridePriceLocal(
+      isCourtPriceOverridden ? (currentCourtPrice ?? null) : null,
+    );
+  }, [isCourtPriceOverridden, currentCourtPrice]);
 
   useEffect(() => {
     if (!open) return;
@@ -75,12 +101,21 @@ export function CourtSelector({
 
   function handleSelect(courtId: number) {
     const prevCourtId = localCourtId;
+    const prevOverridden = overriddenLocal;
+    const prevOverridePrice = overridePriceLocal;
     setLocalCourtId(courtId);
     setOpen(false);
+    // Đổi sân = intent auto formula → clear override local ngay để price
+    // column hiển thị giá auto cho sân mới (server side `selectCourt` cũng
+    // reset cờ).
+    setOverriddenLocal(false);
+    setOverridePriceLocal(null);
     fireAction(
       () => selectCourt(sessionId, courtId, quantity),
       () => {
         setLocalCourtId(prevCourtId);
+        setOverriddenLocal(prevOverridden);
+        setOverridePriceLocal(prevOverridePrice);
       },
     );
   }
@@ -88,15 +123,49 @@ export function CourtSelector({
   function handleToggleDouble(checked: boolean) {
     const newQty = checked ? 2 : 1;
     const prevQty = quantity;
+    const prevOverridden = overriddenLocal;
+    const prevOverridePrice = overridePriceLocal;
     setQuantity(newQty);
+    setOverriddenLocal(false);
+    setOverridePriceLocal(null);
     if (localCourtId) {
       fireAction(
         () => selectCourt(sessionId, localCourtId, newQty),
         () => {
           setQuantity(prevQty);
+          setOverriddenLocal(prevOverridden);
+          setOverridePriceLocal(prevOverridePrice);
         },
       );
     }
+  }
+
+  function handleOverrideSave(value: number) {
+    const prevOverridden = overriddenLocal;
+    const prevOverridePrice = overridePriceLocal;
+    setOverriddenLocal(true);
+    setOverridePriceLocal(value);
+    fireAction(
+      () => setSessionCourtPriceOverride(sessionId, value),
+      () => {
+        setOverriddenLocal(prevOverridden);
+        setOverridePriceLocal(prevOverridePrice);
+      },
+    );
+  }
+
+  function handleOverrideReset() {
+    const prevOverridden = overriddenLocal;
+    const prevOverridePrice = overridePriceLocal;
+    setOverriddenLocal(false);
+    setOverridePriceLocal(null);
+    fireAction(
+      () => setSessionCourtPriceOverride(sessionId, null),
+      () => {
+        setOverriddenLocal(prevOverridden);
+        setOverridePriceLocal(prevOverridePrice);
+      },
+    );
   }
 
   if (courts.length === 0) {
@@ -127,7 +196,13 @@ export function CourtSelector({
   }
 
   const selectedCourt = courts.find((c) => c.id === localCourtId);
-  const totalPrice = selectedCourt ? totalForCourt(selectedCourt, quantity) : 0;
+  const autoPrice = selectedCourt ? totalForCourt(selectedCourt, quantity) : 0;
+  // Hiển thị giá override nếu có, ngược lại fallback auto. Truyền `autoPrice`
+  // làm "Mặc định" trong sheet để admin biết giá nào sẽ áp dụng khi Reset.
+  const displayPrice =
+    overriddenLocal && overridePriceLocal !== null
+      ? overridePriceLocal
+      : autoPrice;
 
   return (
     <div>
@@ -161,11 +236,52 @@ export function CourtSelector({
           />
         </button>
         {/* Min-w cố định để price column luôn cùng kích thước → trigger button
-            cùng width dù giá khác nhau (court vs shuttle vs other rows). */}
-        <span className="text-primary inline-block min-w-20 shrink-0 text-right text-base font-bold tabular-nums">
-          {selectedCourt ? formatK(totalPrice) : ""}
-        </span>
+            cùng width dù giá khác nhau (court vs shuttle vs other rows).
+            Icon ✏️ inline để admin override giá sân thủ công cho buổi này. */}
+        <button
+          type="button"
+          onClick={() => selectedCourt && setOverrideOpen(true)}
+          disabled={!selectedCourt}
+          className={cn(
+            "group inline-flex min-w-20 shrink-0 items-center justify-end gap-1 rounded-lg px-1 py-0.5 text-right text-base font-bold tabular-nums transition-colors",
+            overriddenLocal
+              ? "text-amber-600 dark:text-amber-400"
+              : "text-primary",
+            selectedCourt && "hover:bg-muted/60",
+            !selectedCourt && "cursor-not-allowed opacity-50",
+          )}
+          aria-label={tOverride("courtAria")}
+        >
+          {selectedCourt && (
+            <Pencil
+              className={cn(
+                "h-3 w-3 shrink-0 transition-opacity",
+                overriddenLocal
+                  ? "opacity-90"
+                  : "opacity-40 group-hover:opacity-90",
+              )}
+            />
+          )}
+          <span>{selectedCourt ? formatK(displayPrice) : ""}</span>
+        </button>
       </div>
+      {overriddenLocal && selectedCourt && (
+        <p className="mt-1 text-right text-xs text-amber-600 dark:text-amber-400">
+          {tOverride("courtCustomCaption", { amount: formatK(autoPrice) })}
+        </p>
+      )}
+
+      <PriceOverrideSheet
+        open={overrideOpen}
+        onOpenChange={setOverrideOpen}
+        title={tOverride("courtTitle")}
+        inputLabel={tOverride("courtInputLabel")}
+        currentValue={displayPrice}
+        defaultValue={autoPrice}
+        isOverridden={overriddenLocal}
+        onSave={handleOverrideSave}
+        onReset={handleOverrideReset}
+      />
 
       {open &&
         createPortal(

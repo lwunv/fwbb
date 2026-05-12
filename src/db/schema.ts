@@ -61,6 +61,15 @@ export const sessions = sqliteTable(
     courtId: integer("court_id").references(() => courts.id),
     courtQuantity: integer("court_quantity").default(1),
     courtPrice: integer("court_price"),
+    /**
+     * Khi `true`, admin đã override `courtPrice` thủ công cho buổi này — các
+     * action defensive-recompute (`selectCourt` đổi qty/sân, `confirmSession`)
+     * sẽ giữ nguyên `courtPrice` thay vì tính lại theo formula. Reset về
+     * `false` khi admin đổi sân hoặc số sân (intent đổi → quay lại auto).
+     */
+    courtPriceOverridden: integer("court_price_overridden", {
+      mode: "boolean",
+    }).default(false),
     status: text("status", {
       enum: ["voting", "confirmed", "completed", "cancelled"],
     }).default("voting"),

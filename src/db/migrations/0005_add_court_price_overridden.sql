@@ -1,0 +1,1 @@
+ALTER TABLE `sessions` ADD `court_price_overridden` integer DEFAULT false;

@@ -838,5 +838,18 @@
     "toastInvalidTubes": "Invalid tube count",
     "toastInvalidPrice": "Invalid price per tube",
     "toastBuySuccess": "Shuttlecock purchase recorded {amount}"
+  },
+  "priceOverride": {
+    "courtAria": "Edit court fee",
+    "courtTitle": "Override court fee for this session",
+    "courtInputLabel": "Total court fee (VND)",
+    "courtCustomCaption": "Custom court fee · default {amount}",
+    "shuttleAria": "Edit price for {brand}",
+    "shuttleTitle": "Override shuttlecock price — {brand}",
+    "shuttleInputLabel": "Price per tube (VND)",
+    "shuttleCustomSuffix": "{amount}/tube",
+    "defaultHint": "Default: {amount}",
+    "customSuffix": "· Using custom price",
+    "resetButton": "Reset to default"
   }
 }

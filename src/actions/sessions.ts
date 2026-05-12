@@ -46,6 +46,8 @@ import {
   selectCourtSchema,
   addShuttlecockSchema,
   adminGuestCountSchema,
+  courtPriceOverrideSchema,
+  shuttlecockPriceOverrideSchema,
 } from "@/lib/validators";
 import { getTranslations } from "next-intl/server";
 
@@ -311,12 +313,15 @@ export async function selectCourt(
     defaultCourtId: defaultCourt?.id ?? null,
   });
 
+  // Đổi sân / số sân = intent dùng lại formula → clear override flag.
+  // Nếu admin muốn override, họ sẽ bấm "Sửa giá" sau khi đã chọn sân.
   await db
     .update(sessions)
     .set({
       courtId: data.courtId,
       courtQuantity: Math.max(1, data.courtQuantity),
       courtPrice: totalCourtPrice,
+      courtPriceOverridden: false,
       updatedAt: new Date().toISOString(),
     })
     .where(eq(sessions.id, data.sessionId));
@@ -350,20 +355,26 @@ export async function confirmSession(sessionId: number) {
   // time admin chính thức chốt → recompute để courtPrice = giá hiện tại
   // theo formula (sân default trên ngày T2/T4/T6 = monthly, sân thứ 2 +
   // sân ngày khác = retail). Buổi mở thêm với 1 sân lẻ → pure retail.
+  //
+  // EXCEPTION: nếu admin đã `setSessionCourtPriceOverride` (cờ
+  // `courtPriceOverridden = true`), giữ nguyên `courtPrice` đã lưu — không
+  // recompute, để không ghi đè giá thủ công admin vừa nhập.
   const [court, defaultCourt] = await Promise.all([
     db.query.courts.findFirst({ where: eq(courts.id, session.courtId) }),
     getDefaultCourt(),
   ]);
-  const recomputedCourtPrice = court
-    ? computeCourtTotal({
-        monthlyPrice: court.pricePerSession,
-        retailPrice: court.pricePerSessionRetail,
-        courtQuantity: session.courtQuantity ?? 1,
-        sessionDate: session.date,
-        selectedCourtId: session.courtId,
-        defaultCourtId: defaultCourt?.id ?? null,
-      })
-    : (session.courtPrice ?? 0);
+  const recomputedCourtPrice = session.courtPriceOverridden
+    ? (session.courtPrice ?? 0)
+    : court
+      ? computeCourtTotal({
+          monthlyPrice: court.pricePerSession,
+          retailPrice: court.pricePerSessionRetail,
+          courtQuantity: session.courtQuantity ?? 1,
+          sessionDate: session.date,
+          selectedCourtId: session.courtId,
+          defaultCourtId: defaultCourt?.id ?? null,
+        })
+      : (session.courtPrice ?? 0);
 
   await db
     .update(sessions)
@@ -1010,6 +1021,161 @@ export async function removeSessionShuttlecock(id: number) {
 
   await db.delete(sessionShuttlecocks).where(eq(sessionShuttlecocks.id, id));
   revalidatePath(`/admin/sessions/${record.sessionId}`);
+  return { success: true };
+}
+
+/**
+ * Override tiền sân thủ công cho 1 buổi. `customPrice = null` → reset về auto
+ * (recompute theo formula `computeCourtTotal` ngay lập tức từ court hiện tại).
+ *
+ * Guard: chặn nếu buổi `completed`/`cancelled` — admin phải `unlockSession` /
+ * `reopenSession` trước. Đây là pattern chung cho mọi cost-affecting action,
+ * giữ invariant "debts khớp với cost calculation hiện tại". Khi buổi đã chốt
+ * sổ, đổi giá → finalize lại sẽ tự reverse `fund_deduction` cũ qua
+ * `reversalOfId` (xem `finance.ts`).
+ */
+export async function setSessionCourtPriceOverride(
+  sessionId: number,
+  customPrice: number | null,
+) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
+
+  const parsed = courtPriceOverrideSchema.safeParse({ sessionId, customPrice });
+  if (!parsed.success) {
+    return {
+      error:
+        parsed.error.issues[0]?.message ?? t("invalidData", { detail: "" }),
+    };
+  }
+  const data = parsed.data;
+
+  const session = await db.query.sessions.findFirst({
+    where: eq(sessions.id, data.sessionId),
+    columns: {
+      status: true,
+      courtId: true,
+      courtQuantity: true,
+      date: true,
+      courtPrice: true,
+    },
+  });
+  if (!session) return { error: t("sessionNotFound") };
+  const editGuard = assertEditable(session.status as SessionStatus);
+  if (!editGuard.ok) return { error: editGuard.error };
+
+  // Reset → recompute từ formula.
+  if (data.customPrice === null) {
+    if (!session.courtId) {
+      // Chưa chọn sân → không có gì để recompute, chỉ clear flag.
+      await db
+        .update(sessions)
+        .set({
+          courtPriceOverridden: false,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(sessions.id, data.sessionId));
+    } else {
+      const [court, defaultCourt] = await Promise.all([
+        db.query.courts.findFirst({ where: eq(courts.id, session.courtId) }),
+        getDefaultCourt(),
+      ]);
+      const autoPrice = court
+        ? computeCourtTotal({
+            monthlyPrice: court.pricePerSession,
+            retailPrice: court.pricePerSessionRetail,
+            courtQuantity: session.courtQuantity ?? 1,
+            sessionDate: session.date,
+            selectedCourtId: session.courtId,
+            defaultCourtId: defaultCourt?.id ?? null,
+          })
+        : (session.courtPrice ?? 0);
+      await db
+        .update(sessions)
+        .set({
+          courtPrice: autoPrice,
+          courtPriceOverridden: false,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(sessions.id, data.sessionId));
+    }
+  } else {
+    await db
+      .update(sessions)
+      .set({
+        courtPrice: data.customPrice,
+        courtPriceOverridden: true,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(sessions.id, data.sessionId));
+  }
+
+  revalidatePath("/admin/sessions");
+  revalidatePath(`/admin/sessions/${data.sessionId}`);
+  return { success: true };
+}
+
+/**
+ * Override giá/ống của 1 row `sessionShuttlecocks` đã có. `customPricePerTube
+ * = null` → reset về giá hãng hiện tại (snapshot lại từ `shuttlecockBrands`).
+ *
+ * Lý do dùng `sessionShuttlecockId` thay vì `(sessionId, brandId)`: row đã
+ * tồn tại (admin đã add brand vào buổi rồi mới override giá), client luôn
+ * biết row.id. Giảm 1 query lookup ở server và rõ ràng "edit này nhằm vào
+ * row nào".
+ */
+export async function setSessionShuttlecockPriceOverride(
+  sessionShuttlecockId: number,
+  customPricePerTube: number | null,
+) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
+
+  const parsed = shuttlecockPriceOverrideSchema.safeParse({
+    sessionShuttlecockId,
+    customPricePerTube,
+  });
+  if (!parsed.success) {
+    return {
+      error:
+        parsed.error.issues[0]?.message ?? t("invalidData", { detail: "" }),
+    };
+  }
+  const data = parsed.data;
+
+  const row = await db.query.sessionShuttlecocks.findFirst({
+    where: eq(sessionShuttlecocks.id, data.sessionShuttlecockId),
+  });
+  if (!row) return { error: t("notFound") };
+
+  const sessionRow = await db.query.sessions.findFirst({
+    where: eq(sessions.id, row.sessionId),
+    columns: { status: true },
+  });
+  if (!sessionRow) return { error: t("sessionNotFound") };
+  const editGuard = assertEditable(sessionRow.status as SessionStatus);
+  if (!editGuard.ok) return { error: editGuard.error };
+
+  let newPrice: number;
+  if (data.customPricePerTube === null) {
+    // Reset → snapshot lại giá hãng hiện tại.
+    const brand = await db.query.shuttlecockBrands.findFirst({
+      where: eq(shuttlecockBrands.id, row.brandId),
+    });
+    if (!brand) return { error: t("brandNotFound") };
+    newPrice = brand.pricePerTube;
+  } else {
+    newPrice = data.customPricePerTube;
+  }
+
+  await db
+    .update(sessionShuttlecocks)
+    .set({ pricePerTube: newPrice })
+    .where(eq(sessionShuttlecocks.id, data.sessionShuttlecockId));
+
+  revalidatePath(`/admin/sessions/${row.sessionId}`);
   return { success: true };
 }
 

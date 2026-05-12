@@ -838,5 +838,18 @@
     "toastInvalidTubes": "Số ống không hợp lệ",
     "toastInvalidPrice": "Giá / ống không hợp lệ",
     "toastBuySuccess": "Đã ghi nhận mua cầu {amount}"
+  },
+  "priceOverride": {
+    "courtAria": "Sửa tiền sân",
+    "courtTitle": "Sửa tiền sân buổi này",
+    "courtInputLabel": "Tổng tiền sân (VND)",
+    "courtCustomCaption": "Tiền sân tùy chỉnh · mặc định {amount}",
+    "shuttleAria": "Sửa giá {brand}",
+    "shuttleTitle": "Sửa giá cầu — {brand}",
+    "shuttleInputLabel": "Giá / ống (VND)",
+    "shuttleCustomSuffix": "{amount}/ống",
+    "defaultHint": "Mặc định: {amount}",
+    "customSuffix": "· Đang dùng giá tùy chỉnh",
+    "resetButton": "Về mặc định"
   }
 }
