@@ -12,7 +12,7 @@ import {
   AlertTriangle,
   CheckCircle2,
 } from "lucide-react";
-import { formatVND, cn } from "@/lib/utils";
+import { formatK, cn } from "@/lib/utils";
 import { reconcileFund, type ReconcileReport } from "@/actions/reconcile-fund";
 
 export function ReconcilePanel() {
@@ -83,29 +83,29 @@ export function ReconcilePanel() {
             <div className="grid gap-2 sm:grid-cols-2">
               <InfoRow
                 label={t("reconcileTotalIn")}
-                value={formatVND(report.totals.totalIn)}
+                value={formatK(report.totals.totalIn)}
               />
               <InfoRow
                 label={t("reconcileTotalOut")}
-                value={formatVND(report.totals.totalOut)}
+                value={formatK(report.totals.totalOut)}
               />
               <InfoRow
                 label={t("reconcileTotalRefund")}
-                value={formatVND(report.totals.totalRefund)}
+                value={formatK(report.totals.totalRefund)}
               />
               <InfoRow
                 label={t("reconcileBalanceFromTx")}
-                value={formatVND(report.totals.netInternal)}
+                value={formatK(report.totals.netInternal)}
                 valueClassName="text-primary"
               />
               <InfoRow
                 label={t("reconcileSumPositive")}
-                value={formatVND(report.totals.sumPositiveBalances)}
+                value={formatK(report.totals.sumPositiveBalances)}
                 valueClassName="text-green-600 dark:text-green-400"
               />
               <InfoRow
                 label={t("reconcileSumNegative")}
-                value={formatVND(report.totals.sumNegativeBalances)}
+                value={formatK(report.totals.sumNegativeBalances)}
                 valueClassName="text-destructive"
               />
             </div>

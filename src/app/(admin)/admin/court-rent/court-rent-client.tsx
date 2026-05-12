@@ -22,7 +22,7 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { StatTile } from "@/components/shared/stat-tile";
 import { InlineNotice } from "@/components/shared/inline-notice";
-import { formatVND, formatK, cn } from "@/lib/utils";
+import { formatK, cn } from "@/lib/utils";
 import { fireAction } from "@/lib/optimistic-action";
 import {
   getCourtRentReport,
@@ -345,6 +345,32 @@ export function CourtRentClient({
         />
       </div>
 
+      {/* Orphan warning — court_rent_payment với metadata thiếu/lỗi targetMonth
+          không được tính vào tháng nào, trước đây silent skip → tiền biến mất.
+          Giờ list ra để admin biết và set lại metadata hoặc xoá. */}
+      {report.orphanedPayments.length > 0 && (
+        <InlineNotice tone="warning" icon={AlertTriangle}>
+          <div className="space-y-1">
+            <p className="font-semibold">
+              {t("orphanWarningTitle", {
+                count: report.orphanedPayments.length,
+              })}
+            </p>
+            <ul className="list-disc space-y-0.5 pl-5 text-xs">
+              {report.orphanedPayments.map((o) => (
+                <li key={o.id} className="tabular-nums">
+                  #{o.id} · {formatK(o.amount)} ·{" "}
+                  {o.reason === "no_target_month"
+                    ? t("orphanReasonNoTargetMonth")
+                    : t("orphanReasonOutOfYear")}
+                  {o.description ? ` — ${o.description}` : ""}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </InlineNotice>
+      )}
+
       {/* Year totals — `remaining` có thể âm khi overpayment (admin trả vượt
           expectedTotal). Khi âm: hiện "Trả thừa" tone amber thay vì "Còn lại"
           red, để admin biết và cân nhắc rút bớt thay vì lặng lẽ clamp về 0. */}
@@ -352,34 +378,34 @@ export function CourtRentClient({
         <StatTile
           icon={TrendingUp}
           label={t("yearExpected")}
-          value={formatVND(report.yearTotal.expected)}
+          value={formatK(report.yearTotal.expected)}
           tone="primary"
         />
         <StatTile
           icon={CheckCircle2}
           label={t("yearPaid")}
-          value={formatVND(report.yearTotal.paid)}
+          value={formatK(report.yearTotal.paid)}
           tone="green"
         />
         {report.yearTotal.remaining < 0 ? (
           <StatTile
             icon={AlertTriangle}
             label={t("yearOverpaid")}
-            value={`+${formatVND(-report.yearTotal.remaining)}`}
+            value={`+${formatK(-report.yearTotal.remaining)}`}
             tone="amber"
           />
         ) : (
           <StatTile
             icon={AlertTriangle}
             label={t("yearRemaining")}
-            value={formatVND(report.yearTotal.remaining)}
+            value={formatK(report.yearTotal.remaining)}
             tone={report.yearTotal.remaining > 0 ? "red" : "neutral"}
           />
         )}
         <StatTile
           icon={TrendingDown}
           label={t("passRevenue")}
-          value={formatVND(report.yearTotal.passRevenue)}
+          value={formatK(report.yearTotal.passRevenue)}
           tone="amber"
         />
       </div>
@@ -595,11 +621,7 @@ export function CourtRentClient({
               <Input
                 type="text"
                 inputMode="numeric"
-                value={
-                  formAmount
-                    ? Number(formAmount).toLocaleString(dateLocale)
-                    : ""
-                }
+                value={formAmount ? formatK(Number(formAmount)) : ""}
                 onChange={(e) => {
                   const digits = e.target.value.replace(/\D/g, "");
                   setFormAmount(digits);
@@ -657,7 +679,7 @@ export function CourtRentClient({
                   >
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium">
-                        {formatVND(p.amount)}
+                        {formatK(p.amount)}
                         {p.courtName && (
                           <span className="text-muted-foreground ml-2 text-xs font-normal">
                             ({p.courtName})

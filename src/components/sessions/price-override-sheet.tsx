@@ -17,7 +17,7 @@ import {
   SheetTitle,
   SheetFooter,
 } from "@/components/ui/sheet";
-import { formatVND } from "@/lib/utils";
+import { formatK } from "@/lib/utils";
 import { Minus, Pencil, Plus, RotateCcw } from "lucide-react";
 
 interface PriceOverrideSheetProps {
@@ -150,7 +150,7 @@ function OverrideBody({
         </button>
       </div>
       <p className="text-muted-foreground text-xs">
-        {t("defaultHint", { amount: formatVND(defaultValue) })}
+        {t("defaultHint", { amount: formatK(defaultValue) })}
         {isOverridden ? ` ${t("customSuffix")}` : ""}
       </p>
     </div>

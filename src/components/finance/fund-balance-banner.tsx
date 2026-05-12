@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertCircle, PiggyBank, ArrowRight, ChevronDown } from "lucide-react";
-import { formatVND, cn } from "@/lib/utils";
+import { formatK, cn } from "@/lib/utils";
 import { FundTopUpCard } from "@/components/finance/fund-topup-card";
 
 /**
@@ -72,7 +72,7 @@ export function FundBalanceBanner({
         </p>
         {isOwing && (
           <p className="text-destructive mt-1 text-base font-bold tabular-nums">
-            {formatVND(debtAmount)}
+            {formatK(debtAmount)}
           </p>
         )}
         <p className="text-muted-foreground mt-1 text-xs">

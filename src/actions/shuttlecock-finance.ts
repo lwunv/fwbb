@@ -10,6 +10,7 @@ import {
 import { desc, eq } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth";
 import { calculateExactShuttlecockCost } from "@/lib/cost-calculator";
+import { roundToThousand } from "@/lib/utils";
 
 export interface ShuttlecockFinanceSummary {
   totalSpent: number; // admin's outlay on purchases
@@ -84,8 +85,12 @@ export async function getShuttlecockFinanceSummary(): Promise<ShuttlecockFinance
     totalQuaUsed += u.quantityUsed;
   }
 
-  // Round revenue to integer VND for display consistency.
-  totalRevenue = Math.round(totalRevenue);
+  // Revenue = số tiền admin THỰC TẾ thu được từ member cho cầu. Member bị
+  // charge qua `calculateShuttlecockCost` (round UP to 1k), nên admin nhận
+  // ≥ exact cost. Dùng `roundToThousand` thay vì `Math.round` để match đúng
+  // số đã charge (Math.round có thể trả về số THẤP hơn thực thu → report
+  // underestimate admin's actual revenue).
+  totalRevenue = roundToThousand(totalRevenue);
 
   return {
     totalSpent,
@@ -159,7 +164,7 @@ export async function getUsageHistory(limit = 100): Promise<UsageRow[]> {
     brandName: r.brandName ?? "—",
     quantityUsed: r.quantityUsed,
     pricePerTube: r.pricePerTube,
-    exactRevenue: Math.round(
+    exactRevenue: roundToThousand(
       calculateExactShuttlecockCost(r.quantityUsed, r.pricePerTube),
     ),
   }));

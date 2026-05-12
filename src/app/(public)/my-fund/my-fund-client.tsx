@@ -2,7 +2,7 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { motion } from "framer-motion";
-import { formatVND } from "@/lib/utils";
+import { formatK } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { FundTopUpCard } from "@/components/finance/fund-topup-card";
 import {
@@ -81,7 +81,7 @@ export function MyFundClient({ balance, transactions, memberId }: Props) {
                         : "text-muted-foreground"
                   }`}
                 >
-                  {formatVND(balance.balance)}
+                  {formatK(balance.balance)}
                 </span>
                 <p className="text-muted-foreground mt-1 text-sm">
                   {balance.balance < 0
@@ -99,7 +99,7 @@ export function MyFundClient({ balance, transactions, memberId }: Props) {
                     {t("contributed")}
                   </p>
                   <p className="text-base font-semibold">
-                    {formatVND(balance.totalContributions)}
+                    {formatK(balance.totalContributions)}
                   </p>
                 </div>
                 <div>
@@ -108,7 +108,7 @@ export function MyFundClient({ balance, transactions, memberId }: Props) {
                     {t("deducted")}
                   </p>
                   <p className="text-base font-semibold">
-                    {formatVND(balance.totalDeductions)}
+                    {formatK(balance.totalDeductions)}
                   </p>
                 </div>
               </div>
@@ -188,7 +188,7 @@ export function MyFundClient({ balance, transactions, memberId }: Props) {
                       className={`font-bold ${tx.type === "fund_contribution" ? "text-green-500" : "text-foreground"}`}
                     >
                       {tx.type === "fund_contribution" ? "+" : "-"}
-                      {formatVND(tx.amount)}
+                      {formatK(tx.amount)}
                     </p>
                   </div>
                 </div>

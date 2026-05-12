@@ -363,18 +363,36 @@ export async function confirmSession(sessionId: number) {
     db.query.courts.findFirst({ where: eq(courts.id, session.courtId) }),
     getDefaultCourt(),
   ]);
-  const recomputedCourtPrice = session.courtPriceOverridden
-    ? (session.courtPrice ?? 0)
-    : court
-      ? computeCourtTotal({
-          monthlyPrice: court.pricePerSession,
-          retailPrice: court.pricePerSessionRetail,
-          courtQuantity: session.courtQuantity ?? 1,
-          sessionDate: session.date,
-          selectedCourtId: session.courtId,
-          defaultCourtId: defaultCourt?.id ?? null,
-        })
-      : (session.courtPrice ?? 0);
+
+  let recomputedCourtPrice: number;
+  if (session.courtPriceOverridden) {
+    // Admin đã override → giữ nguyên `session.courtPrice` (đã set bởi
+    // `setSessionCourtPriceOverride`, không bao giờ NULL).
+    if (session.courtPrice == null) {
+      return {
+        error:
+          "Buổi này đã đánh dấu override giá sân nhưng courtPrice bị NULL — không thể chốt. Bấm 'Sửa giá' để set lại.",
+      };
+    }
+    recomputedCourtPrice = session.courtPrice;
+  } else if (court) {
+    recomputedCourtPrice = computeCourtTotal({
+      monthlyPrice: court.pricePerSession,
+      retailPrice: court.pricePerSessionRetail,
+      courtQuantity: session.courtQuantity ?? 1,
+      sessionDate: session.date,
+      selectedCourtId: session.courtId,
+      defaultCourtId: defaultCourt?.id ?? null,
+    });
+  } else {
+    // Court đã bị xóa nhưng session vẫn ref → trước đây fallback `?? 0`
+    // silent, làm finalize chia per-head bằng 0 → debts toàn 0đ cho phần
+    // sân. Phải error rõ để admin xử lý (chọn lại sân hoặc override giá).
+    return {
+      error:
+        "Sân của buổi này không còn tồn tại — vui lòng chọn lại sân trước khi chốt sổ",
+    };
+  }
 
   await db
     .update(sessions)
@@ -648,6 +666,10 @@ export async function unlockSession(sessionId: number) {
             reversalOfId: ftx.id,
             description: `Hoàn lại trừ quỹ khi mở lại buổi ${session.date}`,
             metadata: { source: "session_unlocked", sessionId },
+            // Defence-in-depth: ngoài `reversalOfId` guard + check
+            // `alreadyReversed` ở trên, vẫn set explicit key để DB UNIQUE
+            // chặn double-insert nếu logic guard bị refactor mất.
+            idempotencyKey: `unlock-reverse-${ftx.id}`,
           },
           tx,
         );

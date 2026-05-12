@@ -31,6 +31,16 @@ export interface FundDeductionResult {
  *
  * Callers passing only `{type, amount}` (legacy/tests) get the same result as
  * before because the void-pair filter is no-op without id/reversalOfId info.
+ *
+ * ⚠ INVARIANT — bank_payment_received KHÔNG cộng vào balance ở đây.
+ * Mỗi lần `payment-matcher` ghi `bank_payment_received` (audit/source of
+ * truth), nó BẮT BUỘC ghi kèm 1 `fund_contribution` paired để balance member
+ * mới update (xem `payment-matcher.ts` các chỗ `idempotencyKey:
+ * "bank-payment-balance-..."`). Nếu tương lai ai đó insert
+ * `bank_payment_received` mà QUÊN row `fund_contribution` đi kèm → balance
+ * sẽ drift. Reconcile invariant I8 catch được phần debt-confirm flag nhưng
+ * không catch trực tiếp việc thiếu paired row → khi refactor matcher phải
+ * giữ pattern paired insert.
  */
 export function computeBalanceFromTransactions(
   memberId: number,

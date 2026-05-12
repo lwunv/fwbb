@@ -402,7 +402,7 @@ export function FundDashboard({
           <StatTile
             icon={Banknote}
             label={t("cardCashOnHand")}
-            value={formatVND(localOverview.cashOnHand)}
+            value={formatK(localOverview.cashOnHand)}
             tone={localOverview.cashOnHand >= 0 ? "primary" : "red"}
           />
         </motion.div>
@@ -413,7 +413,7 @@ export function FundDashboard({
           <StatTile
             icon={TrendingUp}
             label={t("cardContributed")}
-            value={formatVND(localOverview.totalContributions)}
+            value={formatK(localOverview.totalContributions)}
             tone="blue"
           />
         </motion.div>
@@ -424,7 +424,7 @@ export function FundDashboard({
           <StatTile
             icon={TrendingDown}
             label={t("cardGroupExpense")}
-            value={formatVND(localOverview.totalGroupExpenses)}
+            value={formatK(localOverview.totalGroupExpenses)}
             tone="orange"
           />
         </motion.div>
@@ -439,7 +439,7 @@ export function FundDashboard({
                 ? `Nợ chưa thu (${owingCount} người)`
                 : "Nợ chưa thu"
             }
-            value={formatVND(totalOutstanding)}
+            value={formatK(totalOutstanding)}
             tone={totalOutstanding > 0 ? "red" : "neutral"}
           />
         </motion.div>
@@ -807,7 +807,7 @@ export function FundDashboard({
                       {t("totalLabel")}
                     </span>
                     <span className="text-base font-bold tabular-nums">
-                      {formatVND(bsTotal)}
+                      {formatK(bsTotal)}
                     </span>
                   </div>
                   <div className="flex gap-2 pt-2">

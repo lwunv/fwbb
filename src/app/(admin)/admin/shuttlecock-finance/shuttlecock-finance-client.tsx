@@ -20,7 +20,7 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { SearchInput } from "@/components/shared/search-input";
 import { StatTile } from "@/components/shared/stat-tile";
-import { formatVND, formatK, cn } from "@/lib/utils";
+import { formatK, cn } from "@/lib/utils";
 import { formatSessionDate } from "@/lib/date-format";
 import { fireAction } from "@/lib/optimistic-action";
 import { recordPurchase } from "@/actions/inventory";
@@ -141,7 +141,7 @@ export function ShuttlecockFinanceClient({
         setLocalSummary(prevSum);
         setLocalPurchases(prevList);
       },
-      { successMsg: t("toastBuySuccess", { amount: formatVND(total) }) },
+      { successMsg: t("toastBuySuccess", { amount: formatK(total) }) },
     );
     setShowBuy(false);
     setBsTubes(1);
@@ -193,19 +193,19 @@ export function ShuttlecockFinanceClient({
         <StatTile
           icon={TrendingDown}
           label={t("statSpent")}
-          value={formatVND(localSummary.totalSpent)}
+          value={formatK(localSummary.totalSpent)}
           tone="orange"
         />
         <StatTile
           icon={TrendingUp}
           label={t("statRevenue")}
-          value={formatVND(localSummary.totalRevenue)}
+          value={formatK(localSummary.totalRevenue)}
           tone="green"
         />
         <StatTile
           icon={Banknote}
           label={localSummary.netProfit >= 0 ? t("statProfit") : t("statLoss")}
-          value={formatVND(localSummary.netProfit)}
+          value={formatK(localSummary.netProfit)}
           tone={profitTone}
         />
         <StatTile
@@ -467,7 +467,7 @@ export function ShuttlecockFinanceClient({
                       {t("totalLabel")}
                     </span>
                     <span className="text-base font-bold tabular-nums">
-                      {formatVND(bsTotal)}
+                      {formatK(bsTotal)}
                     </span>
                   </div>
                   <div className="flex gap-2 pt-2">

@@ -60,6 +60,14 @@ export const sessions = sqliteTable(
     endTime: text("end_time").default("22:30"),
     courtId: integer("court_id").references(() => courts.id),
     courtQuantity: integer("court_quantity").default(1),
+    /**
+     * Tổng tiền sân buổi này. NULL khi chưa chọn sân (session vừa tạo).
+     * Sau khi `selectCourt` chạy, luôn ≥ 0 (computeCourtTotal trả non-negative)
+     * hoặc bằng giá admin override (validate `moneyVnd ≥ 0` trong zod
+     * `courtPriceOverrideSchema`). Không có CHECK constraint ở DB vì SQLite
+     * ALTER TABLE không support ADD CHECK gọn — invariant này được giữ ở
+     * app layer (mọi write path đều qua zod validate).
+     */
     courtPrice: integer("court_price"),
     /**
      * Khi `true`, admin đã override `courtPrice` thủ công cho buổi này — các

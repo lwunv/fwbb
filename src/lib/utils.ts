@@ -18,18 +18,19 @@ export function roundToThousand(amount: number): number {
 }
 
 /**
- * Format amount as integer VND with vi-VN thousand separators (dots), rounded
- * UP to nearest 1k (financial safety — admin không bao giờ bị thiệt).
+ * Format integer VND với vi-VN thousand separators (dấu chấm), KHÔNG round,
+ * KHÔNG kèm "₫"/"VND". Caller tự thêm suffix nếu cần.
  *
- * Examples: `formatK(214000)` → "214.000", `formatK(24555)` → "25.000",
- * `formatK(330000)` → "330.000". Không kèm hậu tố "đ"/"VND" để dùng linh
- * hoạt — caller tự thêm nếu cần.
+ * Examples: `formatK(214000)` → "214.000", `formatK(330000)` → "330.000",
+ * `formatK(217500)` → "217.500". Trước đây hàm này round UP-to-1k để "bảo
+ * vệ" admin khỏi underpay, nhưng việc đó đã làm ở layer cost-calculator
+ * (`roundToThousand` trong `calculateSessionCosts`). Round 2 lần ở display
+ * gây drift khi hiển thị ledger amounts (vd fund_contribution 217.500 →
+ * display 218.000 trong khi DB lưu chính xác 217.500). Giờ pure format,
+ * round chỉ ở chỗ tính cost, không lặp.
  *
- * Name giữ là `formatK` vì semantic round-UP-to-K không đổi, chỉ display
- * form đổi từ "330k" → "330.000" để dễ đọc khi số lớn (yêu cầu UX
- * 2026-05-12).
+ * Name giữ là `formatK` vì 27+ call-sites đã quen — đổi tên = noise.
  */
 export function formatK(amount: number): string {
-  const rounded = Math.ceil(amount / 1000) * 1000;
-  return rounded.toLocaleString("vi-VN");
+  return amount.toLocaleString("vi-VN");
 }

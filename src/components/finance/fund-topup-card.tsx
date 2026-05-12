@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { formatVND } from "@/lib/utils";
+import { formatK } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PaymentQR } from "@/components/payment/payment-qr";
@@ -110,7 +110,7 @@ export function FundTopUpCard({ memberId, debtAmount, bare = false }: Props) {
                   : "text-muted-foreground"
               }`}
             >
-              {hasDebt ? `Nợ ${formatVND(debtAmount)}` : "Không có nợ"}
+              {hasDebt ? `Nợ ${formatK(debtAmount)}` : "Không có nợ"}
             </span>
           </span>
         </button>

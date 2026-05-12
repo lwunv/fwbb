@@ -5,6 +5,7 @@ import { sessions, courts, financialTransactions } from "@/db/schema";
 import { eq, and, gte, lt, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
+import { recordFinancialTransaction } from "@/lib/financial-ledger";
 import { getTranslations } from "next-intl/server";
 
 export interface CourtRentMonthSummary {
@@ -26,6 +27,15 @@ export interface CourtRentMonthSummary {
   remaining: number;
 }
 
+export interface OrphanedPayment {
+  id: number;
+  amount: number;
+  description: string | null;
+  createdAt: string;
+  /** Lý do orphan: "no_target_month" | "out_of_year" */
+  reason: "no_target_month" | "out_of_year";
+}
+
 export interface CourtRentReport {
   year: number;
   months: CourtRentMonthSummary[];
@@ -35,6 +45,9 @@ export interface CourtRentReport {
     passRevenue: number;
     remaining: number;
   };
+  /** Payments không gán được vào tháng nào trong năm — admin cần review.
+   * Trước đây silent skip → tiền biến mất khỏi report mà không cảnh báo. */
+  orphanedPayments: OrphanedPayment[];
 }
 
 interface PaymentRow {
@@ -57,6 +70,7 @@ export async function getCourtRentReport(
       year,
       months: [],
       yearTotal: { expected: 0, paid: 0, passRevenue: 0, remaining: 0 },
+      orphanedPayments: [],
     };
   }
 
@@ -128,13 +142,36 @@ export async function getCourtRentReport(
     }
   }
 
+  // Track payments không gán được vào tháng nào trong năm hiện tại — để UI
+  // cảnh báo admin thay vì silent skip. Trường hợp:
+  //   - `targetMonth` thiếu/lỗi JSON → orphan reason="no_target_month".
+  //   - `targetMonth` thuộc năm khác → skip (đã có report năm đó).
+  const orphanedPayments: OrphanedPayment[] = [];
   for (const p of payments) {
     const target = metaTargetMonth(p.metadataJson);
-    if (!target) continue;
+    if (!target) {
+      orphanedPayments.push({
+        id: p.id,
+        amount: p.amount,
+        description: p.description,
+        createdAt: p.createdAt ?? "",
+        reason: "no_target_month",
+      });
+      continue;
+    }
     if (!target.startsWith(`${year}-`)) continue;
     const m = parseInt(target.slice(5, 7), 10);
     const summary = monthMap.get(m);
-    if (!summary) continue;
+    if (!summary) {
+      orphanedPayments.push({
+        id: p.id,
+        amount: p.amount,
+        description: p.description,
+        createdAt: p.createdAt ?? "",
+        reason: "out_of_year",
+      });
+      continue;
+    }
     summary.paidTotal += p.amount;
   }
 
@@ -163,6 +200,7 @@ export async function getCourtRentReport(
       passRevenue: passRevenueTotal,
       remaining: expected - paid,
     },
+    orphanedPayments,
   };
 }
 
@@ -269,42 +307,29 @@ export async function recordCourtRentPayment(input: {
     courtId = c.id;
   }
 
-  // Idempotent path: nếu key đã tồn tại → coi như replay, không insert lại.
-  const existing = await db.query.financialTransactions.findFirst({
-    where: eq(financialTransactions.idempotencyKey, input.idempotencyKey),
-    columns: { id: true },
-  });
-  if (existing) {
-    return { success: true, replayed: true };
-  }
-
+  // Đi qua `recordFinancialTransaction` helper để: (a) idempotency check + DB
+  // UNIQUE fallback cùng 1 đường code với mọi action khác, (b) validate
+  // `Number.isInteger(amount) && >= 0` (defence-in-depth dù đã guard ở trên),
+  // (c) metadata serialize chuẩn JSON. Trước đây inline `db.insert` bypass
+  // helper → mất defence layer.
   const targetMonth = `${input.year}-${String(input.month).padStart(2, "0")}`;
-  try {
-    await db.insert(financialTransactions).values({
-      type: "court_rent_payment",
-      direction: "out",
-      amount: input.amount,
-      memberId: null,
-      sessionId: null,
-      debtId: null,
-      description:
-        input.note ??
-        `Trả tiền sân tháng ${String(input.month).padStart(2, "0")}/${input.year}`,
-      metadataJson: JSON.stringify({
-        targetMonth,
-        courtId,
-      }),
-      idempotencyKey: input.idempotencyKey,
-    });
-  } catch {
-    // Race: concurrent insert với cùng key → DB UNIQUE chặn → coi là replay.
-    const winner = await db.query.financialTransactions.findFirst({
-      where: eq(financialTransactions.idempotencyKey, input.idempotencyKey),
-      columns: { id: true },
-    });
-    if (winner) return { success: true, replayed: true };
-    return { error: t("transactionWriteFailed") };
+  const r = await recordFinancialTransaction({
+    type: "court_rent_payment",
+    direction: "out",
+    amount: input.amount,
+    memberId: null,
+    sessionId: null,
+    debtId: null,
+    description:
+      input.note ??
+      `Trả tiền sân tháng ${String(input.month).padStart(2, "0")}/${input.year}`,
+    metadata: { targetMonth, courtId },
+    idempotencyKey: input.idempotencyKey,
+  });
+  if ("error" in r) {
+    return { error: r.error ?? t("transactionWriteFailed") };
   }
+  if (r.replayed) return { success: true, replayed: true };
 
   revalidatePath("/admin/court-rent");
   revalidatePath("/admin/finance");

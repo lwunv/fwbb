@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { SearchInput } from "@/components/shared/search-input";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { formatVND, cn } from "@/lib/utils";
+import { formatVND, formatK, cn } from "@/lib/utils";
 import { formatSessionDate } from "@/lib/date-format";
 import { fireAction } from "@/lib/optimistic-action";
 import { recordContribution, recordRefund } from "@/actions/fund";
@@ -329,7 +329,7 @@ export function FundReport({ fundMembers, transactions }: Props) {
                         balanceColor,
                       )}
                     >
-                      {formatVND(fm.balance.balance)}
+                      {formatK(fm.balance.balance)}
                     </span>
                     <StatusBadge
                       variant={status.variant}
@@ -411,7 +411,7 @@ export function FundReport({ fundMembers, transactions }: Props) {
                               >
                                 <Check className="h-4 w-4" />
                                 <span className="truncate">
-                                  Hết nợ {formatVND(-fm.balance.balance)}
+                                  Hết nợ {formatK(-fm.balance.balance)}
                                 </span>
                               </button>
                             )}
@@ -500,7 +500,7 @@ export function FundReport({ fundMembers, transactions }: Props) {
                                   )}
                                 >
                                   Lưu — {adjustSign === 1 ? "Cộng" : "Trừ"}{" "}
-                                  {formatVND(parseInt(adjustAmount, 10) || 0)}
+                                  {formatK(parseInt(adjustAmount, 10) || 0)}
                                 </motion.button>
                               )}
                           </AnimatePresence>
@@ -541,7 +541,7 @@ function SummaryTile({
     <div>
       <p className="text-muted-foreground text-xs">{label}</p>
       <p className={cn("text-sm font-bold tabular-nums", color)}>
-        {formatVND(value)}
+        {formatK(value)}
       </p>
     </div>
   );
@@ -587,7 +587,7 @@ function TxRow({ tx }: { tx: FundTransaction }) {
       </div>
       <p className={cn("text-sm font-bold tabular-nums", amountColor)}>
         {sign}
-        {formatVND(tx.amount)}
+        {formatK(tx.amount)}
       </p>
     </div>
   );

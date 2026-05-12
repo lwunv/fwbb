@@ -14,6 +14,7 @@ export type FinancialTransactionType =
   | "debt_admin_confirmed"
   | "debt_undo"
   | "inventory_purchase"
+  | "court_rent_payment"
   | "manual_adjustment"
   | "bank_payment_received";
 

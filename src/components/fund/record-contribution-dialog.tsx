@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { MemberAvatar } from "@/components/shared/member-avatar";
-import { formatK, formatVND } from "@/lib/utils";
+import { formatK } from "@/lib/utils";
 
 export interface RecordContributionMember {
   id: number;
@@ -153,7 +153,7 @@ export function RecordContributionDialog({
                       value: String(m.id),
                       label: `${m.nickname || m.name}${
                         typeof m.balance === "number"
-                          ? ` (${formatVND(m.balance)})`
+                          ? ` (${formatK(m.balance)})`
                           : ""
                       }`,
                     }))}
