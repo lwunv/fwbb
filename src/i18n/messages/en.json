@@ -337,6 +337,7 @@
     "courtRentExpected": "Expected",
     "courtRentPaid": "Paid",
     "courtRentRemaining": "Remaining",
+    "courtRentOverpaid": "Overpaid",
     "sessionsThisMonthDetail": "{sessions} sessions · {completed} finalized",
     "owingMembersTitle": "Members owing the fund",
     "owingSummary": "{count} people · total",

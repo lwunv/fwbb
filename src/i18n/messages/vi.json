@@ -337,6 +337,7 @@
     "courtRentExpected": "Cần trả",
     "courtRentPaid": "Đã trả",
     "courtRentRemaining": "Còn lại",
+    "courtRentOverpaid": "Trả thừa",
     "sessionsThisMonthDetail": "{sessions} buổi trong tháng · {completed} đã chốt",
     "owingMembersTitle": "Thành viên còn nợ quỹ",
     "owingSummary": "{count} người · tổng",

@@ -337,6 +337,7 @@
     "courtRentExpected": "应付",
     "courtRentPaid": "已付",
     "courtRentRemaining": "剩余",
+    "courtRentOverpaid": "多付",
     "sessionsThisMonthDetail": "{sessions} 场 · {completed} 已结算",
     "owingMembersTitle": "欠基金的成员",
     "owingSummary": "{count} 人 · 共",

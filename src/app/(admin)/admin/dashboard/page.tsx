@@ -15,6 +15,7 @@ import { mergeLegacyDebtsIntoFund } from "@/actions/merge-debt-fund";
 import { getStockByBrand } from "@/actions/inventory";
 import { getAdminUpcomingSession } from "@/actions/sessions";
 import { getSessionVotes } from "@/actions/votes";
+import { getCourtRentReport } from "@/actions/court-rent";
 import { DashboardClient } from "./dashboard-client";
 import {
   getAppName,
@@ -97,9 +98,6 @@ export default async function DashboardPage() {
   const completedSessionsThisMonth = monthSessions.filter(
     (s) => s.status === "completed",
   ).length;
-  const courtRentExpectedThisMonth = monthSessions
-    .filter((s) => s.status !== "cancelled")
-    .reduce((s, x) => s + (x.courtPrice ?? 0), 0);
 
   // Financial transactions this month — aggregate by type/direction
   // We use createdAt filter (gte VN month start in UTC ≈ same day) — small
@@ -128,28 +126,16 @@ export default async function DashboardPage() {
     }
   }
 
-  // Court-rent paid for THIS month — query all court_rent_payment with
-  // metadata.targetMonth = current month (regardless of when paid).
-  const allCourtRentPayments = await db.query.financialTransactions.findMany({
-    where: eq(financialTransactions.type, "court_rent_payment"),
-    columns: { amount: true, direction: true, metadataJson: true },
-  });
-  let courtRentPaidThisMonth = 0;
-  const monthKey = `${yearVN}-${String(monthVN).padStart(2, "0")}`;
-  for (const p of allCourtRentPayments) {
-    if (p.direction !== "out") continue;
-    if (!p.metadataJson) continue;
-    try {
-      const meta = JSON.parse(p.metadataJson) as { targetMonth?: unknown };
-      if (meta?.targetMonth === monthKey) courtRentPaidThisMonth += p.amount;
-    } catch {
-      // skip
-    }
-  }
-  const courtRentRemainingThisMonth = Math.max(
-    0,
-    courtRentExpectedThisMonth - courtRentPaidThisMonth,
-  );
+  // Court-rent stats — DELEGATE tới `getCourtRentReport` để dashboard và
+  // trang `/admin/court-rent` luôn cùng 1 nguồn truth. Trước đây inline tính
+  // sai 2 chỗ: (1) không dedupe payment đã reverse → đếm cả original lẫn
+  // reversal, (2) clamp remaining về ≥0 → ẩn overpayment. Delegation cũng
+  // tự nhiên respect `courtPriceOverridden` vì cả 2 đều đọc `session.courtPrice`.
+  const courtRentReport = await getCourtRentReport(yearVN);
+  const monthRent = courtRentReport.months.find((m) => m.month === monthVN);
+  const courtRentExpectedThisMonth = monthRent?.expectedTotal ?? 0;
+  const courtRentPaidThisMonth = monthRent?.paidTotal ?? 0;
+  const courtRentRemainingThisMonth = monthRent?.remaining ?? 0;
 
   // Recent financial transactions (last 5) — for activity feed
   const recentTxsRaw = await getRecentFinancialTransactions(5);

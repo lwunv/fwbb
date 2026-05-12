@@ -1036,12 +1036,22 @@ export function DashboardClient({
               <StatTile
                 tone="neutral"
                 size="sm"
-                label={td("courtRentRemaining")}
-                value={formatK(courtRentRemainingThisMonth)}
+                label={
+                  courtRentRemainingThisMonth < 0
+                    ? td("courtRentOverpaid")
+                    : td("courtRentRemaining")
+                }
+                value={
+                  courtRentRemainingThisMonth < 0
+                    ? `+${formatK(-courtRentRemainingThisMonth)}`
+                    : formatK(courtRentRemainingThisMonth)
+                }
                 valueClassName={cn(
                   courtRentRemainingThisMonth === 0
                     ? "text-blue-600 dark:text-blue-400"
-                    : "text-orange-600 dark:text-orange-400",
+                    : courtRentRemainingThisMonth < 0
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-orange-600 dark:text-orange-400",
                 )}
               />
             </div>
