@@ -164,9 +164,9 @@ export function computeBalancesForMembers(
     reversalOfId?: number | null;
   }>,
 ): Record<number, number> {
+  if (memberIds.length === 0) return {};
   const result: Record<number, number> = {};
   for (const id of memberIds) result[id] = 0;
-  if (memberIds.length === 0) return result;
 
   const wanted = new Set(memberIds);
 
