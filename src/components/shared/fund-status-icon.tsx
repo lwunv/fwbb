@@ -41,16 +41,11 @@ export function FundStatusIcon({
           };
 
   return (
-    <div
-      className={cn("inline-flex shrink-0", className)}
-      style={{ width: size, height: size, lineHeight: 0 }}
-      title={title}
+    <Icon
+      className={cn("shrink-0", color, className)}
+      style={{ width: size, height: size } as React.CSSProperties}
       aria-label={title}
-    >
-      <Icon
-        className={cn("shrink-0", color)}
-        style={{ width: size, height: size }}
-      />
-    </div>
+      {...({ title } as React.SVGAttributes<SVGSVGElement>)}
+    />
   );
 }
