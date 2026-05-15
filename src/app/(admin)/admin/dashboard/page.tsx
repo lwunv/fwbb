@@ -16,6 +16,7 @@ import { getStockByBrand } from "@/actions/inventory";
 import { getAdminUpcomingSession } from "@/actions/sessions";
 import { getSessionVotes } from "@/actions/votes";
 import { getCourtRentReport } from "@/actions/court-rent";
+import { bucketMonthlyTransactions } from "@/lib/finance-summary";
 import { DashboardClient } from "./dashboard-client";
 import {
   getAppName,
@@ -99,32 +100,32 @@ export default async function DashboardPage() {
     (s) => s.status === "completed",
   ).length;
 
-  // Financial transactions this month — aggregate by type/direction
-  // We use createdAt filter (gte VN month start in UTC ≈ same day) — small
-  // edge at month boundary acceptable for a dashboard summary tile.
+  // Financial transactions this month — bucket by economic meaning (real
+  // cash vs internal redistribution vs audit-only). Direct sum of
+  // direction=in/out inflated both sides ~2× because:
+  //   - bank_payment_received is paired with fund_contribution (×2 in)
+  //   - fund_deduction is internal redistribution, not cash leaving admin's
+  //     wallet (already covered by inventory_purchase / court_rent_payment).
+  //   - debt_*_confirmed are legacy audit rows in the merged Quỹ+Nợ model.
+  // Helper canonicalises this — never inline the sum loop again. See
+  // [[project-finance-ledger-semantics]] in memory.
   const monthTxs = await db.query.financialTransactions.findMany({
     where: and(
       gte(financialTransactions.createdAt, monthStart),
       lt(financialTransactions.createdAt, nextMonthStart),
     ),
     columns: {
+      id: true,
       type: true,
       direction: true,
       amount: true,
-      metadataJson: true,
+      reversalOfId: true,
     },
   });
-
-  let monthIn = 0;
-  let monthOut = 0;
-  let monthInventorySpend = 0;
-  for (const t of monthTxs) {
-    if (t.direction === "in") monthIn += t.amount;
-    else if (t.direction === "out") monthOut += t.amount;
-    if (t.type === "inventory_purchase" && t.direction === "out") {
-      monthInventorySpend += t.amount;
-    }
-  }
+  const monthFlow = bucketMonthlyTransactions(monthTxs);
+  const monthIn = monthFlow.realIn;
+  const monthOut = monthFlow.realOut;
+  const monthInventorySpend = monthFlow.inventorySpend;
 
   // Court-rent stats — DELEGATE tới `getCourtRentReport` để dashboard và
   // trang `/admin/court-rent` luôn cùng 1 nguồn truth. Trước đây inline tính

@@ -13,7 +13,10 @@ import { NumberStepper } from "@/components/ui/number-stepper";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { SearchInput } from "@/components/shared/search-input";
 import { formatK } from "@/lib/utils";
-import { calculateShuttlecockCost } from "@/lib/cost-calculator";
+import {
+  calculateShuttlecockCost,
+  computePerHeadCharges,
+} from "@/lib/cost-calculator";
 import { X, Users } from "lucide-react";
 import { confirmPaymentByAdmin, undoPaymentByAdmin } from "@/actions/finance";
 import type { InferSelectModel } from "drizzle-orm";
@@ -296,12 +299,19 @@ export function AdminVoteManager({
       )
     : 0;
   const playCost = sc ? sc.courtPrice + shuttlecockCost : 0;
-  const playPerHead =
-    playerCount > 0 ? Math.ceil(playCost / playerCount / 1000) * 1000 : 0;
-  const dinePerHead =
-    dinerCount > 0 && sc
-      ? Math.ceil(sc.diningBill / dinerCount / 1000) * 1000
-      : 0;
+  // Use the canonical per-head helper so this component stays in lockstep
+  // with finalize-session.tsx, session-list.tsx, dashboard-client.tsx and the
+  // server-side cost-calculator. Previously inlined the same Math.ceil
+  // formula and would drift if the rounding rule changed.
+  const { playCostPerHead: playPerHead, dineCostPerHead: dinePerHead } = sc
+    ? computePerHeadCharges({
+        courtPrice: sc.courtPrice,
+        shuttlecockCost,
+        diningBill: sc.diningBill,
+        playerCount,
+        dinerCount,
+      })
+    : { playCostPerHead: 0, dineCostPerHead: 0 };
   const totalExpense = sc ? playCost + sc.diningBill : 0;
   const paidAmount = Object.entries(debtMap)
     .filter(([mid]) => getDebtConfirmed(Number(mid)))

@@ -89,18 +89,44 @@ export default async function SessionsPage({
       votes: { with: { member: true } },
       debts: { with: { member: true } },
       shuttlecocks: { with: { brand: true } },
+      // attendees: locked-in headcount for completed sessions. votes can be
+      // stale (member voted but didn't show, or admin added a walk-in at
+      // finalize time) so completed sessions MUST count from attendees to
+      // match the stored debt split. See [[project-finance-money-flow-bugs]].
+      attendees: true,
     },
   });
 
   const sessionCards = allSessions.map((s) => {
-    const playerCount = s.votes.filter((v) => v.willPlay).length;
-    const dinerCount = s.votes.filter((v) => v.willDine).length;
-    const guestPlayCount =
-      s.votes.reduce((sum, v) => sum + (v.guestPlayCount ?? 0), 0) +
-      (s.adminGuestPlayCount ?? 0);
-    const guestDineCount =
-      s.votes.reduce((sum, v) => sum + (v.guestDineCount ?? 0), 0) +
-      (s.adminGuestDineCount ?? 0);
+    // Completed sessions: real headcount from sessionAttendees (lock-in at
+    // finalize). Voting/confirmed: live count from votes (no attendees yet).
+    let playerCount: number;
+    let dinerCount: number;
+    let guestPlayCount: number;
+    let guestDineCount: number;
+    if (s.status === "completed") {
+      playerCount = s.attendees.filter(
+        (a) => !a.isGuest && a.attendsPlay,
+      ).length;
+      dinerCount = s.attendees.filter(
+        (a) => !a.isGuest && a.attendsDine,
+      ).length;
+      guestPlayCount = s.attendees.filter(
+        (a) => a.isGuest && a.attendsPlay,
+      ).length;
+      guestDineCount = s.attendees.filter(
+        (a) => a.isGuest && a.attendsDine,
+      ).length;
+    } else {
+      playerCount = s.votes.filter((v) => v.willPlay).length;
+      dinerCount = s.votes.filter((v) => v.willDine).length;
+      guestPlayCount =
+        s.votes.reduce((sum, v) => sum + (v.guestPlayCount ?? 0), 0) +
+        (s.adminGuestPlayCount ?? 0);
+      guestDineCount =
+        s.votes.reduce((sum, v) => sum + (v.guestDineCount ?? 0), 0) +
+        (s.adminGuestDineCount ?? 0);
+    }
     const totalDebt = s.debts.reduce((sum, d) => sum + d.totalAmount, 0);
     const paidDebt = s.debts
       .filter((d) => d.adminConfirmed)
