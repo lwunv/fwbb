@@ -18,6 +18,7 @@ import {
   computeShuttlecockTotal,
   computePerHeadCharges,
 } from "@/lib/cost-calculator";
+import { MinDeductionToggle } from "@/components/sessions/min-deduction-toggle";
 import { X, Users, Shield, ShieldOff } from "lucide-react";
 import { confirmPaymentByAdmin, undoPaymentByAdmin } from "@/actions/finance";
 import type { InferSelectModel } from "drizzle-orm";
@@ -518,6 +519,16 @@ export function AdminVoteManager({
             </CardContent>
           </Card>
         )}
+
+      {/* Min-deduction toggle — đặt đầu khu vực này (trước admin guest stepper)
+          để admin thấy rule trước khi sắp xếp khách/member. Compact 1-line:
+          icon + text + switch. Disabled khi readOnly (completed/cancelled). */}
+      <MinDeductionToggle
+        sessionId={sessionId}
+        enabled={minDeductionEnabled}
+        exemptCount={exemptMemberIds.length}
+        disabled={readOnly}
+      />
 
       {/* Khách của admin (stepper) — hiện ở đầu khu danh sách, trên search.
           Chỉ render khi caller cung cấp `onAdminGuestChange` (parent sở hữu state
