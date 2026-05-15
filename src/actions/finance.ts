@@ -5,18 +5,22 @@ import {
   sessions,
   sessionAttendees,
   sessionDebts,
+  sessionMinDeductionExemptions,
   members,
   financialTransactions,
   fundMembers,
   admins,
 } from "@/db/schema";
-import { eq, desc, and, isNull, asc } from "drizzle-orm";
+import { eq, desc, and, isNull, asc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getUserFromCookie } from "@/lib/user-identity";
 import {
   calculateSessionCosts,
+  applyMinDeductionFloor,
   type AttendeeInput,
+  type MemberDebt,
 } from "@/lib/cost-calculator";
+import { computeBalanceFromTransactions } from "@/lib/fund-core";
 import { isFundMember } from "@/lib/fund-calculator";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
 import { getAdminFromCookie, requireAdmin } from "@/lib/auth";
@@ -224,11 +228,47 @@ export async function finalizeSession(
           .onConflictDoNothing();
       }
 
+      // 3.6. Apply min-deduction floor (if session opt-in). MUST happen AFTER
+      // reversing old fund_deductions above — balance phải reflect state
+      // trước session này, không bị deduction cũ kéo xuống. Exempt list từ
+      // `sessionMinDeductionExemptions` cho phép admin miễn từng member.
+      // Skip admin's own debt (fundDeductionAmount luôn = 0 cho admin).
+      // Spec: `docs/superpowers/specs/2026-05-15-min-deduction-floor-design.md`.
+      let memberDebts: MemberDebt[] = breakdown.memberDebts;
+      if (session.useMinDeduction) {
+        const exemptIds = new Set(
+          (
+            await tx
+              .select({
+                memberId: sessionMinDeductionExemptions.memberId,
+              })
+              .from(sessionMinDeductionExemptions)
+              .where(
+                eq(sessionMinDeductionExemptions.sessionId, data.sessionId),
+              )
+          ).map((r) => r.memberId),
+        );
+        memberDebts = await Promise.all(
+          breakdown.memberDebts.map(async (d) => {
+            if (d.memberId === adminMemberId) return d; // admin không bị floor
+            if (exemptIds.has(d.memberId)) return d; // admin miễn
+            const memberTxs = await tx.query.financialTransactions.findMany({
+              where: eq(financialTransactions.memberId, d.memberId),
+            });
+            const balance = computeBalanceFromTransactions(
+              d.memberId,
+              memberTxs,
+            ).balance;
+            return applyMinDeductionFloor(d, balance);
+          }),
+        );
+      }
+
       // 4. For each attendee: deduct FULL debt amount from fund. The session
       // debt row is still recorded (audit) but immediately marked as confirmed
       // — the unified "còn nợ" lives on the fund balance, not on per-session
       // unpaid rows.
-      for (const debt of breakdown.memberDebts) {
+      for (const debt of memberDebts) {
         const isAdminDebt = debt.memberId === adminMemberId;
         const fundDeductionAmount = isAdminDebt ? 0 : debt.totalAmount;
 

@@ -35,6 +35,7 @@ import { usePolling } from "@/lib/use-polling";
 import { CourtSelector } from "@/components/sessions/court-selector";
 import { ShuttlecockSelector } from "@/components/sessions/shuttlecock-selector";
 import { AdminVoteManager } from "@/components/sessions/admin-vote-manager";
+import { MinDeductionToggle } from "@/components/sessions/min-deduction-toggle";
 import { WeekStrip } from "@/components/sessions/week-strip";
 import { RecordContributionDialog } from "@/components/fund/record-contribution-dialog";
 import type { InferSelectModel } from "drizzle-orm";
@@ -94,6 +95,8 @@ interface UpcomingSession {
   guestDineCount: number;
   adminGuestPlayCount: number;
   adminGuestDineCount: number;
+  useMinDeduction: boolean;
+  exemptMemberIds: number[];
   votedCount: number;
   totalEligibleVoters: number;
   shuttlecocks: {
@@ -718,6 +721,11 @@ export function DashboardClient({
                         defaultCourtId={defaultCourtId}
                         sessionDays={sessionDays}
                       />
+                      <MinDeductionToggle
+                        sessionId={upcomingSession.id}
+                        enabled={upcomingSession.useMinDeduction}
+                        exemptCount={upcomingSession.exemptMemberIds.length}
+                      />
                       <ShuttlecockSelector
                         sessionId={upcomingSession.id}
                         brands={editorBrands}
@@ -854,6 +862,10 @@ export function DashboardClient({
                             adminGuestPlayCount={adminGuestPlay}
                             adminGuestDineCount={adminGuestDine}
                             onAdminGuestChange={handleAdminGuestSet}
+                            minDeductionEnabled={
+                              upcomingSession.useMinDeduction
+                            }
+                            exemptMemberIds={upcomingSession.exemptMemberIds}
                             sessionCosts={{
                               courtPrice: upcomingSession.courtPrice ?? 0,
                               courtName: upcomingSession.courtName,

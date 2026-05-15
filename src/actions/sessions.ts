@@ -8,9 +8,11 @@ import {
   shuttlecockBrands,
   sessionDebts,
   sessionAttendees,
+  sessionMinDeductionExemptions,
   votes,
   financialTransactions,
   paymentNotifications,
+  members,
 } from "@/db/schema";
 import {
   eq,
@@ -855,6 +857,9 @@ export async function deleteSession(sessionId: number) {
 
       // Delete in FK-safe order.
       await tx
+        .delete(sessionMinDeductionExemptions)
+        .where(eq(sessionMinDeductionExemptions.sessionId, sessionId));
+      await tx
         .delete(sessionDebts)
         .where(eq(sessionDebts.sessionId, sessionId));
       await tx
@@ -1258,4 +1263,130 @@ export async function setAdminGuestCount(
   revalidatePath(`/admin/sessions/${data.sessionId}`);
   revalidatePath("/");
   return { success: true };
+}
+
+// ─── Min-deduction floor toggle ───
+//
+// Per-session opt-in. Khi `useMinDeduction = true`, `finalizeSession` sẽ
+// apply `applyMinDeductionFloor` cho mỗi member không đủ quỹ trả play share
+// AND play share < 60K → override lên 60K (admin recover được fund + ép
+// member nộp quỹ). Per-member exemption lưu ở
+// `sessionMinDeductionExemptions` (admin có thể untick từng người).
+//
+// Spec: `docs/superpowers/specs/2026-05-15-min-deduction-floor-design.md`.
+
+/**
+ * Bật/tắt min-deduction floor cho 1 buổi. Guard `assertEditable` —
+ * không cho sửa khi đã chốt sổ (phải `unlockSession` trước).
+ */
+export async function setSessionUseMinDeduction(
+  sessionId: number,
+  enabled: boolean,
+) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
+
+  if (!Number.isInteger(sessionId) || sessionId <= 0) {
+    return { error: t("invalidData", { detail: "sessionId" }) };
+  }
+
+  const session = await db.query.sessions.findFirst({
+    where: eq(sessions.id, sessionId),
+    columns: { status: true },
+  });
+  if (!session) return { error: t("sessionNotFound") };
+  const editGuard = assertEditable(session.status as SessionStatus);
+  if (!editGuard.ok) return { error: editGuard.error };
+
+  await db
+    .update(sessions)
+    .set({
+      useMinDeduction: enabled,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(sessions.id, sessionId));
+
+  revalidatePath("/admin/sessions");
+  revalidatePath(`/admin/sessions/${sessionId}`);
+  revalidatePath("/admin/dashboard");
+  return { success: true };
+}
+
+/**
+ * Miễn / không miễn 1 member khỏi min-deduction floor của 1 buổi cụ thể.
+ * Insert/delete row idempotent.
+ */
+export async function setMemberMinDeductionExempt(
+  sessionId: number,
+  memberId: number,
+  exempt: boolean,
+) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
+
+  if (
+    !Number.isInteger(sessionId) ||
+    sessionId <= 0 ||
+    !Number.isInteger(memberId) ||
+    memberId <= 0
+  ) {
+    return { error: t("invalidData", { detail: "ids" }) };
+  }
+
+  const session = await db.query.sessions.findFirst({
+    where: eq(sessions.id, sessionId),
+    columns: { status: true },
+  });
+  if (!session) return { error: t("sessionNotFound") };
+  const editGuard = assertEditable(session.status as SessionStatus);
+  if (!editGuard.ok) return { error: editGuard.error };
+
+  // Validate member tồn tại — tránh insert row trỏ FK rỗng.
+  const member = await db.query.members.findFirst({
+    where: eq(members.id, memberId),
+    columns: { id: true },
+  });
+  if (!member) return { error: t("memberNotFound") };
+
+  if (exempt) {
+    // Insert idempotent — `onConflictDoNothing` chặn double-click race.
+    await db
+      .insert(sessionMinDeductionExemptions)
+      .values({ sessionId, memberId })
+      .onConflictDoNothing();
+  } else {
+    await db
+      .delete(sessionMinDeductionExemptions)
+      .where(
+        and(
+          eq(sessionMinDeductionExemptions.sessionId, sessionId),
+          eq(sessionMinDeductionExemptions.memberId, memberId),
+        ),
+      );
+  }
+
+  revalidatePath("/admin/sessions");
+  revalidatePath(`/admin/sessions/${sessionId}`);
+  revalidatePath("/admin/dashboard");
+  return { success: true };
+}
+
+/**
+ * Trả về danh sách memberId được miễn min-deduction floor cho 1 buổi.
+ * Dùng cho UI render checkbox + cho `finalizeSession` skip member exempt.
+ */
+export async function getSessionExemptions(
+  sessionId: number,
+): Promise<number[]> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return [];
+  if (!Number.isInteger(sessionId) || sessionId <= 0) return [];
+
+  const rows = await db
+    .select({ memberId: sessionMinDeductionExemptions.memberId })
+    .from(sessionMinDeductionExemptions)
+    .where(eq(sessionMinDeductionExemptions.sessionId, sessionId));
+  return rows.map((r) => r.memberId);
 }

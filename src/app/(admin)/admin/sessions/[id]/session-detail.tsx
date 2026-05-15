@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { CourtSelector } from "@/components/sessions/court-selector";
 import { ShuttlecockSelector } from "@/components/sessions/shuttlecock-selector";
 import { AdminVoteManager } from "@/components/sessions/admin-vote-manager";
+import { MinDeductionToggle } from "@/components/sessions/min-deduction-toggle";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { usePolling } from "@/lib/use-polling";
 import { ArrowLeft, XCircle } from "lucide-react";
@@ -49,6 +50,7 @@ export function SessionDetail({
   debtMap = {},
   defaultCourtId = null,
   sessionDays,
+  exemptMemberIds = [],
 }: {
   session: Session;
   votes: Vote[];
@@ -63,6 +65,8 @@ export function SessionDetail({
   /** Lịch ngày chơi từ getSessionDaysOfWeek() — cần để CourtSelector preview
    *  đúng giá khi admin đã đổi lịch khỏi mặc định M/W/F. */
   sessionDays?: readonly number[] | number[];
+  /** Member IDs đã được admin miễn khỏi min-deduction floor. */
+  exemptMemberIds?: number[];
 }) {
   const [localStatus, setLocalStatus] = useState(session.status);
   const t = useTranslations("sessions");
@@ -142,6 +146,21 @@ export function SessionDetail({
         </Card>
       )}
 
+      {/* Min-deduction toggle — chỉ render trên voting/confirmed (sau finalize
+          phải unlock trước khi sửa). Toggle bật rule '60K min cho member
+          thiếu quỹ'; admin có thể miễn từng người trong AdminVoteManager. */}
+      {(localStatus === "voting" || localStatus === "confirmed") && (
+        <Card>
+          <CardContent className="p-4">
+            <MinDeductionToggle
+              sessionId={session.id}
+              enabled={session.useMinDeduction ?? false}
+              exemptCount={exemptMemberIds.length}
+            />
+          </CardContent>
+        </Card>
+      )}
+
       {/* Shuttlecock Selector (only for voting/confirmed status) */}
       {(localStatus === "voting" || localStatus === "confirmed") && (
         <Card>
@@ -164,6 +183,8 @@ export function SessionDetail({
         readOnly={localStatus === "completed" || localStatus === "cancelled"}
         adminGuestPlayCount={session.adminGuestPlayCount ?? 0}
         adminGuestDineCount={session.adminGuestDineCount ?? 0}
+        minDeductionEnabled={session.useMinDeduction ?? false}
+        exemptMemberIds={exemptMemberIds}
         sessionCosts={{
           courtPrice: session.courtPrice ?? 0,
           courtName: session.court?.name ?? null,

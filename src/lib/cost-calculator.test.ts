@@ -6,7 +6,10 @@ import {
   computePerHeadCharges,
   computeCourtTotal,
   computeShuttlecockTotal,
+  applyMinDeductionFloor,
+  MIN_DEDUCTION_PER_HEAD,
   type AttendeeInput,
+  type MemberDebt,
   type ShuttlecockInput,
 } from "./cost-calculator";
 
@@ -647,5 +650,91 @@ describe("computeCourtTotal — sessionDays override", () => {
       sessionDays: [],
     });
     expect(r).toBe(200_000);
+  });
+});
+
+describe("applyMinDeductionFloor", () => {
+  function debt(overrides: Partial<MemberDebt> = {}): MemberDebt {
+    const base: MemberDebt = {
+      memberId: 1,
+      playAmount: 30_000,
+      dineAmount: 0,
+      guestPlayAmount: 0,
+      guestDineAmount: 0,
+      totalAmount: 30_000,
+    };
+    return { ...base, ...overrides };
+  }
+
+  it("balance đủ trả playAmount → no-op", () => {
+    const d = debt({ playAmount: 30_000, totalAmount: 30_000 });
+    const r = applyMinDeductionFloor(d, 100_000);
+    expect(r).toEqual(d);
+  });
+
+  it("balance thiếu, playAmount < floor → override lên 60K", () => {
+    const d = debt({ playAmount: 30_000, totalAmount: 30_000 });
+    const r = applyMinDeductionFloor(d, 10_000);
+    expect(r.playAmount).toBe(60_000);
+    expect(r.totalAmount).toBe(60_000);
+  });
+
+  it("balance thiếu, playAmount ≥ floor → no-op (đã đủ)", () => {
+    const d = debt({ playAmount: 80_000, totalAmount: 80_000 });
+    const r = applyMinDeductionFloor(d, 10_000);
+    expect(r).toEqual(d);
+  });
+
+  it("balance = 0 + playAmount nhỏ → fire", () => {
+    const d = debt({ playAmount: 25_000, totalAmount: 25_000 });
+    const r = applyMinDeductionFloor(d, 0);
+    expect(r.playAmount).toBe(60_000);
+    expect(r.totalAmount).toBe(60_000);
+  });
+
+  it("balance âm → fire (đang nợ)", () => {
+    const d = debt({ playAmount: 40_000, totalAmount: 40_000 });
+    const r = applyMinDeductionFloor(d, -50_000);
+    expect(r.playAmount).toBe(60_000);
+  });
+
+  it("playAmount = 0 (không chơi, chỉ nhậu) → no-op", () => {
+    const d = debt({
+      playAmount: 0,
+      dineAmount: 50_000,
+      totalAmount: 50_000,
+    });
+    const r = applyMinDeductionFloor(d, 10_000);
+    expect(r).toEqual(d);
+  });
+
+  it("guests + dine preserved khi override", () => {
+    // Member chơi 30K + nhậu 40K + mời 1 khách chơi 30K → total 100K. Balance thiếu.
+    // Floor chỉ apply playAmount → playAmount: 30K → 60K, others unchanged.
+    // New total = 60 + 40 + 30 + 0 = 130K.
+    const d = debt({
+      playAmount: 30_000,
+      dineAmount: 40_000,
+      guestPlayAmount: 30_000,
+      guestDineAmount: 0,
+      totalAmount: 100_000,
+    });
+    const r = applyMinDeductionFloor(d, 10_000);
+    expect(r.playAmount).toBe(60_000);
+    expect(r.dineAmount).toBe(40_000);
+    expect(r.guestPlayAmount).toBe(30_000);
+    expect(r.guestDineAmount).toBe(0);
+    expect(r.totalAmount).toBe(130_000);
+  });
+
+  it("custom floor amount honored", () => {
+    const d = debt({ playAmount: 30_000, totalAmount: 30_000 });
+    const r = applyMinDeductionFloor(d, 10_000, 50_000);
+    expect(r.playAmount).toBe(50_000);
+    expect(r.totalAmount).toBe(50_000);
+  });
+
+  it("MIN_DEDUCTION_PER_HEAD constant = 60K", () => {
+    expect(MIN_DEDUCTION_PER_HEAD).toBe(60_000);
   });
 });

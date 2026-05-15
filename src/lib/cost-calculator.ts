@@ -104,6 +104,41 @@ export function calculateExactShuttlecockCost(
 }
 
 /**
+ * Min-deduction floor cho 1 buổi (mỗi member): khi member không đủ quỹ trả
+ * play share AND play share < floor → override `playAmount` lên `floor`.
+ * Admin opt-in qua `sessions.use_min_deduction` + có thể miễn từng member qua
+ * `session_min_deduction_exemptions`. Floor amount mặc định 60K — hardcode
+ * trước (nếu cần admin đổi sẽ thêm app_setting sau).
+ *
+ * Scope: chỉ apply lên `playAmount`. KHÔNG floor `dineAmount` (nhậu tự
+ * nguyện) hoặc guest amounts (khách không có balance riêng).
+ *
+ * Round-up rule giữ nguyên — admin không bao giờ lỗ.
+ */
+export const MIN_DEDUCTION_PER_HEAD = 60_000;
+
+export function applyMinDeductionFloor(
+  debt: MemberDebt,
+  balance: number,
+  floor: number = MIN_DEDUCTION_PER_HEAD,
+): MemberDebt {
+  // Member không chơi → playAmount = 0 → rule không apply (chỉ phạt người
+  // chơi). Member chỉ nhậu vẫn trả dineAmount thường.
+  if (debt.playAmount === 0) return debt;
+  // Đủ quỹ trả play share → không cần penalty.
+  if (balance >= debt.playAmount) return debt;
+  // Play share đã ≥ floor → đã đóng đủ, không cần thêm.
+  if (debt.playAmount >= floor) return debt;
+  const newPlay = floor;
+  return {
+    ...debt,
+    playAmount: newPlay,
+    totalAmount:
+      newPlay + debt.dineAmount + debt.guestPlayAmount + debt.guestDineAmount,
+  };
+}
+
+/**
  * Total shuttlecock cost across MULTIPLE brands in a session — exact sum
  * first, then round UP to 1k tổng. Khớp với rule trong `calculateSessionCosts`
  * (finalize) để UI preview KHÔNG drift so với debt thực ghi vào DB.

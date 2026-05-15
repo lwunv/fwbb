@@ -13,7 +13,10 @@ import {
 } from "@/actions/fund";
 import { mergeLegacyDebtsIntoFund } from "@/actions/merge-debt-fund";
 import { getStockByBrand } from "@/actions/inventory";
-import { getAdminUpcomingSession } from "@/actions/sessions";
+import {
+  getAdminUpcomingSession,
+  getSessionExemptions,
+} from "@/actions/sessions";
 import { getSessionVotes } from "@/actions/votes";
 import { getCourtRentReport } from "@/actions/court-rent";
 import { bucketMonthlyTransactions } from "@/lib/finance-summary";
@@ -174,6 +177,8 @@ export default async function DashboardPage() {
     guestDineCount: number;
     adminGuestPlayCount: number;
     adminGuestDineCount: number;
+    useMinDeduction: boolean;
+    exemptMemberIds: number[];
     votedCount: number;
     totalEligibleVoters: number;
     shuttlecocks: {
@@ -187,7 +192,10 @@ export default async function DashboardPage() {
   } | null = null;
 
   if (nextSession) {
-    const sessionVotes = await getSessionVotes(nextSession.id);
+    const [sessionVotes, exemptions] = await Promise.all([
+      getSessionVotes(nextSession.id),
+      getSessionExemptions(nextSession.id),
+    ]);
     const votedCount = sessionVotes.filter(
       (v) => v.willPlay || v.willDine,
     ).length;
@@ -213,6 +221,8 @@ export default async function DashboardPage() {
         (nextSession.adminGuestDineCount ?? 0),
       adminGuestPlayCount: nextSession.adminGuestPlayCount ?? 0,
       adminGuestDineCount: nextSession.adminGuestDineCount ?? 0,
+      useMinDeduction: nextSession.useMinDeduction ?? false,
+      exemptMemberIds: exemptions,
       votedCount,
       totalEligibleVoters: activeMembers.length,
       shuttlecocks: nextSession.shuttlecocks.map((s) => ({

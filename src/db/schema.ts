@@ -78,6 +78,18 @@ export const sessions = sqliteTable(
     courtPriceOverridden: integer("court_price_overridden", {
       mode: "boolean",
     }).default(false),
+    /**
+     * Min-deduction floor toggle. Khi `true`, `finalizeSession` sẽ apply
+     * `applyMinDeductionFloor` cho mỗi member: nếu balance thiếu trả
+     * playAmount AND playAmount < 60K → override lên 60K. Admin opt-in
+     * per session. Default false (rule không fire). Per-member exemption
+     * lưu ở `sessionMinDeductionExemptions`. Xem
+     * [[project-finance-balance-rules]] cho invariant + spec doc
+     * `docs/superpowers/specs/2026-05-15-min-deduction-floor-design.md`.
+     */
+    useMinDeduction: integer("use_min_deduction", {
+      mode: "boolean",
+    }).default(false),
     status: text("status", {
       enum: ["voting", "confirmed", "completed", "cancelled"],
     }).default("voting"),
@@ -159,6 +171,48 @@ export const inventoryPurchases = sqliteTable("inventory_purchases", {
   notes: text("notes"),
   createdAt: text("created_at").default(sql`(current_timestamp)`),
 });
+
+/**
+ * Per-member exemption khỏi `min_deduction_floor` rule cho 1 session cụ thể.
+ * Khi `sessions.use_min_deduction = true`, mặc định mọi member đều bị apply
+ * rule; admin có thể tick để miễn từng người (insert 1 row vào đây). Vắng
+ * row = member bị apply (default ON cho member).
+ *
+ * PK composite (session_id, member_id) chặn double-insert; `created_at`
+ * giữ audit. KHÔNG có cờ "active/inactive" — admin un-untick = `DELETE`.
+ */
+export const sessionMinDeductionExemptions = sqliteTable(
+  "session_min_deduction_exemptions",
+  {
+    sessionId: integer("session_id")
+      .notNull()
+      .references(() => sessions.id),
+    memberId: integer("member_id")
+      .notNull()
+      .references(() => members.id),
+    createdAt: text("created_at").default(sql`(current_timestamp)`),
+  },
+  (table) => [
+    uniqueIndex("session_min_deduction_exemptions_pk").on(
+      table.sessionId,
+      table.memberId,
+    ),
+  ],
+);
+
+export const sessionMinDeductionExemptionsRelations = relations(
+  sessionMinDeductionExemptions,
+  ({ one }) => ({
+    session: one(sessions, {
+      fields: [sessionMinDeductionExemptions.sessionId],
+      references: [sessions.id],
+    }),
+    member: one(members, {
+      fields: [sessionMinDeductionExemptions.memberId],
+      references: [members.id],
+    }),
+  }),
+);
 
 export const sessionDebts = sqliteTable(
   "session_debts",

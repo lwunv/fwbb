@@ -7,6 +7,7 @@ import {
   adminRemoveVote,
   adminSetGuestCount,
 } from "@/actions/votes";
+import { setMemberMinDeductionExempt } from "@/actions/sessions";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { NumberStepper } from "@/components/ui/number-stepper";
@@ -17,7 +18,7 @@ import {
   computeShuttlecockTotal,
   computePerHeadCharges,
 } from "@/lib/cost-calculator";
-import { X, Users } from "lucide-react";
+import { X, Users, Shield, ShieldOff } from "lucide-react";
 import { confirmPaymentByAdmin, undoPaymentByAdmin } from "@/actions/finance";
 import type { InferSelectModel } from "drizzle-orm";
 import type { votes as votesTable, members as membersTable } from "@/db/schema";
@@ -58,6 +59,11 @@ interface AdminVoteManagerProps {
   /** Ẩn block tóm tắt chi phí (Cầu/Sân/Tổng chi/per-head) — dùng khi caller
    *  đã hiển thị tóm tắt riêng trong card (vd /admin/sessions list). */
   hideCostSummary?: boolean;
+  /** Bật rule min-deduction 60K (`sessions.use_min_deduction`). Khi true
+   *  → hiển thị icon shield cạnh tên member, admin click để toggle miễn. */
+  minDeductionEnabled?: boolean;
+  /** Member IDs đã được miễn rule cho session này. */
+  exemptMemberIds?: number[];
 }
 
 // Local optimistic state types
@@ -80,6 +86,8 @@ export function AdminVoteManager({
   adminGuestDineCount = 0,
   onAdminGuestChange,
   hideCostSummary = false,
+  minDeductionEnabled = false,
+  exemptMemberIds = [],
 }: AdminVoteManagerProps) {
   const t = useTranslations("voting");
   const tCommon = useTranslations("common");
@@ -99,6 +107,25 @@ export function AdminVoteManager({
   const [removedMembers, setRemovedMembers] = useState<Set<number>>(new Set());
   const [addedMembers, setAddedMembers] = useState<Set<number>>(new Set());
   const [expandedGuest, setExpandedGuest] = useState<number | null>(null);
+  // Optimistic exempt: memberId → exempt? local override prop từ server.
+  const [localExempt, setLocalExempt] = useState<Record<number, boolean>>({});
+
+  function getExempt(memberId: number): boolean {
+    const local = localExempt[memberId];
+    if (local !== undefined) return local;
+    return exemptMemberIds.includes(memberId);
+  }
+
+  function handleToggleExempt(memberId: number) {
+    if (readOnly) return;
+    const current = getExempt(memberId);
+    const next = !current;
+    setLocalExempt((s) => ({ ...s, [memberId]: next }));
+    fireAsync(
+      () => setMemberMinDeductionExempt(sessionId, memberId, next),
+      () => setLocalExempt((s) => ({ ...s, [memberId]: current })),
+    );
+  }
 
   // Merge server + local state
   function getVote(
@@ -687,6 +714,32 @@ export function AdminVoteManager({
                       >
                         {formatK(amountShown)}
                       </span>
+                    )}
+                    {/* Min-deduction exempt toggle — chỉ hiện khi session
+                        bật rule AND member đang play (rule chỉ áp dụng cho
+                        play share). Filled shield = đang apply; outline =
+                        admin đã miễn member này. */}
+                    {minDeductionEnabled && !readOnly && v.willPlay && (
+                      <button
+                        type="button"
+                        onClick={() => handleToggleExempt(member.id)}
+                        title={
+                          getExempt(member.id)
+                            ? "Đã miễn 60K min — click để áp dụng lại"
+                            : "Đang áp dụng 60K min — click để miễn member này"
+                        }
+                        className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-colors ${
+                          getExempt(member.id)
+                            ? "border-muted-foreground/30 bg-muted/30 text-muted-foreground hover:bg-muted/50"
+                            : "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
+                        }`}
+                      >
+                        {getExempt(member.id) ? (
+                          <ShieldOff className="h-4 w-4" />
+                        ) : (
+                          <Shield className="h-4 w-4" />
+                        )}
+                      </button>
                     )}
                     {!readOnly && (
                       <button

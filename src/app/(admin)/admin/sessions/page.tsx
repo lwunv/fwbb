@@ -1,5 +1,11 @@
 import { db } from "@/db";
-import { sessions, courts, members, shuttlecockBrands } from "@/db/schema";
+import {
+  sessions,
+  courts,
+  members,
+  shuttlecockBrands,
+  sessionMinDeductionExemptions,
+} from "@/db/schema";
 import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { ymdInVN } from "@/lib/date-format";
 import { getDefaultCourt, getSessionDaysOfWeek } from "@/actions/settings";
@@ -104,6 +110,26 @@ export default async function SessionsPage({
     },
   });
 
+  // Bulk-load exemptions cho tất cả sessions trong page — 1 query thay vì
+  // N để giảm DB round-trip. Group theo sessionId trong JS.
+  const sessionIds = allSessions.map((s) => s.id);
+  const exemptionRows =
+    sessionIds.length > 0
+      ? await db
+          .select({
+            sessionId: sessionMinDeductionExemptions.sessionId,
+            memberId: sessionMinDeductionExemptions.memberId,
+          })
+          .from(sessionMinDeductionExemptions)
+          .where(inArray(sessionMinDeductionExemptions.sessionId, sessionIds))
+      : [];
+  const exemptionsBySession = new Map<number, number[]>();
+  for (const row of exemptionRows) {
+    const list = exemptionsBySession.get(row.sessionId) ?? [];
+    list.push(row.memberId);
+    exemptionsBySession.set(row.sessionId, list);
+  }
+
   const sessionCards = allSessions.map((s) => {
     // Completed sessions: real headcount from sessionAttendees (lock-in at
     // finalize). Voting/confirmed: live count from votes (no attendees yet).
@@ -179,6 +205,8 @@ export default async function SessionsPage({
       diningBill: s.diningBill ?? 0,
       adminGuestPlayCount: s.adminGuestPlayCount ?? 0,
       adminGuestDineCount: s.adminGuestDineCount ?? 0,
+      useMinDeduction: s.useMinDeduction ?? false,
+      exemptMemberIds: exemptionsBySession.get(s.id) ?? [],
       playerCount,
       dinerCount,
       guestPlayCount,

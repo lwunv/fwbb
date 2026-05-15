@@ -26,6 +26,7 @@ import { MemberAvatar } from "@/components/shared/member-avatar";
 import { CourtSelector } from "@/components/sessions/court-selector";
 import { ShuttlecockSelector } from "@/components/sessions/shuttlecock-selector";
 import { AdminVoteManager } from "@/components/sessions/admin-vote-manager";
+import { MinDeductionToggle } from "@/components/sessions/min-deduction-toggle";
 import { WeekStrip } from "@/components/sessions/week-strip";
 import {
   Dialog,
@@ -100,6 +101,8 @@ interface SessionCard {
   diningBill: number;
   adminGuestPlayCount: number;
   adminGuestDineCount: number;
+  useMinDeduction: boolean;
+  exemptMemberIds: number[];
   playerCount: number;
   dinerCount: number;
   guestPlayCount: number;
@@ -635,6 +638,11 @@ export function SessionList({
                             brands={brands}
                             currentShuttlecocks={session.shuttlecocks}
                           />
+                          <MinDeductionToggle
+                            sessionId={session.id}
+                            enabled={session.useMinDeduction}
+                            exemptCount={session.exemptMemberIds.length}
+                          />
                         </div>
                       )}
 
@@ -830,6 +838,8 @@ export function SessionList({
                                       })),
                                   );
                                 }}
+                                minDeductionEnabled={session.useMinDeduction}
+                                exemptMemberIds={session.exemptMemberIds}
                                 sessionCosts={{
                                   courtPrice: session.courtPrice ?? 0,
                                   courtName: session.courtName,

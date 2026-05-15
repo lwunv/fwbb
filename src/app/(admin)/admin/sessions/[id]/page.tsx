@@ -4,6 +4,7 @@ import { getActiveCourts } from "@/actions/courts";
 import { getActiveBrands } from "@/actions/shuttlecocks";
 import { getActiveMembers } from "@/actions/members";
 import { getDefaultCourt, getSessionDaysOfWeek } from "@/actions/settings";
+import { getSessionExemptions } from "@/actions/sessions";
 import { db } from "@/db";
 import { sessionDebts } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -28,6 +29,7 @@ export default async function SessionDetailPage({
     debts,
     defaultCourt,
     sessionDays,
+    exemptions,
   ] = await Promise.all([
     getSession(sessionId),
     getSessionVotes(sessionId),
@@ -39,6 +41,7 @@ export default async function SessionDetailPage({
     }),
     getDefaultCourt(),
     getSessionDaysOfWeek(),
+    getSessionExemptions(sessionId),
   ]);
 
   if (!session) notFound();
@@ -66,6 +69,7 @@ export default async function SessionDetailPage({
         debtMap={debtMap}
         defaultCourtId={defaultCourt?.id ?? null}
         sessionDays={sessionDays}
+        exemptMemberIds={exemptions}
       />
     </div>
   );

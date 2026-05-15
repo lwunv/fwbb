@@ -43,6 +43,13 @@
       "when": 1778569926170,
       "tag": "0005_add_court_price_overridden",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1778833723955,
+      "tag": "0006_add_min_deduction",
+      "breakpoints": true
     }
   ]
 }
