@@ -18,6 +18,7 @@ import { requireAdmin } from "@/lib/auth";
 import { memberSchema } from "@/lib/validators";
 import { AVATAR_BRAND_KEYS } from "@/lib/member-avatar-presets";
 import { AVATAR_EMOJI_COUNT } from "@/lib/member-avatar-emoji";
+import { computeBalanceFromTransactions } from "@/lib/fund-core";
 import { z } from "zod";
 
 export type UpdateMyProfileState = null | { success: true } | { error: string };
@@ -381,25 +382,40 @@ export async function findDuplicateMembers() {
   if (dupGroups.length === 0) return [];
 
   // Pre-compute balance + ledger count cho từng member trong các nhóm dupe.
+  // Dùng helper canonical `computeBalanceFromTransactions` thay vì sum
+  // direction=in/out — trước đây sum này double-count `bank_payment_received`
+  // (paired với fund_contribution) và cộng nhầm legacy `debt_*_confirmed`
+  // direction=in → balance inflate, admin nhìn dupe report bị lệch. Giờ
+  // chỉ tính từ fund_contribution / fund_deduction / fund_refund (reversal
+  // pairs loại trừ tự động).
   const dupIds = dupGroups.flat().map((m) => m.id);
   const ledger = await db
     .select({
+      id: financialTransactions.id,
       memberId: financialTransactions.memberId,
-      direction: financialTransactions.direction,
+      type: financialTransactions.type,
       amount: financialTransactions.amount,
+      reversalOfId: financialTransactions.reversalOfId,
     })
     .from(financialTransactions)
     .where(inArray(financialTransactions.memberId, dupIds));
 
-  const balanceById = new Map<number, { balance: number; count: number }>();
-  for (const id of dupIds) balanceById.set(id, { balance: 0, count: 0 });
+  const txsByMember = new Map<number, typeof ledger>();
+  const countByMember = new Map<number, number>();
+  for (const id of dupIds) {
+    txsByMember.set(id, []);
+    countByMember.set(id, 0);
+  }
   for (const t of ledger) {
     if (t.memberId == null) continue;
-    const cur = balanceById.get(t.memberId);
-    if (!cur) continue;
-    cur.count += 1;
-    if (t.direction === "in") cur.balance += t.amount;
-    else if (t.direction === "out") cur.balance -= t.amount;
+    txsByMember.get(t.memberId)?.push(t);
+    countByMember.set(t.memberId, (countByMember.get(t.memberId) ?? 0) + 1);
+  }
+  const balanceById = new Map<number, { balance: number; count: number }>();
+  for (const id of dupIds) {
+    const txs = txsByMember.get(id) ?? [];
+    const { balance } = computeBalanceFromTransactions(id, txs);
+    balanceById.set(id, { balance, count: countByMember.get(id) ?? 0 });
   }
 
   return dupGroups.map((g) => ({
