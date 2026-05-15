@@ -125,3 +125,77 @@ export function calculateFundDeduction(
     fullyPaidByFund: false,
   };
 }
+
+/**
+ * Ngưỡng "gần hết quỹ" — balance dương nhưng dưới mức này được coi là cảnh báo.
+ * 50K xấp xỉ 1 buổi play share, nên member dưới mức này có nguy cơ thiếu quỹ
+ * cho buổi tiếp theo.
+ */
+export const LOW_FUND_THRESHOLD = 50_000;
+
+export type FundStatus = "owing" | "depleted" | "lowFund" | "hasFund";
+
+/**
+ * Bucket balance thành 1 trong 4 trạng thái. Đây là single source of truth —
+ * mọi UI surface muốn label balance phải import helper này, không inline so
+ * sánh ở callsite.
+ */
+export function getFundStatus(balance: number): FundStatus {
+  if (balance < 0) return "owing";
+  if (balance === 0) return "depleted";
+  if (balance < LOW_FUND_THRESHOLD) return "lowFund";
+  return "hasFund";
+}
+
+/**
+ * Bulk compute balance cho nhiều member trong 1 lần duyệt. Tránh O(N×M) nếu
+ * caller gọi `computeBalanceFromTransactions` trong loop.
+ *
+ * Trả về object có 1 key cho mỗi memberId trong `memberIds` (kể cả member
+ * không có transaction nào → balance 0).
+ */
+export function computeBalancesForMembers(
+  memberIds: number[],
+  allTxs: Array<{
+    memberId: number;
+    type: string;
+    amount: number;
+    id?: number;
+    reversalOfId?: number | null;
+  }>,
+): Record<number, number> {
+  const result: Record<number, number> = {};
+  for (const id of memberIds) result[id] = 0;
+  if (memberIds.length === 0) return result;
+
+  const wanted = new Set(memberIds);
+
+  // Phase 1: tìm các ID bị reversed bởi row khác trong list.
+  const voidedIds = new Set<number>();
+  for (const tx of allTxs) {
+    if (tx.reversalOfId !== undefined && tx.reversalOfId !== null) {
+      voidedIds.add(tx.reversalOfId);
+    }
+  }
+
+  // Phase 2: tổng hợp theo memberId, skip reversal pairs.
+  for (const tx of allTxs) {
+    if (!wanted.has(tx.memberId)) continue;
+    if (tx.reversalOfId !== undefined && tx.reversalOfId !== null) continue;
+    if (tx.id !== undefined && voidedIds.has(tx.id)) continue;
+
+    switch (tx.type) {
+      case "fund_contribution":
+        result[tx.memberId] += tx.amount;
+        break;
+      case "fund_deduction":
+        result[tx.memberId] -= tx.amount;
+        break;
+      case "fund_refund":
+        result[tx.memberId] -= tx.amount;
+        break;
+    }
+  }
+
+  return result;
+}
