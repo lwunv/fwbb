@@ -30,9 +30,13 @@ export function MinDeductionToggle({
   disabled?: boolean;
 }) {
   const [localEnabled, setLocalEnabled] = useState(enabled);
-  // Resync từ server khi prop đổi (post-revalidate).
-  if (enabled !== localEnabled) {
-    // pattern "adjust state on prop change" — tránh useEffect cascading
+  // Resync local state CHỈ khi server prop đổi — pattern "adjust state on
+  // prop change" với prev tracking. Bug cũ: dùng `if (enabled !== localEnabled)`
+  // sẽ stomp optimistic state trên re-render sau click vì prop revalidate
+  // chưa kịp về → toggle bị bật-tắt liên tục.
+  const [prevEnabled, setPrevEnabled] = useState(enabled);
+  if (enabled !== prevEnabled) {
+    setPrevEnabled(enabled);
     setLocalEnabled(enabled);
   }
 
