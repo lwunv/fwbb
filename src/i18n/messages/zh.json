@@ -625,6 +625,7 @@
     "reconcileNotifSummary": "已匹配通知: {matched} · 待处理: {pending} · 匹配但无交易: {orphanMatched} · 交易缺失通知: {orphanTx}",
     "filterHasFund": "仍有资金",
     "filterDepleted": "资金已耗尽",
+    "filterLowFund": "余额不足",
     "filterOwing": "欠款",
     "searchMemberPlaceholder": "按成员姓名搜索...",
     "cardCashOnHand": "现金余额",
@@ -663,6 +664,14 @@
     "toastUndoTransaction": "已撤销交易 — 在账本生成冲销条目",
     "ariaUndoTransaction": "撤销交易",
     "undoConfirmTitle": "撤销此交易?"
+  },
+  "fundStatus": {
+    "owing": "欠款",
+    "depleted": "已用完",
+    "lowFund": "余额不足",
+    "hasFund": "充足",
+    "bannerLowFundTitle": "余额即将不足",
+    "bannerLowFundDesc": "您的余额为 {amount}。请充值以参加后续活动。"
   },
   "myFundClient": {
     "myFund": "我的资金",

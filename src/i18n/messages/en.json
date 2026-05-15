@@ -625,6 +625,7 @@
     "reconcileNotifSummary": "Notifications matched: {matched} · pending: {pending} · matched-without-tx: {orphanMatched} · tx-missing-notif: {orphanTx}",
     "filterHasFund": "In funds",
     "filterDepleted": "Fund depleted",
+    "filterLowFund": "Low fund",
     "filterOwing": "Owing",
     "searchMemberPlaceholder": "Search by member name...",
     "cardCashOnHand": "Cash on hand",
@@ -663,6 +664,14 @@
     "toastUndoTransaction": "Transaction reversed — reversal entry created in ledger",
     "ariaUndoTransaction": "Undo transaction",
     "undoConfirmTitle": "Undo transaction?"
+  },
+  "fundStatus": {
+    "owing": "Owing",
+    "depleted": "Depleted",
+    "lowFund": "Low fund",
+    "hasFund": "Funded",
+    "bannerLowFundTitle": "Fund running low",
+    "bannerLowFundDesc": "Your fund balance is {amount}. Top up to cover upcoming sessions."
   },
   "myFundClient": {
     "myFund": "My fund",

@@ -625,6 +625,7 @@
     "reconcileNotifSummary": "Notifications matched: {matched} · pending: {pending} · matched-không-tx: {orphanMatched} · tx-mất-notif: {orphanTx}",
     "filterHasFund": "Vẫn còn quỹ",
     "filterDepleted": "Quỹ đã hết",
+    "filterLowFund": "Gần hết quỹ",
     "filterOwing": "Còn nợ",
     "searchMemberPlaceholder": "Tìm theo tên thành viên...",
     "cardCashOnHand": "Quỹ tiền mặt",
@@ -663,6 +664,14 @@
     "toastUndoTransaction": "Đã hủy giao dịch — tạo entry reversal trong ledger",
     "ariaUndoTransaction": "Hủy giao dịch",
     "undoConfirmTitle": "Hủy giao dịch?"
+  },
+  "fundStatus": {
+    "owing": "Nợ quỹ",
+    "depleted": "Hết quỹ",
+    "lowFund": "Gần hết quỹ",
+    "hasFund": "Còn quỹ",
+    "bannerLowFundTitle": "Quỹ sắp hết",
+    "bannerLowFundDesc": "Quỹ của bạn còn {amount}. Nạp thêm để đảm bảo các buổi sau."
   },
   "myFundClient": {
     "myFund": "Quỹ của tôi",
