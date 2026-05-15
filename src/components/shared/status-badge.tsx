@@ -9,6 +9,7 @@ import {
   PackageCheck,
   CheckCircle2,
   Hand,
+  AlertTriangle,
 } from "lucide-react";
 
 export type StatusVariant =
@@ -24,6 +25,7 @@ export type StatusVariant =
   | "lowStock"
   | "inStock"
   | "depleted" // quỹ đã hết — vàng (cảnh báo nhẹ, chưa âm)
+  | "lowFund" // gần hết quỹ (0 < balance < 50K) — cam
   | "neutral";
 
 // Toàn bộ variants thống nhất 1 công thức:
@@ -53,6 +55,8 @@ const VARIANTS: Record<StatusVariant, string> = {
     "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200",
   depleted:
     "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200",
+  lowFund:
+    "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200",
   neutral: "bg-muted text-muted-foreground",
 };
 
@@ -75,6 +79,7 @@ const ICONS: Partial<
   cancelled: CircleSlash,
   lowStock: PackageMinus,
   inStock: PackageCheck,
+  lowFund: AlertTriangle,
 };
 
 /**
