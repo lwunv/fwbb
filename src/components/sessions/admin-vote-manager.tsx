@@ -14,7 +14,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { SearchInput } from "@/components/shared/search-input";
 import { formatK } from "@/lib/utils";
 import {
-  calculateShuttlecockCost,
+  computeShuttlecockTotal,
   computePerHeadCharges,
 } from "@/lib/cost-calculator";
 import { X, Users } from "lucide-react";
@@ -292,10 +292,15 @@ export function AdminVoteManager({
   }
 
   const sc = sessionCosts;
+  // Round-UP-tổng (KHÔNG round per-brand rồi sum). Đồng bộ với
+  // calculateSessionCosts → debt finalize match preview. Admin không bị
+  // underpay (vì roundToThousand round UP).
   const shuttlecockCost = sc
-    ? sc.shuttlecocks.reduce(
-        (sum, s) => sum + calculateShuttlecockCost(s.quantity, s.pricePerTube),
-        0,
+    ? computeShuttlecockTotal(
+        sc.shuttlecocks.map((s) => ({
+          quantityUsed: s.quantity,
+          pricePerTube: s.pricePerTube,
+        })),
       )
     : 0;
   const playCost = sc ? sc.courtPrice + shuttlecockCost : 0;

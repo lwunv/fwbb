@@ -288,22 +288,26 @@ export async function selectCourt(
   const editGuard = assertEditable(existing.status as SessionStatus);
   if (!editGuard.ok) return { error: editGuard.error };
 
-  const [court, sessionRow, defaultCourt] = await Promise.all([
+  const [court, sessionRow, defaultCourt, sessionDays] = await Promise.all([
     db.query.courts.findFirst({ where: eq(courts.id, data.courtId) }),
     db.query.sessions.findFirst({
       where: eq(sessions.id, data.sessionId),
       columns: { date: true },
     }),
     getDefaultCourt(),
+    getSessionDaysOfWeek(),
   ]);
   if (!court) return { error: t("courtNotExists") };
   if (!sessionRow) return { error: t("sessionNotFound") };
 
   // Quy tắc giá:
-  //  - Buổi MẶC ĐỊNH (sân default + ngày T2/T4/T6): sân #1 = giá tháng,
-  //    sân #2..N = giá lẻ.
+  //  - Buổi MẶC ĐỊNH (sân default + ngày trong lịch admin config): sân #1 =
+  //    giá tháng, sân #2..N = giá lẻ.
   //  - Buổi LẺ (sân khác / ngày khác): TẤT CẢ sân = giá lẻ.
   // Pure logic ở `computeCourtTotal` để client preview cùng công thức.
+  // Truyền `sessionDays` từ settings — đừng để helper hardcode M/W/F khi admin
+  // đã đổi sang lịch khác (vd Tue/Thu/Sat) → tránh over-charge member trên
+  // các buổi đúng lịch.
   const totalCourtPrice = computeCourtTotal({
     monthlyPrice: court.pricePerSession,
     retailPrice: court.pricePerSessionRetail,
@@ -311,6 +315,7 @@ export async function selectCourt(
     sessionDate: sessionRow.date,
     selectedCourtId: data.courtId,
     defaultCourtId: defaultCourt?.id ?? null,
+    sessionDays,
   });
 
   // Đổi sân / số sân = intent dùng lại formula → clear override flag.
@@ -359,9 +364,10 @@ export async function confirmSession(sessionId: number) {
   // EXCEPTION: nếu admin đã `setSessionCourtPriceOverride` (cờ
   // `courtPriceOverridden = true`), giữ nguyên `courtPrice` đã lưu — không
   // recompute, để không ghi đè giá thủ công admin vừa nhập.
-  const [court, defaultCourt] = await Promise.all([
+  const [court, defaultCourt, sessionDays] = await Promise.all([
     db.query.courts.findFirst({ where: eq(courts.id, session.courtId) }),
     getDefaultCourt(),
+    getSessionDaysOfWeek(),
   ]);
 
   let recomputedCourtPrice: number;
@@ -383,6 +389,7 @@ export async function confirmSession(sessionId: number) {
       sessionDate: session.date,
       selectedCourtId: session.courtId,
       defaultCourtId: defaultCourt?.id ?? null,
+      sessionDays,
     });
   } else {
     // Court đã bị xóa nhưng session vẫn ref → trước đây fallback `?? 0`
@@ -890,9 +897,12 @@ export async function createSessionManually(
   if (existing) return { error: "Da co buoi choi vao ngay nay" };
 
   // Resolve court: admin chọn → dùng đó; không chọn → fallback default court.
-  // Giá ban đầu tính qua computeCourtTotal — buổi lẻ (ngày khác T2/T4/T6,
+  // Giá ban đầu tính qua computeCourtTotal — buổi lẻ (ngày khác lịch config,
   // hoặc sân khác default) sẽ ăn giá retail; buổi mặc định ăn giá tháng.
-  const defaultCourt = await getDefaultCourt();
+  const [defaultCourt, sessionDays] = await Promise.all([
+    getDefaultCourt(),
+    getSessionDaysOfWeek(),
+  ]);
   let resolvedCourtId: number | null = null;
   let courtPrice: number | null = null;
   let resolvedCourt: {
@@ -917,6 +927,7 @@ export async function createSessionManually(
       sessionDate: date,
       selectedCourtId: resolvedCourt.id,
       defaultCourtId: defaultCourt?.id ?? null,
+      sessionDays,
     });
   }
 
@@ -1099,9 +1110,10 @@ export async function setSessionCourtPriceOverride(
         })
         .where(eq(sessions.id, data.sessionId));
     } else {
-      const [court, defaultCourt] = await Promise.all([
+      const [court, defaultCourt, sessionDays] = await Promise.all([
         db.query.courts.findFirst({ where: eq(courts.id, session.courtId) }),
         getDefaultCourt(),
+        getSessionDaysOfWeek(),
       ]);
       const autoPrice = court
         ? computeCourtTotal({
@@ -1111,6 +1123,7 @@ export async function setSessionCourtPriceOverride(
             sessionDate: session.date,
             selectedCourtId: session.courtId,
             defaultCourtId: defaultCourt?.id ?? null,
+            sessionDays,
           })
         : (session.courtPrice ?? 0);
       await db

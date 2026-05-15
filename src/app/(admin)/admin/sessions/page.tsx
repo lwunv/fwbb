@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { sessions, courts, members, shuttlecockBrands } from "@/db/schema";
 import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { ymdInVN } from "@/lib/date-format";
-import { getDefaultCourt } from "@/actions/settings";
+import { getDefaultCourt, getSessionDaysOfWeek } from "@/actions/settings";
 import { SessionList, type StatusFilter } from "./session-list";
 
 const PAGE_SIZE = 10;
@@ -53,27 +53,34 @@ export default async function SessionsPage({
 
   // 2-wave fetch: count trước để clamp page, rồi fetch slice theo safePage.
   // Tránh case URL `?page=99` nhưng thực tế chỉ có 3 trang → fetch empty slice.
-  const [activeCourts, activeMembers, activeBrands, totalRows, defaultCourt] =
-    await Promise.all([
-      db.query.courts.findMany({
-        where: eq(courts.isActive, true),
-        orderBy: [courts.name],
-      }),
-      db.query.members.findMany({
-        where: eq(members.isActive, true),
-        orderBy: [members.name],
-      }),
-      db.query.shuttlecockBrands.findMany({
-        where: eq(shuttlecockBrands.isActive, true),
-        orderBy: [shuttlecockBrands.name],
-      }),
-      db
-        .select({ count: sql<number>`count(*)` })
-        .from(sessions)
-        .where(whereClause)
-        .then((r) => Number(r[0]?.count ?? 0)),
-      getDefaultCourt(),
-    ]);
+  const [
+    activeCourts,
+    activeMembers,
+    activeBrands,
+    totalRows,
+    defaultCourt,
+    sessionDays,
+  ] = await Promise.all([
+    db.query.courts.findMany({
+      where: eq(courts.isActive, true),
+      orderBy: [courts.name],
+    }),
+    db.query.members.findMany({
+      where: eq(members.isActive, true),
+      orderBy: [members.name],
+    }),
+    db.query.shuttlecockBrands.findMany({
+      where: eq(shuttlecockBrands.isActive, true),
+      orderBy: [shuttlecockBrands.name],
+    }),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(sessions)
+      .where(whereClause)
+      .then((r) => Number(r[0]?.count ?? 0)),
+    getDefaultCourt(),
+    getSessionDaysOfWeek(),
+  ]);
 
   const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
   const safePage = Math.min(pageNum, totalPages);
@@ -197,6 +204,7 @@ export default async function SessionsPage({
         totalPages={totalPages}
         currentStatusFilter={statusFilter}
         defaultCourtId={defaultCourt?.id ?? null}
+        sessionDays={sessionDays}
       />
     </div>
   );

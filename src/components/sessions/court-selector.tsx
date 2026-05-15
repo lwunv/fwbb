@@ -24,6 +24,7 @@ export function CourtSelector({
   isCourtPriceOverridden = false,
   sessionDate,
   defaultCourtId = null,
+  sessionDays,
 }: {
   sessionId: number;
   courts: Court[];
@@ -37,6 +38,12 @@ export function CourtSelector({
   sessionDate?: string;
   /** Default court id từ app-settings — quyết định buổi mặc định. */
   defaultCourtId?: number | null;
+  /**
+   * Lịch ngày chơi (0=CN..6=T7) từ `getSessionDaysOfWeek()`. Preview giá
+   * sân cần đúng setting admin; nếu omitted → helper fallback M/W/F (lệch
+   * khi admin đã đổi lịch).
+   */
+  sessionDays?: readonly number[] | number[];
 }) {
   const [localCourtId, setLocalCourtId] = useState(currentCourtId);
   const [quantity, setQuantity] = useState(currentCourtQuantity);
@@ -192,6 +199,7 @@ export function CourtSelector({
       sessionDate,
       selectedCourtId: court.id,
       defaultCourtId,
+      sessionDays,
     });
   }
 

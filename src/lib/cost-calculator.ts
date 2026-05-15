@@ -22,6 +22,12 @@ export function computeCourtTotal(input: {
   sessionDate: string;
   selectedCourtId: number;
   defaultCourtId: number | null;
+  /**
+   * Days of week (0=Sun..6=Sat) considered "regular subscription days".
+   * Admin có thể configure qua `getSessionDaysOfWeek()` — server caller
+   * BẮT BUỘC truyền cái này; client preview có thể bỏ qua → fallback M/W/F.
+   */
+  sessionDays?: readonly number[] | number[];
 }): number {
   const monthly = input.monthlyPrice;
   const retail = input.retailPrice ?? monthly;
@@ -29,7 +35,7 @@ export function computeCourtTotal(input: {
   const isRegular =
     input.defaultCourtId !== null &&
     input.selectedCourtId === input.defaultCourtId &&
-    isDefaultSessionDay(input.sessionDate);
+    isDefaultSessionDay(input.sessionDate, input.sessionDays);
   if (isRegular) {
     return monthly + retail * (qty - 1);
   }
@@ -95,6 +101,32 @@ export function calculateExactShuttlecockCost(
   pricePerTube: number,
 ): number {
   return (quantityUsed * pricePerTube) / 12;
+}
+
+/**
+ * Total shuttlecock cost across MULTIPLE brands in a session — exact sum
+ * first, then round UP to 1k tổng. Khớp với rule trong `calculateSessionCosts`
+ * (finalize) để UI preview KHÔNG drift so với debt thực ghi vào DB.
+ *
+ * Vì sao tách thành helper: `reduce((sum, b) => sum + calculateShuttlecockCost(b))`
+ * round UP per brand rồi mới sum → tổng có thể HIGHER hơn `roundToThousand(sum_exact)`
+ * khi nhiều brand. Per-brand round dùng cho hiển thị chi tiết từng brand,
+ * nhưng tổng buổi BẮT BUỘC qua helper này.
+ *
+ * Round UP semantics giữ nguyên — admin không bao giờ underpay.
+ */
+export function computeShuttlecockTotal(
+  shuttlecocks: ReadonlyArray<{
+    quantityUsed: number;
+    pricePerTube: number;
+  }>,
+): number {
+  const exact = shuttlecocks.reduce(
+    (sum, s) =>
+      sum + calculateExactShuttlecockCost(s.quantityUsed, s.pricePerTube),
+    0,
+  );
+  return roundToThousand(exact);
 }
 
 /**

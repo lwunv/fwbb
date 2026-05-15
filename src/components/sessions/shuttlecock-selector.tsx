@@ -9,7 +9,10 @@ import {
 } from "@/actions/sessions";
 import { fireAction } from "@/lib/optimistic-action";
 import { formatK } from "@/lib/utils";
-import { calculateShuttlecockCost } from "@/lib/cost-calculator";
+import {
+  calculateShuttlecockCost,
+  computeShuttlecockTotal,
+} from "@/lib/cost-calculator";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { ChevronDown, Pencil, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -174,10 +177,11 @@ export function ShuttlecockSelector({
     );
   }
 
-  const totalCost = items.reduce(
-    (sum, s) => sum + calculateShuttlecockCost(s.quantityUsed, s.pricePerTube),
-    0,
-  );
+  // Tổng dùng `computeShuttlecockTotal` (round UP tổng) để khớp với debt
+  // sau finalize. Per-brand line dưới vẫn dùng `calculateShuttlecockCost`
+  // để hiển thị cost từng hãng riêng. Round UP semantics giữ nguyên — admin
+  // không lỗ cầu.
+  const totalCost = computeShuttlecockTotal(items);
   const selectedBrandIds = new Set(items.map((s) => s.brandId));
 
   return (

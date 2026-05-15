@@ -21,7 +21,7 @@ import { DefaultSettingsCard } from "./default-settings-card";
 import { Input } from "@/components/ui/input";
 import { formatK, cn } from "@/lib/utils";
 import {
-  calculateShuttlecockCost,
+  computeShuttlecockTotal,
   computePerHeadCharges,
 } from "@/lib/cost-calculator";
 import { MemberAvatar } from "@/components/shared/member-avatar";
@@ -626,12 +626,11 @@ export function DashboardClient({
         // /admin/sessions list/detail. Khách của admin (adminGuestPlay/Dine)
         // được tính vào divisor → người thật bớt phải gánh.
         const courtPriceVal = upcomingSession?.courtPrice ?? 0;
-        const shuttlecockCost =
-          upcomingSession?.shuttlecocks.reduce(
-            (sum, s) =>
-              sum + calculateShuttlecockCost(s.quantityUsed, s.pricePerTube),
-            0,
-          ) ?? 0;
+        // Round-UP-tổng (đồng bộ calculateSessionCosts) để preview khớp debt
+        // thực; per-brand round rồi sum sẽ inflate 1-2k.
+        const shuttlecockCost = upcomingSession
+          ? computeShuttlecockTotal(upcomingSession.shuttlecocks)
+          : 0;
         const diningBillVal = upcomingSession?.diningBill ?? 0;
         const totalExpense = courtPriceVal + shuttlecockCost + diningBillVal;
         const totalPlayers = upcomingSession
@@ -717,6 +716,7 @@ export function DashboardClient({
                         currentCourtQuantity={upcomingSession.courtQuantity}
                         sessionDate={upcomingSession.date}
                         defaultCourtId={defaultCourtId}
+                        sessionDays={sessionDays}
                       />
                       <ShuttlecockSelector
                         sessionId={upcomingSession.id}

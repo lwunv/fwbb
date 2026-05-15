@@ -3,7 +3,7 @@ import { getSessionVotes } from "@/actions/votes";
 import { getActiveCourts } from "@/actions/courts";
 import { getActiveBrands } from "@/actions/shuttlecocks";
 import { getActiveMembers } from "@/actions/members";
-import { getDefaultCourt } from "@/actions/settings";
+import { getDefaultCourt, getSessionDaysOfWeek } from "@/actions/settings";
 import { db } from "@/db";
 import { sessionDebts } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -19,18 +19,27 @@ export default async function SessionDetailPage({
   const sessionId = parseInt(id, 10);
   if (isNaN(sessionId)) notFound();
 
-  const [session, votes, courts, brands, members, debts, defaultCourt] =
-    await Promise.all([
-      getSession(sessionId),
-      getSessionVotes(sessionId),
-      getActiveCourts(),
-      getActiveBrands(),
-      getActiveMembers(),
-      db.query.sessionDebts.findMany({
-        where: eq(sessionDebts.sessionId, sessionId),
-      }),
-      getDefaultCourt(),
-    ]);
+  const [
+    session,
+    votes,
+    courts,
+    brands,
+    members,
+    debts,
+    defaultCourt,
+    sessionDays,
+  ] = await Promise.all([
+    getSession(sessionId),
+    getSessionVotes(sessionId),
+    getActiveCourts(),
+    getActiveBrands(),
+    getActiveMembers(),
+    db.query.sessionDebts.findMany({
+      where: eq(sessionDebts.sessionId, sessionId),
+    }),
+    getDefaultCourt(),
+    getSessionDaysOfWeek(),
+  ]);
 
   if (!session) notFound();
 
@@ -56,6 +65,7 @@ export default async function SessionDetailPage({
         members={members}
         debtMap={debtMap}
         defaultCourtId={defaultCourt?.id ?? null}
+        sessionDays={sessionDays}
       />
     </div>
   );

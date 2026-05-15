@@ -4,6 +4,8 @@ import {
   calculateShuttlecockCost,
   calculateExactShuttlecockCost,
   computePerHeadCharges,
+  computeCourtTotal,
+  computeShuttlecockTotal,
   type AttendeeInput,
   type ShuttlecockInput,
 } from "./cost-calculator";
@@ -494,5 +496,156 @@ describe("calculateShuttlecockCost / calculateExactShuttlecockCost", () => {
         expect(v % 1000).toBe(0);
       }
     }
+  });
+});
+
+describe("computeShuttlecockTotal", () => {
+  it("rounds TOTAL up to 1k, not each brand individually", () => {
+    // 1 quả * 65k/tube = 5_416.67. Two brands: 5_416.67 * 2 = 10_833.33.
+    // Per-brand round: round(5_416.67)=6_000, sum=12_000.
+    // Total round: round(10_833.33)=11_000.
+    // Helper must produce 11_000 (matches calculateSessionCosts).
+    const r = computeShuttlecockTotal([
+      { quantityUsed: 1, pricePerTube: 65_000 },
+      { quantityUsed: 1, pricePerTube: 65_000 },
+    ]);
+    expect(r).toBe(11_000);
+  });
+
+  it("single brand: identical to calculateShuttlecockCost (exact divisible)", () => {
+    expect(
+      computeShuttlecockTotal([{ quantityUsed: 6, pricePerTube: 120_000 }]),
+    ).toBe(60_000);
+  });
+
+  it("returns 0 for empty list", () => {
+    expect(computeShuttlecockTotal([])).toBe(0);
+  });
+
+  it("rounds UP — admin never underpays", () => {
+    // 1 quả * 145k = 12_083.33 → must round UP to 13_000, never down to 12_000.
+    expect(
+      computeShuttlecockTotal([{ quantityUsed: 1, pricePerTube: 145_000 }]),
+    ).toBe(13_000);
+  });
+
+  it("multi-brand mixed prices", () => {
+    // 7 * 60k / 12 = 35_000 exact + 5 * 60k / 12 = 25_000 exact = 60_000.
+    const r = computeShuttlecockTotal([
+      { quantityUsed: 7, pricePerTube: 60_000 },
+      { quantityUsed: 5, pricePerTube: 60_000 },
+    ]);
+    expect(r).toBe(60_000);
+  });
+
+  it("result is always a multiple of 1000", () => {
+    for (const cases of [
+      [{ quantityUsed: 1, pricePerTube: 67_500 }],
+      [
+        { quantityUsed: 3, pricePerTube: 130_000 },
+        { quantityUsed: 2, pricePerTube: 150_000 },
+      ],
+      [
+        { quantityUsed: 1, pricePerTube: 145_000 },
+        { quantityUsed: 1, pricePerTube: 89_000 },
+      ],
+    ]) {
+      const v = computeShuttlecockTotal(cases);
+      expect(v % 1000).toBe(0);
+    }
+  });
+});
+
+describe("computeCourtTotal — sessionDays override", () => {
+  // Mặc định helper fallback [1,3,5] = Mon/Wed/Fri.
+  // 2026-05-13 = Wednesday. 2026-05-14 = Thursday.
+  it("regular day + default court: monthly + (N-1) × retail (default M/W/F fallback)", () => {
+    const r = computeCourtTotal({
+      monthlyPrice: 200_000,
+      retailPrice: 220_000,
+      courtQuantity: 2,
+      sessionDate: "2026-05-13", // Wed
+      selectedCourtId: 1,
+      defaultCourtId: 1,
+    });
+    expect(r).toBe(200_000 + 220_000); // 420k
+  });
+
+  it("irregular day + default court (default M/W/F fallback): all retail", () => {
+    const r = computeCourtTotal({
+      monthlyPrice: 200_000,
+      retailPrice: 220_000,
+      courtQuantity: 1,
+      sessionDate: "2026-05-14", // Thu — NOT in default M/W/F
+      selectedCourtId: 1,
+      defaultCourtId: 1,
+    });
+    expect(r).toBe(220_000);
+  });
+
+  it("admin configures Tue/Thu/Sat schedule → Thu becomes regular day", () => {
+    // Without sessionDays passed, this Thu would charge retail.
+    // With sessionDays=[2,4,6], Thu IS regular and gets monthly.
+    const r = computeCourtTotal({
+      monthlyPrice: 200_000,
+      retailPrice: 220_000,
+      courtQuantity: 1,
+      sessionDate: "2026-05-14", // Thu
+      selectedCourtId: 1,
+      defaultCourtId: 1,
+      sessionDays: [2, 4, 6], // Tue/Thu/Sat
+    });
+    expect(r).toBe(200_000);
+  });
+
+  it("admin configures Tue/Thu/Sat → Wed now becomes irregular", () => {
+    const r = computeCourtTotal({
+      monthlyPrice: 200_000,
+      retailPrice: 220_000,
+      courtQuantity: 1,
+      sessionDate: "2026-05-13", // Wed
+      selectedCourtId: 1,
+      defaultCourtId: 1,
+      sessionDays: [2, 4, 6],
+    });
+    expect(r).toBe(220_000);
+  });
+
+  it("non-default court is ALWAYS retail regardless of session day", () => {
+    const r = computeCourtTotal({
+      monthlyPrice: 200_000,
+      retailPrice: 220_000,
+      courtQuantity: 1,
+      sessionDate: "2026-05-13",
+      selectedCourtId: 2,
+      defaultCourtId: 1,
+      sessionDays: [1, 3, 5],
+    });
+    expect(r).toBe(220_000);
+  });
+
+  it("retailPrice=null falls back to monthly", () => {
+    const r = computeCourtTotal({
+      monthlyPrice: 200_000,
+      retailPrice: null,
+      courtQuantity: 2,
+      sessionDate: "2026-05-13",
+      selectedCourtId: 1,
+      defaultCourtId: 1,
+    });
+    expect(r).toBe(400_000); // monthly + monthly
+  });
+
+  it("empty sessionDays array falls back to default M/W/F", () => {
+    const r = computeCourtTotal({
+      monthlyPrice: 200_000,
+      retailPrice: 220_000,
+      courtQuantity: 1,
+      sessionDate: "2026-05-13", // Wed
+      selectedCourtId: 1,
+      defaultCourtId: 1,
+      sessionDays: [],
+    });
+    expect(r).toBe(200_000);
   });
 });

@@ -48,6 +48,7 @@ export function SessionDetail({
   members,
   debtMap = {},
   defaultCourtId = null,
+  sessionDays,
 }: {
   session: Session;
   votes: Vote[];
@@ -59,6 +60,9 @@ export function SessionDetail({
     { amount: number; adminConfirmed: boolean; debtId: number }
   >;
   defaultCourtId?: number | null;
+  /** Lịch ngày chơi từ getSessionDaysOfWeek() — cần để CourtSelector preview
+   *  đúng giá khi admin đã đổi lịch khỏi mặc định M/W/F. */
+  sessionDays?: readonly number[] | number[];
 }) {
   const [localStatus, setLocalStatus] = useState(session.status);
   const t = useTranslations("sessions");
@@ -132,6 +136,7 @@ export function SessionDetail({
               isCourtPriceOverridden={session.courtPriceOverridden ?? false}
               sessionDate={session.date}
               defaultCourtId={defaultCourtId}
+              sessionDays={sessionDays}
             />
           </CardContent>
         </Card>

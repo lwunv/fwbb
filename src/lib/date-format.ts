@@ -52,19 +52,30 @@ export function getNextSessionDay(ref: Date = new Date()): Date {
 }
 
 /**
- * True nếu YYYY-MM-DD rơi vào 1 trong các ngày subscription cố định
- * (Mon/Wed/Fri). Dùng để quyết định giá sân: "buổi mặc định" ăn giá tháng
- * (`pricePerSession`), "buổi lẻ" ăn `pricePerSessionRetail`.
+ * True nếu YYYY-MM-DD rơi vào 1 trong các ngày subscription cố định. Dùng
+ * để quyết định giá sân: "buổi mặc định" ăn giá tháng (`pricePerSession`),
+ * "buổi lẻ" ăn `pricePerSessionRetail`.
+ *
+ * `sessionDays` (0=Sun..6=Sat) — admin có thể configure qua
+ * `getSessionDaysOfWeek()`. Pass undefined / empty → fallback M/W/F.
+ * Caller server-side BẮT BUỘC pass `await getSessionDaysOfWeek()` để tránh
+ * hardcode lịch khác setting thật (latent over-charge bug — xem
+ * [[project-finance-money-flow-bugs]]).
  *
  * Parse trực tiếp Y/M/D ra `Date` UTC để KHÔNG lệch khi server chạy ở timezone
  * khác VN (ymd là VN-local date string).
  */
-export function isDefaultSessionDay(ymd: string): boolean {
+export function isDefaultSessionDay(
+  ymd: string,
+  sessionDays?: readonly number[] | number[],
+): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return false;
   const [y, m, d] = ymd.split("-").map(Number);
   // UTC để getUTCDay() ổn định bất kể timezone server.
   const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-  return (DEFAULT_SESSION_DAYS as readonly number[]).includes(dow);
+  const days =
+    sessionDays && sessionDays.length > 0 ? sessionDays : DEFAULT_SESSION_DAYS;
+  return (days as readonly number[]).includes(dow);
 }
 
 /** @deprecated Use {@link getNextSessionDay}. Kept for backward compatibility. */

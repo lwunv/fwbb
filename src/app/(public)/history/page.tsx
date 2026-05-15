@@ -3,7 +3,7 @@ import { sessions } from "@/db/schema";
 import { desc, or, eq } from "drizzle-orm";
 import { getTranslations } from "next-intl/server";
 import { getUserFromCookie } from "@/lib/user-identity";
-import { calculateShuttlecockCost } from "@/lib/cost-calculator";
+import { computeShuttlecockTotal } from "@/lib/cost-calculator";
 import { HistoryClient } from "./history-client";
 
 export default async function HistoryPage() {
@@ -36,11 +36,9 @@ export default async function HistoryPage() {
     const playerCount = s.attendees.filter((a) => a.attendsPlay).length;
     const dinerCount = s.attendees.filter((a) => a.attendsDine).length;
 
-    const shuttlecockCost = s.shuttlecocks.reduce(
-      (sum, sc) =>
-        sum + calculateShuttlecockCost(sc.quantityUsed, sc.pricePerTube),
-      0,
-    );
+    // Round-UP-tổng (đồng bộ calculateSessionCosts) để total session khớp
+    // debt thực; round UP để admin không lỗ cầu.
+    const shuttlecockCost = computeShuttlecockTotal(s.shuttlecocks);
     const totalCost =
       (s.courtPrice || 0) + shuttlecockCost + (s.diningBill || 0);
 

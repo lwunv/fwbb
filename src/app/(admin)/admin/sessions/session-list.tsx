@@ -15,7 +15,7 @@ import { fireAction } from "@/lib/optimistic-action";
 import { useOptimisticSet } from "@/lib/optimistic-ui";
 import { formatK, cn } from "@/lib/utils";
 import {
-  calculateShuttlecockCost,
+  computeShuttlecockTotal,
   computePerHeadCharges,
 } from "@/lib/cost-calculator";
 import { Button } from "@/components/ui/button";
@@ -163,6 +163,7 @@ export function SessionList({
   totalPages = 1,
   currentStatusFilter = "all",
   defaultCourtId = null,
+  sessionDays,
 }: {
   sessions: SessionCard[];
   courts?: Court[];
@@ -172,6 +173,9 @@ export function SessionList({
   totalPages?: number;
   currentStatusFilter?: StatusFilter;
   defaultCourtId?: number | null;
+  /** Lịch ngày chơi từ getSessionDaysOfWeek() — cần để CourtSelector preview
+   *  đúng giá khi admin đã đổi lịch khỏi mặc định M/W/F. */
+  sessionDays?: readonly number[] | number[];
 }) {
   const [, setPage] = useQueryState(
     "page",
@@ -510,10 +514,10 @@ export function SessionList({
             // Per-head & total — dùng cùng helper với cost-calculator để đồng bộ
             // 3 trang admin (list / detail / dashboard).
             const courtPriceVal = session.courtPrice ?? 0;
-            const shuttlecockCost = session.shuttlecocks.reduce(
-              (sum, s) =>
-                sum + calculateShuttlecockCost(s.quantityUsed, s.pricePerTube),
-              0,
+            // Round-UP-tổng (đồng bộ calculateSessionCosts). Per-brand round
+            // rồi sum sẽ inflate 1-2k → preview lệch debt thực.
+            const shuttlecockCost = computeShuttlecockTotal(
+              session.shuttlecocks,
             );
             const totalPlayers = session.playerCount + totalGuestPlay;
             const totalDiners = session.dinerCount + totalGuestDine;
@@ -624,6 +628,7 @@ export function SessionList({
                             currentCourtQuantity={session.courtQuantity}
                             sessionDate={session.date}
                             defaultCourtId={defaultCourtId}
+                            sessionDays={sessionDays}
                           />
                           <ShuttlecockSelector
                             sessionId={session.id}
