@@ -14,6 +14,7 @@ import { NumberStepper } from "@/components/ui/number-stepper";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { SearchInput } from "@/components/shared/search-input";
 import { formatK } from "@/lib/utils";
+import { FundStatusIcon } from "@/components/shared/fund-status-icon";
 import {
   computeShuttlecockTotal,
   computePerHeadCharges,
@@ -65,6 +66,8 @@ interface AdminVoteManagerProps {
   minDeductionEnabled?: boolean;
   /** Member IDs đã được miễn rule cho session này. */
   exemptMemberIds?: number[];
+  /** Map memberId → fund balance để render warning icon cạnh tên member. */
+  memberBalances?: Record<number, number>;
 }
 
 // Local optimistic state types
@@ -89,6 +92,7 @@ export function AdminVoteManager({
   hideCostSummary = false,
   minDeductionEnabled = false,
   exemptMemberIds = [],
+  memberBalances = {},
 }: AdminVoteManagerProps) {
   const t = useTranslations("voting");
   const tCommon = useTranslations("common");
@@ -600,10 +604,13 @@ export function AdminVoteManager({
                     size={36}
                   />
                   <span
-                    className="min-w-0 flex-1 truncate text-base font-semibold"
+                    className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-base font-semibold"
                     title={member.name}
                   >
                     {member.name}
+                    {memberBalances[member.id] !== undefined && (
+                      <FundStatusIcon balance={memberBalances[member.id]} />
+                    )}
                   </span>
 
                   <div className="flex shrink-0 items-center gap-2">
@@ -872,8 +879,11 @@ export function AdminVoteManager({
                         avatarUrl={m.avatarUrl}
                         size={36}
                       />
-                      <span className="min-w-0 flex-1 truncate text-base font-medium opacity-50">
+                      <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-base font-medium opacity-50">
                         {m.name}
+                        {memberBalances[m.id] !== undefined && (
+                          <FundStatusIcon balance={memberBalances[m.id]} />
+                        )}
                       </span>
                       <div className="flex shrink-0 items-center gap-2">
                         <button

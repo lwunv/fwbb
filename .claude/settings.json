@@ -77,7 +77,21 @@
       "Bash(sed -i 's/className=\"\"pb-20\"\"/className=\"\"\"\"/g' src/app/\\\\\\(admin\\\\\\)/admin/courts/court-list.tsx src/app/\\\\\\(admin\\\\\\)/admin/shuttlecocks/brand-list.tsx src/app/\\\\\\(admin\\\\\\)/admin/sessions/session-list.tsx src/app/\\\\\\(admin\\\\\\)/admin/members/member-list.tsx)",
       "Bash(sed -i 's/className=\"\"space-y-3 pb-20\"\"/className=\"\"space-y-3\"\"/g' src/app/\\\\\\(admin\\\\\\)/admin/sessions/[id]/session-detail.tsx)",
       "Bash(ls d:/Lwcifer/LW/FWBB/src/middleware*)",
-      "Bash(ls d:/Lwcifer/LW/FWBB/middleware*)"
+      "Bash(ls d:/Lwcifer/LW/FWBB/middleware*)",
+      "Skill(superpowers:systematic-debugging)",
+      "Skill(superpowers:systematic-debugging:*)",
+      "Bash(node -e \"['2026-05-13','2026-05-14','2026-05-11','2026-05-15','2026-05-17'].forEach\\(d => { const [y,m,day]=d.split\\('-'\\).map\\(Number\\); console.log\\(d, ['CN','T2','T3','T4','T5','T6','T7'][new Date\\(Date.UTC\\(y,m-1,day\\)\\).getUTCDay\\(\\)]\\); }\\)\")",
+      "Skill(superpowers:brainstorming)",
+      "Skill(superpowers:brainstorming:*)",
+      "Skill(superpowers:writing-plans)",
+      "Skill(superpowers:writing-plans:*)",
+      "Bash(findstr /R \"\\\\\"test\\\\\"\")",
+      "Skill(superpowers:subagent-driven-development)",
+      "Skill(superpowers:subagent-driven-development:*)",
+      "Bash(pnpm test *)",
+      "Bash(pnpm tsc *)",
+      "Bash(node -e ' *)",
+      "Bash(node -e 'JSON.parse\\(require\\('\\\\''fs'\\\\''\\).readFileSync\\('\\\\''__TRACKED_VAR__'\\\\'', '\\\\''utf8'\\\\''\\)\\)')"
     ],
     "additionalDirectories": [
       "d:\\Lwcifer\\LW\\fwbb-temp",
