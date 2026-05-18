@@ -42,6 +42,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { confirmPaymentByAdmin } from "@/actions/finance";
 import { fireAction } from "@/lib/optimistic-action";
+import { getFundStatus } from "@/lib/fund-core";
 import { formatK } from "@/lib/utils";
 import { usePolling } from "@/lib/use-polling";
 import type { InferSelectModel } from "drizzle-orm";
@@ -65,11 +66,13 @@ export function MemberList({
   members,
   debtsByMember = {},
   currentAdminMemberId = null,
+  memberBalances = {},
 }: {
   members: Member[];
   debtsByMember?: Record<number, MemberDebt[]>;
   /** memberId của admin hiện tại — render 👑 + nút "Đặt làm admin". */
   currentAdminMemberId?: number | null;
+  memberBalances?: Record<number, number>;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingNicknameId, setEditingNicknameId] = useState<number | null>(
@@ -110,7 +113,24 @@ export function MemberList({
   }
   const tF = useTranslations("finance");
   const tCommon = useTranslations("common");
+  const tFs = useTranslations("fundStatus");
   usePolling();
+
+  function fundStatusBadgeFor(balance: number) {
+    const status = getFundStatus(balance);
+    if (status === "hasFund") return null;
+    const variant =
+      status === "owing"
+        ? "unpaid"
+        : status === "depleted"
+          ? "depleted"
+          : "lowFund";
+    return (
+      <StatusBadge variant={variant} className="shrink-0">
+        {tFs(status)}
+      </StatusBadge>
+    );
+  }
 
   function handleToggle(memberId: number, currentActive: boolean) {
     setToggledMembers((prev) => ({ ...prev, [memberId]: !currentActive }));
@@ -333,6 +353,7 @@ export function MemberList({
                           )}
                         </p>
                       </div>
+                      {fundStatusBadgeFor(memberBalances[member.id] ?? 0)}
                       <Button
                         variant="ghost"
                         size="sm"
