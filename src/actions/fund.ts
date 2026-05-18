@@ -985,27 +985,35 @@ export async function confirmFundClaim(notificationId: number) {
   // Record fund_contribution + mark notification matched. The notification id
   // is a natural idempotency key — re-confirming the same claim never produces
   // a duplicate fund_contribution.
-  await db.transaction(async (tx) => {
-    const r = await recordFinancialTransaction(
-      {
-        type: "fund_contribution",
-        direction: "in",
-        amount: notif.amount!,
-        memberId,
-        paymentNotificationId: notif.id,
-        description: `Admin xác nhận đóng quỹ — ${formatVND(notif.amount!)}`,
-        metadata: { manualConfirmedByAdmin: true, claimId: notif.id },
-        idempotencyKey: `confirm-fund-claim-${notif.id}`,
-      },
-      tx,
-    );
-    if ("error" in r) throw new Error(r.error);
+  let replayed = false;
+  try {
+    await db.transaction(async (tx) => {
+      const r = await recordFinancialTransaction(
+        {
+          type: "fund_contribution",
+          direction: "in",
+          amount: notif.amount!,
+          memberId,
+          paymentNotificationId: notif.id,
+          description: `Admin xác nhận đóng quỹ — ${formatVND(notif.amount!)}`,
+          metadata: { manualConfirmedByAdmin: true, claimId: notif.id },
+          idempotencyKey: `confirm-fund-claim-${notif.id}`,
+        },
+        tx,
+      );
+      if ("error" in r) throw new Error(r.error);
+      replayed = r.replayed ?? false;
 
-    await tx
-      .update(paymentNotifications)
-      .set({ status: "matched", matchedTransactionId: r.id })
-      .where(eq(paymentNotifications.id, notif.id));
-  });
+      await tx
+        .update(paymentNotifications)
+        .set({ status: "matched", matchedTransactionId: r.id })
+        .where(eq(paymentNotifications.id, notif.id));
+    });
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : t("transactionWriteFailed"),
+    };
+  }
 
   // Auto-settle outstanding session debts with the new balance.
   const { autoApplyFundToDebts } = await import("./auto-fund");
@@ -1016,7 +1024,7 @@ export async function confirmFundClaim(notificationId: number) {
   revalidatePath("/my-fund");
   revalidatePath("/my-debts");
   revalidatePath("/");
-  return { success: true };
+  return { success: true, replayed };
 }
 
 // ─── Update member bank account ───
