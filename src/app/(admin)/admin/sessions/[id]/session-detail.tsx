@@ -50,6 +50,7 @@ export function SessionDetail({
   defaultCourtId = null,
   sessionDays,
   exemptMemberIds = [],
+  memberBalances = {},
 }: {
   session: Session;
   votes: Vote[];
@@ -66,6 +67,9 @@ export function SessionDetail({
   sessionDays?: readonly number[] | number[];
   /** Member IDs đã được admin miễn khỏi min-deduction floor. */
   exemptMemberIds?: number[];
+  /** Map memberId → fund balance. Threaded xuống AdminVoteManager để
+   *  render warning icon cạnh tên member trong row. */
+  memberBalances?: Record<number, number>;
 }) {
   const [localStatus, setLocalStatus] = useState(session.status);
   const t = useTranslations("sessions");
@@ -169,6 +173,7 @@ export function SessionDetail({
         adminGuestDineCount={session.adminGuestDineCount ?? 0}
         minDeductionEnabled={session.useMinDeduction ?? false}
         exemptMemberIds={exemptMemberIds}
+        memberBalances={memberBalances}
         sessionCosts={{
           courtPrice: session.courtPrice ?? 0,
           courtName: session.court?.name ?? null,
