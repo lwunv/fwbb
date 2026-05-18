@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { formatK, cn } from "@/lib/utils";
+import { getFundStatus } from "@/lib/fund-core";
 import { toast } from "sonner";
 
 interface DupMember {
@@ -140,11 +141,11 @@ export function DuplicateMembersBanner({ groups }: { groups: DupGroup[] }) {
                             {m.ledgerCount} giao dịch ·{" "}
                             <span
                               className={
-                                m.balance < 0
+                                getFundStatus(m.balance) === "owing"
                                   ? "text-red-600 dark:text-red-400"
-                                  : m.balance > 0
-                                    ? "text-green-600 dark:text-green-400"
-                                    : ""
+                                  : getFundStatus(m.balance) === "depleted"
+                                    ? ""
+                                    : "text-green-600 dark:text-green-400"
                               }
                             >
                               balance {formatK(m.balance)}

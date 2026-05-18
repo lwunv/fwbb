@@ -8,6 +8,7 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { formatK } from "@/lib/utils";
+import { getFundStatus } from "@/lib/fund-core";
 
 export interface RecordContributionMember {
   id: number;
@@ -132,12 +133,14 @@ export function RecordContributionDialog({
                     {typeof lockedMember.balance === "number" && (
                       <span
                         className={
-                          lockedMember.balance < 0
+                          getFundStatus(lockedMember.balance) === "owing"
                             ? "text-destructive shrink-0 text-sm font-bold tabular-nums"
                             : "text-muted-foreground shrink-0 text-sm font-bold tabular-nums"
                         }
                       >
-                        {lockedMember.balance < 0 ? "−" : ""}
+                        {getFundStatus(lockedMember.balance) === "owing"
+                          ? "−"
+                          : ""}
                         {formatK(Math.abs(lockedMember.balance))}
                       </span>
                     )}

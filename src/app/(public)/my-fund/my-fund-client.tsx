@@ -12,7 +12,7 @@ import {
   RotateCcw,
   Calendar,
 } from "lucide-react";
-import type { FundBalance } from "@/lib/fund-core";
+import { getFundStatus, type FundBalance } from "@/lib/fund-core";
 import { format } from "date-fns";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 
@@ -64,7 +64,9 @@ export function MyFundClient({ balance, transactions, memberId }: Props) {
               <div className="mb-2 flex items-center gap-2">
                 <Wallet
                   className={`h-5 w-5 ${
-                    balance.balance < 0 ? "text-destructive" : "text-primary"
+                    getFundStatus(balance.balance) === "owing"
+                      ? "text-destructive"
+                      : "text-primary"
                   }`}
                 />
                 <h2 className="text-muted-foreground font-semibold">
@@ -73,22 +75,26 @@ export function MyFundClient({ balance, transactions, memberId }: Props) {
               </div>
               <div className="mb-6">
                 <span
-                  className={`text-4xl font-bold tabular-nums ${
-                    balance.balance < 0
+                  className={`text-4xl font-bold tabular-nums ${(() => {
+                    const s = getFundStatus(balance.balance);
+                    return s === "owing"
                       ? "text-destructive"
-                      : balance.balance > 0
-                        ? "text-primary"
-                        : "text-muted-foreground"
-                  }`}
+                      : s === "depleted"
+                        ? "text-muted-foreground"
+                        : "text-primary";
+                  })()}`}
                 >
                   {formatK(balance.balance)}
                 </span>
                 <p className="text-muted-foreground mt-1 text-sm">
-                  {balance.balance < 0
-                    ? "Đang nợ quỹ"
-                    : balance.balance > 0
-                      ? t("currentBalance")
-                      : "Quỹ đã hết"}
+                  {(() => {
+                    const s = getFundStatus(balance.balance);
+                    return s === "owing"
+                      ? "Đang nợ quỹ"
+                      : s === "depleted"
+                        ? "Quỹ đã hết"
+                        : t("currentBalance");
+                  })()}
                 </p>
               </div>
 
