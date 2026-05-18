@@ -100,6 +100,7 @@ export async function reconcileFund(): Promise<ReconcileReport> {
         memberId: true,
         idempotencyKey: true,
         paymentNotificationId: true,
+        reversalOfId: true,
       },
     }),
     db.query.fundMembers.findMany({
@@ -126,20 +127,32 @@ export async function reconcileFund(): Promise<ReconcileReport> {
     }
   }
 
-  // I1: aggregate sums
+  // Build reversal-pair filter: same pattern as computeBalanceFromTransactions.
+  // Both the reversal row (has reversalOfId) AND the original it points at are
+  // excluded from gross totals to prevent inflation.
+  const voidedIds = new Set<number>();
+  for (const tx of allFundTxs) {
+    if (tx.reversalOfId != null) voidedIds.add(tx.reversalOfId);
+  }
+
+  // I1: aggregate sums (excluding reversed pairs)
   let totalIn = 0;
   let totalOut = 0;
   let totalRefund = 0;
   for (const tx of allFundTxs) {
+    if (tx.reversalOfId != null) continue; // reversal entry itself
+    if (voidedIds.has(tx.id)) continue; // original that has been voided
     if (tx.type === "fund_contribution") totalIn += tx.amount;
     else if (tx.type === "fund_deduction") totalOut += tx.amount;
     else if (tx.type === "fund_refund") totalRefund += tx.amount;
   }
   const netInternal = totalIn - totalOut - totalRefund;
 
-  // Per-member balances
+  // Per-member balances (excluding reversed pairs for consistency)
   const balancesByMember = new Map<number, number>();
   for (const tx of allFundTxs) {
+    if (tx.reversalOfId != null) continue;
+    if (voidedIds.has(tx.id)) continue;
     if (!tx.memberId) continue;
     const arr = balancesByMember.get(tx.memberId) ?? 0;
     if (tx.type === "fund_contribution")
