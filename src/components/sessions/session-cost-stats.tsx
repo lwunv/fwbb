@@ -69,27 +69,29 @@ export function SessionCostStats({
           <div className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
             💰 Tổng chi
           </div>
-          <div className="text-primary text-2xl font-bold tabular-nums">
-            {formatK(totalExpense)}
-          </div>
-          {(playCostPerHead > 0 || dineCostPerHead > 0) && (
-            <div className="mt-0.5 text-xs tabular-nums">
-              {playCostPerHead > 0 && (
-                <span className="text-primary font-semibold">
-                  🏸 {formatK(playCostPerHead)}
-                </span>
-              )}
-              {playCostPerHead > 0 && dineCostPerHead > 0 && (
-                <span className="text-foreground/50"> · </span>
-              )}
-              {dineCostPerHead > 0 && (
-                <span className="font-semibold text-orange-500 dark:text-orange-400">
-                  🍻 {formatK(dineCostPerHead)}
-                </span>
-              )}
-              <span className="text-foreground/60 ml-1">/người</span>
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <div className="text-primary text-2xl font-bold tabular-nums">
+              {formatK(totalExpense)}
             </div>
-          )}
+            {(playCostPerHead > 0 || dineCostPerHead > 0) && (
+              <div className="text-sm tabular-nums">
+                {playCostPerHead > 0 && (
+                  <span className="text-primary font-semibold">
+                    🏸 {formatK(playCostPerHead)}
+                  </span>
+                )}
+                {playCostPerHead > 0 && dineCostPerHead > 0 && (
+                  <span className="text-foreground/50"> · </span>
+                )}
+                {dineCostPerHead > 0 && (
+                  <span className="font-semibold text-orange-500 dark:text-orange-400">
+                    🍻 {formatK(dineCostPerHead)}
+                  </span>
+                )}
+                <span className="text-foreground/60 ml-1">/người</span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Card 2 — Tổng thu + Lãi/Lỗ */}
@@ -110,17 +112,19 @@ export function SessionCostStats({
                 <span className="ml-1 normal-case">(dự kiến)</span>
               )}
             </div>
-            <div className="text-2xl font-bold text-blue-600 tabular-nums dark:text-blue-400">
-              {formatK(revenue)}
-            </div>
-            <div
-              className={cn(
-                "mt-0.5 text-xs font-semibold tabular-nums",
-                profitColor,
-              )}
-            >
-              📊 {profitLabel} {profitSign}
-              {formatK(Math.abs(profit!))}
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <div className="text-2xl font-bold text-blue-600 tabular-nums dark:text-blue-400">
+                {formatK(revenue)}
+              </div>
+              <div
+                className={cn(
+                  "text-sm font-semibold tabular-nums",
+                  profitColor,
+                )}
+              >
+                📊 {profitLabel} {profitSign}
+                {formatK(Math.abs(profit!))}
+              </div>
             </div>
           </div>
         ) : (
@@ -128,11 +132,11 @@ export function SessionCostStats({
             <div className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
               💵 Tổng thu
             </div>
-            <div className="text-muted-foreground text-2xl font-bold tabular-nums">
-              —
-            </div>
-            <div className="text-muted-foreground mt-0.5 text-xs">
-              Chưa chốt sổ
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <div className="text-muted-foreground text-2xl font-bold tabular-nums">
+                —
+              </div>
+              <div className="text-muted-foreground text-sm">Chưa chốt sổ</div>
             </div>
           </div>
         )}
