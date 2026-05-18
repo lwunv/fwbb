@@ -162,8 +162,13 @@ export default async function DashboardPage() {
   const courtRentPaidThisMonth = monthRent?.paidTotal ?? 0;
   const courtRentRemainingThisMonth = monthRent?.remaining ?? 0;
 
-  // Recent financial transactions (last 5) — for activity feed
-  const recentTxsRaw = await getRecentFinancialTransactions(5);
+  // Recent financial transactions (last 5) — for activity feed.
+  // excludeAuditOnly=true: hide debt_* + bank_payment_received audit rows so
+  // user doesn't see "2 rows for 1 event" (audit + paired money row). The
+  // full transaction log at /admin/fund/transactions still includes them.
+  const recentTxsRaw = await getRecentFinancialTransactions(5, {
+    excludeAuditOnly: true,
+  });
   const recentTransactions = recentTxsRaw.map((r) => ({
     id: r.id,
     type: r.type,

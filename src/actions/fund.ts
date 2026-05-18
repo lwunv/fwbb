@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { financialTransactions, fundMembers, members } from "@/db/schema";
-import { eq, and, desc, inArray, isNotNull } from "drizzle-orm";
+import { eq, and, desc, inArray, isNotNull, notInArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getFundBalance, getAllFundBalances } from "@/lib/fund-calculator";
 import { computeBalanceFromTransactions } from "@/lib/fund-core";
@@ -386,6 +386,28 @@ export async function getAllFundTransactions() {
 }
 
 /**
+ * Audit-only ledger types — paired with a money-moving row of the same event
+ * (debt_created paired with fund_deduction; bank_payment_received paired with
+ * fund_contribution). Showing BOTH in a user-facing activity feed = "2 rows
+ * for 1 event" = confusing UX. Hidden by default in dashboard feed (opt-in
+ * via `excludeAuditOnly: true`); full transaction log keeps them for admin
+ * debugging + reconcile audit trail.
+ */
+const AUDIT_ONLY_TX_TYPES = [
+  "debt_created",
+  "debt_member_confirmed",
+  "debt_admin_confirmed",
+  "debt_undo",
+  "bank_payment_received",
+] satisfies Array<
+  | "debt_created"
+  | "debt_member_confirmed"
+  | "debt_admin_confirmed"
+  | "debt_undo"
+  | "bank_payment_received"
+>;
+
+/**
  * Fetch the most recent financial transactions across ALL types (fund flows,
  * court rent, inventory purchases, debt events, manual adjustments). Used by
  * the admin transaction log on /admin/finance.
@@ -396,8 +418,16 @@ export async function getAllFundTransactions() {
  *
  * Admins use these flags to gray out reversed rows, hide the "Hủy" button on
  * already-reversed rows, and label reversal entries clearly in the log.
+ *
+ * @param limit how many rows to return
+ * @param opts.excludeAuditOnly hide audit-only rows (debt_*, bank_payment_received)
+ *   — defaults to false (full log). Set true for "recent activity" feeds where
+ *   showing both the audit row AND its paired money-moving row is duplicate UX.
  */
-export async function getRecentFinancialTransactions(limit = 100) {
+export async function getRecentFinancialTransactions(
+  limit = 100,
+  opts: { excludeAuditOnly?: boolean } = {},
+) {
   const auth = await requireAdmin();
   if ("error" in auth) return [];
 
@@ -411,6 +441,9 @@ export async function getRecentFinancialTransactions(limit = 100) {
   const [rows, allReversalPointers] = await Promise.all([
     db.query.financialTransactions.findMany({
       with: { member: true, session: true },
+      where: opts.excludeAuditOnly
+        ? notInArray(financialTransactions.type, AUDIT_ONLY_TX_TYPES)
+        : undefined,
       orderBy: [desc(financialTransactions.createdAt)],
       limit,
     }),

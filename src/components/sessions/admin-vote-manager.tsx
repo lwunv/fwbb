@@ -643,14 +643,42 @@ export function AdminVoteManager({
                       if (memberBalances[member.id] === undefined) return null;
                       const bal = memberBalances[member.id];
                       const raw = predictedDebt(member.id);
-                      if (raw.totalAmount === 0) return null;
                       const exempt = getExempt(member.id);
                       const after =
                         minDeductionEnabled && !exempt
                           ? applyMinDeductionFloor(raw, bal)
                           : raw;
                       const ded = after.totalAmount;
+
+                      // Color for a standalone balance (no deduction context).
+                      const balStatus = getFundStatus(bal);
+                      const balColor =
+                        balStatus === "owing"
+                          ? "font-semibold text-rose-500 dark:text-rose-400"
+                          : balStatus === "depleted" || balStatus === "lowFund"
+                            ? "font-semibold text-orange-500 dark:text-orange-400"
+                            : "text-muted-foreground";
+
+                      if (ded === 0) {
+                        // No deduction yet (un-priced session or member not contributing).
+                        // Show standalone balance colored by fund status.
+                        return (
+                          <span className={`text-xs tabular-nums ${balColor}`}>
+                            {formatK(bal)}
+                          </span>
+                        );
+                      }
+
                       const remain = bal - ded;
+                      const remainStatus = getFundStatus(remain);
+                      const remainColor =
+                        remainStatus === "owing"
+                          ? "font-semibold text-rose-500 dark:text-rose-400"
+                          : remainStatus === "depleted" ||
+                              remainStatus === "lowFund"
+                            ? "font-semibold text-orange-500 dark:text-orange-400"
+                            : "text-foreground";
+
                       return (
                         <span className="flex items-baseline gap-1 text-xs tabular-nums">
                           <span className="text-muted-foreground">
@@ -668,18 +696,7 @@ export function AdminVoteManager({
                             </span>
                           )}
                           <span className="text-muted-foreground">=</span>
-                          <span
-                            className={(() => {
-                              const status = getFundStatus(remain);
-                              return status === "owing"
-                                ? "font-semibold text-rose-500 dark:text-rose-400"
-                                : status === "depleted" || status === "lowFund"
-                                  ? "font-semibold text-orange-500 dark:text-orange-400"
-                                  : "text-foreground";
-                            })()}
-                          >
-                            {formatK(remain)}
-                          </span>
+                          <span className={remainColor}>{formatK(remain)}</span>
                         </span>
                       );
                     })()}
@@ -951,12 +968,33 @@ export function AdminVoteManager({
                         avatarUrl={m.avatarUrl}
                         size={36}
                       />
-                      <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-base font-medium opacity-50">
-                        {m.name}
-                        {memberBalances[m.id] !== undefined && (
-                          <FundStatusIcon balance={memberBalances[m.id]} />
-                        )}
-                      </span>
+                      <div className="flex min-w-0 flex-1 flex-col gap-0.5 opacity-50">
+                        <span className="flex items-center gap-1.5 truncate text-base font-medium">
+                          {m.name}
+                          {memberBalances[m.id] !== undefined && (
+                            <FundStatusIcon balance={memberBalances[m.id]} />
+                          )}
+                        </span>
+                        {memberBalances[m.id] !== undefined &&
+                          (() => {
+                            const bal = memberBalances[m.id];
+                            const balStatus = getFundStatus(bal);
+                            const balColor =
+                              balStatus === "owing"
+                                ? "font-semibold text-rose-500 dark:text-rose-400"
+                                : balStatus === "depleted" ||
+                                    balStatus === "lowFund"
+                                  ? "font-semibold text-orange-500 dark:text-orange-400"
+                                  : "text-muted-foreground";
+                            return (
+                              <span
+                                className={`text-xs tabular-nums ${balColor}`}
+                              >
+                                {formatK(bal)}
+                              </span>
+                            );
+                          })()}
+                      </div>
                       <div className="flex shrink-0 items-center gap-2">
                         <button
                           type="button"
