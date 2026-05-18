@@ -5,8 +5,10 @@ import {
   members,
   shuttlecockBrands,
   sessionMinDeductionExemptions,
+  financialTransactions,
 } from "@/db/schema";
 import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
+import { computeBalancesForMembers } from "@/lib/fund-core";
 import { ymdInVN } from "@/lib/date-format";
 import { getDefaultCourt, getSessionDaysOfWeek } from "@/actions/settings";
 import { SessionList, type StatusFilter } from "./session-list";
@@ -130,6 +132,32 @@ export default async function SessionsPage({
     exemptionsBySession.set(row.sessionId, list);
   }
 
+  const memberIds = activeMembers.map((m) => m.id);
+  const memberTxs =
+    memberIds.length > 0
+      ? await db
+          .select({
+            memberId: financialTransactions.memberId,
+            type: financialTransactions.type,
+            amount: financialTransactions.amount,
+            id: financialTransactions.id,
+            reversalOfId: financialTransactions.reversalOfId,
+          })
+          .from(financialTransactions)
+          .where(inArray(financialTransactions.memberId, memberIds))
+      : [];
+
+  // Filter out null memberIds (group-level transactions like inventory_purchase
+  // don't have a member). Phải narrow trước khi pass vì
+  // `computeBalancesForMembers` yêu cầu `memberId: number` (non-null).
+  const memberTxsFiltered = memberTxs.filter(
+    (tx): tx is typeof tx & { memberId: number } => tx.memberId !== null,
+  );
+  const memberBalances = computeBalancesForMembers(
+    memberIds,
+    memberTxsFiltered,
+  );
+
   const sessionCards = allSessions.map((s) => {
     // Completed sessions: real headcount from sessionAttendees (lock-in at
     // finalize). Voting/confirmed: live count from votes (no attendees yet).
@@ -233,6 +261,7 @@ export default async function SessionsPage({
         currentStatusFilter={statusFilter}
         defaultCourtId={defaultCourt?.id ?? null}
         sessionDays={sessionDays}
+        memberBalances={memberBalances}
       />
     </div>
   );
