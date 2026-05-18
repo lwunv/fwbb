@@ -289,12 +289,14 @@ export async function finalizeSession(
           })
           .returning({ id: sessionDebts.id });
 
-        // idempotencyKey natural-keyed: (sessionId, memberId) — re-finalize
-        // cùng buổi/member là 1 thao tác duy nhất; insertedDebt.id sinh mới
-        // nên dùng debtId không idempotent qua các lần finalize, dùng
-        // (sessionId,memberId) ổn định hơn. Reverse-then-create flow ở phía
-        // trên đã wipe debt cũ, nên debtId mới là OK; key này chỉ chặn race
-        // 2 finalize cùng lúc cho cùng buổi/member.
+        // idempotencyKey chứa `insertedDebt.id` (sinh mới mỗi cycle), không
+        // phải natural-key (sessionId, memberId). Lý do: reverse-then-reinsert
+        // ở trên KHÔNG xóa các ledger row cũ — chỉ NULL `debtId` (line 198-201)
+        // + reverse fund_deduction qua reversalOfId. Nếu dùng natural key
+        // (sessionId, memberId), re-finalize sẽ UNIQUE-violate ngay với hàng
+        // cũ còn lại. Tx serialization của SQLite (single-writer) là lá chắn
+        // chống concurrent double-finalize; key này chủ yếu chặn replay nội
+        // bộ trong 1 tx và làm audit trail dễ trace.
         const r1 = await recordFinancialTransaction(
           {
             type: "debt_created",

@@ -196,13 +196,21 @@ export async function setStockQua(brandId: number, desiredQua: number) {
         where: eq(inventoryPurchases.brandId, brandId),
         columns: { tubes: true },
       });
+      // Cancelled sessions retain sessionShuttlecocks rows (only deleteSession
+      // wipes them). Match the F7 revenue-calc convention: exclude cancelled
+      // from "used". If tubes were physically opened during a cancelled
+      // session, admin records the loss via `setStockQua`/`stockAdjustQua`.
       const usage = await tx.query.sessionShuttlecocks.findMany({
         where: eq(sessionShuttlecocks.brandId, brandId),
         columns: { quantityUsed: true },
+        with: { session: { columns: { status: true } } },
       });
       const adjustQua = brand.stockAdjustQua ?? 0;
       const totalPurchasedQua = purchases.reduce((s, p) => s + p.tubes, 0) * 12;
-      const totalUsedQua = usage.reduce((s, u) => s + u.quantityUsed, 0);
+      const totalUsedQua = usage.reduce(
+        (s, u) => (u.session?.status === "cancelled" ? s : s + u.quantityUsed),
+        0,
+      );
       const currentStock = totalPurchasedQua - totalUsedQua + adjustQua;
 
       if (desiredQua === currentStock) return;
@@ -251,8 +259,14 @@ export async function getStockByBrand(): Promise<StockByBrand[]> {
   // Get all purchases
   const purchases = await db.query.inventoryPurchases.findMany();
 
-  // Get all usage from sessions
-  const usage = await db.query.sessionShuttlecocks.findMany();
+  // Get all usage from sessions. Cancelled sessions retain sessionShuttlecocks
+  // rows but their tubes are NOT counted as "used" by stock — matches the F7
+  // convention in shuttlecock-finance. Admin records physical loss via
+  // `setStockQua` / `stockAdjustQua` if tubes were opened then session
+  // cancelled.
+  const usage = await db.query.sessionShuttlecocks.findMany({
+    with: { session: { columns: { status: true } } },
+  });
 
   const result: StockByBrand[] = [];
 
@@ -264,9 +278,11 @@ export async function getStockByBrand(): Promise<StockByBrand[]> {
 
     const totalPurchasedQua = totalPurchasedTubes * 12;
 
-    // Sum used qua for this brand
+    // Sum used qua for this brand (exclude cancelled sessions)
     const totalUsedQua = usage
-      .filter((u) => u.brandId === brand.id)
+      .filter(
+        (u) => u.brandId === brand.id && u.session?.status !== "cancelled",
+      )
       .reduce((sum, u) => sum + u.quantityUsed, 0);
 
     const adjustQua = brand.stockAdjustQua ?? 0;
