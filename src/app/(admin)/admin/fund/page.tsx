@@ -5,6 +5,7 @@ import {
   getFundMembersWithBalances,
   getAllFundTransactions,
   getFundOverview,
+  getSessionFinanceReport,
 } from "@/actions/fund";
 import { mergeLegacyDebtsIntoFund } from "@/actions/merge-debt-fund";
 import { db } from "@/db";
@@ -30,6 +31,7 @@ export default async function AdminFundPage() {
     courtList,
     brandList,
     t,
+    sessionFinanceEntries,
   ] = await Promise.all([
     getFundOverview(),
     getFundMembersWithBalances(),
@@ -46,6 +48,7 @@ export default async function AdminFundPage() {
       orderBy: (b, { asc }) => [asc(b.name)],
     }),
     getTranslations("fundAdmin"),
+    getSessionFinanceReport(),
   ]);
 
   // Merged Quỹ + Nợ: "Nợ chưa thu" = sum of negative balances.
@@ -75,6 +78,7 @@ export default async function AdminFundPage() {
         brands={brandList}
         currentYear={currentYear}
         currentMonth={currentMonth}
+        sessionFinanceEntries={sessionFinanceEntries}
       />
       <FundReport
         fundMembers={fundMembersWithBalances}

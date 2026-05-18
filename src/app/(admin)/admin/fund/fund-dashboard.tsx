@@ -29,6 +29,8 @@ import {
 import type { InferSelectModel } from "drizzle-orm";
 import type { members as membersTable } from "@/db/schema";
 import type { FundBalance } from "@/lib/fund-calculator";
+import { SessionFinanceReport } from "./session-finance-report";
+import type { SessionFinanceEntry } from "@/actions/fund";
 
 type Member = InferSelectModel<typeof membersTable>;
 
@@ -82,6 +84,7 @@ interface Props {
   brands: BrandOpt[];
   currentYear: number;
   currentMonth: number;
+  sessionFinanceEntries: SessionFinanceEntry[];
 }
 
 function cloneFundState(
@@ -108,6 +111,7 @@ export function FundDashboard({
   brands,
   currentYear,
   currentMonth,
+  sessionFinanceEntries,
 }: Props) {
   const t = useTranslations("fundAdmin");
   const tCommon = useTranslations("common");
@@ -504,6 +508,9 @@ export function FundDashboard({
           </button>
         </div>
       </motion.div>
+
+      {/* Báo cáo Thu/Chi từ buổi chơi */}
+      <SessionFinanceReport entries={sessionFinanceEntries} />
 
       {/* Add Member Modal */}
       <AnimatePresence>

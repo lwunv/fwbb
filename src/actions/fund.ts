@@ -1,8 +1,14 @@
 "use server";
 
 import { db } from "@/db";
-import { financialTransactions, fundMembers, members } from "@/db/schema";
+import {
+  financialTransactions,
+  fundMembers,
+  members,
+  sessions,
+} from "@/db/schema";
 import { eq, and, desc, inArray, isNotNull, notInArray } from "drizzle-orm";
+import { computeShuttlecockTotal } from "@/lib/cost-calculator";
 import { revalidatePath } from "next/cache";
 import { getFundBalance, getAllFundBalances } from "@/lib/fund-calculator";
 import { computeBalanceFromTransactions } from "@/lib/fund-core";
@@ -1058,6 +1064,58 @@ export async function confirmFundClaim(notificationId: number) {
   revalidatePath("/my-debts");
   revalidatePath("/");
   return { success: true, replayed };
+}
+
+// ─── Session Finance Report ───
+
+export interface SessionFinanceEntry {
+  sessionId: number;
+  date: string; // YYYY-MM-DD
+  courtName: string | null;
+  chi: number; // courtPrice + shuttleCost + diningBill
+  thu: number; // Σ sessionDebts.totalAmount
+  loi: number; // thu - chi
+}
+
+/**
+ * Aggregates admin profit/loss per completed session.
+ *
+ * Chi = courtPrice + shuttleCost (via computeShuttlecockTotal, round-up) + diningBill
+ * Thu = Σ sessionDebts.totalAmount
+ * Lãi = Thu − Chi (negative = admin subsidized the session)
+ *
+ * Only sessions with status="completed" are included — voting/confirmed have
+ * no finalized debts; cancelled sessions are out of scope.
+ */
+export async function getSessionFinanceReport(): Promise<
+  SessionFinanceEntry[]
+> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return [];
+
+  const completedSessions = await db.query.sessions.findMany({
+    where: eq(sessions.status, "completed"),
+    with: {
+      court: { columns: { name: true } },
+      shuttlecocks: true,
+      debts: { columns: { totalAmount: true } },
+    },
+    orderBy: [desc(sessions.date)],
+  });
+
+  return completedSessions.map((s) => {
+    const shuttleCost = computeShuttlecockTotal(s.shuttlecocks);
+    const chi = (s.courtPrice ?? 0) + shuttleCost + (s.diningBill ?? 0);
+    const thu = s.debts.reduce((sum, d) => sum + d.totalAmount, 0);
+    return {
+      sessionId: s.id,
+      date: s.date,
+      courtName: s.court?.name ?? null,
+      chi,
+      thu,
+      loi: thu - chi,
+    };
+  });
 }
 
 // ─── Update member bank account ───
