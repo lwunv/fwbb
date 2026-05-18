@@ -358,27 +358,47 @@ export async function deleteCourtRentPayment(
   // hard-delete làm reconcile không phân biệt "xóa nhầm" vs "chưa từng tồn
   // tại". Reversal row có `reversalOfId` trỏ về row gốc; khi list payments
   // có thể filter (original ≠ none-reversed) để ẩn cặp đã reverse.
-  // Nếu đã có reversal rồi → idempotent no-op.
-  const existingReversal = await db.query.financialTransactions.findFirst({
-    where: eq(financialTransactions.reversalOfId, paymentId),
-    columns: { id: true },
-  });
-  if (existingReversal) {
-    revalidatePath("/admin/court-rent");
-    return { success: true };
-  }
+  //
+  // Pre-check + insert now happen inside a db.transaction so the
+  // read-then-write is atomic. idempotencyKey `delete-court-rent-${paymentId}`
+  // is the last-line-of-defence via DB UNIQUE INDEX on idempotency_key.
+  try {
+    await db.transaction(async (tx) => {
+      const existingReversal = await tx.query.financialTransactions.findFirst({
+        where: eq(financialTransactions.reversalOfId, paymentId),
+        columns: { id: true },
+      });
+      if (existingReversal) return; // idempotent no-op inside tx
 
-  await db.insert(financialTransactions).values({
-    type: "court_rent_payment",
-    direction: "in", // ngược direction với original (out → in)
-    amount: original.amount,
-    memberId: original.memberId,
-    sessionId: original.sessionId,
-    debtId: original.debtId,
-    reversalOfId: original.id,
-    description: `Hoàn tác trả tiền sân — ${original.description ?? ""}`.trim(),
-    metadataJson: original.metadataJson, // copy để filter list theo targetMonth vẫn match
-  });
+      const r = await recordFinancialTransaction(
+        {
+          type: "court_rent_payment",
+          direction: "in", // ngược direction với original (out → in)
+          amount: original.amount,
+          memberId: original.memberId,
+          sessionId: original.sessionId,
+          debtId: original.debtId,
+          reversalOfId: original.id,
+          description:
+            `Hoàn tác trả tiền sân — ${original.description ?? ""}`.trim(),
+          metadata: original.metadataJson
+            ? (JSON.parse(original.metadataJson) as Record<
+                string,
+                string | number | boolean | null
+              >)
+            : null, // copy để filter list theo targetMonth vẫn match
+          idempotencyKey: `delete-court-rent-${paymentId}`,
+        },
+        tx,
+      );
+      if ("error" in r) throw new Error(r.error);
+    });
+  } catch (err) {
+    const t = await getTranslations("serverErrors");
+    return {
+      error: err instanceof Error ? err.message : t("transactionWriteFailed"),
+    };
+  }
 
   revalidatePath("/admin/court-rent");
   revalidatePath("/admin/fund");
