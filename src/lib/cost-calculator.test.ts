@@ -7,6 +7,7 @@ import {
   computeCourtTotal,
   computeShuttlecockTotal,
   applyMinDeductionFloor,
+  computePredictedMinDeductionSurplus,
   MIN_DEDUCTION_PER_HEAD,
   type AttendeeInput,
   type MemberDebt,
@@ -736,5 +737,123 @@ describe("applyMinDeductionFloor", () => {
 
   it("MIN_DEDUCTION_PER_HEAD constant = 60K", () => {
     expect(MIN_DEDUCTION_PER_HEAD).toBe(60_000);
+  });
+});
+
+describe("computePredictedMinDeductionSurplus", () => {
+  it("returns 0 when playCostPerHead already ≥ floor (no penalty needed)", () => {
+    const r = computePredictedMinDeductionSurplus({
+      playingMemberIds: [1, 2, 3],
+      memberBalances: { 1: 0, 2: 0, 3: 0 },
+      exemptMemberIds: [],
+      playCostPerHead: 80_000,
+    });
+    expect(r).toBe(0);
+  });
+
+  it("returns 0 when playCostPerHead = 0 (no players or no cost)", () => {
+    const r = computePredictedMinDeductionSurplus({
+      playingMemberIds: [1, 2],
+      memberBalances: { 1: -100_000, 2: 0 },
+      exemptMemberIds: [],
+      playCostPerHead: 0,
+    });
+    expect(r).toBe(0);
+  });
+
+  it("returns 0 when all playing members have sufficient balance", () => {
+    const r = computePredictedMinDeductionSurplus({
+      playingMemberIds: [1, 2, 3],
+      memberBalances: { 1: 500_000, 2: 100_000, 3: 50_000 },
+      exemptMemberIds: [],
+      playCostPerHead: 34_000,
+    });
+    expect(r).toBe(0);
+  });
+
+  it("adds (floor − playPerHead) for each member with insufficient balance", () => {
+    // Scenario từ bug report user: 10 players, playPerHead=34K, 1 member
+    // (Minh Lương, id=42) balance=0 → penalty = 60K - 34K = 26K.
+    const r = computePredictedMinDeductionSurplus({
+      playingMemberIds: [1, 2, 42],
+      memberBalances: { 1: 500_000, 2: 100_000, 42: 0 },
+      exemptMemberIds: [],
+      playCostPerHead: 34_000,
+    });
+    expect(r).toBe(26_000);
+  });
+
+  it("sums penalty surplus across multiple insufficient members", () => {
+    const r = computePredictedMinDeductionSurplus({
+      playingMemberIds: [1, 2, 3, 4],
+      memberBalances: { 1: 0, 2: 10_000, 3: 33_999, 4: 500_000 },
+      exemptMemberIds: [],
+      playCostPerHead: 34_000,
+    });
+    // Members 1, 2, 3 all < 34K → each contributes 60K - 34K = 26K
+    expect(r).toBe(26_000 * 3);
+  });
+
+  it("skips exempt members from penalty", () => {
+    const r = computePredictedMinDeductionSurplus({
+      playingMemberIds: [1, 2, 3],
+      memberBalances: { 1: 0, 2: 0, 3: 0 },
+      exemptMemberIds: [2],
+      playCostPerHead: 34_000,
+    });
+    // Only members 1 and 3 contribute penalty.
+    expect(r).toBe(26_000 * 2);
+  });
+
+  it("treats missing balance entry as 0 (member never funded)", () => {
+    const r = computePredictedMinDeductionSurplus({
+      playingMemberIds: [99],
+      memberBalances: {},
+      exemptMemberIds: [],
+      playCostPerHead: 34_000,
+    });
+    expect(r).toBe(26_000);
+  });
+
+  it("treats negative balance (debt) as insufficient — fires floor", () => {
+    const r = computePredictedMinDeductionSurplus({
+      playingMemberIds: [1],
+      memberBalances: { 1: -50_000 },
+      exemptMemberIds: [],
+      playCostPerHead: 34_000,
+    });
+    expect(r).toBe(26_000);
+  });
+
+  it("returns 0 when playingMemberIds is empty", () => {
+    const r = computePredictedMinDeductionSurplus({
+      playingMemberIds: [],
+      memberBalances: { 1: 0 },
+      exemptMemberIds: [],
+      playCostPerHead: 34_000,
+    });
+    expect(r).toBe(0);
+  });
+
+  it("custom floor honored — penalty scales with floor − playPerHead", () => {
+    const r = computePredictedMinDeductionSurplus({
+      playingMemberIds: [1],
+      memberBalances: { 1: 0 },
+      exemptMemberIds: [],
+      playCostPerHead: 20_000,
+      floor: 50_000,
+    });
+    expect(r).toBe(30_000);
+  });
+
+  it("member with balance exactly = playPerHead does NOT trigger floor (boundary)", () => {
+    // Matches `applyMinDeductionFloor` semantics: balance >= playAmount → no penalty.
+    const r = computePredictedMinDeductionSurplus({
+      playingMemberIds: [1],
+      memberBalances: { 1: 34_000 },
+      exemptMemberIds: [],
+      playCostPerHead: 34_000,
+    });
+    expect(r).toBe(0);
   });
 });

@@ -17,6 +17,7 @@ import { formatK, cn } from "@/lib/utils";
 import {
   computeShuttlecockTotal,
   computePerHeadCharges,
+  computePredictedMinDeductionSurplus,
 } from "@/lib/cost-calculator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -88,6 +89,19 @@ interface UnpaidDebt {
   amount: number;
 }
 
+interface AttendeeInfo {
+  memberId: number | null;
+  memberName: string | null;
+  memberAvatarKey: string | null;
+  memberAvatarUrl: string | null;
+  guestName: string | null;
+  isGuest: boolean;
+  attendsPlay: boolean;
+  attendsDine: boolean;
+  invitedById: number | null;
+  invitedByName: string | null;
+}
+
 interface SessionCard {
   id: number;
   date: string;
@@ -119,6 +133,7 @@ interface SessionCard {
     number,
     { amount: number; adminConfirmed: boolean; debtId: number }
   >;
+  attendees: AttendeeInfo[];
 }
 
 type SessionStatus = "voting" | "confirmed" | "completed" | "cancelled";
@@ -673,9 +688,25 @@ export function SessionList({
                         (() => {
                           const showRevenue =
                             effectiveStatus === "completed" || isPastPending;
+                          // Predicted revenue MUST include min-60K penalty
+                          // surplus (members below playPerHead get floored to
+                          // 60K, admin captures the difference). Plain
+                          // `players × playPerHead` understates "Tổng thu".
+                          const predictedPenaltySurplus =
+                            session.useMinDeduction
+                              ? computePredictedMinDeductionSurplus({
+                                  playingMemberIds: session.votes
+                                    .filter((v) => v.willPlay)
+                                    .map((v) => v.member.id),
+                                  memberBalances,
+                                  exemptMemberIds: session.exemptMemberIds,
+                                  playCostPerHead,
+                                })
+                              : 0;
                           const predictedRevenue =
                             totalPlayers * playCostPerHead +
-                            totalDiners * dineCostPerHead;
+                            totalDiners * dineCostPerHead +
+                            predictedPenaltySurplus;
                           const revenue =
                             effectiveStatus === "completed"
                               ? session.totalDebt
@@ -839,27 +870,39 @@ export function SessionList({
                         </div>
                       )}
 
-                      {/* Completed: counts (non-expandable) + payment status */}
+                      {/* Completed: counts (CLICK to expand attendee list) + payment status */}
                       {effectiveStatus === "completed" && (
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-                          <span className="text-primary">
-                            🏸{" "}
-                            <strong>
-                              {session.playerCount + session.guestPlayCount}
-                            </strong>{" "}
-                            <span className="text-foreground/80">
-                              {t("people")}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedId(isExpanded ? null : session.id);
+                            }}
+                            className="hover:bg-muted/40 inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5"
+                          >
+                            <span className="text-primary">
+                              🏸{" "}
+                              <strong>
+                                {session.playerCount + session.guestPlayCount}
+                              </strong>{" "}
+                              <span className="text-foreground/80">
+                                {t("people")}
+                              </span>
                             </span>
-                          </span>
-                          <span className="text-orange-500 dark:text-orange-400">
-                            🍻{" "}
-                            <strong>
-                              {session.dinerCount + session.guestDineCount}
-                            </strong>{" "}
-                            <span className="text-foreground/80">
-                              {t("people")}
+                            <span className="text-orange-500 dark:text-orange-400">
+                              🍻{" "}
+                              <strong>
+                                {session.dinerCount + session.guestDineCount}
+                              </strong>{" "}
+                              <span className="text-foreground/80">
+                                {t("people")}
+                              </span>
                             </span>
-                          </span>
+                            <ChevronDown
+                              className={`text-muted-foreground h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                            />
+                          </button>
                           {/* Trong optimistic-finalize window, server chưa
                           insert sessionDebts → totalDebt=0, allPaid lừa user
                           thấy "✓ 0đ" tưởng đã trả hết. Hiện spinner "Đang
@@ -956,63 +999,131 @@ export function SessionList({
                 {/* AdminVoteManager đã chuyển vào trong Card phía trên (gộp chung
                   border với toggle counts). Không còn block tách rời ở đây. */}
 
-                {/* Expanded: unpaid debts for completed sessions — đã filter
-                  paidDebtIds để row biến mất ngay khi admin bấm "Đã nhận". */}
-                {isExpanded &&
-                  effectiveStatus === "completed" &&
-                  optimisticUnpaidDebts.length > 0 && (
-                    <div className="bg-background/50 divide-y rounded-b-xl border border-t-0 p-4">
-                      {optimisticUnpaidDebts.map((d) => (
+                {/* Expanded: attendee list + unpaid debts for completed sessions */}
+                {isExpanded && effectiveStatus === "completed" && (
+                  <div className="bg-background/50 space-y-3 rounded-b-xl border border-t-0 p-4">
+                    {(() => {
+                      const players = session.attendees.filter(
+                        (a) => a.attendsPlay,
+                      );
+                      const diners = session.attendees.filter(
+                        (a) => a.attendsDine,
+                      );
+                      const renderAttendee = (a: AttendeeInfo, idx: number) => (
                         <div
-                          key={d.memberId}
-                          className="flex items-center justify-between py-2 text-sm"
+                          key={`${a.memberId ?? "g"}-${a.guestName ?? ""}-${idx}`}
+                          className="bg-muted/30 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm"
                         >
-                          <div className="flex items-center gap-3">
+                          {a.isGuest ? (
+                            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-amber-500/20 text-xs">
+                              👤
+                            </span>
+                          ) : (
                             <MemberAvatar
-                              memberId={d.memberId}
-                              avatarKey={d.memberAvatarKey}
-                              avatarUrl={d.memberAvatarUrl}
+                              memberId={a.memberId ?? 0}
+                              avatarKey={a.memberAvatarKey}
+                              avatarUrl={a.memberAvatarUrl}
                               size={28}
                             />
-                            <span>{d.memberName}</span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-destructive font-medium">
-                              {formatK(d.amount)}
-                            </span>
-                            <Button
-                              size="sm"
-                              variant="success"
-                              className="gap-1"
-                              onClick={() => {
-                                const debtId = d.debtId;
-                                const memberName = d.memberName;
-                                // Wrap action để toast lỗi gắn member name —
-                                // admin click nhiều row liên tiếp vẫn biết
-                                // row nào fail.
-                                paidDebts.addOptimistically(
-                                  debtId,
-                                  async () => {
-                                    const r =
-                                      await confirmPaymentByAdmin(debtId);
-                                    if (r && "error" in r && r.error) {
-                                      return {
-                                        error: `${memberName}: ${r.error}`,
-                                      };
-                                    }
-                                    return r;
-                                  },
-                                );
-                              }}
-                            >
-                              <Check className="h-4 w-4" />
-                              {tF("received")}
-                            </Button>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-medium">
+                              {a.isGuest
+                                ? (a.guestName ?? "Khách")
+                                : (a.memberName ?? `#${a.memberId}`)}
+                            </p>
+                            {a.isGuest && a.invitedByName && (
+                              <p className="text-muted-foreground truncate text-xs">
+                                Khách của {a.invitedByName}
+                              </p>
+                            )}
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      );
+                      return (
+                        <>
+                          {players.length > 0 && (
+                            <div>
+                              <p className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
+                                🏸 Chơi ({players.length})
+                              </p>
+                              <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                                {players.map(renderAttendee)}
+                              </div>
+                            </div>
+                          )}
+                          {diners.length > 0 && (
+                            <div>
+                              <p className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
+                                🍻 Nhậu ({diners.length})
+                              </p>
+                              <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                                {diners.map(renderAttendee)}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+
+                    {optimisticUnpaidDebts.length > 0 && (
+                      <div className="space-y-2 border-t pt-3">
+                        <p className="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
+                          Còn nợ
+                        </p>
+                        {optimisticUnpaidDebts.map((d) => (
+                          <div
+                            key={d.memberId}
+                            className="flex items-center justify-between py-2 text-sm"
+                          >
+                            <div className="flex items-center gap-3">
+                              <MemberAvatar
+                                memberId={d.memberId}
+                                avatarKey={d.memberAvatarKey}
+                                avatarUrl={d.memberAvatarUrl}
+                                size={28}
+                              />
+                              <span>{d.memberName}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-destructive font-medium">
+                                {formatK(d.amount)}
+                              </span>
+                              <Button
+                                size="sm"
+                                variant="success"
+                                className="gap-1"
+                                onClick={() => {
+                                  const debtId = d.debtId;
+                                  const memberName = d.memberName;
+                                  // Wrap action để toast lỗi gắn member name —
+                                  // admin click nhiều row liên tiếp vẫn biết
+                                  // row nào fail.
+                                  paidDebts.addOptimistically(
+                                    debtId,
+                                    async () => {
+                                      const r =
+                                        await confirmPaymentByAdmin(debtId);
+                                      if (r && "error" in r && r.error) {
+                                        return {
+                                          error: `${memberName}: ${r.error}`,
+                                        };
+                                      }
+                                      return r;
+                                    },
+                                  );
+                                }}
+                              >
+                                <Check className="h-4 w-4" />
+                                {tF("received")}
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}

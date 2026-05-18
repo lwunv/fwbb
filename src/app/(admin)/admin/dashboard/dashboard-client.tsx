@@ -23,6 +23,7 @@ import { formatK, cn } from "@/lib/utils";
 import {
   computeShuttlecockTotal,
   computePerHeadCharges,
+  computePredictedMinDeductionSurplus,
 } from "@/lib/cost-calculator";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { updateAppName } from "@/actions/settings";
@@ -659,8 +660,24 @@ export function DashboardClient({
             playCostPerHead > 0 ||
             dineCostPerHead > 0 ||
             canFinalize);
+        // Predicted revenue includes min-60K penalty surplus: members with
+        // balance < playPerHead get floored to 60K when finalize fires, and
+        // the (60K − playPerHead) difference flows to admin's fund. Plain
+        // `totalPlayers × playPerHead` would understate "Tổng thu (dự kiến)".
+        const predictedPenaltySurplus = upcomingSession?.useMinDeduction
+          ? computePredictedMinDeductionSurplus({
+              playingMemberIds: upcomingSession.votes
+                .filter((v) => v.willPlay)
+                .map((v) => v.member.id),
+              memberBalances,
+              exemptMemberIds: upcomingSession.exemptMemberIds,
+              playCostPerHead,
+            })
+          : 0;
         const predictedRevenue =
-          totalPlayers * playCostPerHead + totalDiners * dineCostPerHead;
+          totalPlayers * playCostPerHead +
+          totalDiners * dineCostPerHead +
+          predictedPenaltySurplus;
         return (
           <LedBorder active={showLed} variant="pink">
             <SectionCard

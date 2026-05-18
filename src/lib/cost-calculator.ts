@@ -139,6 +139,46 @@ export function applyMinDeductionFloor(
 }
 
 /**
+ * Predict min-60K penalty surplus that will flow to admin's fund when a
+ * session is finalized. For each playing member with balance below
+ * `playCostPerHead` (and not exempt), the floor overrides their playAmount
+ * to 60K — admin captures the (60K − playPerHead) difference.
+ *
+ * Returns 0 if floor disabled, playCostPerHead ≥ floor, or no members
+ * qualify. Pure function — caller passes member list, balances, exempt set.
+ *
+ * Used by upcoming/past-pending session UIs to show accurate "Tổng thu
+ * dự kiến" instead of plain `playerCount × playPerHead` (which underestimates
+ * revenue by Σ penalty surplus).
+ *
+ * NOTE: does not exclude admin since admin's balance is typically high
+ * enough that floor wouldn't fire. If admin's balance happens to be low,
+ * `finalizeSession` still skips them via memberId check — predicted slightly
+ * overestimates in that edge case.
+ */
+export function computePredictedMinDeductionSurplus(input: {
+  playingMemberIds: ReadonlyArray<number>;
+  memberBalances: Readonly<Record<number, number>>;
+  exemptMemberIds: ReadonlyArray<number>;
+  playCostPerHead: number;
+  floor?: number;
+}): number {
+  const floor = input.floor ?? MIN_DEDUCTION_PER_HEAD;
+  if (input.playCostPerHead >= floor) return 0;
+  if (input.playCostPerHead <= 0) return 0;
+  const exemptSet = new Set(input.exemptMemberIds);
+  let surplus = 0;
+  for (const memberId of input.playingMemberIds) {
+    if (exemptSet.has(memberId)) continue;
+    const balance = input.memberBalances[memberId] ?? 0;
+    if (balance < input.playCostPerHead) {
+      surplus += floor - input.playCostPerHead;
+    }
+  }
+  return surplus;
+}
+
+/**
  * Total shuttlecock cost across MULTIPLE brands in a session — exact sum
  * first, then round UP to 1k tổng. Khớp với rule trong `calculateSessionCosts`
  * (finalize) để UI preview KHÔNG drift so với debt thực ghi vào DB.
@@ -235,11 +275,16 @@ export function calculateSessionCosts(
   const dineCostPerHead = roundToThousand(rawDineCostPerHead);
 
   // 5. Calculate per-member debts
-  // Get unique members (non-guests only)
+  // Include both: members attending directly, AND hosts who invited guests
+  // (kể cả khi host không play/dine, vẫn phải tạo debt row cho khách).
+  // Trước đây chỉ collect từ non-guest attendees → admin chỉ có khách (không
+  // play) bị bỏ qua → session.totalDebt thiếu phần khách → display LỖ.
   const memberIds = new Set<number>();
   for (const a of attendees) {
     if (!a.isGuest && a.memberId !== null) {
       memberIds.add(a.memberId);
+    } else if (a.isGuest && a.invitedById !== null) {
+      memberIds.add(a.invitedById);
     }
   }
 
