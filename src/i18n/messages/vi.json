@@ -834,7 +834,7 @@
     "statRevenue": "Đã thu (bán cầu)",
     "statProfit": "Lãi",
     "statLoss": "Lỗ",
-    "statStockLabel": "Đã mua / Đã dùng",
+    "statStockLabel": "Tồn kho (giá nhập)",
     "statStockValue": "{purchased} / {used} quả",
     "tabSold": "Đã bán ({count})",
     "tabBought": "Đã mua ({count})",

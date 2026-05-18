@@ -834,7 +834,7 @@
     "statRevenue": "Earned (sales)",
     "statProfit": "Profit",
     "statLoss": "Loss",
-    "statStockLabel": "Bought / Used",
+    "statStockLabel": "Stock (at cost)",
     "statStockValue": "{purchased} / {used} pcs",
     "tabSold": "Sold ({count})",
     "tabBought": "Bought ({count})",

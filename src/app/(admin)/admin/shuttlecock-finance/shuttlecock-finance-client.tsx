@@ -41,6 +41,9 @@ interface Props {
   purchases: PurchaseRow[];
   usages: UsageRow[];
   brands: BrandOpt[];
+  /** Hãng cầu mặc định khi mở modal "Mua cầu" — lấy từ app_settings
+   *  defaultBrandId (set ở /admin/dashboard). Fallback brands[0] nếu null. */
+  defaultBrandId?: number | null;
 }
 
 type Tab = "purchase" | "usage";
@@ -50,6 +53,7 @@ export function ShuttlecockFinanceClient({
   purchases,
   usages,
   brands,
+  defaultBrandId = null,
 }: Props) {
   const t = useTranslations("adminShuttlecockFinance");
   const tCommon = useTranslations("common");
@@ -69,14 +73,25 @@ export function ShuttlecockFinanceClient({
     setLocalPurchases(purchases);
   }
 
-  // Mua-cầu form state
+  // Mua-cầu form state — hãng mặc định lấy từ app_settings.defaultBrandId,
+  // fallback brands[0] nếu setting chưa có hoặc brand đã inactive. Khi user
+  // sửa hãng mặc định ở /admin/dashboard và quay lại tab này (Server Component
+  // re-render qua revalidatePath), defaultBrandId prop sẽ refresh theo.
+  function pickDefaultBrand(): BrandOpt | undefined {
+    if (defaultBrandId != null) {
+      const found = brands.find((b) => b.id === defaultBrandId);
+      if (found) return found;
+    }
+    return brands[0];
+  }
+  const initialBrand = pickDefaultBrand();
   const [showBuy, setShowBuy] = useState(false);
   const [bsBrandId, setBsBrandId] = useState<number | null>(
-    brands[0]?.id ?? null,
+    initialBrand?.id ?? null,
   );
   const [bsTubes, setBsTubes] = useState(1);
   const [bsPricePerTube, setBsPricePerTube] = useState<number>(
-    brands[0]?.pricePerTube ?? 0,
+    initialBrand?.pricePerTube ?? 0,
   );
   const [bsPurchasedAt, setBsPurchasedAt] = useState(
     new Date().toISOString().split("T")[0],
@@ -121,7 +136,11 @@ export function ShuttlecockFinanceClient({
       totalSpent: s.totalSpent + total,
       totalTubesPurchased: s.totalTubesPurchased + bsTubes,
       totalQuaPurchased: s.totalQuaPurchased + bsTubes * 12,
-      netProfit: s.netProfit - total,
+      // Mới mua, chưa dùng → toàn bộ giá nhập đổ vào tồn kho.
+      // netProfit = revenue + inventoryValue - totalSpent → KHÔNG đổi
+      // (cả totalSpent lẫn inventoryValue cùng +total).
+      inventoryValue: s.inventoryValue + total,
+      totalQuaRemaining: s.totalQuaRemaining + bsTubes * 12,
     }));
 
     const idemKey =
@@ -211,11 +230,18 @@ export function ShuttlecockFinanceClient({
         <StatTile
           icon={Package}
           label={t("statStockLabel")}
-          value={t("statStockValue", {
-            purchased: localSummary.totalQuaPurchased,
-            used: localSummary.totalQuaUsed,
-          })}
           tone="primary"
+          value={
+            <div className="flex flex-col gap-0.5">
+              <span>{formatK(localSummary.inventoryValue)}</span>
+              <span className="text-muted-foreground text-xs font-normal">
+                {t("statStockValue", {
+                  purchased: localSummary.totalQuaPurchased,
+                  used: localSummary.totalQuaUsed,
+                })}
+              </span>
+            </div>
+          }
         />
       </div>
 
@@ -344,22 +370,20 @@ export function ShuttlecockFinanceClient({
         </ul>
       )}
 
-      {/* Fixed bottom CTA — pill button h-[46px] thay vì full-bar dày để
-          không "nhô" qua popup overlay. Ẩn hẳn khi modal mở để tránh đè. */}
+      {/* Fixed bottom CTA — full-width bar bám sát đáy (bottom = 0). Khi
+          modal mở thì ẩn hẳn để tránh đè lên overlay. */}
       {!showBuy && (
-        <div className="pointer-events-none fixed right-0 bottom-0 left-0 z-30 flex justify-center px-4 pb-[max(1rem,env(safe-area-inset-bottom))] lg:left-60">
-          <motion.button
-            type="button"
-            onClick={() => setShowBuy(true)}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            whileTap={{ scale: 0.98 }}
-            className="bg-primary text-primary-foreground pointer-events-auto inline-flex h-[46px] items-center justify-center gap-2 rounded-full px-6 text-base font-semibold shadow-lg transition-opacity hover:opacity-90"
-          >
-            <Plus className="h-5 w-5" />
-            {t("buyButton")}
-          </motion.button>
-        </div>
+        <motion.button
+          type="button"
+          onClick={() => setShowBuy(true)}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          whileTap={{ scale: 0.98 }}
+          className="bg-primary text-primary-foreground fixed right-0 bottom-0 left-0 z-30 inline-flex h-14 items-center justify-center gap-2 text-base font-semibold shadow-lg transition-opacity hover:opacity-90 lg:left-60"
+        >
+          <Plus className="h-5 w-5" />
+          {t("buyButton")}
+        </motion.button>
       )}
 
       {/* Mua cầu — chi quỹ chung; tăng stock + ghi ledger inventory_purchase. */}

@@ -834,7 +834,7 @@
     "statRevenue": "已收入(售出)",
     "statProfit": "盈利",
     "statLoss": "亏损",
-    "statStockLabel": "已购 / 已用",
+    "statStockLabel": "库存 (按购入价)",
     "statStockValue": "{purchased} / {used} 个",
     "tabSold": "已售 ({count})",
     "tabBought": "已购 ({count})",
