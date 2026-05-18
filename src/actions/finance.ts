@@ -528,6 +528,131 @@ async function resolveAdminMemberId(adminId: number): Promise<number | null> {
   return matches[0].id;
 }
 
+/**
+ * F1 fix helper — restore voided ledger rows for a debt that was previously
+ * undone via `undoPaymentByAdmin`.
+ *
+ * Background: `undoPaymentByAdmin` reverses the original `fund_deduction`
+ * (member's cost) AND any `fund_contribution` tied to the debt (admin's
+ * min-deduction penalty surplus, bank-payment balance fix, etc.) by inserting
+ * paired reversal rows. The original rows still exist but are "voided" — any
+ * reversalOfId pointing at them excludes them from balance compute.
+ *
+ * When admin re-confirms after undo, `confirmPaymentBy{Admin,Member}` ONLY
+ * flipped the `adminConfirmed`/`memberConfirmed` flags and wrote an audit row.
+ * No fresh `fund_deduction` was inserted → member balance was NEVER
+ * re-decremented → free session. This is the F1 money-loss bug.
+ *
+ * Fix: on re-confirm, detect that the debt has zero live fund_deduction rows
+ * but does have voided ones (i.e. came back from an undo cycle), and re-insert
+ * matching deductions + admin penalty contributions inside the same tx.
+ *
+ * Returns nothing — throws on error so the caller's tx rolls back.
+ *
+ * Idempotency: keyed on `${originalId}-${reason}` where reason is the cycle
+ * count. Each undo→confirm cycle generates a new ledger pair, but the SAME
+ * cycle is replay-safe.
+ */
+async function restoreVoidedLedgerForDebt(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  debtId: number,
+  debt: { memberId: number; sessionId: number; totalAmount: number },
+  sessionDate: string,
+): Promise<void> {
+  // 1. Member fund_deduction restoration.
+  //    Are there any LIVE deductions for this debt? Live = original
+  //    (reversalOfId IS NULL) that is NOT pointed at by any other row's
+  //    reversalOfId. Use isNull(reversalOfId) to limit to originals first.
+  const debtDeductions = await tx.query.financialTransactions.findMany({
+    where: and(
+      eq(financialTransactions.debtId, debtId),
+      eq(financialTransactions.type, "fund_deduction"),
+      isNull(financialTransactions.reversalOfId),
+    ),
+  });
+
+  let liveMemberDeductionExists = false;
+  let cycleSeed = 0; // number of voided pairs we've seen → makes idempotency key unique per cycle
+  for (const d of debtDeductions) {
+    const reversal = await tx.query.financialTransactions.findFirst({
+      where: eq(financialTransactions.reversalOfId, d.id),
+      columns: { id: true },
+    });
+    if (!reversal) {
+      liveMemberDeductionExists = true;
+    } else {
+      cycleSeed = Math.max(cycleSeed, d.id); // most-recent voided id seeds the key
+    }
+  }
+
+  if (!liveMemberDeductionExists && debt.totalAmount > 0) {
+    // No live deduction → debt was undone. Re-insert a fresh deduction so the
+    // member is actually charged for this session again. Use cycleSeed in the
+    // idempotency key so a future undo→confirm cycle (which voids THIS new row
+    // and inserts another) gets a different key.
+    const r = await recordFinancialTransaction(
+      {
+        type: "fund_deduction",
+        direction: "out",
+        amount: debt.totalAmount,
+        memberId: debt.memberId,
+        sessionId: debt.sessionId,
+        debtId,
+        description: `Trừ quỹ buổi ${sessionDate} (re-confirm sau undo)`,
+        idempotencyKey: `re-confirm-deduction-${debtId}-${cycleSeed}`,
+      },
+      tx,
+    );
+    if ("error" in r) throw new Error(r.error);
+  }
+
+  // 2. Admin min-deduction penalty restoration.
+  //    Admin penalty contributions are tagged with debtId=insertedDebt.id and
+  //    type=fund_contribution. After undo, the row exists but is voided by a
+  //    `fund_refund` (with reversalOfId pointing at it). If we find such a
+  //    voided contribution whose memberId differs from debt.memberId (i.e.
+  //    belongs to admin, not the debt owner), re-insert it so admin's penalty
+  //    surplus is restored.
+  const debtContribs = await tx.query.financialTransactions.findMany({
+    where: and(
+      eq(financialTransactions.debtId, debtId),
+      eq(financialTransactions.type, "fund_contribution"),
+      isNull(financialTransactions.reversalOfId),
+    ),
+  });
+
+  for (const c of debtContribs) {
+    if (c.memberId === debt.memberId) continue; // not a penalty row (skip bank balance-fix etc. tied to member themselves)
+    if (c.memberId === null) continue;
+    const reversal = await tx.query.financialTransactions.findFirst({
+      where: eq(financialTransactions.reversalOfId, c.id),
+      columns: { id: true },
+    });
+    if (!reversal) continue; // still live, no need to restore
+
+    // idempotencyKey `re-confirm-penalty-${c.id}` is unique per voided
+    // original — recordFinancialTransaction's idempotent path returns the
+    // existing row id on replay, so re-running this confirm-then-undo-then-
+    // confirm cycle won't duplicate the penalty. Each fresh undo→confirm
+    // cycle voids a NEW row (the previously-restored one) → new c.id → new
+    // key, so the next restore is allowed.
+    const r = await recordFinancialTransaction(
+      {
+        type: "fund_contribution",
+        direction: "in",
+        amount: c.amount,
+        memberId: c.memberId,
+        sessionId: c.sessionId,
+        debtId,
+        description: `Khôi phục phụ phí buổi ${sessionDate} (re-confirm sau undo)`,
+        idempotencyKey: `re-confirm-penalty-${c.id}`,
+      },
+      tx,
+    );
+    if ("error" in r) throw new Error(r.error);
+  }
+}
+
 export async function confirmPaymentByMember(debtId: number) {
   const t = await getTranslations("serverErrors");
   const user = await getUserFromCookie();
@@ -576,6 +701,19 @@ export async function confirmPaymentByMember(debtId: number) {
         })
         .where(eq(sessionDebts.id, debtId));
 
+      // F1: if this debt was previously undone, restore the voided
+      // fund_deduction (and any admin penalty contribution).
+      await restoreVoidedLedgerForDebt(
+        tx,
+        debtId,
+        {
+          memberId: debt.memberId,
+          sessionId: debt.sessionId,
+          totalAmount: debt.totalAmount,
+        },
+        debt.session.date,
+      );
+
       const r = await recordFinancialTransaction(
         {
           type: "debt_member_confirmed",
@@ -617,6 +755,7 @@ export async function confirmPaymentByAdmin(debtId: number) {
 
   const debt = await db.query.sessionDebts.findFirst({
     where: eq(sessionDebts.id, debtId),
+    with: { session: true },
   });
   if (!debt) return { error: t("debtNotFound") };
   if (debt.adminConfirmed) return { success: true };
@@ -631,6 +770,21 @@ export async function confirmPaymentByAdmin(debtId: number) {
           updatedAt: new Date().toISOString(),
         })
         .where(eq(sessionDebts.id, debtId));
+
+      // F1: if this debt was previously undone, restore the voided
+      // fund_deduction (and any admin penalty contribution) so balance is
+      // actually decremented again. Without this, the undo→re-confirm cycle
+      // leaves the member un-deducted (free session).
+      await restoreVoidedLedgerForDebt(
+        tx,
+        debtId,
+        {
+          memberId: debt.memberId,
+          sessionId: debt.sessionId,
+          totalAmount: debt.totalAmount,
+        },
+        debt.session.date,
+      );
 
       const r = await recordFinancialTransaction(
         {
@@ -680,11 +834,17 @@ export async function undoPaymentByAdmin(debtId: number) {
       // `fund_deduction` cho debt này. Trước đây undo CHỈ flip flags + ghi
       // `debt_undo` neutral → ledger vẫn giữ deduction → autoApplyFundToDebts
       // chạy lần sau lại deduct LẦN 2 (member mất tiền 2 lần).
-      // Fix: tìm fund_deduction gốc (chưa bị reversal), insert
-      // fund_contribution đối ứng với reversalOfId trỏ về nó → balance member
-      // hoàn lại đúng amount đã trừ. Nếu deduction đã bị reversal rồi thì
-      // skip để idempotent.
-      const originalDeduction = await tx.query.financialTransactions.findFirst({
+      // Fix: tìm tất cả fund_deduction gốc (chưa bị reversal) cho debt này,
+      // insert fund_contribution đối ứng với reversalOfId trỏ về row gốc →
+      // balance member hoàn lại đúng amount đã trừ. Skip rows đã có reversal
+      // để idempotent.
+      //
+      // Tại sao findMany thay vì findFirst: sau cycle undo→re-confirm (F1
+      // fix), một debt có thể có NHIỀU original fund_deduction rows — row cũ
+      // (đã voided) + row mới do F1 helper re-insert. findFirst() trước đây
+      // có thể trúng row cũ → skip "đã reversed" → bỏ sót row mới → member
+      // vĩnh viễn bị trừ tiền sau lần undo thứ 2.
+      const originalDeductions = await tx.query.financialTransactions.findMany({
         where: and(
           eq(financialTransactions.type, "fund_deduction"),
           eq(financialTransactions.debtId, debtId),
@@ -692,7 +852,11 @@ export async function undoPaymentByAdmin(debtId: number) {
         ),
       });
 
-      if (originalDeduction) {
+      // Track the most recent live deduction id for the audit key suffix
+      // (keeps each cycle's debt_undo row distinct).
+      let lastLiveDeductionId: number | null = null;
+
+      for (const originalDeduction of originalDeductions) {
         // Đã có sẵn reversal cho deduction này chưa? (idempotent guard)
         const existingReversal = await tx.query.financialTransactions.findFirst(
           {
@@ -700,24 +864,32 @@ export async function undoPaymentByAdmin(debtId: number) {
             columns: { id: true },
           },
         );
-        if (!existingReversal) {
-          const r = await recordFinancialTransaction(
-            {
-              type: "fund_contribution",
-              direction: "in",
-              amount: originalDeduction.amount,
-              memberId: debt.memberId,
-              sessionId: debt.sessionId,
-              debtId,
-              reversalOfId: originalDeduction.id,
-              description: "Hoàn tác trừ quỹ — admin undo thanh toán",
-              metadata: { source: "debt_undo_reversal" },
-              idempotencyKey: `debt-undo-reverse-${originalDeduction.id}`,
-            },
-            tx,
-          );
-          if ("error" in r) throw new Error(r.error);
-        }
+        if (existingReversal) continue;
+
+        lastLiveDeductionId = originalDeduction.id;
+
+        const r = await recordFinancialTransaction(
+          {
+            type: "fund_contribution",
+            direction: "in",
+            amount: originalDeduction.amount,
+            // CRITICAL: use the ORIGINAL row's memberId, not debt.memberId.
+            // Currently they're the same (finalize ghi fund_deduction với
+            // memberId = debt.memberId), but pinning to `originalDeduction
+            // .memberId` is safer and consistent với cách reverse contribs
+            // bên dưới (mỗi reversal phải đối ứng đúng owner để per-member
+            // balance compute void được).
+            memberId: originalDeduction.memberId,
+            sessionId: debt.sessionId,
+            debtId,
+            reversalOfId: originalDeduction.id,
+            description: "Hoàn tác trừ quỹ — admin undo thanh toán",
+            metadata: { source: "debt_undo_reversal" },
+            idempotencyKey: `debt-undo-reverse-${originalDeduction.id}`,
+          },
+          tx,
+        );
+        if ("error" in r) throw new Error(r.error);
       }
 
       // CRITICAL FIX: nếu debt được trả qua bank webhook, payment-matcher đã
@@ -755,7 +927,16 @@ export async function undoPaymentByAdmin(debtId: number) {
             type: "fund_refund",
             direction: "out",
             amount: contrib.amount,
-            memberId: debt.memberId,
+            // CRITICAL: use the ORIGINAL contribution's memberId, NOT
+            // debt.memberId. Admin min-deduction penalty contributions are
+            // memberId=adminMemberId (≠ debt.memberId). Setting reversal's
+            // memberId=debt.memberId leaves admin's per-member balance
+            // compute unable to void the contribution (because the reversal
+            // is in a different member's bucket), violating I1 (Σ over all
+            // members ≠ admin's cash out). Pinning to contrib.memberId fixes
+            // this and is correct for all cases (bank balance-fix is also
+            // memberId=member, same as debt.memberId).
+            memberId: contrib.memberId,
             sessionId: debt.sessionId,
             debtId,
             reversalOfId: contrib.id,
@@ -780,10 +961,11 @@ export async function undoPaymentByAdmin(debtId: number) {
         .where(eq(sessionDebts.id, debtId));
 
       // Audit row (neutral) — vẫn giữ để có dấu vết undo trong ledger.
-      // Idempotency key gắn với originalDeduction.id (mỗi cycle confirm→undo
-      // có 1 deduction unique). Trước đây dùng Date.now() → 2 click nhanh tạo
-      // 2 audit row trùng. Khi admin re-confirm → finalize tạo deduction mới
-      // có id khác → key mới → undo lần 2 vẫn ghi audit được.
+      // Idempotency key gắn với the most recently reversed deduction id (mỗi
+      // cycle confirm→undo có 1 deduction unique). Trước đây dùng Date.now()
+      // → 2 click nhanh tạo 2 audit row trùng. Khi admin re-confirm →
+      // finalize/F1 helper tạo deduction mới có id khác → key mới → undo lần
+      // 2 vẫn ghi audit được.
       const r = await recordFinancialTransaction(
         {
           type: "debt_undo",
@@ -794,7 +976,7 @@ export async function undoPaymentByAdmin(debtId: number) {
           debtId,
           description: "Admin hoàn tác xác nhận thanh toán",
           idempotencyKey: `debt-undo-audit-${debtId}-${
-            originalDeduction?.id ?? "no-deduction"
+            lastLiveDeductionId ?? "no-deduction"
           }`,
         },
         tx,
