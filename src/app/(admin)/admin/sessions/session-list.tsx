@@ -923,18 +923,20 @@ export function SessionList({
                           )}
                           {/* Mở lại để sửa — reverse fund_deductions, xóa attendees
                           + debts, trả về voting. Confirm trước vì ảnh hưởng
-                          balance của member. */}
-                          <button
-                            type="button"
+                          balance của member. Size đồng bộ với button "Mở lại"
+                          trên card cancelled bên dưới. */}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5 border-yellow-500/40 bg-yellow-500/10 text-yellow-700 hover:bg-yellow-500/20 dark:text-yellow-300"
                             onClick={(e) => {
                               e.stopPropagation();
                               setUnlockTarget(session.id);
                             }}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-2.5 py-1 text-xs font-medium text-yellow-700 transition-colors hover:bg-yellow-500/20 dark:text-yellow-300"
                           >
                             <RotateCcw className="h-3.5 w-3.5" />
                             Mở lại
-                          </button>
+                          </Button>
                         </div>
                       )}
 
