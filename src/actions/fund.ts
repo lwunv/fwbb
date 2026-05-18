@@ -95,12 +95,9 @@ export async function removeFundMember(
         const txs = await tx.query.financialTransactions.findMany({
           where: eq(financialTransactions.memberId, memberId),
         });
-        let bal = 0;
-        for (const t of txs) {
-          if (t.type === "fund_contribution") bal += t.amount;
-          else if (t.type === "fund_deduction") bal -= t.amount;
-          else if (t.type === "fund_refund") bal -= t.amount;
-        }
+        // Use canonical helper — filters reversal pairs (reversalOfId) so a
+        // previously-reversed contribution doesn't inflate the refund amount.
+        const { balance: bal } = computeBalanceFromTransactions(memberId, txs);
         if (bal > 0) {
           const r = await recordFinancialTransaction(
             {
@@ -273,12 +270,15 @@ export async function recordRefund(
       const txs = await tx.query.financialTransactions.findMany({
         where: eq(financialTransactions.memberId, parsed.data.memberId),
       });
-      let bal = 0;
-      for (const t of txs) {
-        if (t.type === "fund_contribution") bal += t.amount;
-        else if (t.type === "fund_deduction") bal -= t.amount;
-        else if (t.type === "fund_refund") bal -= t.amount;
-      }
+      // Use canonical helper — filters reversal pairs so a previously-undone
+      // contribution can't be refunded again. Without the filter, the original
+      // contribution remains in the sum AND its reversal lands in refunds
+      // (negative sign cancels out, but only by coincidence — relying on it
+      // is fragile and breaks if reversal type changes).
+      const { balance: bal } = computeBalanceFromTransactions(
+        parsed.data.memberId,
+        txs,
+      );
       if (parsed.data.amount > bal) {
         throw new Error(`Số dư không đủ (hiện có: ${formatVND(bal)})`);
       }
@@ -765,6 +765,17 @@ export async function getFundYearlyReport(
     (t) => t.createdAt && t.createdAt.startsWith(yearPrefix),
   );
 
+  // Filter reversal pairs: when admin undo's a contribution / refund, BOTH
+  // the original AND the reversal row exist in the ledger. Naive summing
+  // inflates `contributed` + `refunded` totals even though net balance nets
+  // to 0. Same pattern as `computeBalanceFromTransactions`.
+  const voidedIds = new Set<number>();
+  for (const t of txs) {
+    if (t.reversalOfId != null) voidedIds.add(t.reversalOfId);
+  }
+  const isVoidedOrReversal = (t: { id: number; reversalOfId: number | null }) =>
+    t.reversalOfId != null || voidedIds.has(t.id);
+
   // Pending fund claims: payment_notifications senderBank=manual, status=pending,
   // memo bắt đầu "FWBB QUY"
   const { paymentNotifications } = await import("@/db/schema");
@@ -860,6 +871,7 @@ export async function getFundYearlyReport(
 
     for (const t of txsThisYear) {
       if (!t.createdAt || t.memberId == null) continue;
+      if (isVoidedOrReversal(t)) continue;
       const m = parseInt(t.createdAt.slice(5, 7), 10);
       if (m !== monthIdx) continue;
       const s = ensure(t.memberId);
