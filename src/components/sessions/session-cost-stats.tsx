@@ -18,6 +18,10 @@ export interface SessionCostStatsProps {
   /** i18n labels — caller pass từ useTranslations để tránh client/server boundary. */
   confirmLabel?: string;
   confirmingLabel?: string;
+  /** Optional secondary action (vd nút "Quản lý buổi chơi" trên dashboard).
+   *  Hiện cùng hàng với Xác nhận khi có cả 2 (flex-1 cạnh nhau); hiện
+   *  full-width khi chỉ có extraAction. */
+  extraAction?: React.ReactNode;
 }
 
 /**
@@ -41,6 +45,7 @@ export function SessionCostStats({
   onFinalize,
   confirmLabel = "Xác nhận buổi chơi",
   confirmingLabel = "Đang xác nhận...",
+  extraAction,
 }: SessionCostStatsProps) {
   const profit = revenue !== null ? revenue - totalExpense : null;
   const profitColor =
@@ -64,7 +69,7 @@ export function SessionCostStats({
           <div className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
             💰 Tổng chi
           </div>
-          <div className="text-primary text-lg font-bold tabular-nums">
+          <div className="text-primary text-2xl font-bold tabular-nums">
             {formatK(totalExpense)}
           </div>
           {(playCostPerHead > 0 || dineCostPerHead > 0) && (
@@ -105,7 +110,7 @@ export function SessionCostStats({
                 <span className="ml-1 normal-case">(dự kiến)</span>
               )}
             </div>
-            <div className="text-lg font-bold text-blue-600 tabular-nums dark:text-blue-400">
+            <div className="text-2xl font-bold text-blue-600 tabular-nums dark:text-blue-400">
               {formatK(revenue)}
             </div>
             <div
@@ -123,7 +128,7 @@ export function SessionCostStats({
             <div className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
               💵 Tổng thu
             </div>
-            <div className="text-muted-foreground text-lg font-bold tabular-nums">
+            <div className="text-muted-foreground text-2xl font-bold tabular-nums">
               —
             </div>
             <div className="text-muted-foreground mt-0.5 text-xs">
@@ -133,21 +138,29 @@ export function SessionCostStats({
         )}
       </div>
 
-      {/* Confirm button */}
-      {canFinalize && onFinalize && (
-        <button
-          type="button"
-          disabled={isFinalizing}
-          onClick={(e) => {
-            e.stopPropagation();
-            onFinalize();
-          }}
-          className="bg-primary hover:bg-primary/90 active:bg-primary/95 shadow-primary/30 hover:shadow-primary/40 inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <Check className="h-4 w-4" />
-          {isFinalizing ? confirmingLabel : confirmLabel}
-        </button>
-      )}
+      {/* Action row — Xác nhận + extraAction cùng hàng khi có cả 2,
+          ngược lại render cái nào có sẵn full-width. */}
+      {(canFinalize && onFinalize) || extraAction ? (
+        <div className="flex gap-2">
+          {canFinalize && onFinalize && (
+            <button
+              type="button"
+              disabled={isFinalizing}
+              onClick={(e) => {
+                e.stopPropagation();
+                onFinalize();
+              }}
+              className="bg-primary hover:bg-primary/90 active:bg-primary/95 shadow-primary/30 hover:shadow-primary/40 inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Check className="h-4 w-4" />
+              {isFinalizing ? confirmingLabel : confirmLabel}
+            </button>
+          )}
+          {extraAction && (
+            <div className="flex flex-1 [&>*]:w-full">{extraAction}</div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

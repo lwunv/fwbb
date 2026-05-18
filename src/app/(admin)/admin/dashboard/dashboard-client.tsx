@@ -756,7 +756,9 @@ export function DashboardClient({
                     </div>
                   )}
 
-                  {/* Cost summary — shared component đồng bộ với /admin/sessions list. */}
+                  {/* Cost summary — shared component đồng bộ với /admin/sessions list.
+                      extraAction = nút "Quản lý buổi chơi" → render cùng hàng
+                      với Xác nhận khi canFinalize, hoặc full-width khi không. */}
                   {showCostSummary && (
                     <SessionCostStats
                       totalExpense={totalExpense}
@@ -776,6 +778,18 @@ export function DashboardClient({
                       }}
                       confirmLabel={ts("confirmSession")}
                       confirmingLabel={ts("confirming")}
+                      extraAction={
+                        <Link href="/admin/sessions">
+                          <Button
+                            size="lg"
+                            variant={canFinalize ? "outline" : "default"}
+                            className="h-10 w-full"
+                          >
+                            {td("manageSession")}
+                            <ArrowRight className="ml-1 h-4 w-4" />
+                          </Button>
+                        </Link>
+                      }
                     />
                   )}
 
@@ -882,19 +896,9 @@ export function DashboardClient({
                     </div>
                   )}
 
-                  {/* "Xác nhận buổi chơi" đã được render bên trong
-                      <SessionCostStats /> phía trên — không lặp ở đây.
-                      Chỉ giữ link "Quản lý" sang /admin/sessions cho full edit. */}
-                  <Link href="/admin/sessions" className="block">
-                    <Button
-                      size="lg"
-                      variant={canFinalize ? "outline" : "default"}
-                      className="w-full"
-                    >
-                      {td("manageSession")}
-                      <ArrowRight className="ml-1 h-4 w-4" />
-                    </Button>
-                  </Link>
+                  {/* Cả Xác nhận + Quản lý buổi chơi đã render trong
+                      <SessionCostStats extraAction={...}> phía trên — không
+                      lặp ở đây. */}
                 </div>
               ) : (
                 <EmptyState variant="inline" title={td("noUpcoming")} />
