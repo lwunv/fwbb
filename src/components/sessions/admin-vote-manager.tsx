@@ -650,11 +650,20 @@ export function AdminVoteManager({
                           : raw;
                       const ded = after.totalAmount;
 
-                      // "Tiền hiện có" của member — luôn xanh dương để dễ
-                      // nhận diện. Trạng thái thiếu/nợ đã được FundStatusIcon
-                      // cạnh tên hiển thị riêng.
+                      // "Tiền hiện có" theo status:
+                      //   hasFund (≥50K) → xanh dương
+                      //   lowFund (<50K)  → vàng
+                      //   depleted (=0)   → foreground (trắng trong dark mode)
+                      //   owing (<0)      → đỏ rose
+                      const balStatus = getFundStatus(bal);
                       const balColor =
-                        "font-semibold text-blue-600 dark:text-blue-400";
+                        balStatus === "owing"
+                          ? "font-semibold text-rose-500 dark:text-rose-400"
+                          : balStatus === "depleted"
+                            ? "font-semibold text-foreground"
+                            : balStatus === "lowFund"
+                              ? "font-semibold text-yellow-500 dark:text-yellow-400"
+                              : "font-semibold text-blue-600 dark:text-blue-400";
 
                       if (ded === 0) {
                         // No deduction yet (un-priced session or member not contributing).
@@ -972,11 +981,17 @@ export function AdminVoteManager({
                         {memberBalances[m.id] !== undefined &&
                           (() => {
                             const bal = memberBalances[m.id];
-                            // Tiền hiện có luôn xanh dương (consistent với
-                            // voted-list). FundStatusIcon cạnh tên đã warn
-                            // trạng thái khi cần.
+                            // Status-colored balance (consistent với voted-list):
+                            // owing đỏ, depleted foreground, lowFund vàng, hasFund xanh.
+                            const balStatus = getFundStatus(bal);
                             const balColor =
-                              "font-semibold text-blue-600 dark:text-blue-400";
+                              balStatus === "owing"
+                                ? "font-semibold text-rose-500 dark:text-rose-400"
+                                : balStatus === "depleted"
+                                  ? "font-semibold text-foreground"
+                                  : balStatus === "lowFund"
+                                    ? "font-semibold text-yellow-500 dark:text-yellow-400"
+                                    : "font-semibold text-blue-600 dark:text-blue-400";
                             return (
                               <span
                                 className={`text-xs tabular-nums ${balColor}`}
