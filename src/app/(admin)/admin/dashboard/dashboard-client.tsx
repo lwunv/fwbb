@@ -116,6 +116,14 @@ interface OwingMember {
   amount: number;
 }
 
+interface LowFundMember {
+  memberId: number;
+  memberName: string;
+  memberAvatarKey: string | null;
+  memberAvatarUrl: string | null;
+  balance: number;
+}
+
 interface InventoryBrand {
   brandId: number;
   brandName: string;
@@ -162,6 +170,7 @@ interface DashboardClientProps {
   totalPositiveBalance: number;
   owingCount: number;
   topOwingMembers: OwingMember[];
+  lowFundMembers: LowFundMember[];
   totalStockQua: number;
   lowStockBrandCount: number;
   inventoryByBrand: InventoryBrand[];
@@ -267,6 +276,7 @@ export function DashboardClient({
   totalPositiveBalance,
   owingCount,
   topOwingMembers,
+  lowFundMembers,
   totalStockQua,
   activeMembersCount,
   sessionsThisMonth,
@@ -294,6 +304,7 @@ export function DashboardClient({
   const td = useTranslations("dashboard");
   const ts = useTranslations("sessions");
   const tInv = useTranslations("inventory");
+  const tFs = useTranslations("fundStatus");
   const locale = useLocale() as AppLocale;
   const formatDateFull = (d: string) =>
     formatSessionDate(d, "weekdayLong", locale);
@@ -1152,6 +1163,58 @@ export function DashboardClient({
                 </li>
               );
             })}
+          </ul>
+        </SectionCard>
+      )}
+
+      {/* Gần hết quỹ — orange tint. Ẩn nếu không có ai. */}
+      {lowFundMembers.length > 0 && (
+        <SectionCard
+          tone="orange"
+          icon={AlertTriangle}
+          title={tFs("lowFund")}
+          subtitle={
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-base">
+              <span className="text-muted-foreground">
+                <strong className="text-orange-600 tabular-nums dark:text-orange-400">
+                  {lowFundMembers.length}
+                </strong>{" "}
+                {td("owingSummary", { count: "" }).trim()}
+              </span>
+            </div>
+          }
+          action={
+            <Link href="/admin/fund">
+              <Button variant="outline" size="sm">
+                {td("viewAll")}
+                <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
+            </Link>
+          }
+        >
+          <ul className="bg-background/60 dark:bg-background/40 ring-border/60 divide-y rounded-xl shadow-sm ring-1">
+            {lowFundMembers.map((m) => (
+              <li
+                key={m.memberId}
+                className="flex items-center gap-2 px-3 py-2"
+              >
+                <MemberAvatar
+                  memberId={m.memberId}
+                  avatarKey={m.memberAvatarKey}
+                  avatarUrl={m.memberAvatarUrl}
+                  size={32}
+                />
+                <div className="flex min-w-0 flex-1 items-baseline gap-2">
+                  <span className="truncate text-sm font-medium">
+                    {m.memberName}
+                  </span>
+                  <span className="shrink-0 text-base font-bold text-orange-600 tabular-nums dark:text-orange-400">
+                    {formatK(m.balance)}
+                  </span>
+                </div>
+                <StatusBadge variant="lowFund">{tFs("lowFund")}</StatusBadge>
+              </li>
+            ))}
           </ul>
         </SectionCard>
       )}

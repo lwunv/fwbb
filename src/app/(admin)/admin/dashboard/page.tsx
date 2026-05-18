@@ -11,6 +11,7 @@ import {
   getFundMembersWithBalances,
   getRecentFinancialTransactions,
 } from "@/actions/fund";
+import { getFundStatus } from "@/lib/fund-core";
 import { mergeLegacyDebtsIntoFund } from "@/actions/merge-debt-fund";
 import { getStockByBrand } from "@/actions/inventory";
 import {
@@ -45,8 +46,16 @@ export default async function DashboardPage() {
     memberAvatarUrl: string | null;
     amount: number;
   }[] = [];
+  const lowFundMembers: {
+    memberId: number;
+    memberName: string;
+    memberAvatarKey: string | null;
+    memberAvatarUrl: string | null;
+    balance: number;
+  }[] = [];
   for (const fm of fundMembers) {
-    if (fm.balance.balance < 0) {
+    const status = getFundStatus(fm.balance.balance);
+    if (status === "owing") {
       const debt = -fm.balance.balance;
       totalOutstanding += debt;
       owingMembers.push({
@@ -56,12 +65,24 @@ export default async function DashboardPage() {
         memberAvatarUrl: fm.member.avatarUrl ?? null,
         amount: debt,
       });
-    } else if (fm.balance.balance > 0) {
-      totalPositiveBalance += fm.balance.balance;
+    } else {
+      if (fm.balance.balance > 0) {
+        totalPositiveBalance += fm.balance.balance;
+      }
+      if (status === "lowFund") {
+        lowFundMembers.push({
+          memberId: fm.memberId,
+          memberName: fm.member.nickname || fm.member.name,
+          memberAvatarKey: fm.member.avatarKey ?? null,
+          memberAvatarUrl: fm.member.avatarUrl ?? null,
+          balance: fm.balance.balance,
+        });
+      }
     }
   }
   owingMembers.sort((a, b) => b.amount - a.amount);
   const topOwingMembers = owingMembers.slice(0, 5);
+  lowFundMembers.sort((a, b) => a.balance - b.balance); // smallest balance first
 
   // Inventory breakdown per brand
   const stockByBrand = await getStockByBrand();
@@ -288,6 +309,7 @@ export default async function DashboardPage() {
         totalPositiveBalance={totalPositiveBalance}
         owingCount={owingMembers.length}
         topOwingMembers={topOwingMembers}
+        lowFundMembers={lowFundMembers}
         totalStockQua={totalStockQua}
         lowStockBrandCount={lowStockBrands.length}
         inventoryByBrand={inventoryByBrand}
