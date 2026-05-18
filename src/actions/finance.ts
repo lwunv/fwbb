@@ -717,7 +717,7 @@ export async function confirmPaymentByMember(debtId: number) {
       const r = await recordFinancialTransaction(
         {
           type: "debt_member_confirmed",
-          direction: "in",
+          direction: "neutral",
           amount: debt.totalAmount,
           memberId: debt.memberId,
           sessionId: debt.sessionId,
@@ -789,7 +789,7 @@ export async function confirmPaymentByAdmin(debtId: number) {
       const r = await recordFinancialTransaction(
         {
           type: "debt_admin_confirmed",
-          direction: "in",
+          direction: "neutral",
           amount: debt.totalAmount,
           memberId: debt.memberId,
           sessionId: debt.sessionId,
