@@ -659,6 +659,14 @@ export function AdminVoteManager({
                           <span className="font-medium text-rose-500 dark:text-rose-400">
                             − {formatK(ded)}
                           </span>
+                          {after.totalAmount > raw.totalAmount && (
+                            <span
+                              className="text-xs text-orange-500 dark:text-orange-400"
+                              title={`Min 60K: ${formatK(raw.totalAmount)} → ${formatK(after.totalAmount)}`}
+                            >
+                              🛡
+                            </span>
+                          )}
                           <span className="text-muted-foreground">=</span>
                           <span
                             className={(() => {
