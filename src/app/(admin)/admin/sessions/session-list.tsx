@@ -902,9 +902,31 @@ export function SessionList({
                               Đang chốt sổ...
                             </span>
                           ) : allPaid ? (
-                            <span className="ml-auto text-sm font-medium text-green-600 dark:text-green-400">
-                              ✓ {formatK(session.totalDebt)}
-                            </span>
+                            (() => {
+                              // Lãi/Lỗ của admin cho buổi này:
+                              //   Thu = sum sessionDebts (totalDebt)
+                              //   Chi = court + shuttle + dining (totalExpense)
+                              //   Lãi = Thu − Chi. Âm = admin gánh phần share
+                              //   của admin/khách-admin (không có fund_deduction
+                              //   cho admin) hoặc subsidize do exempt min-60K.
+                              const profit = session.totalDebt - totalExpense;
+                              const profitColor =
+                                profit >= 0
+                                  ? "text-green-600 dark:text-green-400"
+                                  : "text-rose-500 dark:text-rose-400";
+                              const profitSign = profit >= 0 ? "+" : "−";
+                              return (
+                                <span className="ml-auto inline-flex items-baseline gap-2 text-sm font-medium tabular-nums">
+                                  <span className="text-green-600 dark:text-green-400">
+                                    ✓ Thu {formatK(session.totalDebt)}
+                                  </span>
+                                  <span className={profitColor}>
+                                    ({profitSign}
+                                    {formatK(Math.abs(profit))})
+                                  </span>
+                                </span>
+                              );
+                            })()
                           ) : (
                             <button
                               onClick={() =>
