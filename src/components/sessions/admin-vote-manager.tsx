@@ -14,6 +14,7 @@ import { NumberStepper } from "@/components/ui/number-stepper";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { SearchInput } from "@/components/shared/search-input";
 import { formatK } from "@/lib/utils";
+import { getFundStatus } from "@/lib/fund-core";
 import { FundStatusIcon } from "@/components/shared/fund-status-icon";
 import {
   computeShuttlecockTotal,
@@ -660,13 +661,14 @@ export function AdminVoteManager({
                           </span>
                           <span className="text-muted-foreground">=</span>
                           <span
-                            className={
-                              remain < 0
+                            className={(() => {
+                              const status = getFundStatus(remain);
+                              return status === "owing"
                                 ? "font-semibold text-rose-500 dark:text-rose-400"
-                                : remain < 50_000
+                                : status === "depleted" || status === "lowFund"
                                   ? "font-semibold text-orange-500 dark:text-orange-400"
-                                  : "text-foreground"
-                            }
+                                  : "text-foreground";
+                            })()}
                           >
                             {formatK(remain)}
                           </span>
