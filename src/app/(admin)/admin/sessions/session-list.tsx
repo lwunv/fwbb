@@ -166,6 +166,7 @@ export function SessionList({
   currentStatusFilter = "all",
   defaultCourtId = null,
   sessionDays,
+  memberBalances = {},
 }: {
   sessions: SessionCard[];
   courts?: Court[];
@@ -178,6 +179,9 @@ export function SessionList({
   /** Lịch ngày chơi từ getSessionDaysOfWeek() — cần để CourtSelector preview
    *  đúng giá khi admin đã đổi lịch khỏi mặc định M/W/F. */
   sessionDays?: readonly number[] | number[];
+  /** Map memberId → fund balance, thread vào AdminVoteManager để render
+   *  warning icon (Task 5a) cạnh tên member trong row. */
+  memberBalances?: Record<number, number>;
 }) {
   const [, setPage] = useQueryState(
     "page",
@@ -834,6 +838,7 @@ export function SessionList({
                                 }}
                                 minDeductionEnabled={session.useMinDeduction}
                                 exemptMemberIds={session.exemptMemberIds}
+                                memberBalances={memberBalances}
                                 sessionCosts={{
                                   courtPrice: session.courtPrice ?? 0,
                                   courtName: session.courtName,
