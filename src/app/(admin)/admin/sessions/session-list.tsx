@@ -27,6 +27,7 @@ import { CourtSelector } from "@/components/sessions/court-selector";
 import { ShuttlecockSelector } from "@/components/sessions/shuttlecock-selector";
 import { AdminVoteManager } from "@/components/sessions/admin-vote-manager";
 import { WeekStrip } from "@/components/sessions/week-strip";
+import { SessionCostStats } from "@/components/sessions/session-cost-stats";
 import {
   Dialog,
   DialogContent,
@@ -679,133 +680,30 @@ export function SessionList({
                             effectiveStatus === "completed"
                               ? session.totalDebt
                               : predictedRevenue;
-                          const profit = revenue - totalExpense;
-                          const profitColor =
-                            profit > 0
-                              ? "text-green-600 dark:text-green-400"
-                              : profit < 0
-                                ? "text-rose-500 dark:text-rose-400"
-                                : "text-muted-foreground";
-                          const profitSign =
-                            profit > 0 ? "+" : profit < 0 ? "−" : "";
                           return (
-                            <div className="space-y-2 pt-1">
-                              {/* 2-card stat block:
-                                  - Card 1: Tổng chi + per-head split
-                                  - Card 2: Tổng thu + Lãi/Lỗ */}
-                              <div className="grid grid-cols-2 gap-2">
-                                {/* Card 1 — Tổng chi + per-head */}
-                                <div className="bg-primary/[0.06] border-primary/20 rounded-lg border px-3 py-2">
-                                  <div className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
-                                    💰 Tổng chi
-                                  </div>
-                                  <div className="text-primary text-lg font-bold tabular-nums">
-                                    {formatK(totalExpense)}
-                                  </div>
-                                  {(playCostPerHead > 0 ||
-                                    dineCostPerHead > 0) && (
-                                    <div className="mt-0.5 text-xs tabular-nums">
-                                      {playCostPerHead > 0 && (
-                                        <span className="text-primary font-semibold">
-                                          🏸 {formatK(playCostPerHead)}
-                                        </span>
-                                      )}
-                                      {playCostPerHead > 0 &&
-                                        dineCostPerHead > 0 && (
-                                          <span className="text-foreground/50">
-                                            {" "}
-                                            ·{" "}
-                                          </span>
-                                        )}
-                                      {dineCostPerHead > 0 && (
-                                        <span className="font-semibold text-orange-500 dark:text-orange-400">
-                                          🍻 {formatK(dineCostPerHead)}
-                                        </span>
-                                      )}
-                                      <span className="text-foreground/60 ml-1">
-                                        /người
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-
-                                {/* Card 2 — Tổng thu + Lãi/Lỗ */}
-                                {showRevenue ? (
-                                  <div
-                                    className={cn(
-                                      "rounded-lg border px-3 py-2",
-                                      profit > 0
-                                        ? "border-green-500/25 bg-green-500/[0.06]"
-                                        : profit < 0
-                                          ? "border-rose-500/25 bg-rose-500/[0.06]"
-                                          : "border-blue-500/25 bg-blue-500/[0.06]",
-                                    )}
-                                  >
-                                    <div className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
-                                      💵 Tổng thu
-                                      {effectiveStatus !== "completed" && (
-                                        <span className="ml-1 normal-case">
-                                          (dự kiến)
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div className="text-lg font-bold text-blue-600 tabular-nums dark:text-blue-400">
-                                      {formatK(revenue)}
-                                    </div>
-                                    <div
-                                      className={cn(
-                                        "mt-0.5 text-xs font-semibold tabular-nums",
-                                        profitColor,
-                                      )}
-                                    >
-                                      📊{" "}
-                                      {profit > 0
-                                        ? "Lãi"
-                                        : profit < 0
-                                          ? "Lỗ"
-                                          : "Hòa"}{" "}
-                                      {profitSign}
-                                      {formatK(Math.abs(profit))}
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="border-border/40 bg-muted/30 rounded-lg border border-dashed px-3 py-2">
-                                    <div className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
-                                      💵 Tổng thu
-                                    </div>
-                                    <div className="text-muted-foreground text-lg font-bold tabular-nums">
-                                      —
-                                    </div>
-                                    <div className="text-muted-foreground mt-0.5 text-xs">
-                                      Chưa chốt sổ
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Confirm button (only for past-pending / canFinalize) */}
-                              {canFinalize && (
-                                <button
-                                  type="button"
-                                  disabled={isFinalizing}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    finalizing.addOptimistically(
-                                      session.id,
-                                      () => finalizeSessionAuto(session.id),
-                                      {
-                                        successMsg: t("confirmedSuccess"),
-                                      },
-                                    );
-                                  }}
-                                  className="bg-primary hover:bg-primary/90 active:bg-primary/95 shadow-primary/30 hover:shadow-primary/40 inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  <Check className="h-4 w-4" />
-                                  {isFinalizing
-                                    ? t("confirming")
-                                    : t("confirmSession")}
-                                </button>
-                              )}
+                            <div className="pt-1">
+                              <SessionCostStats
+                                totalExpense={totalExpense}
+                                playCostPerHead={playCostPerHead}
+                                dineCostPerHead={dineCostPerHead}
+                                revenue={showRevenue ? revenue : null}
+                                revenueLabel={
+                                  effectiveStatus === "completed"
+                                    ? "actual"
+                                    : "predicted"
+                                }
+                                canFinalize={canFinalize}
+                                isFinalizing={isFinalizing}
+                                onFinalize={() => {
+                                  finalizing.addOptimistically(
+                                    session.id,
+                                    () => finalizeSessionAuto(session.id),
+                                    { successMsg: t("confirmedSuccess") },
+                                  );
+                                }}
+                                confirmLabel={t("confirmSession")}
+                                confirmingLabel={t("confirming")}
+                              />
                             </div>
                           );
                         })()}

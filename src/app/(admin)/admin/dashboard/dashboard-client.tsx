@@ -36,6 +36,7 @@ import { CourtSelector } from "@/components/sessions/court-selector";
 import { ShuttlecockSelector } from "@/components/sessions/shuttlecock-selector";
 import { AdminVoteManager } from "@/components/sessions/admin-vote-manager";
 import { WeekStrip } from "@/components/sessions/week-strip";
+import { SessionCostStats } from "@/components/sessions/session-cost-stats";
 import { RecordContributionDialog } from "@/components/fund/record-contribution-dialog";
 import type { InferSelectModel } from "drizzle-orm";
 import type {
@@ -658,6 +659,8 @@ export function DashboardClient({
             playCostPerHead > 0 ||
             dineCostPerHead > 0 ||
             canFinalize);
+        const predictedRevenue =
+          totalPlayers * playCostPerHead + totalDiners * dineCostPerHead;
         return (
           <LedBorder active={showLed} variant="pink">
             <SectionCard
@@ -753,40 +756,27 @@ export function DashboardClient({
                     </div>
                   )}
 
-                  {/* Cost summary — đồng bộ format với /admin/sessions list:
-                      label trái + tổng + per-head bên phải, tabular-nums. */}
+                  {/* Cost summary — shared component đồng bộ với /admin/sessions list. */}
                   {showCostSummary && (
-                    <div className="bg-primary/[0.04] border-primary/20 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl border px-3 py-2.5 text-base">
-                      <span className="font-semibold">
-                        💰 {td("totalExpense")}
-                      </span>
-                      <span className="ml-auto flex flex-wrap items-baseline justify-end gap-x-1.5">
-                        <span className="text-primary text-xl font-bold tabular-nums">
-                          {formatK(totalExpense)}
-                        </span>
-                        {(playCostPerHead > 0 || dineCostPerHead > 0) && (
-                          <span className="text-foreground/70 text-base font-semibold tabular-nums">
-                            (
-                            {playCostPerHead > 0 && (
-                              <span className="text-primary">
-                                🏸 {formatK(playCostPerHead)}
-                              </span>
-                            )}
-                            {playCostPerHead > 0 && dineCostPerHead > 0 && (
-                              <span className="text-foreground/50"> · </span>
-                            )}
-                            {dineCostPerHead > 0 && (
-                              <span className="text-orange-500 dark:text-orange-400">
-                                🍻 {formatK(dineCostPerHead)}
-                              </span>
-                            )}
-                            <span className="text-foreground/70 text-sm font-medium">
-                              {td("perPerson")})
-                            </span>
-                          </span>
-                        )}
-                      </span>
-                    </div>
+                    <SessionCostStats
+                      totalExpense={totalExpense}
+                      playCostPerHead={playCostPerHead}
+                      dineCostPerHead={dineCostPerHead}
+                      revenue={canFinalize ? predictedRevenue : null}
+                      revenueLabel="predicted"
+                      canFinalize={canFinalize}
+                      isFinalizing={isOptimisticFinalizing}
+                      onFinalize={() => {
+                        if (!upcomingSession) return;
+                        finalizing.addOptimistically(
+                          upcomingSession.id,
+                          () => finalizeSessionAuto(upcomingSession.id),
+                          { successMsg: ts("confirmedSuccess") },
+                        );
+                      }}
+                      confirmLabel={ts("confirmSession")}
+                      confirmingLabel={ts("confirming")}
+                    />
                   )}
 
                   {/* Members block — toggle counts + expandable AdminVoteManager
@@ -892,42 +882,19 @@ export function DashboardClient({
                     </div>
                   )}
 
-                  {/* Action row: "Xác nhận buổi chơi" (when canFinalize) +
-                      link "Quản lý" sang /admin/sessions cho full edit. */}
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    {canFinalize && (
-                      <Button
-                        size="lg"
-                        className="flex-1 gap-2"
-                        disabled={isOptimisticFinalizing}
-                        onClick={() => {
-                          finalizing.addOptimistically(
-                            upcomingSession.id,
-                            () => finalizeSessionAuto(upcomingSession.id),
-                            { successMsg: ts("confirmedSuccess") },
-                          );
-                        }}
-                      >
-                        <Check className="h-4 w-4" />
-                        {isOptimisticFinalizing
-                          ? ts("confirming")
-                          : ts("confirmSession")}
-                      </Button>
-                    )}
-                    <Link
-                      href="/admin/sessions"
-                      className={canFinalize ? "sm:flex-1" : "flex-1"}
+                  {/* "Xác nhận buổi chơi" đã được render bên trong
+                      <SessionCostStats /> phía trên — không lặp ở đây.
+                      Chỉ giữ link "Quản lý" sang /admin/sessions cho full edit. */}
+                  <Link href="/admin/sessions" className="block">
+                    <Button
+                      size="lg"
+                      variant={canFinalize ? "outline" : "default"}
+                      className="w-full"
                     >
-                      <Button
-                        size="lg"
-                        variant={canFinalize ? "outline" : "default"}
-                        className="w-full"
-                      >
-                        {td("manageSession")}
-                        <ArrowRight className="ml-1 h-4 w-4" />
-                      </Button>
-                    </Link>
-                  </div>
+                      {td("manageSession")}
+                      <ArrowRight className="ml-1 h-4 w-4" />
+                    </Button>
+                  </Link>
                 </div>
               ) : (
                 <EmptyState variant="inline" title={td("noUpcoming")} />
