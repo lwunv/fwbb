@@ -10,7 +10,7 @@ import {
   financialTransactions,
   admins,
 } from "@/db/schema";
-import { eq, sql, or, ne, and, inArray } from "drizzle-orm";
+import { eq, sql, or, ne, and, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { getUserFromCookie } from "@/lib/user-identity";
@@ -19,6 +19,7 @@ import { memberSchema } from "@/lib/validators";
 import { AVATAR_BRAND_KEYS } from "@/lib/member-avatar-presets";
 import { AVATAR_EMOJI_COUNT } from "@/lib/member-avatar-emoji";
 import { computeBalanceFromTransactions } from "@/lib/fund-core";
+import { recordFinancialTransaction } from "@/lib/financial-ledger";
 import { z } from "zod";
 
 export type UpdateMyProfileState = null | { success: true } | { error: string };
@@ -511,6 +512,101 @@ export async function mergeMember(sourceId: number, targetId: number) {
           )
       ).map((r) => r.id);
       if (conflictDebtIds.length > 0) {
+        // F2 FIX: source và target đều đã finalize cùng session → mỗi bên
+        // có 1 `fund_deduction` riêng cho cùng amount. Nếu chỉ NULL debtId
+        // rồi step 4 bulk-update memberId source→target, target sẽ có 2
+        // `fund_deduction` LIVE cho cùng session → bị trừ tiền 2 lần.
+        //
+        // Fix: trước khi xóa source debt, reverse các source fund_deduction
+        // gắn với chúng (insert paired fund_contribution với reversalOfId).
+        // Reversal row giữ memberId=sourceId để step 4 re-point cả cặp →
+        // sau merge target có 1 deduction live + 1 voided pair, balance đúng.
+        //
+        // Cũng reverse các fund_contribution penalty/balance-fix nằm trên
+        // các debt source bị drop (admin min-deduction surplus có
+        // memberId=admin ≠ sourceId, nên KHÔNG được step 4 đụng đến →
+        // phải reverse ở đây để admin không bị double-credit penalty).
+        const sourceDeductions = await tx.query.financialTransactions.findMany({
+          where: and(
+            eq(financialTransactions.type, "fund_deduction"),
+            inArray(financialTransactions.debtId, conflictDebtIds),
+            isNull(financialTransactions.reversalOfId),
+          ),
+        });
+        for (const d of sourceDeductions) {
+          // Idempotent: skip nếu đã có reversal pointing at this row.
+          const existing = await tx.query.financialTransactions.findFirst({
+            where: eq(financialTransactions.reversalOfId, d.id),
+            columns: { id: true },
+          });
+          if (existing) continue;
+          const r = await recordFinancialTransaction(
+            {
+              type: "fund_contribution",
+              direction: "in",
+              amount: d.amount,
+              // Giữ memberId=source — step 4 re-point cả cặp → target
+              // sở hữu cả deduction lẫn reversal → balance net = 0 cho
+              // cặp đó, target chỉ còn deduction của riêng mình live.
+              memberId: d.memberId,
+              sessionId: d.sessionId,
+              // debtId sắp được NULL out ngay sau loop này; giữ null từ đầu
+              // cho khớp với state cuối cùng (debt sẽ bị xóa).
+              debtId: null,
+              reversalOfId: d.id,
+              description: `Hoàn lại trừ quỹ khi merge member ${sourceId} → ${targetId} (debt #${d.debtId} bị drop)`,
+              metadata: {
+                source: "merge_member_conflict_reversal",
+                fromMember: sourceId,
+                toMember: targetId,
+              },
+              idempotencyKey: `merge-reverse-deduction-${d.id}`,
+            },
+            tx,
+          );
+          if ("error" in r) throw new Error(r.error);
+        }
+
+        // Admin penalty / bank balance-fix contributions tied to source's
+        // dropped debts. memberId of these rows can be ≠ source (admin
+        // penalty has memberId=adminMemberId). Reverse all of them so
+        // admin isn't double-credited and bank balance-fix isn't orphaned.
+        const sourceContribs = await tx.query.financialTransactions.findMany({
+          where: and(
+            eq(financialTransactions.type, "fund_contribution"),
+            inArray(financialTransactions.debtId, conflictDebtIds),
+            isNull(financialTransactions.reversalOfId),
+          ),
+        });
+        for (const c of sourceContribs) {
+          if (c.memberId === null) continue;
+          const existing = await tx.query.financialTransactions.findFirst({
+            where: eq(financialTransactions.reversalOfId, c.id),
+            columns: { id: true },
+          });
+          if (existing) continue;
+          const r = await recordFinancialTransaction(
+            {
+              type: "fund_refund",
+              direction: "out",
+              amount: c.amount,
+              memberId: c.memberId,
+              sessionId: c.sessionId,
+              debtId: null,
+              reversalOfId: c.id,
+              description: `Hoàn lại phụ phí khi merge member ${sourceId} → ${targetId} (debt #${c.debtId} bị drop)`,
+              metadata: {
+                source: "merge_member_conflict_contrib_reversal",
+                fromMember: sourceId,
+                toMember: targetId,
+              },
+              idempotencyKey: `merge-reverse-contrib-${c.id}`,
+            },
+            tx,
+          );
+          if ("error" in r) throw new Error(r.error);
+        }
+
         await tx
           .update(financialTransactions)
           .set({ debtId: null })
