@@ -6,8 +6,9 @@ import { getActiveMembers } from "@/actions/members";
 import { getDefaultCourt, getSessionDaysOfWeek } from "@/actions/settings";
 import { getSessionExemptions } from "@/actions/sessions";
 import { db } from "@/db";
-import { sessionDebts } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { financialTransactions, sessionDebts } from "@/db/schema";
+import { computeBalancesForMembers } from "@/lib/fund-core";
+import { eq, inArray } from "drizzle-orm";
 import { SessionDetail } from "./session-detail";
 import { notFound } from "next/navigation";
 
@@ -46,6 +47,28 @@ export default async function SessionDetailPage({
 
   if (!session) notFound();
 
+  const visibleMemberIds = members.map((m) => m.id);
+  const memberTxs =
+    visibleMemberIds.length > 0
+      ? await db
+          .select({
+            memberId: financialTransactions.memberId,
+            type: financialTransactions.type,
+            amount: financialTransactions.amount,
+            id: financialTransactions.id,
+            reversalOfId: financialTransactions.reversalOfId,
+          })
+          .from(financialTransactions)
+          .where(inArray(financialTransactions.memberId, visibleMemberIds))
+      : [];
+
+  const memberBalances = computeBalancesForMembers(
+    visibleMemberIds,
+    memberTxs.filter(
+      (tx): tx is typeof tx & { memberId: number } => tx.memberId !== null,
+    ),
+  );
+
   const debtMap: Record<
     number,
     { amount: number; adminConfirmed: boolean; debtId: number }
@@ -70,6 +93,7 @@ export default async function SessionDetailPage({
         defaultCourtId={defaultCourt?.id ?? null}
         sessionDays={sessionDays}
         exemptMemberIds={exemptions}
+        memberBalances={memberBalances}
       />
     </div>
   );
