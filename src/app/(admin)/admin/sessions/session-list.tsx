@@ -97,6 +97,7 @@ interface SessionCard {
   courtName: string | null;
   courtMapLink: string | null;
   courtPrice: number | null;
+  courtPriceOverridden: boolean;
   diningBill: number;
   adminGuestPlayCount: number;
   adminGuestDineCount: number;
@@ -632,6 +633,10 @@ export function SessionList({
                             courts={courts}
                             currentCourtId={session.courtId}
                             currentCourtQuantity={session.courtQuantity}
+                            currentCourtPrice={session.courtPrice}
+                            isCourtPriceOverridden={
+                              session.courtPriceOverridden
+                            }
                             sessionDate={session.date}
                             defaultCourtId={defaultCourtId}
                             sessionDays={sessionDays}

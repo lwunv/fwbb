@@ -85,6 +85,7 @@ interface UpcomingSession {
   courtMapLink: string | null;
   courtQuantity: number;
   courtPrice: number | null;
+  courtPriceOverridden: boolean;
   diningBill: number;
   startTime: string;
   endTime: string;
@@ -719,6 +720,10 @@ export function DashboardClient({
                         courts={editorCourts}
                         currentCourtId={upcomingSession.courtId}
                         currentCourtQuantity={upcomingSession.courtQuantity}
+                        currentCourtPrice={upcomingSession.courtPrice}
+                        isCourtPriceOverridden={
+                          upcomingSession.courtPriceOverridden
+                        }
                         sessionDate={upcomingSession.date}
                         defaultCourtId={defaultCourtId}
                         sessionDays={sessionDays}

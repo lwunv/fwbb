@@ -200,6 +200,7 @@ export default async function DashboardPage() {
     courtMapLink: string | null;
     courtQuantity: number;
     courtPrice: number | null;
+    courtPriceOverridden: boolean;
     diningBill: number;
     startTime: string;
     endTime: string;
@@ -240,6 +241,7 @@ export default async function DashboardPage() {
       courtMapLink: nextSession.court?.mapLink || null,
       courtQuantity: nextSession.courtQuantity ?? 1,
       courtPrice: nextSession.courtPrice ?? null,
+      courtPriceOverridden: nextSession.courtPriceOverridden ?? false,
       diningBill: nextSession.diningBill ?? 0,
       startTime: nextSession.startTime || "20:30",
       endTime: nextSession.endTime || "22:30",

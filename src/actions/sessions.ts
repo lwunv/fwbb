@@ -1153,6 +1153,7 @@ export async function setSessionCourtPriceOverride(
 
   revalidatePath("/admin/sessions");
   revalidatePath(`/admin/sessions/${data.sessionId}`);
+  revalidatePath("/admin/dashboard");
   return { success: true };
 }
 
@@ -1216,6 +1217,8 @@ export async function setSessionShuttlecockPriceOverride(
     .where(eq(sessionShuttlecocks.id, data.sessionShuttlecockId));
 
   revalidatePath(`/admin/sessions/${row.sessionId}`);
+  revalidatePath("/admin/sessions");
+  revalidatePath("/admin/dashboard");
   return { success: true };
 }
 

@@ -230,6 +230,7 @@ export default async function SessionsPage({
       courtName: s.court?.name ?? null,
       courtMapLink: s.court?.mapLink ?? null,
       courtPrice: s.courtPrice,
+      courtPriceOverridden: s.courtPriceOverridden ?? false,
       diningBill: s.diningBill ?? 0,
       adminGuestPlayCount: s.adminGuestPlayCount ?? 0,
       adminGuestDineCount: s.adminGuestDineCount ?? 0,
