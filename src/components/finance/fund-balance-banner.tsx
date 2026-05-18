@@ -3,8 +3,15 @@
 import { useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertCircle, PiggyBank, ArrowRight, ChevronDown } from "lucide-react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  PiggyBank,
+  ArrowRight,
+  ChevronDown,
+} from "lucide-react";
 import { formatK, cn } from "@/lib/utils";
+import { getFundStatus } from "@/lib/fund-core";
 import { FundTopUpCard } from "@/components/finance/fund-topup-card";
 
 /**
@@ -30,9 +37,11 @@ export function FundBalanceBanner({
 }) {
   const [open, setOpen] = useState(false);
 
-  if (balance > 0) return null;
+  const status = getFundStatus(balance);
+  if (status === "hasFund") return null;
 
-  const isOwing = balance < 0;
+  const isOwing = status === "owing";
+  const isLowFund = status === "lowFund";
   const debtAmount = isOwing ? Math.abs(balance) : 0;
   const canExpand = memberId != null;
 
@@ -40,7 +49,9 @@ export function FundBalanceBanner({
     "rounded-xl border transition-colors",
     isOwing
       ? "border-destructive/40 bg-destructive/5"
-      : "border-amber-500/40 bg-amber-500/5",
+      : isLowFund
+        ? "border-orange-500/40 bg-orange-500/5"
+        : "border-amber-500/40 bg-amber-500/5",
   );
 
   const headerInner = (
@@ -50,11 +61,15 @@ export function FundBalanceBanner({
           "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
           isOwing
             ? "bg-destructive/15 text-destructive"
-            : "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+            : isLowFund
+              ? "bg-orange-500/15 text-orange-600 dark:text-orange-400"
+              : "bg-amber-500/15 text-amber-600 dark:text-amber-400",
         )}
       >
         {isOwing ? (
           <AlertCircle className="h-5 w-5" />
+        ) : isLowFund ? (
+          <AlertTriangle className="h-5 w-5" />
         ) : (
           <PiggyBank className="h-5 w-5" />
         )}
@@ -63,12 +78,18 @@ export function FundBalanceBanner({
         <p
           className={cn(
             "text-sm leading-snug font-semibold",
-            isOwing ? "text-destructive" : "text-amber-700 dark:text-amber-300",
+            isOwing
+              ? "text-destructive"
+              : isLowFund
+                ? "text-orange-700 dark:text-orange-300"
+                : "text-amber-700 dark:text-amber-300",
           )}
         >
           {isOwing
             ? "Bạn ơi, vẫn còn nợ quỹ đấy nhé, nhớ thanh toán sớm!"
-            : "Hết quỹ rồi bạn ơi, nộp thêm đi nhé!"}
+            : isLowFund
+              ? `Quỹ sắp hết — còn ${formatK(balance)}, nạp thêm để chắc cho buổi sau nhé!`
+              : "Hết quỹ rồi bạn ơi, nộp thêm đi nhé!"}
         </p>
         {isOwing && (
           <p className="text-destructive mt-1 text-base font-bold tabular-nums">
@@ -140,7 +161,9 @@ export function FundBalanceBanner({
                   "inline-flex w-full items-center justify-center gap-1 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors",
                   isOwing
                     ? "border-destructive/40 text-destructive hover:bg-destructive/10"
-                    : "border-amber-500/40 text-amber-700 hover:bg-amber-500/10 dark:text-amber-300",
+                    : isLowFund
+                      ? "border-orange-500/40 text-orange-700 hover:bg-orange-500/10 dark:text-orange-300"
+                      : "border-amber-500/40 text-amber-700 hover:bg-amber-500/10 dark:text-amber-300",
                 )}
               >
                 Xem chi tiết
