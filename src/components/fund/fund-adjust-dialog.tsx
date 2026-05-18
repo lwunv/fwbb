@@ -5,13 +5,20 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Minus, Pencil, Check, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { NumberStepper } from "@/components/ui/number-stepper";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { formatK, cn } from "@/lib/utils";
 import { fireAction } from "@/lib/optimistic-action";
 import { recordContribution, recordRefund } from "@/actions/fund";
 import { toast } from "sonner";
 
-type Mode = "add" | "subtract" | "set";
+type Mode = "add" | "subtract";
+
+/** Step đơn vị 10K cho NumberStepper trong dialog quỹ. */
+const STEP = 10_000;
+/** Max VND đủ rộng để xử lý mọi balance thực tế — tránh để Infinity vì
+ *  NumberStepper bind vào input type=number không xử lý Infinity tốt. */
+const MAX_AMOUNT = 100_000_000;
 
 export interface FundAdjustDialogTarget {
   memberId: number;
@@ -32,30 +39,72 @@ export function FundAdjustDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const [mode, setMode] = useState<Mode>("add");
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState(0);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [editingBalance, setEditingBalance] = useState(false);
+  const [balanceDraft, setBalanceDraft] = useState(0);
 
   if (!target) return null;
 
   function reset() {
     setMode("add");
-    setAmount("");
+    setAmount(0);
     setNote("");
     setSubmitting(false);
+    setEditingBalance(false);
+    setBalanceDraft(0);
   }
 
   function handleClose() {
     if (submitting) return;
     onOpenChange(false);
-    // Defer reset to next tick so closing animation finishes cleanly.
     setTimeout(reset, 200);
+  }
+
+  function startEditingBalance() {
+    if (!target) return;
+    setBalanceDraft(Math.max(0, target.currentBalance));
+    setEditingBalance(true);
+  }
+
+  function cancelEditingBalance() {
+    setEditingBalance(false);
+    setBalanceDraft(0);
+  }
+
+  function submitBalanceEdit() {
+    if (!target) return;
+    const diff = balanceDraft - target.currentBalance;
+    if (diff === 0) {
+      toast.error("Số tiền hiện đã đúng");
+      return;
+    }
+
+    let action: () => Promise<{ error?: string } | { success: boolean }>;
+    if (diff > 0) {
+      const idemKey = `set-contrib-${crypto.randomUUID()}`;
+      action = () =>
+        recordContribution(target.memberId, diff, "Sửa balance", idemKey);
+    } else {
+      const idemKey = `set-refund-${crypto.randomUUID()}`;
+      action = () =>
+        recordRefund(target.memberId, -diff, "Sửa balance", idemKey);
+    }
+
+    setSubmitting(true);
+    fireAction(action, () => setSubmitting(false), {
+      successMsg: `Đã sửa balance ${target.memberNickname || target.memberName} → ${formatK(balanceDraft)}`,
+      onSuccess: () => {
+        setSubmitting(false);
+        handleClose();
+      },
+    });
   }
 
   function handleSubmit() {
     if (!target) return;
-    const raw = parseInt(amount.replace(/\D/g, ""), 10);
-    if (!Number.isFinite(raw) || raw <= 0) {
+    if (amount <= 0) {
       toast.error("Nhập số tiền hợp lệ");
       return;
     }
@@ -66,35 +115,12 @@ export function FundAdjustDialog({
 
     if (mode === "add") {
       const idemKey = `contrib-${crypto.randomUUID()}`;
-      action = () => recordContribution(target.memberId, raw, desc, idemKey);
-      successMsg = `Đã cộng ${formatK(raw)} vào quỹ ${target.memberNickname || target.memberName}`;
-    } else if (mode === "subtract") {
-      const idemKey = `refund-${crypto.randomUUID()}`;
-      action = () => recordRefund(target.memberId, raw, desc, idemKey);
-      successMsg = `Đã trừ ${formatK(raw)} khỏi quỹ ${target.memberNickname || target.memberName}`;
+      action = () => recordContribution(target.memberId, amount, desc, idemKey);
+      successMsg = `Đã cộng ${formatK(amount)} vào quỹ ${target.memberNickname || target.memberName}`;
     } else {
-      // mode === "set": diff = target - current
-      const diff = raw - target.currentBalance;
-      if (diff === 0) {
-        toast.error("Số tiền hiện đã đúng");
-        return;
-      }
-      if (diff > 0) {
-        const idemKey = `set-contrib-${crypto.randomUUID()}`;
-        action = () =>
-          recordContribution(
-            target.memberId,
-            diff,
-            desc ?? "Sửa balance",
-            idemKey,
-          );
-        successMsg = `Đã sửa balance ${target.memberNickname || target.memberName} → ${formatK(raw)}`;
-      } else {
-        const idemKey = `set-refund-${crypto.randomUUID()}`;
-        action = () =>
-          recordRefund(target.memberId, -diff, desc ?? "Sửa balance", idemKey);
-        successMsg = `Đã sửa balance ${target.memberNickname || target.memberName} → ${formatK(raw)}`;
-      }
+      const idemKey = `refund-${crypto.randomUUID()}`;
+      action = () => recordRefund(target.memberId, amount, desc, idemKey);
+      successMsg = `Đã trừ ${formatK(amount)} khỏi quỹ ${target.memberNickname || target.memberName}`;
     }
 
     setSubmitting(true);
@@ -133,23 +159,72 @@ export function FundAdjustDialog({
             className="bg-card w-full max-w-md rounded-t-2xl p-5 shadow-xl sm:rounded-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header — member + current balance */}
-            <div className="mb-4 flex items-center gap-3">
+            {/* Header — avatar + name + balance (inline-editable via pencil) */}
+            <div className="mb-4 flex items-start gap-3">
               <MemberAvatar
                 memberId={target.memberId}
                 avatarKey={target.memberAvatarKey ?? null}
                 avatarUrl={target.memberAvatarUrl ?? null}
                 size={40}
               />
-              <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <div className="truncate text-base font-semibold">
                   {target.memberNickname || target.memberName}
                 </div>
-                <div
-                  className={cn("text-sm font-bold tabular-nums", balanceColor)}
-                >
-                  💰 {formatK(target.currentBalance)}
-                </div>
+                {editingBalance ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-2xl">💰</span>
+                    <NumberStepper
+                      value={balanceDraft}
+                      onChange={setBalanceDraft}
+                      step={STEP}
+                      min={0}
+                      max={MAX_AMOUNT}
+                      disabled={submitting}
+                      className="flex-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={submitBalanceEdit}
+                      disabled={submitting}
+                      aria-label="Lưu balance"
+                      title="Lưu"
+                      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-blue-500 bg-blue-500 text-white transition-colors hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <Check className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelEditingBalance}
+                      disabled={submitting}
+                      aria-label="Hủy sửa balance"
+                      title="Hủy"
+                      className="border-border text-muted-foreground hover:bg-muted/50 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-colors disabled:opacity-60"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "text-2xl font-bold tabular-nums",
+                        balanceColor,
+                      )}
+                    >
+                      💰 {formatK(target.currentBalance)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={startEditingBalance}
+                      aria-label="Sửa balance"
+                      title="Sửa balance"
+                      className="border-border text-muted-foreground hover:bg-muted/50 inline-flex h-7 w-7 items-center justify-center rounded-md border transition-colors"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
               <button
                 type="button"
@@ -161,8 +236,8 @@ export function FundAdjustDialog({
               </button>
             </div>
 
-            {/* Mode tabs */}
-            <div className="mb-3 grid grid-cols-3 gap-1.5">
+            {/* Mode tabs — Cộng / Trừ; sửa balance inline qua pencil ở header */}
+            <div className="mb-3 grid grid-cols-2 gap-1.5">
               <ModeButton
                 active={mode === "add"}
                 onClick={() => setMode("add")}
@@ -177,28 +252,20 @@ export function FundAdjustDialog({
                 label="Trừ quỹ"
                 activeClass="border-rose-500 bg-rose-500 text-white"
               />
-              <ModeButton
-                active={mode === "set"}
-                onClick={() => setMode("set")}
-                icon={Pencil}
-                label="Sửa balance"
-                activeClass="border-blue-500 bg-blue-500 text-white"
-              />
             </div>
 
-            {/* Amount input */}
-            <Input
-              type="text"
-              inputMode="numeric"
-              autoFocus
-              value={amount ? Number(amount).toLocaleString("vi-VN") : ""}
-              onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
-              placeholder={
-                mode === "set" ? "Số tiền mới (VND)" : "Số tiền (VND)"
-              }
-              className="mb-2 text-base tabular-nums"
-              disabled={submitting}
-            />
+            {/* Amount stepper — dùng NumberStepper chung */}
+            <div className="mb-2 flex items-center justify-center">
+              <NumberStepper
+                value={amount}
+                onChange={setAmount}
+                step={STEP}
+                min={0}
+                max={MAX_AMOUNT}
+                disabled={submitting || editingBalance}
+                className="w-full"
+              />
+            </div>
 
             {/* Note */}
             <Input
@@ -207,49 +274,14 @@ export function FundAdjustDialog({
               onChange={(e) => setNote(e.target.value)}
               placeholder="Ghi chú (không bắt buộc)"
               className="mb-3 text-sm"
-              disabled={submitting}
+              disabled={submitting || editingBalance}
             />
 
-            {/* Preview diff for "set" mode */}
-            {mode === "set" &&
-              amount &&
-              (() => {
-                const raw = parseInt(amount, 10);
-                if (!Number.isFinite(raw)) return null;
-                const diff = raw - target.currentBalance;
-                if (diff === 0) {
-                  return (
-                    <p className="text-muted-foreground mb-3 text-xs">
-                      Số tiền hiện đã đúng — không cần điều chỉnh.
-                    </p>
-                  );
-                }
-                return (
-                  <p className="mb-3 text-xs">
-                    {formatK(target.currentBalance)} →{" "}
-                    <span className="font-semibold text-blue-600 dark:text-blue-400">
-                      {formatK(raw)}
-                    </span>{" "}
-                    <span
-                      className={cn(
-                        "font-medium",
-                        diff > 0
-                          ? "text-green-600 dark:text-green-400"
-                          : "text-rose-500 dark:text-rose-400",
-                      )}
-                    >
-                      ({diff > 0 ? "+" : "−"}
-                      {formatK(Math.abs(diff))})
-                    </span>
-                  </p>
-                );
-              })()}
-
-            {/* Submit */}
+            {/* Submit — disabled khi đang sửa balance inline để tránh confusion */}
             <Button
               className="w-full"
               onClick={handleSubmit}
-              disabled={submitting || !amount}
+              disabled={submitting || amount <= 0 || editingBalance}
             >
               <Check className="mr-1 h-4 w-4" />
               {submitting ? "Đang lưu..." : "Lưu"}
