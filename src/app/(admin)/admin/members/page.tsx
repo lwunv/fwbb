@@ -5,20 +5,29 @@ import {
 } from "@/actions/members";
 import { getAllDebts } from "@/actions/finance";
 import { db } from "@/db";
-import { financialTransactions } from "@/db/schema";
-import { inArray } from "drizzle-orm";
+import {
+  financialTransactions,
+  fundMembers as fundMembersTable,
+} from "@/db/schema";
+import { eq, inArray } from "drizzle-orm";
 import { computeBalancesForMembers } from "@/lib/fund-core";
 import { MemberList } from "./member-list";
 import { DuplicateMembersBanner } from "./duplicate-members-banner";
 
 export default async function MembersPage() {
-  const [members, allDebts, currentAdminMemberId, dupGroups] =
+  const [members, allDebts, currentAdminMemberId, dupGroups, fundMemberRows] =
     await Promise.all([
       getMembers(),
       getAllDebts(),
       getCurrentAdminMemberId(),
       findDuplicateMembers(),
+      db.query.fundMembers.findMany({
+        where: eq(fundMembersTable.isActive, true),
+        columns: { memberId: true },
+      }),
     ]);
+
+  const fundMemberIdList = fundMemberRows.map((r) => r.memberId);
 
   const memberIds = members.map((m) => m.id);
   const memberTxs =
@@ -75,6 +84,7 @@ export default async function MembersPage() {
         debtsByMember={debtsByMember}
         currentAdminMemberId={currentAdminMemberId}
         memberBalances={memberBalances}
+        fundMemberIds={fundMemberIdList}
       />
     </div>
   );

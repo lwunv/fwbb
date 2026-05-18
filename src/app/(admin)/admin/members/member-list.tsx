@@ -43,7 +43,7 @@ import { MemberAvatar } from "@/components/shared/member-avatar";
 import { confirmPaymentByAdmin } from "@/actions/finance";
 import { fireAction } from "@/lib/optimistic-action";
 import { getFundStatus } from "@/lib/fund-core";
-import { formatK } from "@/lib/utils";
+import { cn, formatK } from "@/lib/utils";
 import { usePolling } from "@/lib/use-polling";
 import type { InferSelectModel } from "drizzle-orm";
 import type { members as membersTable } from "@/db/schema";
@@ -67,12 +67,15 @@ export function MemberList({
   debtsByMember = {},
   currentAdminMemberId = null,
   memberBalances = {},
+  fundMemberIds = [],
 }: {
   members: Member[];
   debtsByMember?: Record<number, MemberDebt[]>;
   /** memberId của admin hiện tại — render 👑 + nút "Đặt làm admin". */
   currentAdminMemberId?: number | null;
   memberBalances?: Record<number, number>;
+  /** Danh sách memberId đang active trong quỹ — dùng để render chip "Đã vào quỹ". */
+  fundMemberIds?: number[];
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingNicknameId, setEditingNicknameId] = useState<number | null>(
@@ -100,6 +103,8 @@ export function MemberList({
     setPrevAdminMemberId(currentAdminMemberId);
     setAdminMemberId(currentAdminMemberId);
   }
+
+  const fundMemberSet = useMemo(() => new Set(fundMemberIds), [fundMemberIds]);
 
   const t = useTranslations("adminMembers");
   function handleLinkAdmin(memberId: number) {
@@ -384,6 +389,18 @@ export function MemberList({
                           )}
                         </p>
                       </div>
+                      <span
+                        className={cn(
+                          "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
+                          fundMemberSet.has(member.id)
+                            ? "bg-blue-500/15 text-blue-600 dark:text-blue-400"
+                            : "bg-muted text-muted-foreground",
+                        )}
+                      >
+                        {fundMemberSet.has(member.id)
+                          ? t("inFund")
+                          : t("notInFund")}
+                      </span>
                       {fundStatusInfoFor(memberBalances[member.id] ?? 0)}
                       <Button
                         variant="ghost"
