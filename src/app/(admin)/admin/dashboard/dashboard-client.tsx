@@ -564,16 +564,6 @@ export function DashboardClient({
         </InlineNotice>
       )}
 
-      {/* Default settings (sân + hãng cầu) — admin chỉ định 1 lần, các buổi
-       * tự auto-tạo / admin tạo mới sẽ pre-fill các giá trị này. */}
-      <DefaultSettingsCard
-        courts={settingsCourts}
-        brands={settingsBrands}
-        currentCourtId={defaultCourtId}
-        currentBrandId={defaultBrandId}
-        currentSessionDays={sessionDays}
-      />
-
       {/* Upcoming Session — wrap in LED border when buổi sắp/đang diễn ra.
        * Buổi đã qua nhưng chưa finalize (voting/confirmed + date < hôm nay)
        * coi là "Cần xác nhận", không có LED, viền + badge amber. Quy tắc:
@@ -940,6 +930,17 @@ export function DashboardClient({
           </LedBorder>
         );
       })()}
+
+      {/* Default settings (sân + hãng cầu) — admin chỉ định 1 lần, các buổi
+       * tự auto-tạo / admin tạo mới sẽ pre-fill các giá trị này. Đặt sau
+       * UI buổi chơi vì admin ít khi cần đụng — UI buổi chơi mới là focus. */}
+      <DefaultSettingsCard
+        courts={settingsCourts}
+        brands={settingsBrands}
+        currentCourtId={defaultCourtId}
+        currentBrandId={defaultBrandId}
+        currentSessionDays={sessionDays}
+      />
 
       {/* Tình hình tài chính — emerald tint */}
       <SectionCard
