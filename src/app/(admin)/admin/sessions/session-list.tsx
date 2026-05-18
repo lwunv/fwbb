@@ -38,6 +38,7 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import {
   Plus,
   Calendar,
+  Clock,
   MapPin,
   ChevronDown,
   ChevronLeft,
@@ -548,21 +549,24 @@ export function SessionList({
                       <div className="flex items-start justify-between">
                         <div>
                           <div className="space-y-1.5">
-                            <p className="flex items-center gap-2 text-base font-bold capitalize">
-                              <Calendar className="text-muted-foreground h-5 w-5" />
-                              {formatSessionDate(session.date)}
-                            </p>
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                              <p className="flex items-center gap-2 text-base font-bold capitalize">
+                                <Calendar className="text-muted-foreground h-5 w-5" />
+                                {formatSessionDate(session.date)}
+                              </p>
+                              {(session.startTime || session.endTime) && (
+                                <span className="text-muted-foreground inline-flex items-center gap-1.5 text-sm whitespace-nowrap tabular-nums">
+                                  <Clock className="h-4 w-4" />
+                                  {session.startTime ?? "—"} –{" "}
+                                  {session.endTime ?? "—"}
+                                </span>
+                              )}
+                            </div>
                             <WeekStrip
                               sessionDate={session.date}
                               className="justify-center"
                             />
                           </div>
-                          {(session.startTime || session.endTime) && (
-                            <p className="text-muted-foreground mt-1 text-sm whitespace-nowrap">
-                              ⏰ {session.startTime ?? "—"} –{" "}
-                              {session.endTime ?? "—"}
-                            </p>
-                          )}
                           {session.courtName && (
                             <p className="text-muted-foreground mt-1 flex min-w-0 flex-nowrap items-center gap-2 text-sm">
                               <MapPin className="h-4 w-4 shrink-0" />
