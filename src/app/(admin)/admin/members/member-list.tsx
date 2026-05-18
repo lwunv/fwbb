@@ -60,7 +60,7 @@ interface MemberDebt {
 
 const PAGE_SIZE = 20;
 
-type StatusFilter = "all" | "active" | "locked" | "hasDebt";
+type StatusFilter = "all" | "active" | "locked" | "hasDebt" | "lowFund";
 
 export function MemberList({
   members,
@@ -199,6 +199,11 @@ export function MemberList({
       if (statusFilter === "locked" && m.isActive) return false;
       if (statusFilter === "hasDebt" && !debtsByMember[m.id]?.length)
         return false;
+      if (
+        statusFilter === "lowFund" &&
+        getFundStatus(memberBalances[m.id] ?? 0) !== "lowFund"
+      )
+        return false;
       // search filter
       if (!q) return true;
       return m.name.toLowerCase().includes(q);
@@ -218,7 +223,14 @@ export function MemberList({
       if (debtA > 0 && debtB > 0) return debtB - debtA;
       return a.name.localeCompare(b.name);
     });
-  }, [members, search, statusFilter, debtsByMember, deletedIds]);
+  }, [
+    members,
+    search,
+    statusFilter,
+    debtsByMember,
+    deletedIds,
+    memberBalances,
+  ]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -260,6 +272,7 @@ export function MemberList({
     { key: "active", label: t("filterActive") },
     { key: "locked", label: t("filterLocked") },
     { key: "hasDebt", label: t("filterHasDebt") },
+    { key: "lowFund", label: t("filterLowFund") },
   ];
 
   return (

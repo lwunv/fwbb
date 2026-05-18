@@ -484,6 +484,7 @@
     "filterActive": "活跃",
     "filterLocked": "已锁定",
     "filterHasDebt": "有欠款",
+    "filterLowFund": "余额不足",
     "linkAdminAria": "关联管理员",
     "linkAdminTooltipLinked": "已关联 — 这是您的管理员账户",
     "linkAdminTooltipSet": "设为管理员账户(结算活动时需要)",

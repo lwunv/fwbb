@@ -484,6 +484,7 @@
     "filterActive": "Hoạt động",
     "filterLocked": "Đã khóa",
     "filterHasDebt": "Còn nợ",
+    "filterLowFund": "Sắp hết quỹ",
     "linkAdminAria": "Liên kết admin",
     "linkAdminTooltipLinked": "Đã liên kết — đây là tài khoản admin",
     "linkAdminTooltipSet": "Đặt làm tài khoản admin (cần để chốt sổ buổi chơi)",

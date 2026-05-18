@@ -484,6 +484,7 @@
     "filterActive": "Active",
     "filterLocked": "Locked",
     "filterHasDebt": "Has debt",
+    "filterLowFund": "Low fund",
     "linkAdminAria": "Link admin",
     "linkAdminTooltipLinked": "Linked — this is your admin account",
     "linkAdminTooltipSet": "Set as admin account (required to finalize sessions)",
