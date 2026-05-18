@@ -18,6 +18,8 @@ import { FundStatusIcon } from "@/components/shared/fund-status-icon";
 import {
   computeShuttlecockTotal,
   computePerHeadCharges,
+  applyMinDeductionFloor,
+  type MemberDebt,
 } from "@/lib/cost-calculator";
 import { MinDeductionToggle } from "@/components/sessions/min-deduction-toggle";
 import { X, Users, Shield, ShieldOff } from "lucide-react";
@@ -404,6 +406,29 @@ export function AdminVoteManager({
     return debt?.amount ?? null;
   }
 
+  /** Predicted debt for a member in this session — uses the same play/dine
+   *  state as the row JSX (via getVote + getGuestCounts optimistic helpers). */
+  function predictedDebt(memberId: number): MemberDebt {
+    const v = getVote(memberId);
+    const willPlay = v?.willPlay ?? false;
+    const willDine = v?.willDine ?? false;
+    const guests = getGuestCounts(memberId);
+    const gp = v?.willPlay ? guests.play : 0;
+    const gd = v?.willDine ? guests.dine : 0;
+    const playAmount = willPlay ? playPerHead : 0;
+    const dineAmount = willDine ? dinePerHead : 0;
+    const guestPlayAmount = gp * playPerHead;
+    const guestDineAmount = gd * dinePerHead;
+    return {
+      memberId,
+      playAmount,
+      dineAmount,
+      guestPlayAmount,
+      guestDineAmount,
+      totalAmount: playAmount + dineAmount + guestPlayAmount + guestDineAmount,
+    };
+  }
+
   return (
     <div className="space-y-3">
       {/* Info card — luôn hiện khi có dữ liệu chi/người. Khi chưa completed
@@ -603,15 +628,52 @@ export function AdminVoteManager({
                     avatarUrl={member.avatarUrl}
                     size={36}
                   />
-                  <span
-                    className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-base font-semibold"
-                    title={member.name}
-                  >
-                    {member.name}
-                    {memberBalances[member.id] !== undefined && (
-                      <FundStatusIcon balance={memberBalances[member.id]} />
-                    )}
-                  </span>
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span
+                      className="flex items-center gap-1.5 truncate text-base font-semibold"
+                      title={member.name}
+                    >
+                      {member.name}
+                      {memberBalances[member.id] !== undefined && (
+                        <FundStatusIcon balance={memberBalances[member.id]} />
+                      )}
+                    </span>
+                    {(() => {
+                      if (memberBalances[member.id] === undefined) return null;
+                      const bal = memberBalances[member.id];
+                      const raw = predictedDebt(member.id);
+                      if (raw.totalAmount === 0) return null;
+                      const exempt = getExempt(member.id);
+                      const after =
+                        minDeductionEnabled && !exempt
+                          ? applyMinDeductionFloor(raw, bal)
+                          : raw;
+                      const ded = after.totalAmount;
+                      const remain = bal - ded;
+                      return (
+                        <span className="flex items-baseline gap-1 text-xs tabular-nums">
+                          <span className="text-muted-foreground">
+                            {formatK(bal)}
+                          </span>
+                          <span className="font-medium text-rose-500 dark:text-rose-400">
+                            − {formatK(ded)}
+                          </span>
+                          <span className="text-muted-foreground">=</span>
+                          <span
+                            className={
+                              remain < 0
+                                ? "font-semibold text-rose-500 dark:text-rose-400"
+                                : remain < 50_000
+                                  ? "font-semibold text-orange-500 dark:text-orange-400"
+                                  : "text-foreground"
+                            }
+                          >
+                            {formatK(remain)}
+                          </span>
+                        </span>
+                      );
+                    })()}
+                  </div>
 
                   <div className="flex shrink-0 items-center gap-2">
                     {/* Cầu — đã vote: LED border + border tĩnh primary; chưa vote: dashed mờ */}
