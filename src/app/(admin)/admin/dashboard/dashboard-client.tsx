@@ -192,6 +192,7 @@ interface DashboardClientProps {
   editorCourts: Court[];
   editorBrands: Brand[];
   editorMembers: InferSelectModel<typeof membersTable>[];
+  memberBalances: Record<number, number>;
   defaultCourtId: number | null;
   defaultBrandId: number | null;
   sessionDays: number[];
@@ -296,6 +297,7 @@ export function DashboardClient({
   editorCourts,
   editorBrands,
   editorMembers,
+  memberBalances,
   defaultCourtId,
   defaultBrandId,
   sessionDays,
@@ -871,6 +873,7 @@ export function DashboardClient({
                               upcomingSession.useMinDeduction
                             }
                             exemptMemberIds={upcomingSession.exemptMemberIds}
+                            memberBalances={memberBalances}
                             sessionCosts={{
                               courtPrice: upcomingSession.courtPrice ?? 0,
                               courtName: upcomingSession.courtName,

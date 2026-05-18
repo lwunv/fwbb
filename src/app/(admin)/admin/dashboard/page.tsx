@@ -84,6 +84,12 @@ export default async function DashboardPage() {
   const topOwingMembers = owingMembers.slice(0, 5);
   lowFundMembers.sort((a, b) => a.balance - b.balance); // smallest balance first
 
+  // Reuse fundMembers balances computed above — no extra query needed.
+  const memberBalances: Record<number, number> = {};
+  for (const fm of fundMembers) {
+    memberBalances[fm.memberId] = fm.balance.balance;
+  }
+
   // Inventory breakdown per brand
   const stockByBrand = await getStockByBrand();
   const activeStock = stockByBrand.filter((s) => s.isActive);
@@ -336,6 +342,7 @@ export default async function DashboardPage() {
         editorCourts={editorCourts}
         editorBrands={editorBrands}
         editorMembers={activeMembers}
+        memberBalances={memberBalances}
         defaultCourtId={defaultCourt?.id ?? null}
         defaultBrandId={defaultBrand?.id ?? null}
         sessionDays={sessionDays}
