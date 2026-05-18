@@ -568,7 +568,7 @@ export function SessionList({
                             />
                           </div>
                           {session.courtName && (
-                            <p className="text-muted-foreground mt-1 flex min-w-0 flex-nowrap items-center gap-2 text-sm">
+                            <p className="text-muted-foreground mt-2 flex min-w-0 flex-nowrap items-center gap-2 text-sm">
                               <MapPin className="h-4 w-4 shrink-0" />
                               <span className="truncate">
                                 {session.courtName}
@@ -629,7 +629,7 @@ export function SessionList({
                       thay sân nếu hôm đó đổi sân, v.v.). */}
                       {isActive && (
                         <div
-                          className="space-y-2 pt-1"
+                          className="space-y-2"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <CourtSelector
@@ -656,64 +656,117 @@ export function SessionList({
                       {/* Admin guest stepper đã chuyển vào trong AdminVoteManager
                       (hiện ở khu mở rộng danh sách thành viên, trên search box). */}
 
-                      {/* Tóm tắt chi phí — format đồng bộ với row Court/Shuttle:
-                      [icon + label trái] ... [số tiền right-align, bold tabular].
-                      Hiện cho mọi status trừ cancelled khi có dữ liệu. Số khi
-                      chưa completed là ước tính (đổi nếu thêm/bớt người). */}
+                      {/* Tóm tắt Chi vs Thu vs Lãi/Lỗ — 3-column stat tile
+                          để admin dễ so sánh. Logic Thu:
+                          - completed: session.totalDebt (actual)
+                          - past-pending: predicted Thu = totalPlayers × playPerHead
+                            + totalDiners × dinePerHead (giả định tất cả attendees
+                            là member-trả; admin's share không trừ ra trong preview)
+                          - voting/confirmed future: skip Thu, chỉ show Chi
+                          Lãi = Thu − Chi. Âm = lỗ (đỏ). */}
                       {effectiveStatus !== "cancelled" &&
                         (totalExpense > 0 ||
                           playCostPerHead > 0 ||
                           dineCostPerHead > 0 ||
-                          canFinalize) && (
-                          <div className="pt-1 text-base">
-                            {/* Buổi hôm nay/past pending: button "Xác nhận" nằm BÊN TRÁI
-                            cùng hàng với Tổng chi (right-align) → tiết kiệm không gian
-                            + CTA gần con số tổng admin cần verify. */}
-                            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 font-bold">
-                              {canFinalize ? (
-                                <button
-                                  type="button"
-                                  disabled={isFinalizing}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    // Optimistic: đánh dấu finalizing → status
-                                    // xanh "completed" cho UI ngay; rollback tự
-                                    // động nếu server fail (vd thiếu courtPrice).
-                                    finalizing.addOptimistically(
-                                      session.id,
-                                      () => finalizeSessionAuto(session.id),
-                                      {
-                                        successMsg: t("confirmedSuccess"),
-                                      },
-                                    );
-                                  }}
-                                  className="bg-primary hover:bg-primary/90 active:bg-primary/95 shadow-primary/30 hover:shadow-primary/40 inline-flex h-[42px] w-1/2 shrink-0 items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  <Check className="h-4 w-4" />
-                                  {isFinalizing
-                                    ? t("confirming")
-                                    : t("confirmSession")}
-                                </button>
-                              ) : (
-                                <span className="min-w-0 flex-1">
-                                  💰 Tổng chi
-                                </span>
-                              )}
-                              <span className="ml-auto flex items-center gap-1.5">
-                                {!canFinalize ? null : (
-                                  <span className="font-semibold">
-                                    💰 Tổng chi
-                                  </span>
+                          canFinalize) &&
+                        (() => {
+                          const showRevenue =
+                            effectiveStatus === "completed" || isPastPending;
+                          const predictedRevenue =
+                            totalPlayers * playCostPerHead +
+                            totalDiners * dineCostPerHead;
+                          const revenue =
+                            effectiveStatus === "completed"
+                              ? session.totalDebt
+                              : predictedRevenue;
+                          const profit = revenue - totalExpense;
+                          const profitColor =
+                            profit > 0
+                              ? "text-green-600 dark:text-green-400"
+                              : profit < 0
+                                ? "text-rose-500 dark:text-rose-400"
+                                : "text-muted-foreground";
+                          const profitSign =
+                            profit > 0 ? "+" : profit < 0 ? "−" : "";
+                          return (
+                            <div className="space-y-2 pt-1">
+                              {/* Stat block: Chi / Thu / Lãi */}
+                              <div className="grid grid-cols-3 gap-2">
+                                <div className="bg-primary/[0.06] border-primary/20 rounded-lg border px-2 py-1.5 text-center">
+                                  <div className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
+                                    💰 Chi
+                                  </div>
+                                  <div className="text-primary text-base font-bold tabular-nums">
+                                    {formatK(totalExpense)}
+                                  </div>
+                                </div>
+                                {showRevenue ? (
+                                  <div className="rounded-lg border border-blue-500/25 bg-blue-500/[0.06] px-2 py-1.5 text-center">
+                                    <div className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
+                                      💵 Thu
+                                      {effectiveStatus !== "completed" && (
+                                        <span className="ml-1 normal-case">
+                                          (dự kiến)
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="text-base font-bold text-blue-600 tabular-nums dark:text-blue-400">
+                                      {formatK(revenue)}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="border-border/40 bg-muted/30 rounded-lg border border-dashed px-2 py-1.5 text-center">
+                                    <div className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
+                                      💵 Thu
+                                    </div>
+                                    <div className="text-muted-foreground text-base font-bold tabular-nums">
+                                      —
+                                    </div>
+                                  </div>
                                 )}
-                                <span className="text-primary text-lg font-bold tabular-nums">
-                                  {formatK(totalExpense)}
-                                </span>
+                                {showRevenue ? (
+                                  <div
+                                    className={cn(
+                                      "rounded-lg border px-2 py-1.5 text-center",
+                                      profit > 0
+                                        ? "border-green-500/25 bg-green-500/[0.06]"
+                                        : profit < 0
+                                          ? "border-rose-500/25 bg-rose-500/[0.06]"
+                                          : "border-border/40 bg-muted/30",
+                                    )}
+                                  >
+                                    <div className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
+                                      📊 Lãi/Lỗ
+                                    </div>
+                                    <div
+                                      className={cn(
+                                        "text-base font-bold tabular-nums",
+                                        profitColor,
+                                      )}
+                                    >
+                                      {profitSign}
+                                      {formatK(Math.abs(profit))}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="border-border/40 bg-muted/30 rounded-lg border border-dashed px-2 py-1.5 text-center">
+                                    <div className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
+                                      📊 Lãi/Lỗ
+                                    </div>
+                                    <div className="text-muted-foreground text-base font-bold tabular-nums">
+                                      —
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Per-head detail + Confirm button */}
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                                 {(playCostPerHead > 0 ||
                                   dineCostPerHead > 0) && (
-                                  <span className="text-foreground/70 text-base font-semibold tabular-nums">
-                                    (
+                                  <span className="text-foreground/70 tabular-nums">
                                     {playCostPerHead > 0 && (
-                                      <span className="text-primary">
+                                      <span className="text-primary font-semibold">
                                         🏸 {formatK(playCostPerHead)}
                                       </span>
                                     )}
@@ -725,19 +778,41 @@ export function SessionList({
                                         </span>
                                       )}
                                     {dineCostPerHead > 0 && (
-                                      <span className="text-orange-500 dark:text-orange-400">
+                                      <span className="font-semibold text-orange-500 dark:text-orange-400">
                                         🍻 {formatK(dineCostPerHead)}
                                       </span>
                                     )}
-                                    <span className="text-foreground/70 text-sm font-medium">
-                                      /người)
+                                    <span className="text-foreground/60 ml-1 text-xs">
+                                      /người
                                     </span>
                                   </span>
                                 )}
-                              </span>
+                                {canFinalize && (
+                                  <button
+                                    type="button"
+                                    disabled={isFinalizing}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      finalizing.addOptimistically(
+                                        session.id,
+                                        () => finalizeSessionAuto(session.id),
+                                        {
+                                          successMsg: t("confirmedSuccess"),
+                                        },
+                                      );
+                                    }}
+                                    className="bg-primary hover:bg-primary/90 active:bg-primary/95 shadow-primary/30 hover:shadow-primary/40 ml-auto inline-flex h-9 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    <Check className="h-4 w-4" />
+                                    {isFinalizing
+                                      ? t("confirming")
+                                      : t("confirmSession")}
+                                  </button>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          );
+                        })()}
 
                       {/* Members block — toggle + danh sách trong CÙNG 1 card chung,
                       border chung. Toggle collapsed = thấy stat tổng; expanded =
