@@ -65,7 +65,13 @@ export async function getShuttlecockFinanceSummary(): Promise<ShuttlecockFinance
 
   const [purchases, usages] = await Promise.all([
     db.query.inventoryPurchases.findMany({}),
-    db.query.sessionShuttlecocks.findMany({}),
+    // Fetch with session status so we can exclude cancelled sessions.
+    // Cancelled sessions retain their sessionShuttlecocks rows (only
+    // finalize-then-delete wipes them) but members were never charged for
+    // those shuttlecocks — counting them inflates revenue.
+    db.query.sessionShuttlecocks.findMany({
+      with: { session: { columns: { status: true } } },
+    }),
   ]);
 
   let totalSpent = 0;
@@ -78,6 +84,7 @@ export async function getShuttlecockFinanceSummary(): Promise<ShuttlecockFinance
   let totalRevenue = 0;
   let totalQuaUsed = 0;
   for (const u of usages) {
+    if (u.session?.status === "cancelled") continue;
     totalRevenue += calculateExactShuttlecockCost(
       u.quantityUsed,
       u.pricePerTube,
