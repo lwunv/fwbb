@@ -666,7 +666,11 @@
     "clearDebtNote": "Đã hết nợ",
     "toastUndoTransaction": "Đã hủy giao dịch — tạo entry reversal trong ledger",
     "ariaUndoTransaction": "Hủy giao dịch",
-    "undoConfirmTitle": "Hủy giao dịch?"
+    "undoConfirmTitle": "Hủy giao dịch?",
+    "modalAddMemberAmountTitle": "Đóng quỹ ban đầu cho {name}",
+    "modalAddMemberAmountPlaceholder": "Số tiền (VND, có thể bỏ trống)",
+    "addWithoutAmount": "Thêm với 0đ",
+    "addMemberBack": "← Quay lại"
   },
   "fundStatus": {
     "owing": "Nợ quỹ",

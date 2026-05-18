@@ -666,7 +666,11 @@
     "clearDebtNote": "已还清欠款",
     "toastUndoTransaction": "已撤销交易 — 在账本生成冲销条目",
     "ariaUndoTransaction": "撤销交易",
-    "undoConfirmTitle": "撤销此交易?"
+    "undoConfirmTitle": "撤销此交易?",
+    "modalAddMemberAmountTitle": "为 {name} 设定初始余额",
+    "modalAddMemberAmountPlaceholder": "金额（VND，可选）",
+    "addWithoutAmount": "添加（无金额）",
+    "addMemberBack": "← 返回"
   },
   "fundStatus": {
     "owing": "欠款",

@@ -666,7 +666,11 @@
     "clearDebtNote": "Debt cleared",
     "toastUndoTransaction": "Transaction reversed — reversal entry created in ledger",
     "ariaUndoTransaction": "Undo transaction",
-    "undoConfirmTitle": "Undo transaction?"
+    "undoConfirmTitle": "Undo transaction?",
+    "modalAddMemberAmountTitle": "Initial contribution for {name}",
+    "modalAddMemberAmountPlaceholder": "Amount (VND, optional)",
+    "addWithoutAmount": "Add with 0",
+    "addMemberBack": "← Back"
   },
   "fundStatus": {
     "owing": "Owing",

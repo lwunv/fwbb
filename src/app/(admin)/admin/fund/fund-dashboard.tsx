@@ -117,6 +117,12 @@ export function FundDashboard({
   const [showContribution, setShowContribution] = useState(false);
   const [showCourtRent, setShowCourtRent] = useState(false);
   const [showBuyShuttle, setShowBuyShuttle] = useState(false);
+  // Two-step add-member modal state
+  const [pendingFundMember, setPendingFundMember] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
+  const [initialAmount, setInitialAmount] = useState("");
 
   // Court-rent form state
   const [crYear, setCrYear] = useState(currentYear);
@@ -195,6 +201,25 @@ export function FundDashboard({
       { successMsg: t("successAddMember") },
     );
     setShowAddMember(false);
+  }
+
+  function handleAddMemberWithAmount() {
+    if (!pendingFundMember) return;
+    const { id: memberId, name } = pendingFundMember;
+    const amount = parseInt(initialAmount.replace(/\D/g, ""), 10) || 0;
+
+    if (amount > 0) {
+      // recordContribution auto-enrols → no need to also call addFundMember
+      handleContribution(
+        memberId,
+        amount,
+        t("modalAddMemberAmountTitle", { name }),
+      );
+    } else {
+      handleAddMember(memberId);
+    }
+    setPendingFundMember(null);
+    setInitialAmount("");
   }
 
   function handleContribution(
@@ -488,7 +513,11 @@ export function FundDashboard({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-            onClick={() => setShowAddMember(false)}
+            onClick={() => {
+              setShowAddMember(false);
+              setPendingFundMember(null);
+              setInitialAmount("");
+            }}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -497,33 +526,126 @@ export function FundDashboard({
               className="bg-card w-full max-w-md rounded-2xl p-6 shadow-xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="mb-4 text-lg font-bold">{t("modalAddTitle")}</h3>
-              {availableMembers.length === 0 ? (
-                <p className="text-muted-foreground text-sm">
-                  {t("allInFund")}
-                </p>
-              ) : (
-                <div className="max-h-72 space-y-2 overflow-y-auto">
-                  {availableMembers.map((m) => (
+              {pendingFundMember ? (
+                /* Step 2: enter initial contribution amount */
+                <>
+                  <h3 className="mb-1 text-lg font-bold">
+                    {t("modalAddMemberAmountTitle", {
+                      name: pendingFundMember.name,
+                    })}
+                  </h3>
+                  <p className="text-muted-foreground mb-4 text-xs">
+                    {t("modalAddMemberAmountPlaceholder")}
+                  </p>
+                  <div className="flex items-stretch gap-2">
                     <button
-                      key={m.id}
-                      onClick={() => handleAddMember(m.id)}
-                      className="hover:bg-accent flex w-full items-center gap-3 rounded-xl p-3 text-left transition-colors"
+                      type="button"
+                      onClick={() => {
+                        const cur = parseInt(initialAmount, 10) || 0;
+                        setInitialAmount(String(Math.max(0, cur - 100000)));
+                      }}
+                      disabled={(parseInt(initialAmount, 10) || 0) <= 0}
+                      className="bg-card hover:bg-muted/50 inline-flex h-[42px] w-11 shrink-0 items-center justify-center rounded-xl border-2 transition-colors disabled:opacity-40"
+                      aria-label={t("ariaDecrease100k")}
                     >
-                      <UserPlus className="text-primary h-4 w-4" />
-                      <span className="font-medium">
-                        {m.nickname || m.name}
-                      </span>
+                      <Minus className="h-4 w-4" />
                     </button>
-                  ))}
-                </div>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      value={
+                        initialAmount
+                          ? Number(initialAmount).toLocaleString("vi-VN")
+                          : ""
+                      }
+                      onChange={(e) =>
+                        setInitialAmount(e.target.value.replace(/\D/g, ""))
+                      }
+                      placeholder="0"
+                      className="text-center tabular-nums"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const cur = parseInt(initialAmount, 10) || 0;
+                        setInitialAmount(String(cur + 100000));
+                      }}
+                      className="bg-card hover:bg-muted/50 inline-flex h-[42px] w-11 shrink-0 items-center justify-center rounded-xl border-2 transition-colors"
+                      aria-label={t("ariaIncrease100k")}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      onClick={() => {
+                        setPendingFundMember(null);
+                        setInitialAmount("");
+                      }}
+                      className="hover:bg-accent flex-1 rounded-xl border py-2.5 text-sm font-medium transition-colors"
+                    >
+                      {t("addMemberBack")}
+                    </button>
+                    <button
+                      onClick={() => {
+                        // Add with 0 — just enrol, no contribution
+                        handleAddMember(pendingFundMember.id);
+                        setPendingFundMember(null);
+                        setInitialAmount("");
+                      }}
+                      className="hover:bg-accent flex-1 rounded-xl border py-2.5 text-sm font-medium transition-colors"
+                    >
+                      {t("addWithoutAmount")}
+                    </button>
+                    <button
+                      onClick={handleAddMemberWithAmount}
+                      disabled={!initialAmount || Number(initialAmount) <= 0}
+                      className="bg-primary text-primary-foreground flex-1 rounded-xl py-2.5 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+                    >
+                      {tCommon("save")}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* Step 1: pick a member */
+                <>
+                  <h3 className="mb-4 text-lg font-bold">
+                    {t("modalAddTitle")}
+                  </h3>
+                  {availableMembers.length === 0 ? (
+                    <p className="text-muted-foreground text-sm">
+                      {t("allInFund")}
+                    </p>
+                  ) : (
+                    <div className="max-h-72 space-y-2 overflow-y-auto">
+                      {availableMembers.map((m) => (
+                        <button
+                          key={m.id}
+                          onClick={() =>
+                            setPendingFundMember({
+                              id: m.id,
+                              name: m.nickname || m.name,
+                            })
+                          }
+                          className="hover:bg-accent flex w-full items-center gap-3 rounded-xl p-3 text-left transition-colors"
+                        >
+                          <UserPlus className="text-primary h-4 w-4" />
+                          <span className="font-medium">
+                            {m.nickname || m.name}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setShowAddMember(false)}
+                    className="hover:bg-accent mt-4 w-full rounded-xl border py-2 text-sm transition-colors"
+                  >
+                    {t("close")}
+                  </button>
+                </>
               )}
-              <button
-                onClick={() => setShowAddMember(false)}
-                className="hover:bg-accent mt-4 w-full rounded-xl border py-2 text-sm transition-colors"
-              >
-                {t("close")}
-              </button>
             </motion.div>
           </motion.div>
         )}
