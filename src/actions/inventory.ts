@@ -94,7 +94,11 @@ export async function recordPurchase(formData: FormData) {
   return { success: true };
 }
 
-export async function updatePurchaseTubes(purchaseId: number, tubes: number) {
+export async function updatePurchaseTubes(
+  purchaseId: number,
+  tubes: number,
+  idempotencyKey: string,
+) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
 
@@ -104,6 +108,13 @@ export async function updatePurchaseTubes(purchaseId: number, tubes: number) {
   }
   if (!Number.isInteger(tubes) || tubes < 1 || tubes > 10000) {
     return { error: t("invalidTubeCount") };
+  }
+  if (
+    !idempotencyKey ||
+    typeof idempotencyKey !== "string" ||
+    idempotencyKey.trim().length < 4
+  ) {
+    return { error: t("missingIdempotencyKey") };
   }
 
   const purchase = await db.query.inventoryPurchases.findFirst({
@@ -124,6 +135,8 @@ export async function updatePurchaseTubes(purchaseId: number, tubes: number) {
       // Keep the ledger in sync: record the delta as an additional purchase
       // (or a refund if delta < 0) tied to the same inventoryPurchaseId, so
       // total spend on shuttlecocks computed from the ledger matches reality.
+      // idempotencyKey (caller-supplied UUID) prevents duplicate delta rows
+      // when admin double-clicks the edit form.
       if (priceDelta !== 0) {
         const r = await recordFinancialTransaction(
           {
@@ -141,6 +154,7 @@ export async function updatePurchaseTubes(purchaseId: number, tubes: number) {
               newTubes: tubes,
               priceDelta,
             },
+            idempotencyKey: `update-purchase-${purchaseId}-${idempotencyKey}`,
           },
           tx,
         );

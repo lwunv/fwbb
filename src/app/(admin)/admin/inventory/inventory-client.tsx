@@ -146,7 +146,12 @@ export function InventoryClient({
                                   const prevTubes = p.tubes;
                                   setEditingId(null);
                                   fireAction(
-                                    () => updatePurchaseTubes(p.id, editTubes),
+                                    () =>
+                                      updatePurchaseTubes(
+                                        p.id,
+                                        editTubes,
+                                        crypto.randomUUID(),
+                                      ),
                                     () => {
                                       setEditingId(p.id);
                                       setEditTubes(prevTubes);
