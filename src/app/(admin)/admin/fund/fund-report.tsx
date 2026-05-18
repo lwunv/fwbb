@@ -22,6 +22,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { formatVND, formatK, cn } from "@/lib/utils";
 import { formatSessionDate } from "@/lib/date-format";
 import { fireAction } from "@/lib/optimistic-action";
+import { getFundStatus, type FundStatus } from "@/lib/fund-core";
 import { recordContribution, recordRefund } from "@/actions/fund";
 import type { InferSelectModel } from "drizzle-orm";
 import type { members as membersTable } from "@/db/schema";
@@ -51,28 +52,25 @@ interface FundTransaction {
   session: { id: number; date: string } | null;
 }
 
-type FilterKey = "hasFund" | "depleted" | "owing";
+type FilterKey = FundStatus;
 
 interface Props {
   fundMembers: FundMemberWithBalance[];
   transactions: FundTransaction[];
 }
 
-function bucket(balance: number): FilterKey {
-  if (balance < 0) return "owing";
-  if (balance > 0) return "hasFund";
-  return "depleted";
-}
-
 function statusFor(
   b: FilterKey,
-  t: (key: "filterHasFund" | "filterOwing" | "filterDepleted") => string,
+  t: (
+    key: "filterHasFund" | "filterOwing" | "filterDepleted" | "filterLowFund",
+  ) => string,
 ): {
-  variant: "paid" | "unpaid" | "depleted";
+  variant: "paid" | "unpaid" | "depleted" | "lowFund";
   label: string;
 } {
   if (b === "hasFund") return { variant: "paid", label: t("filterHasFund") };
   if (b === "owing") return { variant: "unpaid", label: t("filterOwing") };
+  if (b === "lowFund") return { variant: "lowFund", label: t("filterLowFund") };
   return { variant: "depleted", label: t("filterDepleted") };
 }
 
@@ -148,11 +146,11 @@ export function FundReport({ fundMembers, transactions }: Props) {
   }
 
   const counts = useMemo(() => {
-    const c = { hasFund: 0, depleted: 0, owing: 0 } as Record<
+    const c = { hasFund: 0, depleted: 0, lowFund: 0, owing: 0 } as Record<
       FilterKey,
       number
     >;
-    for (const fm of fundMembers) c[bucket(fm.balance.balance)] += 1;
+    for (const fm of fundMembers) c[getFundStatus(fm.balance.balance)] += 1;
     return c;
   }, [fundMembers]);
 
@@ -160,7 +158,8 @@ export function FundReport({ fundMembers, transactions }: Props) {
     const q = search.trim().toLowerCase();
     return [...fundMembers]
       .filter((fm) => {
-        if (filter && bucket(fm.balance.balance) !== filter) return false;
+        if (filter && getFundStatus(fm.balance.balance) !== filter)
+          return false;
         if (q) {
           const name = (
             fm.member.nickname ||
@@ -190,6 +189,7 @@ export function FundReport({ fundMembers, transactions }: Props) {
   const FILTERS: Array<{ key: FilterKey; label: string }> = [
     { key: "hasFund", label: t("filterHasFund") },
     { key: "depleted", label: t("filterDepleted") },
+    { key: "lowFund", label: t("filterLowFund") },
     { key: "owing", label: t("filterOwing") },
   ];
 
@@ -249,14 +249,16 @@ export function FundReport({ fundMembers, transactions }: Props) {
             {filtered.map((fm) => {
               const isOpen = expandedId === fm.memberId;
               const memberTxs = txByMember.get(fm.memberId) ?? [];
-              const b = bucket(fm.balance.balance);
+              const b = getFundStatus(fm.balance.balance);
               const status = statusFor(b, t);
               const balanceColor =
-                fm.balance.balance > 0
+                b === "hasFund"
                   ? "text-blue-600 dark:text-blue-400"
-                  : fm.balance.balance < 0
+                  : b === "owing"
                     ? "text-rose-600 dark:text-rose-400"
-                    : "text-yellow-600 dark:text-yellow-400";
+                    : b === "lowFund"
+                      ? "text-orange-600 dark:text-orange-400"
+                      : "text-yellow-600 dark:text-yellow-400";
 
               // Card neutral — chỉ dùng accent ở viền trái + status badge
               // top-right để nhận biết trạng thái. Tránh tô màu toàn card
@@ -284,16 +286,27 @@ export function FundReport({ fundMembers, transactions }: Props) {
                         divider: "border-border",
                         accent: "border-l-4 border-l-rose-500/60",
                       }
-                    : {
-                        bg: "bg-card",
-                        hover: "hover:bg-muted/40",
-                        ring: isOpen
-                          ? "ring-1 ring-yellow-500/40"
-                          : "ring-1 ring-border",
-                        open: "",
-                        divider: "border-border",
-                        accent: "border-l-4 border-l-yellow-500/60",
-                      };
+                    : b === "lowFund"
+                      ? {
+                          bg: "bg-card",
+                          hover: "hover:bg-muted/40",
+                          ring: isOpen
+                            ? "ring-1 ring-orange-500/40"
+                            : "ring-1 ring-border",
+                          open: "",
+                          divider: "border-border",
+                          accent: "border-l-4 border-l-orange-500/60",
+                        }
+                      : {
+                          bg: "bg-card",
+                          hover: "hover:bg-muted/40",
+                          ring: isOpen
+                            ? "ring-1 ring-yellow-500/40"
+                            : "ring-1 ring-border",
+                          open: "",
+                          divider: "border-border",
+                          accent: "border-l-4 border-l-yellow-500/60",
+                        };
 
               return (
                 <div
