@@ -27,7 +27,6 @@ interface ConfirmDialogProps {
   cancelLabel?: string;
   variant?: "destructive" | "default";
   onConfirm: () => void | Promise<void>;
-  loading?: boolean;
   /** Optional content rendered giữa description và button row (vd: form input) */
   children?: React.ReactNode;
 }
@@ -47,6 +46,12 @@ function useIsMobile(breakpoint = 640) {
 /**
  * Responsive confirm prompt: bottom Sheet on mobile (rubric §6),
  * centered Dialog from sm: upward.
+ *
+ * Optimistic semantics (CLAUDE.md "100% Optimistic UI"): khi user click
+ * Confirm, dialog đóng NGAY LẬP TỨC + onConfirm fire-and-forget. Parent
+ * sở hữu rollback (qua fireAction từ src/lib/optimistic-action.ts). Nếu
+ * parent return Promise reject, catch ở đây nuốt để page không crash —
+ * toast.error nên đã được fireAction surfaces.
  */
 export function ConfirmDialog(props: ConfirmDialogProps) {
   const isMobile = useIsMobile();
@@ -83,32 +88,39 @@ function ConfirmHeader({
 }
 
 function ConfirmActions({
-  loading,
   variant,
   onCancel,
   onConfirm,
   cancelLabel,
   confirmLabel,
-  processingLabel,
 }: {
-  loading: boolean;
   variant: ConfirmDialogProps["variant"];
   onCancel: () => void;
-  onConfirm: () => void | Promise<void>;
+  onConfirm: () => void;
   cancelLabel: string;
   confirmLabel: string;
-  processingLabel: string;
 }) {
   return (
     <div className="flex justify-end gap-2">
-      <Button variant="outline" onClick={onCancel} disabled={loading}>
+      <Button variant="outline" onClick={onCancel}>
         {cancelLabel}
       </Button>
-      <Button variant={variant} onClick={onConfirm} disabled={loading}>
-        {loading ? processingLabel : confirmLabel}
+      <Button variant={variant} onClick={onConfirm}>
+        {confirmLabel}
       </Button>
     </div>
   );
+}
+
+function fireConfirm(
+  onConfirm: () => void | Promise<void>,
+  onOpenChange: (open: boolean) => void,
+) {
+  // Optimistic: close dialog ngay, sau đó fire onConfirm. Parent's fireAction
+  // pattern handles rollback + toast.error. catch ở đây để swallow stray
+  // rejections — không bao giờ crash page chỉ vì server fail.
+  onOpenChange(false);
+  Promise.resolve(onConfirm()).catch(() => {});
 }
 
 function DesktopDialog({
@@ -120,7 +132,6 @@ function DesktopDialog({
   cancelLabel,
   variant = "destructive",
   onConfirm,
-  loading = false,
   children,
 }: ConfirmDialogProps) {
   const tCommon = useTranslations("common");
@@ -141,16 +152,11 @@ function DesktopDialog({
         {children && <div className="mt-2">{children}</div>}
         <div className="mt-2">
           <ConfirmActions
-            loading={loading}
             variant={variant}
             onCancel={() => onOpenChange(false)}
-            onConfirm={async () => {
-              await onConfirm();
-              onOpenChange(false);
-            }}
+            onConfirm={() => fireConfirm(onConfirm, onOpenChange)}
             cancelLabel={cancelLabel ?? tCommon("cancel")}
             confirmLabel={confirmLabel ?? tCommon("confirm")}
-            processingLabel={tCommon("processing")}
           />
         </div>
       </DialogContent>
@@ -167,7 +173,6 @@ function MobileSheet({
   cancelLabel,
   variant = "destructive",
   onConfirm,
-  loading = false,
   children,
 }: ConfirmDialogProps) {
   const tCommon = useTranslations("common");
@@ -191,16 +196,11 @@ function MobileSheet({
         {children && <div className="px-4">{children}</div>}
         <SheetFooter>
           <ConfirmActions
-            loading={loading}
             variant={variant}
             onCancel={() => onOpenChange(false)}
-            onConfirm={async () => {
-              await onConfirm();
-              onOpenChange(false);
-            }}
+            onConfirm={() => fireConfirm(onConfirm, onOpenChange)}
             cancelLabel={cancelLabel ?? tCommon("cancel")}
             confirmLabel={confirmLabel ?? tCommon("confirm")}
-            processingLabel={tCommon("processing")}
           />
         </SheetFooter>
       </SheetContent>

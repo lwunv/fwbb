@@ -46,6 +46,9 @@ export function DuplicateMembersBanner({ groups }: { groups: DupGroup[] }) {
     keep: DupMember;
     drop: DupMember[];
   } | null>(null);
+  // Optimistic: id của các source members đang được merge → fade-out + disable
+  // ngay khi user confirm. Rollback (set lại empty) nếu server fail.
+  const [mergingIds, setMergingIds] = useState<Set<number>>(new Set());
 
   function openConfirm(group: DupGroup) {
     const keepId = keepIds[group.name];
@@ -56,19 +59,35 @@ export function DuplicateMembersBanner({ groups }: { groups: DupGroup[] }) {
     setConfirmTarget({ keep, drop });
   }
 
-  async function handleMerge() {
+  function handleMerge() {
     if (!confirmTarget) return;
     const { keep, drop } = confirmTarget;
     setConfirmTarget(null);
+    // Optimistic: mark drops as merging → fade-out + chặn click lặp.
+    const dropIds = new Set(drop.map((m) => m.id));
+    setMergingIds((prev) => {
+      const next = new Set(prev);
+      for (const id of dropIds) next.add(id);
+      return next;
+    });
     startTransition(async () => {
       for (const src of drop) {
         const res = await mergeMember(src.id, keep.id);
         if (res && "error" in res && res.error) {
           toast.error(`Lỗi gộp ${src.name} (#${src.id}): ${res.error}`);
+          // Rollback: bỏ fade trên các source CHƯA merge xong (tính cả src
+          // bị fail). Các src đã merge thành công không cần restore — server
+          // revalidate sẽ remove khỏi list.
+          setMergingIds((prev) => {
+            const next = new Set(prev);
+            for (const id of dropIds) next.delete(id);
+            return next;
+          });
           return;
         }
       }
       toast.success(`Đã gộp ${drop.length} bản trùng vào ${keep.name}`);
+      // Success: giữ fade — parent route revalidate sẽ unmount/refetch.
     });
   }
 
@@ -100,14 +119,16 @@ export function DuplicateMembersBanner({ groups }: { groups: DupGroup[] }) {
                 <ul className="space-y-1.5">
                   {group.members.map((m) => {
                     const isKeep = m.id === keepId;
+                    const isMerging = mergingIds.has(m.id);
                     return (
                       <li
                         key={m.id}
                         className={cn(
-                          "flex items-center gap-3 rounded-lg border px-3 py-2 transition-colors",
+                          "flex items-center gap-3 rounded-lg border px-3 py-2 transition-all duration-200",
                           isKeep
                             ? "border-primary bg-primary/10"
                             : "border-border bg-muted/30",
+                          isMerging && "pointer-events-none opacity-40",
                         )}
                       >
                         <input

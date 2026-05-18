@@ -76,10 +76,14 @@ export function FinalizeSession({
   shuttlecocks,
 }: FinalizeSessionProps) {
   const [step, setStep] = useState<Step>("players");
-  const [isLoading, setIsLoading] = useState(false);
+  // Optimistic submit state: assume success → disable button immediately +
+  // show success label. Rollback to false if server returns error (toast
+  // surfaces the reason). On real success the parent route revalidates and
+  // this component unmounts, so `submitted=true` is terminal.
+  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
   const t = useTranslations("finalize");
-  const tCommon = useTranslations("common");
+  const tSessions = useTranslations("sessions");
 
   // Initialize from votes
   const votedPlayerIds = new Set(
@@ -247,7 +251,8 @@ export function FinalizeSession({
   }, [step, attendeeList, shuttlecocks, courtPrice, diningBill]);
 
   function handleFinalize() {
-    setIsLoading(true);
+    if (submitted) return; // optimistic: prevent double-submit
+    setSubmitted(true);
     setError("");
 
     const finalAttendees: FinalizeAttendee[] = attendeeList.map((a) => ({
@@ -262,9 +267,11 @@ export function FinalizeSession({
     fireAction(
       () => finalizeSession(sessionId, finalAttendees, diningBill),
       () => {
-        setIsLoading(false);
+        // Rollback: re-enable wizard so user can fix + retry (fireAction
+        // already shows toast.error with the server's message).
+        setSubmitted(false);
       },
-      { retry: false },
+      { retry: false, successMsg: tSessions("confirmedSuccess") },
     );
   }
 
@@ -672,11 +679,11 @@ export function FinalizeSession({
           {step === "preview" && (
             <Button
               onClick={handleFinalize}
-              disabled={isLoading}
+              disabled={submitted}
               className="flex-1"
             >
               <CheckCircle className="mr-2 h-4 w-4" />
-              {isLoading ? tCommon("processing") : t("completeSession")}
+              {submitted ? tSessions("confirmedSuccess") : t("completeSession")}
             </Button>
           )}
         </div>

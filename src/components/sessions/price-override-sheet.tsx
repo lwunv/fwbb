@@ -158,7 +158,6 @@ function OverrideBody({
 }
 
 function OverrideActions({
-  loading,
   canSave,
   canReset,
   onCancel,
@@ -168,12 +167,11 @@ function OverrideActions({
   resetLabel,
   cancelLabel,
 }: {
-  loading: boolean;
   canSave: boolean;
   canReset: boolean;
   onCancel: () => void;
-  onSave: () => void | Promise<void>;
-  onReset: () => void | Promise<void>;
+  onSave: () => void;
+  onReset: () => void;
   saveLabel: string;
   resetLabel: string;
   cancelLabel: string;
@@ -183,16 +181,16 @@ function OverrideActions({
       <Button
         variant="outline"
         onClick={onReset}
-        disabled={loading || !canReset}
+        disabled={!canReset}
         className="gap-1"
       >
         <RotateCcw className="h-4 w-4" />
         {resetLabel}
       </Button>
-      <Button variant="outline" onClick={onCancel} disabled={loading}>
+      <Button variant="outline" onClick={onCancel}>
         {cancelLabel}
       </Button>
-      <Button onClick={onSave} disabled={loading || !canSave}>
+      <Button onClick={onSave} disabled={!canSave}>
         {saveLabel}
       </Button>
     </div>
@@ -213,12 +211,11 @@ function DesktopDialog({
   const tCommon = useTranslations("common");
   const tOverride = useTranslations("priceOverride");
   const [value, setValue] = useState(String(currentValue));
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- resync input value when dialog opens or server-side override updates.
       setValue(String(currentValue));
-      setLoading(false);
     }
   }, [open, currentValue]);
 
@@ -226,24 +223,21 @@ function DesktopDialog({
   const canSave =
     Number.isFinite(parsed) && parsed >= 0 && parsed !== currentValue;
 
-  async function handleSave() {
+  function handleSave() {
     if (!canSave) return;
-    setLoading(true);
-    try {
-      await onSave(parsed);
-      onOpenChange(false);
-    } finally {
-      setLoading(false);
-    }
+    // Optimistic: close immediately, parent owns the fire-and-forget action +
+    // rollback. Loading flicker (microtask-wait on a parent that uses
+    // fireAction) was UX-hostile; if the parent does block on server, that's
+    // the parent's bug to fix per CLAUDE.md "100% optimistic UI".
+    onOpenChange(false);
+    Promise.resolve(onSave(parsed)).catch(() => {
+      // Parent's fireAction surfaces toast.error already; swallow stray
+      // rejections so the page doesn't crash.
+    });
   }
-  async function handleReset() {
-    setLoading(true);
-    try {
-      await onReset();
-      onOpenChange(false);
-    } finally {
-      setLoading(false);
-    }
+  function handleReset() {
+    onOpenChange(false);
+    Promise.resolve(onReset()).catch(() => {});
   }
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -261,7 +255,6 @@ function DesktopDialog({
           setValue={setValue}
         />
         <OverrideActions
-          loading={loading}
           canSave={canSave}
           canReset={isOverridden}
           onCancel={() => onOpenChange(false)}
@@ -290,12 +283,11 @@ function MobileSheet({
   const tCommon = useTranslations("common");
   const tOverride = useTranslations("priceOverride");
   const [value, setValue] = useState(String(currentValue));
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- resync input value when dialog opens or server-side override updates.
       setValue(String(currentValue));
-      setLoading(false);
     }
   }, [open, currentValue]);
 
@@ -303,24 +295,21 @@ function MobileSheet({
   const canSave =
     Number.isFinite(parsed) && parsed >= 0 && parsed !== currentValue;
 
-  async function handleSave() {
+  function handleSave() {
     if (!canSave) return;
-    setLoading(true);
-    try {
-      await onSave(parsed);
-      onOpenChange(false);
-    } finally {
-      setLoading(false);
-    }
+    // Optimistic: close immediately, parent owns the fire-and-forget action +
+    // rollback. Loading flicker (microtask-wait on a parent that uses
+    // fireAction) was UX-hostile; if the parent does block on server, that's
+    // the parent's bug to fix per CLAUDE.md "100% optimistic UI".
+    onOpenChange(false);
+    Promise.resolve(onSave(parsed)).catch(() => {
+      // Parent's fireAction surfaces toast.error already; swallow stray
+      // rejections so the page doesn't crash.
+    });
   }
-  async function handleReset() {
-    setLoading(true);
-    try {
-      await onReset();
-      onOpenChange(false);
-    } finally {
-      setLoading(false);
-    }
+  function handleReset() {
+    onOpenChange(false);
+    Promise.resolve(onReset()).catch(() => {});
   }
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -344,7 +333,6 @@ function MobileSheet({
         </div>
         <SheetFooter>
           <OverrideActions
-            loading={loading}
             canSave={canSave}
             canReset={isOverridden}
             onCancel={() => onOpenChange(false)}
