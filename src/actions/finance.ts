@@ -332,6 +332,35 @@ export async function finalizeSession(
           );
           if ("error" in r2) throw new Error(r2.error);
         }
+
+        // Min-deduction penalty surplus → admin fund.
+        // Khi floor fired (totalAmount sau > original), admin nhận phần dư để I1
+        // hold (Σ fund_deduction = admin's real cash out). Member mất full floored
+        // amount; admin gain surplus. Other members KHÔNG bị ảnh hưởng.
+        // Spec: docs/superpowers/specs/2026-05-15-min-deduction-floor-design.md:29.
+        if (session.useMinDeduction && adminMemberId !== null && !isAdminDebt) {
+          const original = breakdown.memberDebts.find(
+            (d) => d.memberId === debt.memberId,
+          );
+          const penalty =
+            debt.totalAmount - (original?.totalAmount ?? debt.totalAmount);
+          if (penalty > 0) {
+            const r3 = await recordFinancialTransaction(
+              {
+                type: "fund_contribution",
+                direction: "in",
+                amount: penalty,
+                memberId: adminMemberId,
+                sessionId: data.sessionId,
+                debtId: insertedDebt.id,
+                description: `Phần dư min-60K buổi ${session.date} (member ${debt.memberId})`,
+                idempotencyKey: `min-deduction-penalty-${data.sessionId}-${debt.memberId}-${insertedDebt.id}`,
+              },
+              tx,
+            );
+            if ("error" in r3) throw new Error(r3.error);
+          }
+        }
       }
 
       // 5. Mark session completed
