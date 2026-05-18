@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { MemberAvatar } from "@/components/shared/member-avatar";
+import { DebtBreakdown } from "@/components/shared/debt-breakdown";
 import { formatK } from "@/lib/utils";
 import { Calendar, CheckCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -131,40 +132,11 @@ export function DebtCard({
 
         {/* Breakdown detail */}
         {expanded && hasBreakdown && (
-          <div className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 border-t pt-2 text-xs">
-            {debt.playAmount > 0 && (
-              <span>
-                🏸 {t("play")}:{" "}
-                <strong className="text-primary">
-                  {formatK(debt.playAmount)}
-                </strong>
-              </span>
-            )}
-            {debt.dineAmount > 0 && (
-              <span>
-                🍻 {t("dine")}:{" "}
-                <strong className="text-orange-500 dark:text-orange-400">
-                  {formatK(debt.dineAmount)}
-                </strong>
-              </span>
-            )}
-            {debt.guestPlayAmount > 0 && (
-              <span>
-                🏸👤 {t("guestPlay")}:{" "}
-                <strong className="text-primary">
-                  {formatK(debt.guestPlayAmount)}
-                </strong>
-              </span>
-            )}
-            {debt.guestDineAmount > 0 && (
-              <span>
-                🍻👤 {t("guestDine")}:{" "}
-                <strong className="text-orange-500 dark:text-orange-400">
-                  {formatK(debt.guestDineAmount)}
-                </strong>
-              </span>
-            )}
-          </div>
+          <DebtBreakdown
+            amounts={debt}
+            variant="inline"
+            className="border-t pt-2"
+          />
         )}
 
         {/* Inline QR + action — chỉ hiện khi còn nợ */}

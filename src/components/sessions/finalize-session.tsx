@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { MemberAvatar } from "@/components/shared/member-avatar";
+import { DebtBreakdown } from "@/components/shared/debt-breakdown";
 import { formatK } from "@/lib/utils";
 import {
   calculateSessionCosts,
@@ -626,28 +627,11 @@ export function FinalizeSession({
                         <div className="text-base font-semibold">
                           {member?.name ?? `ID ${debt.memberId}`}
                         </div>
-                        <div className="text-muted-foreground mt-1 space-y-0.5 text-sm">
-                          {debt.playAmount > 0 && (
-                            <div>
-                              {t("play")}: {formatK(debt.playAmount)}
-                            </div>
-                          )}
-                          {debt.dineAmount > 0 && (
-                            <div>
-                              {t("dine")}: {formatK(debt.dineAmount)}
-                            </div>
-                          )}
-                          {debt.guestPlayAmount > 0 && (
-                            <div>
-                              {t("guestPlay")}: {formatK(debt.guestPlayAmount)}
-                            </div>
-                          )}
-                          {debt.guestDineAmount > 0 && (
-                            <div>
-                              {t("guestDine")}: {formatK(debt.guestDineAmount)}
-                            </div>
-                          )}
-                        </div>
+                        <DebtBreakdown
+                          amounts={debt}
+                          variant="vertical"
+                          className="mt-1"
+                        />
                       </div>
                       <div className="text-primary text-sm font-bold">
                         {formatK(debt.totalAmount)}

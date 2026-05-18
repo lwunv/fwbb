@@ -66,7 +66,7 @@ export function StockCard({ stock }: StockCardProps) {
             <div className="flex gap-2">
               <Button
                 size="sm"
-                className="h-9 flex-1"
+                className="h-11 flex-1"
                 onClick={() => {
                   const prevOng = editOng;
                   const prevQua = editQua;
@@ -87,7 +87,7 @@ export function StockCard({ stock }: StockCardProps) {
               <Button
                 variant="outline"
                 size="sm"
-                className="h-9 flex-1"
+                className="h-11 flex-1"
                 onClick={() => {
                   setEditing(false);
                   setEditOng(stock.ong);
