@@ -24,6 +24,10 @@ import {
 } from "@/lib/cost-calculator";
 import { MinDeductionToggle } from "@/components/sessions/min-deduction-toggle";
 import { X, Users, Shield, ShieldOff } from "lucide-react";
+import {
+  FundAdjustDialog,
+  type FundAdjustDialogTarget,
+} from "@/components/fund/fund-adjust-dialog";
 import { confirmPaymentByAdmin, undoPaymentByAdmin } from "@/actions/finance";
 import type { InferSelectModel } from "drizzle-orm";
 import type { votes as votesTable, members as membersTable } from "@/db/schema";
@@ -117,6 +121,8 @@ export function AdminVoteManager({
   const [expandedGuest, setExpandedGuest] = useState<number | null>(null);
   // Optimistic exempt: memberId → exempt? local override prop từ server.
   const [localExempt, setLocalExempt] = useState<Record<number, boolean>>({});
+  const [fundAdjustTarget, setFundAdjustTarget] =
+    useState<FundAdjustDialogTarget | null>(null);
 
   function getExempt(memberId: number): boolean {
     const local = localExempt[memberId];
@@ -623,87 +629,108 @@ export function AdminVoteManager({
                 className="bg-card border-primary/30 rounded-xl border px-2 py-1.5 shadow-sm"
               >
                 <div className="flex min-h-[3.5rem] items-center gap-2">
-                  <MemberAvatar
-                    memberId={member.id}
-                    avatarKey={member.avatarKey}
-                    avatarUrl={member.avatarUrl}
-                    size={36}
-                  />
-                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span
-                      className="flex items-center gap-1.5 truncate text-base font-semibold"
-                      title={member.name}
-                    >
-                      {member.name}
-                      {memberBalances[member.id] !== undefined && (
-                        <FundStatusIcon balance={memberBalances[member.id]} />
-                      )}
-                    </span>
-                    {(() => {
-                      if (memberBalances[member.id] === undefined) return null;
-                      const bal = memberBalances[member.id];
-                      const raw = predictedDebt(member.id);
-                      const exempt = getExempt(member.id);
-                      const after =
-                        minDeductionEnabled && !exempt
-                          ? applyMinDeductionFloor(raw, bal)
-                          : raw;
-                      const ded = after.totalAmount;
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (memberBalances[member.id] === undefined) return;
+                      setFundAdjustTarget({
+                        memberId: member.id,
+                        memberName: member.name,
+                        memberNickname: member.nickname,
+                        memberAvatarKey: member.avatarKey ?? null,
+                        memberAvatarUrl: member.avatarUrl ?? null,
+                        currentBalance: memberBalances[member.id],
+                      });
+                    }}
+                    className="hover:bg-muted/30 -m-1 flex min-w-0 flex-1 items-center gap-2 rounded-lg p-1 text-left transition-colors"
+                  >
+                    <MemberAvatar
+                      memberId={member.id}
+                      avatarKey={member.avatarKey}
+                      avatarUrl={member.avatarUrl}
+                      size={36}
+                    />
+                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <span
+                        className="flex items-center gap-1.5 truncate text-base font-semibold"
+                        title={member.name}
+                      >
+                        {member.name}
+                        {memberBalances[member.id] !== undefined && (
+                          <FundStatusIcon balance={memberBalances[member.id]} />
+                        )}
+                      </span>
+                      {(() => {
+                        if (memberBalances[member.id] === undefined)
+                          return null;
+                        const bal = memberBalances[member.id];
+                        const raw = predictedDebt(member.id);
+                        const exempt = getExempt(member.id);
+                        const after =
+                          minDeductionEnabled && !exempt
+                            ? applyMinDeductionFloor(raw, bal)
+                            : raw;
+                        const ded = after.totalAmount;
 
-                      // "Tiền hiện có" theo status:
-                      //   hasFund (≥50K) → xanh dương
-                      //   lowFund (<50K)  → vàng
-                      //   depleted (=0)   → foreground (trắng trong dark mode)
-                      //   owing (<0)      → đỏ rose
-                      const balStatus = getFundStatus(bal);
-                      const balColor =
-                        balStatus === "owing"
-                          ? "font-semibold text-rose-500 dark:text-rose-400"
-                          : balStatus === "depleted"
-                            ? "font-semibold text-foreground"
-                            : balStatus === "lowFund"
-                              ? "font-semibold text-yellow-500 dark:text-yellow-400"
-                              : "font-semibold text-blue-600 dark:text-blue-400";
+                        // "Tiền hiện có" theo status:
+                        //   hasFund (≥50K) → xanh dương
+                        //   lowFund (<50K)  → vàng
+                        //   depleted (=0)   → foreground (trắng trong dark mode)
+                        //   owing (<0)      → đỏ rose
+                        const balStatus = getFundStatus(bal);
+                        const balColor =
+                          balStatus === "owing"
+                            ? "font-semibold text-rose-500 dark:text-rose-400"
+                            : balStatus === "depleted"
+                              ? "font-semibold text-foreground"
+                              : balStatus === "lowFund"
+                                ? "font-semibold text-yellow-500 dark:text-yellow-400"
+                                : "font-semibold text-blue-600 dark:text-blue-400";
 
-                      if (ded === 0) {
-                        // No deduction yet (un-priced session or member not contributing).
+                        if (ded === 0) {
+                          // No deduction yet (un-priced session or member not contributing).
+                          return (
+                            <span
+                              className={`text-xs tabular-nums ${balColor}`}
+                            >
+                              {formatK(bal)}
+                            </span>
+                          );
+                        }
+
+                        const remain = bal - ded;
+                        const remainStatus = getFundStatus(remain);
+                        const remainColor =
+                          remainStatus === "owing"
+                            ? "font-semibold text-rose-500 dark:text-rose-400"
+                            : remainStatus === "depleted" ||
+                                remainStatus === "lowFund"
+                              ? "font-semibold text-orange-500 dark:text-orange-400"
+                              : "text-foreground";
+
                         return (
-                          <span className={`text-xs tabular-nums ${balColor}`}>
-                            {formatK(bal)}
+                          <span className="flex items-baseline gap-1 text-xs tabular-nums">
+                            <span className={balColor}>{formatK(bal)}</span>
+                            <span className="font-medium text-rose-500 dark:text-rose-400">
+                              − {formatK(ded)}
+                            </span>
+                            {after.totalAmount > raw.totalAmount && (
+                              <span
+                                className="text-xs text-orange-500 dark:text-orange-400"
+                                title={`Min 60K: ${formatK(raw.totalAmount)} → ${formatK(after.totalAmount)}`}
+                              >
+                                🛡
+                              </span>
+                            )}
+                            <span className="text-muted-foreground">=</span>
+                            <span className={remainColor}>
+                              {formatK(remain)}
+                            </span>
                           </span>
                         );
-                      }
-
-                      const remain = bal - ded;
-                      const remainStatus = getFundStatus(remain);
-                      const remainColor =
-                        remainStatus === "owing"
-                          ? "font-semibold text-rose-500 dark:text-rose-400"
-                          : remainStatus === "depleted" ||
-                              remainStatus === "lowFund"
-                            ? "font-semibold text-orange-500 dark:text-orange-400"
-                            : "text-foreground";
-
-                      return (
-                        <span className="flex items-baseline gap-1 text-xs tabular-nums">
-                          <span className={balColor}>{formatK(bal)}</span>
-                          <span className="font-medium text-rose-500 dark:text-rose-400">
-                            − {formatK(ded)}
-                          </span>
-                          {after.totalAmount > raw.totalAmount && (
-                            <span
-                              className="text-xs text-orange-500 dark:text-orange-400"
-                              title={`Min 60K: ${formatK(raw.totalAmount)} → ${formatK(after.totalAmount)}`}
-                            >
-                              🛡
-                            </span>
-                          )}
-                          <span className="text-muted-foreground">=</span>
-                          <span className={remainColor}>{formatK(remain)}</span>
-                        </span>
-                      );
-                    })()}
-                  </div>
+                      })()}
+                    </div>
+                  </button>
 
                   <div className="flex shrink-0 items-center gap-2">
                     {/* Cầu — đã vote: LED border + border tĩnh primary; chưa vote: dashed mờ */}
@@ -965,42 +992,58 @@ export function AdminVoteManager({
                       key={m.id}
                       className="flex min-h-[3rem] items-center gap-3 py-3"
                     >
-                      <MemberAvatar
-                        memberId={m.id}
-                        avatarKey={m.avatarKey}
-                        avatarUrl={m.avatarUrl}
-                        size={36}
-                      />
-                      <div className="flex min-w-0 flex-1 flex-col gap-0.5 opacity-50">
-                        <span className="flex items-center gap-1.5 truncate text-base font-medium">
-                          {m.name}
-                          {memberBalances[m.id] !== undefined && (
-                            <FundStatusIcon balance={memberBalances[m.id]} />
-                          )}
-                        </span>
-                        {memberBalances[m.id] !== undefined &&
-                          (() => {
-                            const bal = memberBalances[m.id];
-                            // Status-colored balance (consistent với voted-list):
-                            // owing đỏ, depleted foreground, lowFund vàng, hasFund xanh.
-                            const balStatus = getFundStatus(bal);
-                            const balColor =
-                              balStatus === "owing"
-                                ? "font-semibold text-rose-500 dark:text-rose-400"
-                                : balStatus === "depleted"
-                                  ? "font-semibold text-foreground"
-                                  : balStatus === "lowFund"
-                                    ? "font-semibold text-yellow-500 dark:text-yellow-400"
-                                    : "font-semibold text-blue-600 dark:text-blue-400";
-                            return (
-                              <span
-                                className={`text-xs tabular-nums ${balColor}`}
-                              >
-                                {formatK(bal)}
-                              </span>
-                            );
-                          })()}
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (memberBalances[m.id] === undefined) return;
+                          setFundAdjustTarget({
+                            memberId: m.id,
+                            memberName: m.name,
+                            memberNickname: m.nickname,
+                            memberAvatarKey: m.avatarKey ?? null,
+                            memberAvatarUrl: m.avatarUrl ?? null,
+                            currentBalance: memberBalances[m.id],
+                          });
+                        }}
+                        className="hover:bg-muted/30 -m-1 flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1 text-left transition-colors"
+                      >
+                        <MemberAvatar
+                          memberId={m.id}
+                          avatarKey={m.avatarKey}
+                          avatarUrl={m.avatarUrl}
+                          size={36}
+                        />
+                        <div className="flex min-w-0 flex-1 flex-col gap-0.5 opacity-50">
+                          <span className="flex items-center gap-1.5 truncate text-base font-medium">
+                            {m.name}
+                            {memberBalances[m.id] !== undefined && (
+                              <FundStatusIcon balance={memberBalances[m.id]} />
+                            )}
+                          </span>
+                          {memberBalances[m.id] !== undefined &&
+                            (() => {
+                              const bal = memberBalances[m.id];
+                              // Status-colored balance (consistent với voted-list):
+                              // owing đỏ, depleted foreground, lowFund vàng, hasFund xanh.
+                              const balStatus = getFundStatus(bal);
+                              const balColor =
+                                balStatus === "owing"
+                                  ? "font-semibold text-rose-500 dark:text-rose-400"
+                                  : balStatus === "depleted"
+                                    ? "font-semibold text-foreground"
+                                    : balStatus === "lowFund"
+                                      ? "font-semibold text-yellow-500 dark:text-yellow-400"
+                                      : "font-semibold text-blue-600 dark:text-blue-400";
+                              return (
+                                <span
+                                  className={`text-xs tabular-nums ${balColor}`}
+                                >
+                                  {formatK(bal)}
+                                </span>
+                              );
+                            })()}
+                        </div>
+                      </button>
                       <div className="flex shrink-0 items-center gap-2">
                         <button
                           type="button"
@@ -1041,6 +1084,13 @@ export function AdminVoteManager({
         title={`Xóa ${removeTarget?.name ?? ""}?`}
         description="Xóa khỏi danh sách buổi chơi này?"
         onConfirm={handleRemoveConfirm}
+      />
+      <FundAdjustDialog
+        target={fundAdjustTarget}
+        open={fundAdjustTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setFundAdjustTarget(null);
+        }}
       />
     </div>
   );

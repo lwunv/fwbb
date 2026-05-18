@@ -39,6 +39,10 @@ import {
   Crown,
 } from "lucide-react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import {
+  FundAdjustDialog,
+  type FundAdjustDialogTarget,
+} from "@/components/fund/fund-adjust-dialog";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { confirmPaymentByAdmin } from "@/actions/finance";
 import { fireAction } from "@/lib/optimistic-action";
@@ -92,6 +96,8 @@ export function MemberList({
   const [confirmedDebts, setConfirmedDebts] = useState<Set<number>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<Member | null>(null);
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
+  const [fundAdjustTarget, setFundAdjustTarget] =
+    useState<FundAdjustDialogTarget | null>(null);
   const [adminMemberId, setAdminMemberId] = useState<number | null>(
     currentAdminMemberId,
   );
@@ -401,7 +407,25 @@ export function MemberList({
                           ? t("inFund")
                           : t("notInFund")}
                       </span>
-                      {fundStatusInfoFor(memberBalances[member.id] ?? 0)}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const bal = memberBalances[member.id] ?? 0;
+                          setFundAdjustTarget({
+                            memberId: member.id,
+                            memberName: member.name,
+                            memberNickname: member.nickname,
+                            memberAvatarKey: member.avatarKey ?? null,
+                            memberAvatarUrl: member.avatarUrl ?? null,
+                            currentBalance: bal,
+                          });
+                        }}
+                        className="hover:bg-muted/50 -m-1 rounded-md p-1 transition-colors"
+                        title="Click để cộng/trừ/sửa quỹ"
+                      >
+                        {fundStatusInfoFor(memberBalances[member.id] ?? 0)}
+                      </button>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -633,6 +657,13 @@ export function MemberList({
         description={tCommon("confirmHardDelete")}
         confirmLabel={tCommon("delete")}
         onConfirm={handleHardDelete}
+      />
+      <FundAdjustDialog
+        target={fundAdjustTarget}
+        open={fundAdjustTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setFundAdjustTarget(null);
+        }}
       />
     </div>
   );
