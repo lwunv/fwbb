@@ -116,19 +116,37 @@ export function MemberList({
   const tFs = useTranslations("fundStatus");
   usePolling();
 
-  function fundStatusBadgeFor(balance: number) {
+  function fundStatusInfoFor(balance: number) {
     const status = getFundStatus(balance);
-    if (status === "hasFund") return null;
-    const variant =
+    const balanceColor =
       status === "owing"
-        ? "unpaid"
+        ? "text-rose-600 dark:text-rose-400"
         : status === "depleted"
-          ? "depleted"
-          : "lowFund";
+          ? "text-yellow-600 dark:text-yellow-400"
+          : status === "lowFund"
+            ? "text-orange-600 dark:text-orange-400"
+            : "text-blue-600 dark:text-blue-400";
+
     return (
-      <StatusBadge variant={variant} className="shrink-0">
-        {tFs(status)}
-      </StatusBadge>
+      <div className="flex shrink-0 items-center gap-1.5">
+        <span className={`text-sm font-semibold tabular-nums ${balanceColor}`}>
+          {formatK(balance)}
+        </span>
+        {status !== "hasFund" && (
+          <StatusBadge
+            variant={
+              status === "owing"
+                ? "unpaid"
+                : status === "depleted"
+                  ? "depleted"
+                  : "lowFund"
+            }
+            className="shrink-0"
+          >
+            {tFs(status)}
+          </StatusBadge>
+        )}
+      </div>
     );
   }
 
@@ -353,7 +371,7 @@ export function MemberList({
                           )}
                         </p>
                       </div>
-                      {fundStatusBadgeFor(memberBalances[member.id] ?? 0)}
+                      {fundStatusInfoFor(memberBalances[member.id] ?? 0)}
                       <Button
                         variant="ghost"
                         size="sm"
