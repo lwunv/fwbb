@@ -676,21 +676,22 @@ export function DashboardClient({
                     {/* Ngày trên, week strip dưới, strip căn giữa ngang —
                         đồng bộ với /admin/sessions card. */}
                     <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <CalendarDays className="text-primary h-6 w-6" />
-                        <span className="text-2xl font-bold capitalize sm:text-3xl">
-                          {formatDateFull(upcomingSession.date)}
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <div className="flex items-center gap-2">
+                          <CalendarDays className="text-primary h-6 w-6" />
+                          <span className="text-2xl font-bold capitalize sm:text-3xl">
+                            {formatDateFull(upcomingSession.date)}
+                          </span>
+                        </div>
+                        <span className="text-muted-foreground inline-flex items-center gap-1.5 text-base tabular-nums">
+                          <Clock className="h-4 w-4" />
+                          {upcomingSession.startTime} -{" "}
+                          {upcomingSession.endTime}
                         </span>
                       </div>
                       <WeekStrip sessionDate={upcomingSession.date} />
                     </div>
 
-                    <div className="flex items-center gap-3 text-base">
-                      <Clock className="text-muted-foreground h-5 w-5" />
-                      <span>
-                        {upcomingSession.startTime} - {upcomingSession.endTime}
-                      </span>
-                    </div>
                     <div className="flex items-center gap-3 text-base">
                       <MapPin className="text-muted-foreground h-5 w-5" />
                       <span>
