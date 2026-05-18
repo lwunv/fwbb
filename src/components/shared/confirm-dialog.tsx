@@ -1,7 +1,6 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,6 +16,7 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import { AlertTriangle } from "lucide-react";
+import { useIsMobile } from "@/lib/use-is-mobile";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -29,18 +29,6 @@ interface ConfirmDialogProps {
   onConfirm: () => void | Promise<void>;
   /** Optional content rendered giữa description và button row (vd: form input) */
   children?: React.ReactNode;
-}
-
-function useIsMobile(breakpoint = 640) {
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
-    const update = () => setIsMobile(mq.matches);
-    update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }, [breakpoint]);
-  return isMobile;
 }
 
 /**

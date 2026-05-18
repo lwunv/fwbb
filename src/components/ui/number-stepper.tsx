@@ -33,7 +33,7 @@ export function NumberStepper({
   return (
     <div
       className={cn(
-        "bg-background inline-flex h-[42px] items-stretch overflow-hidden rounded-xl border",
+        "bg-background inline-flex h-11 items-stretch overflow-hidden rounded-xl border",
         disabled && "pointer-events-none opacity-50",
         className,
       )}
