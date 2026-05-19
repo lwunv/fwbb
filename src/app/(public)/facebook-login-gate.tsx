@@ -150,7 +150,20 @@ export function FacebookLoginGate({ appName = "FWBB" }: { appName?: string }) {
           </div>
         ) : (
           <div className="space-y-3">
-            {fbReady ? (
+            {/* Email/password form là primary — luôn ổn định, không phụ thuộc SDK */}
+            <PasswordAuthForm />
+
+            {/* Divider — chỉ hiện khi có ít nhất 1 OAuth provider khả dụng */}
+            {(fbReady || (!isIAB && googleReady)) && (
+              <div className="relative py-2">
+                <div className="absolute inset-x-0 top-1/2 border-t" />
+                <div className="bg-card text-muted-foreground relative mx-auto w-fit px-3 text-xs tracking-wider uppercase">
+                  {t("orDivider")}
+                </div>
+              </div>
+            )}
+
+            {fbReady && (
               <Button
                 onClick={handleFbLogin}
                 disabled={isPending}
@@ -170,10 +183,6 @@ export function FacebookLoginGate({ appName = "FWBB" }: { appName?: string }) {
                 )}
                 {isIAB ? t("continueWithFacebook") : t("signInWithFacebook")}
               </Button>
-            ) : (
-              <div className="space-y-2 text-center">
-                <p className="text-destructive text-sm">{t("sdkLoadFailed")}</p>
-              </div>
             )}
 
             {/* Google button — chỉ render khi không trong IAB (popup không work) */}
@@ -181,7 +190,9 @@ export function FacebookLoginGate({ appName = "FWBB" }: { appName?: string }) {
               <div className="flex justify-center" ref={googleButtonRef} />
             )}
 
-            {(!fbReady || (!isIAB && !googleReady)) && (
+            {/* Chỉ hiện retry khi CẢ HAI OAuth fail — single fail thường do env
+                config (vd Google client id chưa set) nên reload không sửa. */}
+            {!fbReady && (isIAB || !googleReady) && (
               <Button
                 variant="outline"
                 onClick={handleRetrySDK}
@@ -191,15 +202,6 @@ export function FacebookLoginGate({ appName = "FWBB" }: { appName?: string }) {
                 {t("retry")}
               </Button>
             )}
-
-            {/* Divider + email/password form */}
-            <div className="relative py-2">
-              <div className="absolute inset-x-0 top-1/2 border-t" />
-              <div className="bg-card text-muted-foreground relative mx-auto w-fit px-3 text-xs tracking-wider uppercase">
-                {t("orDivider")}
-              </div>
-            </div>
-            <PasswordAuthForm />
           </div>
         )}
 
