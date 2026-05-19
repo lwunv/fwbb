@@ -379,7 +379,24 @@
     "signInWithFacebook": "Đăng nhập bằng Facebook",
     "loginCancelled": "Đã hủy đăng nhập",
     "sdkLoadFailed": "Không thể tải Facebook. Vui lòng thử lại.",
-    "retry": "Thử lại"
+    "retry": "Thử lại",
+    "orDivider": "hoặc"
+  },
+  "passwordAuth": {
+    "tabLogin": "Đăng nhập",
+    "tabSignup": "Đăng ký",
+    "placeholderName": "Họ tên",
+    "placeholderEmail": "Email",
+    "placeholderPassword": "Mật khẩu (≥ 8 ký tự)",
+    "placeholderNickname": "Biệt danh (tùy chọn)",
+    "placeholderPhone": "SĐT (tùy chọn)",
+    "placeholderBank": "Số tài khoản (tùy chọn)",
+    "btnLogin": "Đăng nhập",
+    "btnSignup": "Đăng ký",
+    "showPassword": "Hiện mật khẩu",
+    "hidePassword": "Ẩn mật khẩu",
+    "errMissingFields": "Vui lòng nhập email và mật khẩu",
+    "errMissingName": "Vui lòng nhập họ tên"
   },
   "history": {
     "completed": "Đã hoàn thành",

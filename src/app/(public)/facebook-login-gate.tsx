@@ -14,6 +14,7 @@ import {
 import { initGoogleSDK, renderGoogleButton } from "@/lib/google-sdk";
 import { facebookLogin } from "@/actions/fb-auth";
 import { googleLogin } from "@/actions/google-auth";
+import { PasswordAuthForm } from "./password-auth-form";
 
 /**
  * OAuth login gate — Facebook + Google. Gọi là `FacebookLoginGate` vì
@@ -190,6 +191,15 @@ export function FacebookLoginGate({ appName = "FWBB" }: { appName?: string }) {
                 {t("retry")}
               </Button>
             )}
+
+            {/* Divider + email/password form */}
+            <div className="relative py-2">
+              <div className="absolute inset-x-0 top-1/2 border-t" />
+              <div className="bg-card text-muted-foreground relative mx-auto w-fit px-3 text-xs tracking-wider uppercase">
+                {t("orDivider")}
+              </div>
+            </div>
+            <PasswordAuthForm />
           </div>
         )}
 

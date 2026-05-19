@@ -29,7 +29,10 @@ export const members = sqliteTable("members", {
   /** Google `sub` (user id) — set khi login bằng Google. */
   googleId: text("google_id").unique(),
   avatarUrl: text("avatar_url"),
-  email: text("email"),
+  email: text("email").unique(),
+  /** bcrypt hash. Optional — OAuth-only users không cần. Khi set, user có
+   *  thể login bằng email + password (alternative cho SSO). */
+  passwordHash: text("password_hash"),
   /** Số điện thoại (optional). User nhập khi đăng ký, dùng để liên hệ thanh
    *  toán nếu không match member admin tạo trước. */
   phoneNumber: text("phone_number"),

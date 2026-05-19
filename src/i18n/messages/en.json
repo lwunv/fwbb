@@ -379,7 +379,24 @@
     "signInWithFacebook": "Sign in with Facebook",
     "loginCancelled": "Login cancelled",
     "sdkLoadFailed": "Could not load Facebook. Please try again.",
-    "retry": "Retry"
+    "retry": "Retry",
+    "orDivider": "or"
+  },
+  "passwordAuth": {
+    "tabLogin": "Sign in",
+    "tabSignup": "Sign up",
+    "placeholderName": "Full name",
+    "placeholderEmail": "Email",
+    "placeholderPassword": "Password (≥ 8 chars)",
+    "placeholderNickname": "Nickname (optional)",
+    "placeholderPhone": "Phone (optional)",
+    "placeholderBank": "Bank account (optional)",
+    "btnLogin": "Sign in",
+    "btnSignup": "Sign up",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "errMissingFields": "Please enter email and password",
+    "errMissingName": "Please enter your name"
   },
   "history": {
     "completed": "Done",

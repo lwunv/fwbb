@@ -379,7 +379,24 @@
     "signInWithFacebook": "使用 Facebook 登录",
     "loginCancelled": "已取消登录",
     "sdkLoadFailed": "无法加载 Facebook，请重试。",
-    "retry": "重试"
+    "retry": "重试",
+    "orDivider": "或"
+  },
+  "passwordAuth": {
+    "tabLogin": "登录",
+    "tabSignup": "注册",
+    "placeholderName": "姓名",
+    "placeholderEmail": "邮箱",
+    "placeholderPassword": "密码 (≥8 字符)",
+    "placeholderNickname": "昵称 (可选)",
+    "placeholderPhone": "电话 (可选)",
+    "placeholderBank": "银行账号 (可选)",
+    "btnLogin": "登录",
+    "btnSignup": "注册",
+    "showPassword": "显示密码",
+    "hidePassword": "隐藏密码",
+    "errMissingFields": "请输入邮箱和密码",
+    "errMissingName": "请输入姓名"
   },
   "history": {
     "completed": "已完成",

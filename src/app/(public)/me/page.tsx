@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { getFundBalance, isFundMember } from "@/lib/fund-calculator";
 import { MeClient } from "./me-client";
+import { SetPasswordSection } from "./set-password-section";
 
 export default async function MePage() {
   const user = await getUserFromCookie();
@@ -48,6 +49,10 @@ export default async function MePage() {
         totalSpentThisMonth={totalSpentThisMonth}
         outstandingDebt={outstandingDebt}
         fundBalance={fundBalance}
+      />
+      <SetPasswordSection
+        hasPassword={!!member.passwordHash}
+        hasEmail={!!member.email}
       />
     </div>
   );
