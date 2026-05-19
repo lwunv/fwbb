@@ -44,3 +44,8 @@ certificates
 # Playwright MCP temp output
 /.playwright-mcp/
 /login-check.png
+
+# Personal financial data — accountant's spreadsheets, exports, etc.
+# never commit member balances / transaction dumps to a remote repo.
+.claude/*.csv
+.claude/*.xlsx
