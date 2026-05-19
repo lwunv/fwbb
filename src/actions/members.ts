@@ -62,6 +62,7 @@ export async function getActiveMembers() {
     facebookId: null,
     googleId: null,
     email: null,
+    passwordHash: null,
     bankAccountNo: null,
     phoneNumber: null,
     approvalStatus: "approved" as const,

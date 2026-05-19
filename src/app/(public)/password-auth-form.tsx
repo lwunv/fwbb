@@ -51,7 +51,7 @@ export function PasswordAuthForm() {
               phoneNumber: phoneNumber.trim() || undefined,
               bankAccountNo: bankAccountNo.trim() || undefined,
             });
-      if (result && "error" in result) {
+      if (result && "error" in result && result.error) {
         setError(result.error);
       }
       // Success → revalidatePath triggers layout re-render.
