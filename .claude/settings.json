@@ -116,7 +116,9 @@
       "Bash(node -e \"import\\('dotenv/config'\\).then\\(\\(\\)=>import\\('@libsql/client'\\)\\).then\\(async \\({createClient}\\)=>{const c=createClient\\({url:process.env.TURSO_DATABASE_URL,authToken:process.env.TURSO_AUTH_TOKEN}\\);const r=await c.execute\\('PRAGMA table_info\\(sessions\\)'\\);console.log\\(r.rows.map\\(x=>x.name\\).join\\(', '\\)\\)}\\)\")",
       "Bash(node scripts/cleanup-phong-ledger.mjs)",
       "Bash(node -e \"import\\('dotenv/config'\\).then\\(\\(\\)=>import\\('@libsql/client'\\)\\).then\\(async \\({createClient}\\)=>{const c=createClient\\({url:process.env.TURSO_DATABASE_URL,authToken:process.env.TURSO_AUTH_TOKEN}\\);const r=await c.execute\\('PRAGMA table_info\\(financial_transactions\\)'\\);console.log\\(r.rows.map\\(x=>x.name\\).join\\(', '\\)\\)}\\)\")",
-      "Bash(node scripts/tmp-cols.mjs)"
+      "Bash(node scripts/tmp-cols.mjs)",
+      "Bash(pnpm db:generate)",
+      "Bash(node scripts/enable-min-deduction-default.mjs)"
     ],
     "additionalDirectories": [
       "d:\\Lwcifer\\LW\\fwbb-temp",
