@@ -34,12 +34,19 @@ function safeEqualHex(a: string, b: string): boolean {
   }
 }
 
+/**
+ * Cookie payload: `memberId:externalId:issuedAt:signature`. `externalId` là
+ * facebookId hoặc googleId (provider-agnostic) — không verify trực tiếp với
+ * DB, chỉ để log/audit. Cookie security dựa vào HMAC trên `memberId` +
+ * `issuedAt`. `externalId` field cũng được sign nên không thể swap user
+ * externally.
+ */
 export function createUserCookieValue(
   memberId: number,
-  facebookId: string,
+  externalId: string,
 ): string {
   const issuedAt = Date.now();
-  const data = `${memberId}:${facebookId}:${issuedAt}`;
+  const data = `${memberId}:${externalId}:${issuedAt}`;
   const signature = sign(data);
   return `${data}:${signature}`;
 }
@@ -56,15 +63,15 @@ export function createUserCookieValue(
  */
 export function parseUserCookie(
   value: string,
-): { memberId: number; facebookId: string } | null {
+): { memberId: number; externalId: string } | null {
   const parts = value.split(":");
   if (parts.length !== 4) return null;
-  const [memberIdStr, facebookId, issuedAtStr, signature] = parts;
+  const [memberIdStr, externalId, issuedAtStr, signature] = parts;
   const memberId = parseInt(memberIdStr, 10);
   const issuedAt = parseInt(issuedAtStr, 10);
   if (!Number.isFinite(memberId) || !Number.isFinite(issuedAt)) return null;
 
-  const data = `${memberIdStr}:${facebookId}:${issuedAtStr}`;
+  const data = `${memberIdStr}:${externalId}:${issuedAtStr}`;
   const expected = sign(data);
   if (!safeEqualHex(expected, signature)) return null;
 
@@ -72,12 +79,12 @@ export function parseUserCookie(
   if (issuedAt > now + 60_000) return null; // future-dated → reject
   if (now - issuedAt > MAX_AGE_MS) return null; // expired
 
-  return { memberId, facebookId };
+  return { memberId, externalId };
 }
 
-export async function setUserCookie(memberId: number, facebookId: string) {
+export async function setUserCookie(memberId: number, externalId: string) {
   const cookieStore = await cookies();
-  cookieStore.set(USER_COOKIE, createUserCookieValue(memberId, facebookId), {
+  cookieStore.set(USER_COOKIE, createUserCookieValue(memberId, externalId), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -88,7 +95,7 @@ export async function setUserCookie(memberId: number, facebookId: string) {
 
 export async function getUserFromCookie(): Promise<{
   memberId: number;
-  facebookId: string;
+  externalId: string;
 } | null> {
   const cookieStore = await cookies();
   const value = cookieStore.get(USER_COOKIE)?.value;

@@ -829,7 +829,9 @@ async function seed() {
   // ========== REAL MEMBERS (FB login) — gắn nợ + quỹ để test ==========
   // ========================================================================
   const realMembers = await db.query.members.findMany();
-  const realOnly = realMembers.filter((m) => !m.facebookId.startsWith("seed_"));
+  const realOnly = realMembers.filter(
+    (m) => !(m.facebookId?.startsWith("seed_") ?? true),
+  );
   console.log(`\nTìm thấy ${realOnly.length} member thật (FB login):`);
   for (const m of realOnly) console.log(`  - ${m.name} (id=${m.id})`);
 

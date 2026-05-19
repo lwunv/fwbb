@@ -103,7 +103,7 @@ export async function facebookLogin(accessToken: string) {
         .where(eq(members.id, existing.id));
     }
 
-    await setUserCookie(existing.id, existing.facebookId);
+    await setUserCookie(existing.id, existing.facebookId ?? `fb:${fbUser.id}`);
     revalidatePath("/");
     return { success: true, memberName: existing.name };
   }
@@ -119,7 +119,7 @@ export async function facebookLogin(accessToken: string) {
     })
     .returning();
 
-  await setUserCookie(newMember.id, newMember.facebookId);
+  await setUserCookie(newMember.id, newMember.facebookId ?? `fb:${fbUser.id}`);
   revalidatePath("/");
   return { success: true, memberName: newMember.name };
 }

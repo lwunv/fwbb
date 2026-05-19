@@ -38,7 +38,7 @@ describe("createUserCookieValue + parseUserCookie", () => {
   it("round-trip: value created now parses back to original", () => {
     const value = createUserCookieValue(42, "fb-42");
     const parsed = parseUserCookie(value);
-    expect(parsed).toEqual({ memberId: 42, facebookId: "fb-42" });
+    expect(parsed).toEqual({ memberId: 42, externalId: "fb-42" });
   });
 
   it("rejects tampered signature", () => {
@@ -84,7 +84,7 @@ describe("createUserCookieValue + parseUserCookie", () => {
     // 29 days later — well inside the 30-day window
     vi.setSystemTime(baseNow + 29 * 24 * 60 * 60 * 1000);
     const parsed = parseUserCookie(value);
-    expect(parsed).toEqual({ memberId: 7, facebookId: "fb-7" });
+    expect(parsed).toEqual({ memberId: 7, externalId: "fb-7" });
   });
 
   it("rejects malformed iat (non-numeric)", () => {

@@ -23,7 +23,11 @@ export const members = sqliteTable("members", {
   name: text("name").notNull(),
   nickname: text("nickname"),
   avatarKey: text("avatar_key"),
-  facebookId: text("facebook_id").notNull().unique(),
+  /** Facebook user id. Nullable vì member có thể login bằng Google thay vì FB.
+   *  Member tối thiểu phải có 1 trong {facebookId, googleId}. */
+  facebookId: text("facebook_id").unique(),
+  /** Google `sub` (user id) — set khi login bằng Google. */
+  googleId: text("google_id").unique(),
   avatarUrl: text("avatar_url"),
   email: text("email"),
   bankAccountNo: text("bank_account_no").unique(),

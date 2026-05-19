@@ -50,6 +50,13 @@
       "when": 1778833723955,
       "tag": "0006_add_min_deduction",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1779173232941,
+      "tag": "0007_add_google_login",
+      "breakpoints": true
     }
   ]
 }

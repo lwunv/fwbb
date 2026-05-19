@@ -59,7 +59,8 @@ export async function getActiveMembers() {
   });
   return rows.map((m) => ({
     ...m,
-    facebookId: "",
+    facebookId: null,
+    googleId: null,
     email: null,
     bankAccountNo: null,
   }));

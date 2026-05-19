@@ -74,7 +74,7 @@ export function defineMemberAction<S extends z.ZodTypeAny, TResult = void>(
   options: DefineMemberActionOptions<S>,
   fn: (ctx: {
     data: z.infer<S>;
-    user: { memberId: number; facebookId: string };
+    user: { memberId: number; externalId: string };
   }) => Promise<ActionResult<TResult>>,
 ) {
   return async (input: unknown): Promise<ActionResult<TResult>> => {

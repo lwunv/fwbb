@@ -18,7 +18,7 @@ interface DupMember {
   avatarKey: string | null;
   avatarUrl: string | null;
   isActive: boolean;
-  facebookId: string;
+  facebookId: string | null;
   balance: number;
   ledgerCount: number;
 }
@@ -171,7 +171,7 @@ export function DuplicateMembersBanner({ groups }: { groups: DupGroup[] }) {
                             >
                               balance {formatK(m.balance)}
                             </span>
-                            {m.facebookId.startsWith("admin_") &&
+                            {m.facebookId?.startsWith("admin_") &&
                               " · admin tạo"}
                           </div>
                         </div>

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
-import { useTranslations } from "next-intl";
+import { useState, useEffect, useRef, useTransition } from "react";
+import { useTranslations, useLocale } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
@@ -11,71 +11,110 @@ import {
   loginWithFacebook,
   isInFacebookBrowser,
 } from "@/lib/facebook-sdk";
+import { initGoogleSDK, renderGoogleButton } from "@/lib/google-sdk";
 import { facebookLogin } from "@/actions/fb-auth";
+import { googleLogin } from "@/actions/google-auth";
 
+/**
+ * OAuth login gate — Facebook + Google. Gọi là `FacebookLoginGate` vì
+ * legacy + import sites cũ, nhưng giờ render cả 2 button.
+ */
 export function FacebookLoginGate({ appName = "FWBB" }: { appName?: string }) {
   const [error, setError] = useState("");
-  const [sdkReady, setSdkReady] = useState(false);
+  const [fbReady, setFbReady] = useState(false);
+  const [googleReady, setGoogleReady] = useState(false);
   const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
   const [isPending, startTransition] = useTransition();
   const t = useTranslations("fbLogin");
+  const locale = useLocale();
   const isIAB = typeof navigator !== "undefined" && isInFacebookBrowser();
+  const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
-  // Initialize FB SDK and attempt auto-login in IAB
+  // Initialize Facebook SDK and attempt auto-login in IAB
   useEffect(() => {
     let cancelled = false;
 
-    async function init() {
+    async function initFb() {
       try {
         await initFacebookSDK();
         if (cancelled) return;
-        setSdkReady(true);
+        setFbReady(true);
 
-        // In IAB, try auto-login
         if (isInFacebookBrowser()) {
           const status = await checkLoginStatus();
           if (cancelled) return;
-
           if (status.status === "connected" && status.authResponse) {
-            // Auto-login silently
             startTransition(async () => {
               const result = await facebookLogin(
                 status.authResponse!.accessToken,
               );
-              if (result.error) {
-                setError(result.error);
-              }
-              // On success, layout re-renders
+              if (result.error) setError(result.error);
             });
           }
-          setAutoLoginAttempted(true);
-        } else {
-          setAutoLoginAttempted(true);
         }
+        setAutoLoginAttempted(true);
       } catch {
         if (!cancelled) {
           setAutoLoginAttempted(true);
-          setSdkReady(false);
+          setFbReady(false);
         }
       }
     }
 
-    init();
+    initFb();
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const handleLogin = () => {
+  // Initialize Google SDK + render official button. In IAB (Facebook in-app
+  // browser), skip Google entirely — popups don't work properly there.
+  useEffect(() => {
+    if (isIAB) return;
+    let cancelled = false;
+    async function initGoogle() {
+      try {
+        await initGoogleSDK();
+        if (cancelled) return;
+        setGoogleReady(true);
+      } catch {
+        if (!cancelled) setGoogleReady(false);
+      }
+    }
+    initGoogle();
+    return () => {
+      cancelled = true;
+    };
+  }, [isIAB]);
+
+  // Render the Google button once SDK is ready and the ref is mounted.
+  // Note: setState-in-effect intentionally avoided — if renderButton fails
+  // (rare), user can still use FB login or refresh.
+  useEffect(() => {
+    if (!googleReady || !googleButtonRef.current) return;
+    try {
+      renderGoogleButton(
+        googleButtonRef.current,
+        (idToken) => {
+          startTransition(async () => {
+            const result = await googleLogin(idToken);
+            if (result.error) setError(result.error);
+          });
+        },
+        { width: 280, locale },
+      );
+    } catch (err) {
+      console.error("Google button render failed", err);
+    }
+  }, [googleReady, locale]);
+
+  const handleFbLogin = () => {
     setError("");
     startTransition(async () => {
       try {
         const auth = await loginWithFacebook();
         const result = await facebookLogin(auth.accessToken);
-        if (result.error) {
-          setError(result.error);
-        }
-        // On success, layout re-renders via revalidatePath
+        if (result.error) setError(result.error);
       } catch {
         setError(t("loginCancelled"));
       }
@@ -84,13 +123,12 @@ export function FacebookLoginGate({ appName = "FWBB" }: { appName?: string }) {
 
   const handleRetrySDK = () => {
     setError("");
-    setSdkReady(false);
+    setFbReady(false);
+    setGoogleReady(false);
     setAutoLoginAttempted(false);
-    // Re-trigger by forcing re-mount would be complex, just reload
     window.location.reload();
   };
 
-  // Show loading while SDK initializes or auto-login is in progress
   const isLoading = !autoLoginAttempted || isPending;
 
   return (
@@ -109,32 +147,49 @@ export function FacebookLoginGate({ appName = "FWBB" }: { appName?: string }) {
           <div className="flex justify-center py-4">
             <Loader2 className="text-primary h-6 w-6 animate-spin" />
           </div>
-        ) : sdkReady ? (
-          <Button
-            onClick={handleLogin}
-            disabled={isPending}
-            className="w-full bg-[#1877F2] py-3 text-base font-medium text-white hover:bg-[#166FE5]"
-            size="lg"
-          >
-            {isPending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <svg
-                className="mr-2 h-5 w-5"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
-                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-              </svg>
-            )}
-            {isIAB ? t("continueWithFacebook") : t("signInWithFacebook")}
-          </Button>
         ) : (
-          <div className="space-y-3 text-center">
-            <p className="text-destructive text-sm">{t("sdkLoadFailed")}</p>
-            <Button variant="outline" onClick={handleRetrySDK} size="sm">
-              {t("retry")}
-            </Button>
+          <div className="space-y-3">
+            {fbReady ? (
+              <Button
+                onClick={handleFbLogin}
+                disabled={isPending}
+                className="w-full bg-[#1877F2] py-3 text-base font-medium text-white hover:bg-[#166FE5]"
+                size="lg"
+              >
+                {isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <svg
+                    className="mr-2 h-5 w-5"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                  </svg>
+                )}
+                {isIAB ? t("continueWithFacebook") : t("signInWithFacebook")}
+              </Button>
+            ) : (
+              <div className="space-y-2 text-center">
+                <p className="text-destructive text-sm">{t("sdkLoadFailed")}</p>
+              </div>
+            )}
+
+            {/* Google button — chỉ render khi không trong IAB (popup không work) */}
+            {!isIAB && googleReady && (
+              <div className="flex justify-center" ref={googleButtonRef} />
+            )}
+
+            {(!fbReady || (!isIAB && !googleReady)) && (
+              <Button
+                variant="outline"
+                onClick={handleRetrySDK}
+                size="sm"
+                className="w-full"
+              >
+                {t("retry")}
+              </Button>
+            )}
           </div>
         )}
 
