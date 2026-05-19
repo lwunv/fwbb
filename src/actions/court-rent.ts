@@ -198,19 +198,23 @@ export async function getCourtRentReport(
 
   // Calendar-based Fixed total: count fixed days (T2/T4/T6 per sessionDays)
   // trong từng tháng × monthlyPrice. Clip start theo COURT_RENT_START_DATE
-  // nếu thuộc tháng đó.
+  // nếu thuộc tháng đó. Skip tháng tương lai (monthStart > today) — chưa
+  // tới tháng đó thì chưa phát sinh nghĩa vụ trả tiền sân.
   // Skip nếu chưa có default court — không biết hợp đồng tháng từ đâu.
   // TZ note: `new Date("YYYY-MM-DDT00:00:00")` (no Z suffix) → local time. Trên
   // server UTC, `monthStart.toISOString().slice(0,10)` có thể trả về ngày
   // trước đó. Branch logic phía dưới verified hoạt động đúng cả UTC và UTC+7:
   // tháng-cũ-hơn-START → endDate=null → continue; tháng-mới-hơn → loop với
   // monthStart/monthEnd cùng TZ → `getDay()` consistent.
+  const today = new Date();
   if (defaultCourtId !== null)
     for (let m = 1; m <= 12; m++) {
       const summary = monthMap.get(m)!;
       const monthStart = new Date(
         `${year}-${String(m).padStart(2, "0")}-01T00:00:00`,
       );
+      // Skip future months — fixed rent của tháng chưa tới chưa accrue.
+      if (monthStart > today) continue;
       const monthEnd = new Date(monthStart);
       monthEnd.setMonth(monthEnd.getMonth() + 1);
       const start =

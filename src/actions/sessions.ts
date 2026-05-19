@@ -127,6 +127,7 @@ export async function getNextSession() {
         status: "voting",
         courtId: defaultCourt?.id ?? null,
         courtPrice: defaultCourt?.pricePerSession ?? null,
+        useMinDeduction: true,
       })
       .returning();
     if (defaultBrand) {
@@ -193,6 +194,7 @@ export async function getAdminUpcomingSession() {
           status: "voting",
           courtId: defaultCourt?.id ?? null,
           courtPrice: defaultCourt?.pricePerSession ?? null,
+          useMinDeduction: true,
         })
         .returning();
       if (defaultBrand) {
@@ -945,6 +947,7 @@ export async function createSessionManually(
       endTime: endTime || "22:30",
       courtId: resolvedCourtId,
       courtPrice,
+      useMinDeduction: true,
     })
     .returning();
   // Pre-fill brand mặc định để admin chỉ cần đổi ống nếu cần.

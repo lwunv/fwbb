@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
       status: "voting",
       courtId: defaultCourt?.id ?? null,
       courtPrice: defaultCourt?.pricePerSession ?? null,
+      useMinDeduction: true,
     })
     .returning();
 

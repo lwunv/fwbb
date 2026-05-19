@@ -81,15 +81,16 @@ export const sessions = sqliteTable(
     /**
      * Min-deduction floor toggle. Khi `true`, `finalizeSession` sẽ apply
      * `applyMinDeductionFloor` cho mỗi member: nếu balance thiếu trả
-     * playAmount AND playAmount < 60K → override lên 60K. Admin opt-in
-     * per session. Default false (rule không fire). Per-member exemption
-     * lưu ở `sessionMinDeductionExemptions`. Xem
+     * playAmount AND playAmount < 60K → override lên 60K. Default `true`
+     * — rule active mặc định cho session mới (admin có thể bỏ tick per
+     * session để skip). Per-member exemption lưu ở
+     * `sessionMinDeductionExemptions`. Xem
      * [[project-finance-balance-rules]] cho invariant + spec doc
      * `docs/superpowers/specs/2026-05-15-min-deduction-floor-design.md`.
      */
     useMinDeduction: integer("use_min_deduction", {
       mode: "boolean",
-    }).default(false),
+    }).default(true),
     status: text("status", {
       enum: ["voting", "confirmed", "completed", "cancelled"],
     }).default("voting"),
