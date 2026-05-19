@@ -78,7 +78,8 @@ export function FacebookLoginGate({ appName = "FWBB" }: { appName?: string }) {
         await initGoogleSDK();
         if (cancelled) return;
         setGoogleReady(true);
-      } catch {
+      } catch (err) {
+        console.error("Google SDK init failed:", err);
         if (!cancelled) setGoogleReady(false);
       }
     }

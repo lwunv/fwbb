@@ -96,12 +96,23 @@ export async function getNameMatches(
     .map((m) => {
       const a = normalizeName(m.name);
       const b = m.nickname ? normalizeName(m.nickname) : "";
-      const scoreName = scoreSimilarity(pendingNorm, a);
-      const scoreNickToName = pendingNickNorm
+      // 4 chiều so sánh + token-set (cùng từ nhưng đổi thứ tự).
+      const scoreNameName = scoreSimilarity(pendingNorm, a);
+      const scoreNickName = pendingNickNorm
         ? scoreSimilarity(pendingNickNorm, a)
         : 0;
-      const scoreNameToNick = b ? scoreSimilarity(pendingNorm, b) : 0;
-      const score = Math.max(scoreName, scoreNickToName, scoreNameToNick);
+      const scoreNameNick = b ? scoreSimilarity(pendingNorm, b) : 0;
+      const scoreNickNick =
+        pendingNickNorm && b ? scoreSimilarity(pendingNickNorm, b) : 0;
+      // Token-set: "Hữu Nguyễn" vs "Nguyễn Hữu" → cùng tokens, score = 1.
+      const scoreTokenSet = scoreTokenSetSimilarity(pendingNorm, a);
+      const score = Math.max(
+        scoreNameName,
+        scoreNickName,
+        scoreNameNick,
+        scoreNickNick,
+        scoreTokenSet,
+      );
       return {
         memberId: m.id,
         name: m.name,
@@ -114,6 +125,20 @@ export async function getNameMatches(
     .slice(0, 5);
 
   return scored;
+}
+
+/**
+ * Token-set similarity: tokenize cả 2, so sánh sorted token sequences.
+ * "le huu" + "huu le" → cả 2 thành "huu le" → score 1.
+ * Đặc biệt hữu ích cho tên Việt vì admin tạo tay có thể đảo thứ tự
+ * "Họ Tên" vs OAuth provider trả "Tên Họ".
+ */
+function scoreTokenSetSimilarity(a: string, b: string): number {
+  if (!a || !b) return 0;
+  const ta = a.split(/\s+/).filter(Boolean).sort().join(" ");
+  const tb = b.split(/\s+/).filter(Boolean).sort().join(" ");
+  if (!ta || !tb) return 0;
+  return scoreSimilarity(ta, tb);
 }
 
 function scoreSimilarity(a: string, b: string): number {

@@ -53,10 +53,16 @@ export function createUserCookieValue(
 
 /**
  * Parse and validate the cookie value. Returns null for any of:
- *  - Wrong shape (must be exactly 4 colon-separated parts).
+ *  - Wrong shape (< 4 colon-separated parts).
  *  - Non-numeric memberId or issuedAt.
  *  - Bad signature (constant-time HMAC compare).
  *  - issuedAt > MAX_AGE_MS in the past (expired) or in the future (clock-skew).
+ *
+ * Note: `externalId` itself may contain colons (e.g. `g:<sub>` cho Google,
+ * `pw:<memberId>` cho password). Split-by-colon naive sẽ tạo > 4 parts.
+ * Cách parse đúng: memberId = first, signature = last, issuedAt = second-last,
+ * externalId = phần ở giữa ghép lại bằng `:`. Đảm bảo cookie set ra (luôn có
+ * `${memberId}:${externalId}:${issuedAt}:${sig}`) parse round-trip chính xác.
  *
  * Legacy 3-part cookies (no issuedAt) are rejected — users must re-login
  * after the rotate-everything migration.
@@ -65,8 +71,12 @@ export function parseUserCookie(
   value: string,
 ): { memberId: number; externalId: string } | null {
   const parts = value.split(":");
-  if (parts.length !== 4) return null;
-  const [memberIdStr, externalId, issuedAtStr, signature] = parts;
+  if (parts.length < 4) return null;
+  const memberIdStr = parts[0];
+  const signature = parts[parts.length - 1];
+  const issuedAtStr = parts[parts.length - 2];
+  const externalId = parts.slice(1, -2).join(":");
+
   const memberId = parseInt(memberIdStr, 10);
   const issuedAt = parseInt(issuedAtStr, 10);
   if (!Number.isFinite(memberId) || !Number.isFinite(issuedAt)) return null;

@@ -18,6 +18,9 @@ declare global {
             callback: (response: { credential: string }) => void;
             ux_mode?: "popup" | "redirect";
             auto_select?: boolean;
+            use_fedcm_for_prompt?: boolean;
+            use_fedcm_for_button?: boolean;
+            itp_support?: boolean;
           }) => void;
           prompt: (
             momentListener?: (notification: {
@@ -33,7 +36,7 @@ declare global {
               size?: "large" | "medium" | "small";
               text?: "signin_with" | "signup_with" | "continue_with" | "signin";
               shape?: "rectangular" | "pill" | "circle" | "square";
-              width?: number;
+              width?: number | string;
               logo_alignment?: "left" | "center";
               locale?: string;
             },

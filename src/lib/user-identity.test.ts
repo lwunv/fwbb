@@ -93,4 +93,27 @@ describe("createUserCookieValue + parseUserCookie", () => {
     const parsed = parseUserCookie(tampered);
     expect(parsed).toBeNull();
   });
+
+  it("round-trips externalId containing colons (Google `g:<sub>`)", () => {
+    const value = createUserCookieValue(44, "g:114968202401333784193");
+    const parsed = parseUserCookie(value);
+    expect(parsed).toEqual({
+      memberId: 44,
+      externalId: "g:114968202401333784193",
+    });
+  });
+
+  it("round-trips externalId containing colons (password `pw:<memberId>`)", () => {
+    const value = createUserCookieValue(7, "pw:7");
+    const parsed = parseUserCookie(value);
+    expect(parsed).toEqual({ memberId: 7, externalId: "pw:7" });
+  });
+
+  it("rejects tampered signature for colon-containing externalId", () => {
+    const value = createUserCookieValue(44, "g:114968202401333784193");
+    const parts = value.split(":");
+    parts[parts.length - 1] = "0".repeat(64);
+    const parsed = parseUserCookie(parts.join(":"));
+    expect(parsed).toBeNull();
+  });
 });
