@@ -63,6 +63,10 @@ export async function getActiveMembers() {
     googleId: null,
     email: null,
     bankAccountNo: null,
+    phoneNumber: null,
+    approvalStatus: "approved" as const,
+    approvedAt: null,
+    approvedBy: null,
   }));
 }
 

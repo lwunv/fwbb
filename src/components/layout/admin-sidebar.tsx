@@ -54,7 +54,13 @@ const navItems = [
   { href: "/admin/stats", labelKey: "stats" as const, icon: BarChart3 },
 ];
 
-export function AdminSidebar({ appName = "FWBB" }: { appName?: string }) {
+export function AdminSidebar({
+  appName = "FWBB",
+  pendingMemberCount = 0,
+}: {
+  appName?: string;
+  pendingMemberCount?: number;
+}) {
   const pathname = usePathname();
   const t = useTranslations("adminNav");
 
@@ -85,7 +91,15 @@ export function AdminSidebar({ appName = "FWBB" }: { appName?: string }) {
               )}
             >
               <item.icon className="h-4 w-4" />
-              {t(item.labelKey)}
+              <span className="flex-1">{t(item.labelKey)}</span>
+              {item.labelKey === "members" && pendingMemberCount > 0 && (
+                <span
+                  className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] leading-none font-bold text-white"
+                  title="Có thành viên mới chờ duyệt"
+                >
+                  {pendingMemberCount}
+                </span>
+              )}
             </Link>
           );
         })}

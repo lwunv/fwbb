@@ -142,7 +142,8 @@ export async function googleLogin(idToken: string) {
     }
   }
 
-  // Create new member
+  // Create new member — pending admin approval. Khác với member admin tạo
+  // trực tiếp (mặc định approved): OAuth signup phải qua approval flow.
   const [newMember] = await db
     .insert(members)
     .values({
@@ -150,6 +151,7 @@ export async function googleLogin(idToken: string) {
       googleId: claims.sub,
       email: claims.email ?? null,
       avatarUrl: claims.picture ?? null,
+      approvalStatus: "pending",
     })
     .returning();
 

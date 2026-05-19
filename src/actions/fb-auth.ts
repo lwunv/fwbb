@@ -108,7 +108,8 @@ export async function facebookLogin(accessToken: string) {
     return { success: true, memberName: existing.name };
   }
 
-  // 3. Create new member
+  // 3. Create new member — pending admin approval. Khác với member admin
+  // tạo trực tiếp (mặc định approved): OAuth signup phải qua approval flow.
   const avatarUrl = fbUser.picture?.data?.url ?? null;
   const [newMember] = await db
     .insert(members)
@@ -116,6 +117,7 @@ export async function facebookLogin(accessToken: string) {
       name: fbUser.name,
       facebookId: fbUser.id,
       avatarUrl,
+      approvalStatus: "pending",
     })
     .returning();
 

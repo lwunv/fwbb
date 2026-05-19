@@ -58,7 +58,13 @@ const navItems = [
   { href: "/admin/stats", labelKey: "stats" as const, icon: BarChart3 },
 ];
 
-export function AdminMobileNav({ appName = "FWBB" }: { appName?: string }) {
+export function AdminMobileNav({
+  appName = "FWBB",
+  pendingMemberCount = 0,
+}: {
+  appName?: string;
+  pendingMemberCount?: number;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const t = useTranslations("adminNav");
@@ -99,11 +105,24 @@ export function AdminMobileNav({ appName = "FWBB" }: { appName?: string }) {
                   )}
                 >
                   <item.icon className="h-4 w-4" />
-                  {t(item.labelKey)}
+                  <span className="flex-1">{t(item.labelKey)}</span>
+                  {item.labelKey === "members" && pendingMemberCount > 0 && (
+                    <span
+                      className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] leading-none font-bold text-white"
+                      title="Có thành viên mới chờ duyệt"
+                    >
+                      {pendingMemberCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}
           </nav>
+          {pendingMemberCount > 0 && (
+            <div className="border-t bg-amber-50 px-4 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+              ⚠ {pendingMemberCount} thành viên mới đang chờ duyệt
+            </div>
+          )}
           <div className="space-y-2 border-t p-3">
             <div className="flex items-center gap-2 px-1">
               <LanguageSelector className="flex-1" />

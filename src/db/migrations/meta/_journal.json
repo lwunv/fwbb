@@ -57,6 +57,13 @@
       "when": 1779173232941,
       "tag": "0007_add_google_login",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1779174298851,
+      "tag": "0008_add_member_approval",
+      "breakpoints": true
     }
   ]
 }

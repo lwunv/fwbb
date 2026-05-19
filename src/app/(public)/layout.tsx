@@ -6,6 +6,7 @@ import { getTranslations } from "next-intl/server";
 import { Header } from "@/components/layout/header";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { FacebookLoginGate } from "./facebook-login-gate";
+import { PendingApprovalGate } from "./pending-approval-gate";
 import { getAppName } from "@/actions/settings";
 
 export default async function PublicLayout({
@@ -36,7 +37,7 @@ export default async function PublicLayout({
     where: eq(members.id, user.memberId),
   });
 
-  if (!member || !member.isActive) {
+  if (!member || !member.isActive || member.approvalStatus === "rejected") {
     return (
       <div className="flex min-h-screen flex-col">
         <Header appName={appName} />
@@ -64,6 +65,23 @@ export default async function PublicLayout({
               </button>
             </form>
           </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Pending approval — show profile-collection form, gate everything else.
+  if (member.approvalStatus === "pending") {
+    return (
+      <div className="flex min-h-screen flex-col">
+        <Header appName={appName} />
+        <main className="flex flex-1 items-center justify-center p-4">
+          <PendingApprovalGate
+            memberName={member.name}
+            nickname={member.nickname}
+            phoneNumber={member.phoneNumber}
+            bankAccountNo={member.bankAccountNo}
+          />
         </main>
       </div>
     );

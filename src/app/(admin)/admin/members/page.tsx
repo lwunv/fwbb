@@ -8,24 +8,58 @@ import { db } from "@/db";
 import {
   financialTransactions,
   fundMembers as fundMembersTable,
+  members as membersTable,
 } from "@/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, asc } from "drizzle-orm";
 import { computeBalancesForMembers } from "@/lib/fund-core";
+import { getNameMatches } from "@/actions/member-approval";
 import { MemberList } from "./member-list";
 import { DuplicateMembersBanner } from "./duplicate-members-banner";
+import {
+  PendingMembersSection,
+  type PendingMember,
+} from "./pending-members-section";
 
 export default async function MembersPage() {
-  const [members, allDebts, currentAdminMemberId, dupGroups, fundMemberRows] =
-    await Promise.all([
-      getMembers(),
-      getAllDebts(),
-      getCurrentAdminMemberId(),
-      findDuplicateMembers(),
-      db.query.fundMembers.findMany({
-        where: eq(fundMembersTable.isActive, true),
-        columns: { memberId: true },
-      }),
-    ]);
+  const [
+    members,
+    allDebts,
+    currentAdminMemberId,
+    dupGroups,
+    fundMemberRows,
+    pendingRows,
+  ] = await Promise.all([
+    getMembers(),
+    getAllDebts(),
+    getCurrentAdminMemberId(),
+    findDuplicateMembers(),
+    db.query.fundMembers.findMany({
+      where: eq(fundMembersTable.isActive, true),
+      columns: { memberId: true },
+    }),
+    db.query.members.findMany({
+      where: eq(membersTable.approvalStatus, "pending"),
+      orderBy: [asc(membersTable.createdAt)],
+    }),
+  ]);
+
+  // Build pending list with name-match suggestions per row.
+  const pendingMembers: PendingMember[] = await Promise.all(
+    pendingRows.map(async (p) => ({
+      id: p.id,
+      name: p.name,
+      nickname: p.nickname,
+      email: p.email,
+      phoneNumber: p.phoneNumber,
+      bankAccountNo: p.bankAccountNo,
+      avatarKey: p.avatarKey,
+      avatarUrl: p.avatarUrl,
+      facebookId: p.facebookId,
+      googleId: p.googleId,
+      createdAt: p.createdAt,
+      suggestions: await getNameMatches(p.id),
+    })),
+  );
 
   const fundMemberIdList = fundMemberRows.map((r) => r.memberId);
 
@@ -78,6 +112,9 @@ export default async function MembersPage() {
 
   return (
     <div className="space-y-3">
+      {pendingMembers.length > 0 && (
+        <PendingMembersSection pendingMembers={pendingMembers} />
+      )}
       {dupGroups.length > 0 && <DuplicateMembersBanner groups={dupGroups} />}
       <MemberList
         members={members}

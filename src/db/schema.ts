@@ -30,7 +30,21 @@ export const members = sqliteTable("members", {
   googleId: text("google_id").unique(),
   avatarUrl: text("avatar_url"),
   email: text("email"),
+  /** Số điện thoại (optional). User nhập khi đăng ký, dùng để liên hệ thanh
+   *  toán nếu không match member admin tạo trước. */
+  phoneNumber: text("phone_number"),
   bankAccountNo: text("bank_account_no").unique(),
+  /** Trạng thái duyệt: "pending" = mới đăng ký, chưa được admin OK. "approved"
+   *  = vào nhóm. "rejected" = admin từ chối, login lần sau vẫn chặn. Default
+   *  "approved" để các row admin tạo trực tiếp đi qua mà không cần gì thêm —
+   *  chỉ OAuth signup mới set "pending". */
+  approvalStatus: text("approval_status", {
+    enum: ["pending", "approved", "rejected"],
+  }).default("approved"),
+  approvedAt: text("approved_at"),
+  /** admin.id of approver. NULL cho row legacy (đã approved trước khi feature
+   *  này tồn tại). */
+  approvedBy: integer("approved_by"),
   isActive: integer("is_active", { mode: "boolean" }).default(true),
   createdAt: text("created_at").default(sql`(current_timestamp)`),
 });
