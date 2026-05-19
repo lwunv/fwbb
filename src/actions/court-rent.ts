@@ -139,6 +139,12 @@ export async function getCourtRentReport(
     getSessionDaysOfWeek(),
   ]);
   const defaultCourtId = defaultCourt?.id ?? null;
+  // monthlyPrice = giá HIỆN TẠI của default court. Nếu admin thay đổi
+  // pricePerSession giữa năm (vd 200K → 220K vào tháng 7), TẤT CẢ các tháng
+  // trong report sẽ dùng giá mới 220K — không tracking giá lịch sử per-month.
+  // Trade-off: simple model, OK vì group sinh hoạt cộng đồng (price hiếm khi
+  // thay đổi). Nếu cần historical pricing, thêm `monthly_price_snapshots`
+  // table hoặc tính từ session.courtPrice của các buổi cố định trong tháng.
   const monthlyPrice = defaultCourt?.pricePerSession ?? 200_000;
 
   // Court rent payments — exclude reversed pairs (original + its reversal

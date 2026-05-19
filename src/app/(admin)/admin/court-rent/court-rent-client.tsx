@@ -23,6 +23,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { StatTile } from "@/components/shared/stat-tile";
 import { InlineNotice } from "@/components/shared/inline-notice";
 import { formatK, cn } from "@/lib/utils";
+import { getMonthLabels } from "@/lib/i18n-labels";
 import { fireAction } from "@/lib/optimistic-action";
 import {
   getCourtRentReport,
@@ -53,51 +54,6 @@ interface Props {
   availableYears: number[];
   courts: CourtOpt[];
 }
-
-const MONTH_LABELS_BY_LOCALE: Record<string, string[]> = {
-  vi: [
-    "T1",
-    "T2",
-    "T3",
-    "T4",
-    "T5",
-    "T6",
-    "T7",
-    "T8",
-    "T9",
-    "T10",
-    "T11",
-    "T12",
-  ],
-  en: [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ],
-  zh: [
-    "1月",
-    "2月",
-    "3月",
-    "4月",
-    "5月",
-    "6月",
-    "7月",
-    "8月",
-    "9月",
-    "10月",
-    "11月",
-    "12月",
-  ],
-};
 
 /** Cộng/trừ amount vào month + yearTotal khi optimistic add/remove payment.
  *  delta > 0 = ghi nhận thêm, < 0 = xóa. Pure → safe để dùng trong setState.
@@ -140,8 +96,7 @@ export function CourtRentClient({
   const t = useTranslations("adminCourtRent");
   const tCommon = useTranslations("common");
   const locale = useLocale();
-  const MONTH_LABELS =
-    MONTH_LABELS_BY_LOCALE[locale] ?? MONTH_LABELS_BY_LOCALE.vi;
+  const MONTH_LABELS = getMonthLabels(locale, "short");
   const dateLocale =
     locale === "zh" ? "zh-CN" : locale === "en" ? "en-US" : "vi-VN";
   const [year, setYear] = useState(initialYear);

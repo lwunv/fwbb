@@ -20,6 +20,7 @@ import {
 import { DefaultSettingsCard } from "./default-settings-card";
 import { Input } from "@/components/ui/input";
 import { formatK, cn } from "@/lib/utils";
+import { getMonthLabels } from "@/lib/i18n-labels";
 import {
   computeShuttlecockTotal,
   computePerHeadCharges,
@@ -201,51 +202,6 @@ interface DashboardClientProps {
   sessionDays: number[];
 }
 
-const MONTH_LABEL_BY_LOCALE: Record<string, Record<number, string>> = {
-  vi: {
-    1: "Th1",
-    2: "Th2",
-    3: "Th3",
-    4: "Th4",
-    5: "Th5",
-    6: "Th6",
-    7: "Th7",
-    8: "Th8",
-    9: "Th9",
-    10: "Th10",
-    11: "Th11",
-    12: "Th12",
-  },
-  en: {
-    1: "Jan",
-    2: "Feb",
-    3: "Mar",
-    4: "Apr",
-    5: "May",
-    6: "Jun",
-    7: "Jul",
-    8: "Aug",
-    9: "Sep",
-    10: "Oct",
-    11: "Nov",
-    12: "Dec",
-  },
-  zh: {
-    1: "1月",
-    2: "2月",
-    3: "3月",
-    4: "4月",
-    5: "5月",
-    6: "6月",
-    7: "7月",
-    8: "8月",
-    9: "9月",
-    10: "10月",
-    11: "11月",
-    12: "12月",
-  },
-};
-
 const TX_ICON: Record<string, { icon: typeof ArrowUpCircle; cls: string }> = {
   fund_contribution: { icon: ArrowUpCircle, cls: "text-blue-500" },
   fund_deduction: { icon: ArrowDownCircle, cls: "text-orange-500" },
@@ -407,9 +363,8 @@ export function DashboardClient({
     serverAdminGuestDine,
   ]);
 
-  const monthLabelMap =
-    MONTH_LABEL_BY_LOCALE[locale] ?? MONTH_LABEL_BY_LOCALE.vi;
-  const monthLabel = `${monthLabelMap[currentMonth]}/${currentYear}`;
+  const monthLabels = getMonthLabels(locale, "long-vi");
+  const monthLabel = `${monthLabels[currentMonth - 1]}/${currentYear}`;
   const netCash = totalPositiveBalance - totalOutstanding;
   const courtRentPct =
     courtRentExpectedThisMonth > 0

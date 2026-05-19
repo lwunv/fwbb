@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { formatVND, formatK } from "@/lib/utils";
@@ -14,6 +14,7 @@ import { RecordContributionDialog } from "@/components/fund/record-contribution-
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { Input } from "@/components/ui/input";
 import { StatTile } from "@/components/shared/stat-tile";
+import { BaseModal } from "@/components/shared/base-modal";
 import {
   Wallet,
   Plus,
@@ -513,150 +514,97 @@ export function FundDashboard({
       <SessionFinanceReport entries={sessionFinanceEntries} />
 
       {/* Add Member Modal */}
-      <AnimatePresence>
-        {showAddMember && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-            onClick={() => {
-              setShowAddMember(false);
-              setPendingFundMember(null);
-              setInitialAmount("");
-            }}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-card w-full max-w-md rounded-2xl p-6 shadow-xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {pendingFundMember ? (
-                /* Step 2: enter initial contribution amount */
-                <>
-                  <h3 className="mb-1 text-lg font-bold">
-                    {t("modalAddMemberAmountTitle", {
-                      name: pendingFundMember.name,
-                    })}
-                  </h3>
-                  <p className="text-muted-foreground mb-4 text-xs">
-                    {t("modalAddMemberAmountPlaceholder")}
-                  </p>
-                  <div className="flex items-stretch gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const cur = parseInt(initialAmount, 10) || 0;
-                        setInitialAmount(String(Math.max(0, cur - 100000)));
-                      }}
-                      disabled={(parseInt(initialAmount, 10) || 0) <= 0}
-                      className="bg-card hover:bg-muted/50 inline-flex h-[42px] w-11 shrink-0 items-center justify-center rounded-xl border-2 transition-colors disabled:opacity-40"
-                      aria-label={t("ariaDecrease100k")}
-                    >
-                      <Minus className="h-4 w-4" />
-                    </button>
-                    <Input
-                      type="text"
-                      inputMode="numeric"
-                      value={
-                        initialAmount
-                          ? Number(initialAmount).toLocaleString("vi-VN")
-                          : ""
-                      }
-                      onChange={(e) =>
-                        setInitialAmount(e.target.value.replace(/\D/g, ""))
-                      }
-                      placeholder="0"
-                      className="text-center tabular-nums"
-                      autoFocus
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const cur = parseInt(initialAmount, 10) || 0;
-                        setInitialAmount(String(cur + 100000));
-                      }}
-                      className="bg-card hover:bg-muted/50 inline-flex h-[42px] w-11 shrink-0 items-center justify-center rounded-xl border-2 transition-colors"
-                      aria-label={t("ariaIncrease100k")}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <div className="mt-4 flex gap-2">
-                    <button
-                      onClick={() => {
-                        setPendingFundMember(null);
-                        setInitialAmount("");
-                      }}
-                      className="hover:bg-accent flex-1 rounded-xl border py-2.5 text-sm font-medium transition-colors"
-                    >
-                      {t("addMemberBack")}
-                    </button>
-                    <button
-                      onClick={() => {
-                        // Add with 0 — just enrol, no contribution
-                        handleAddMember(pendingFundMember.id);
-                        setPendingFundMember(null);
-                        setInitialAmount("");
-                      }}
-                      className="hover:bg-accent flex-1 rounded-xl border py-2.5 text-sm font-medium transition-colors"
-                    >
-                      {t("addWithoutAmount")}
-                    </button>
-                    <button
-                      onClick={handleAddMemberWithAmount}
-                      disabled={!initialAmount || Number(initialAmount) <= 0}
-                      className="bg-primary text-primary-foreground flex-1 rounded-xl py-2.5 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
-                    >
-                      {tCommon("save")}
-                    </button>
-                  </div>
-                </>
-              ) : (
-                /* Step 1: pick a member */
-                <>
-                  <h3 className="mb-4 text-lg font-bold">
-                    {t("modalAddTitle")}
-                  </h3>
-                  {availableMembers.length === 0 ? (
-                    <p className="text-muted-foreground text-sm">
-                      {t("allInFund")}
-                    </p>
-                  ) : (
-                    <div className="max-h-72 space-y-2 overflow-y-auto">
-                      {availableMembers.map((m) => (
-                        <button
-                          key={m.id}
-                          onClick={() =>
-                            setPendingFundMember({
-                              id: m.id,
-                              name: m.nickname || m.name,
-                            })
-                          }
-                          className="hover:bg-accent flex w-full items-center gap-3 rounded-xl p-3 text-left transition-colors"
-                        >
-                          <UserPlus className="text-primary h-4 w-4" />
-                          <span className="font-medium">
-                            {m.nickname || m.name}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+      <BaseModal
+        open={showAddMember}
+        onClose={() => {
+          setShowAddMember(false);
+          setPendingFundMember(null);
+          setInitialAmount("");
+        }}
+      >
+        {pendingFundMember ? (
+          /* Step 2: enter initial contribution amount */
+          <>
+            <h3 className="mb-1 text-lg font-bold">
+              {t("modalAddMemberAmountTitle", {
+                name: pendingFundMember.name,
+              })}
+            </h3>
+            <p className="text-muted-foreground mb-4 text-xs">
+              {t("modalAddMemberAmountPlaceholder")}
+            </p>
+            <NumberStepper
+              value={parseInt(initialAmount, 10) || 0}
+              onChange={(v) => setInitialAmount(String(v))}
+              step={100_000}
+              displayFormat="vnd"
+              autoFocus
+              className="w-full"
+            />
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => {
+                  setPendingFundMember(null);
+                  setInitialAmount("");
+                }}
+                className="hover:bg-accent flex-1 rounded-xl border py-2.5 text-sm font-medium transition-colors"
+              >
+                {t("addMemberBack")}
+              </button>
+              <button
+                onClick={() => {
+                  // Add with 0 — just enrol, no contribution
+                  handleAddMember(pendingFundMember.id);
+                  setPendingFundMember(null);
+                  setInitialAmount("");
+                }}
+                className="hover:bg-accent flex-1 rounded-xl border py-2.5 text-sm font-medium transition-colors"
+              >
+                {t("addWithoutAmount")}
+              </button>
+              <button
+                onClick={handleAddMemberWithAmount}
+                disabled={!initialAmount || Number(initialAmount) <= 0}
+                className="bg-primary text-primary-foreground flex-1 rounded-xl py-2.5 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {tCommon("save")}
+              </button>
+            </div>
+          </>
+        ) : (
+          /* Step 1: pick a member */
+          <>
+            <h3 className="mb-4 text-lg font-bold">{t("modalAddTitle")}</h3>
+            {availableMembers.length === 0 ? (
+              <p className="text-muted-foreground text-sm">{t("allInFund")}</p>
+            ) : (
+              <div className="max-h-72 space-y-2 overflow-y-auto">
+                {availableMembers.map((m) => (
                   <button
-                    onClick={() => setShowAddMember(false)}
-                    className="hover:bg-accent mt-4 w-full rounded-xl border py-2 text-sm transition-colors"
+                    key={m.id}
+                    onClick={() =>
+                      setPendingFundMember({
+                        id: m.id,
+                        name: m.nickname || m.name,
+                      })
+                    }
+                    className="hover:bg-accent flex w-full items-center gap-3 rounded-xl p-3 text-left transition-colors"
                   >
-                    {t("close")}
+                    <UserPlus className="text-primary h-4 w-4" />
+                    <span className="font-medium">{m.nickname || m.name}</span>
                   </button>
-                </>
-              )}
-            </motion.div>
-          </motion.div>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={() => setShowAddMember(false)}
+              className="hover:bg-accent mt-4 w-full rounded-xl border py-2 text-sm transition-colors"
+            >
+              {t("close")}
+            </button>
+          </>
         )}
-      </AnimatePresence>
+      </BaseModal>
 
       {/* Record Contribution Modal */}
       <RecordContributionDialog
@@ -677,291 +625,214 @@ export function FundDashboard({
       />
 
       {/* Trả tiền sân tháng — chi quỹ chung. */}
-      <AnimatePresence>
-        {showCourtRent && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-            onClick={() => setShowCourtRent(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-card w-full max-w-md rounded-2xl p-6 shadow-xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="mb-1 text-lg font-bold">
-                {t("modalCourtRentTitle")}
-              </h3>
-              <p className="text-muted-foreground mb-4 text-xs">
-                {t("modalCourtRentHint")}
-              </p>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium">
-                      {t("monthLabel")}
-                    </label>
-                    <CustomSelect
-                      value={String(crMonth)}
-                      onChange={(v) => setCrMonth(Number(v))}
-                      options={Array.from({ length: 12 }, (_, i) => ({
-                        value: String(i + 1),
-                        label: `T${i + 1}`,
-                      }))}
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium">
-                      {t("yearLabel")}
-                    </label>
-                    <CustomSelect
-                      value={String(crYear)}
-                      onChange={(v) => setCrYear(Number(v))}
-                      options={[
-                        currentYear - 1,
-                        currentYear,
-                        currentYear + 1,
-                      ].map((y) => ({ value: String(y), label: String(y) }))}
-                    />
-                  </div>
-                </div>
-                {courts.length > 0 && (
-                  <div>
-                    <label className="mb-1 block text-sm font-medium">
-                      {t("courtLabel")}{" "}
-                      <span className="text-muted-foreground text-xs font-normal">
-                        {t("optional")}
-                      </span>
-                    </label>
-                    <CustomSelect
-                      value={crCourtId ? String(crCourtId) : ""}
-                      onChange={(v) => setCrCourtId(v ? Number(v) : null)}
-                      placeholder={t("selectCourtPlaceholder")}
-                      options={[
-                        { value: "", label: "—" },
-                        ...courts.map((c) => ({
-                          value: String(c.id),
-                          label: c.name,
-                        })),
-                      ]}
-                    />
-                  </div>
+      <BaseModal open={showCourtRent} onClose={() => setShowCourtRent(false)}>
+        <h3 className="mb-1 text-lg font-bold">{t("modalCourtRentTitle")}</h3>
+        <p className="text-muted-foreground mb-4 text-xs">
+          {t("modalCourtRentHint")}
+        </p>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                {t("monthLabel")}
+              </label>
+              <CustomSelect
+                value={String(crMonth)}
+                onChange={(v) => setCrMonth(Number(v))}
+                options={Array.from({ length: 12 }, (_, i) => ({
+                  value: String(i + 1),
+                  label: `T${i + 1}`,
+                }))}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                {t("yearLabel")}
+              </label>
+              <CustomSelect
+                value={String(crYear)}
+                onChange={(v) => setCrYear(Number(v))}
+                options={[currentYear - 1, currentYear, currentYear + 1].map(
+                  (y) => ({ value: String(y), label: String(y) }),
                 )}
-                <div>
-                  <label className="mb-1 block text-sm font-medium">
-                    {t("amountVnd")}
-                  </label>
-                  {/* Stepper +/− 100k flanking input — đồng bộ pattern với
-                      "Ghi nhận đóng quỹ" dialog. Display vi-VN format
-                      ("2.000.000") trong khi raw state vẫn là digits. */}
-                  <div className="flex items-stretch gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const cur = parseInt(crAmount, 10) || 0;
-                        setCrAmount(String(Math.max(0, cur - 100000)));
-                      }}
-                      disabled={(parseInt(crAmount, 10) || 0) <= 0}
-                      className="bg-card hover:bg-muted/50 inline-flex h-[42px] w-11 shrink-0 items-center justify-center rounded-xl border-2 transition-colors disabled:opacity-40"
-                      aria-label={t("ariaDecrease100k")}
-                    >
-                      <Minus className="h-4 w-4" />
-                    </button>
-                    <Input
-                      type="text"
-                      inputMode="numeric"
-                      value={formattedCrAmount}
-                      onChange={(e) =>
-                        setCrAmount(e.target.value.replace(/\D/g, ""))
-                      }
-                      placeholder="2.000.000"
-                      className="text-center tabular-nums"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const cur = parseInt(crAmount, 10) || 0;
-                        setCrAmount(String(cur + 100000));
-                      }}
-                      className="bg-card hover:bg-muted/50 inline-flex h-[42px] w-11 shrink-0 items-center justify-center rounded-xl border-2 transition-colors disabled:opacity-40"
-                      aria-label={t("ariaIncrease100k")}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm font-medium">
-                    {t("noteLabel")}
-                  </label>
-                  <Input
-                    type="text"
-                    value={crNote}
-                    onChange={(e) => setCrNote(e.target.value)}
-                    placeholder={t("courtRentNotePlaceholder", {
-                      month: String(crMonth).padStart(2, "0"),
-                      year: crYear,
-                    })}
-                  />
-                </div>
-                <div className="flex gap-2 pt-2">
-                  <button
-                    onClick={() => setShowCourtRent(false)}
-                    className="hover:bg-accent flex-1 rounded-xl border py-3 font-medium transition-colors"
-                  >
-                    {tCommon("cancel")}
-                  </button>
-                  <button
-                    onClick={handleCourtRent}
-                    disabled={!crAmount || Number(crAmount) <= 0}
-                    className="bg-primary text-primary-foreground flex-1 rounded-xl py-3 font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
-                  >
-                    {tCommon("confirm")}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              />
+            </div>
+          </div>
+          {courts.length > 0 && (
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                {t("courtLabel")}{" "}
+                <span className="text-muted-foreground text-xs font-normal">
+                  {t("optional")}
+                </span>
+              </label>
+              <CustomSelect
+                value={crCourtId ? String(crCourtId) : ""}
+                onChange={(v) => setCrCourtId(v ? Number(v) : null)}
+                placeholder={t("selectCourtPlaceholder")}
+                options={[
+                  { value: "", label: "—" },
+                  ...courts.map((c) => ({
+                    value: String(c.id),
+                    label: c.name,
+                  })),
+                ]}
+              />
+            </div>
+          )}
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              {t("amountVnd")}
+            </label>
+            <NumberStepper
+              value={parseInt(crAmount, 10) || 0}
+              onChange={(v) => setCrAmount(String(v))}
+              step={100_000}
+              displayFormat="vnd"
+              className="w-full"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              {t("noteLabel")}
+            </label>
+            <Input
+              type="text"
+              value={crNote}
+              onChange={(e) => setCrNote(e.target.value)}
+              placeholder={t("courtRentNotePlaceholder", {
+                month: String(crMonth).padStart(2, "0"),
+                year: crYear,
+              })}
+            />
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button
+              onClick={() => setShowCourtRent(false)}
+              className="hover:bg-accent flex-1 rounded-xl border py-3 font-medium transition-colors"
+            >
+              {tCommon("cancel")}
+            </button>
+            <button
+              onClick={handleCourtRent}
+              disabled={!crAmount || Number(crAmount) <= 0}
+              className="bg-primary text-primary-foreground flex-1 rounded-xl py-3 font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {tCommon("confirm")}
+            </button>
+          </div>
+        </div>
+      </BaseModal>
 
       {/* Mua cầu — chi quỹ chung; tăng stock + ghi ledger inventory_purchase. */}
-      <AnimatePresence>
-        {showBuyShuttle && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-            onClick={() => setShowBuyShuttle(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-card w-full max-w-md rounded-2xl p-6 shadow-xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="mb-1 text-lg font-bold">
-                {t("modalBuyShuttlecockTitle")}
-              </h3>
-              <p className="text-muted-foreground mb-4 text-xs">
-                {t("modalBuyShuttlecockHint")}
-              </p>
-              {brands.length === 0 ? (
-                <div className="text-muted-foreground py-6 text-center text-sm">
-                  {t("noBrandsAvailable")}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium">
-                      {t("brandLabel")}
-                    </label>
-                    <CustomSelect
-                      value={bsBrandId ? String(bsBrandId) : ""}
-                      onChange={(v) => {
-                        const id = v ? Number(v) : null;
-                        setBsBrandId(id);
-                        const b = brands.find((x) => x.id === id);
-                        if (b) setBsPricePerTube(b.pricePerTube);
-                      }}
-                      placeholder={t("selectBrandPlaceholder")}
-                      options={brands.map((b) => ({
-                        value: String(b.id),
-                        label: `${b.name} (${formatK(b.pricePerTube)}/ống)`,
-                      }))}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="mb-1 block text-sm font-medium">
-                        {t("tubesLabel")}
-                      </label>
-                      <NumberStepper
-                        value={bsTubes}
-                        onChange={setBsTubes}
-                        min={1}
-                        max={1000}
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-sm font-medium">
-                        {t("pricePerTubeLabel")}
-                      </label>
-                      <Input
-                        type="text"
-                        inputMode="numeric"
-                        value={
-                          bsPricePerTube
-                            ? bsPricePerTube.toLocaleString("vi-VN")
-                            : ""
-                        }
-                        onChange={(e) => {
-                          const digits = e.target.value.replace(/\D/g, "");
-                          setBsPricePerTube(digits ? Number(digits) : 0);
-                        }}
-                        placeholder="100000"
-                        className="tabular-nums"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium">
-                      {t("purchasedAtLabel")}
-                    </label>
-                    <Input
-                      type="date"
-                      value={bsPurchasedAt}
-                      onChange={(e) => setBsPurchasedAt(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium">
-                      {t("noteLabel")}
-                    </label>
-                    <Input
-                      type="text"
-                      value={bsNote}
-                      onChange={(e) => setBsNote(e.target.value)}
-                      placeholder={t("buyShuttleNotePlaceholder")}
-                    />
-                  </div>
-                  <div className="bg-muted flex items-center justify-between rounded-xl px-4 py-3">
-                    <span className="text-sm font-medium">
-                      {t("totalLabel")}
-                    </span>
-                    <span className="text-base font-bold tabular-nums">
-                      {formatK(bsTotal)}
-                    </span>
-                  </div>
-                  <div className="flex gap-2 pt-2">
-                    <button
-                      onClick={() => setShowBuyShuttle(false)}
-                      className="hover:bg-accent flex-1 rounded-xl border py-3 font-medium transition-colors"
-                    >
-                      {tCommon("cancel")}
-                    </button>
-                    <button
-                      onClick={handleBuyShuttle}
-                      disabled={
-                        !bsBrandId || bsTubes < 1 || bsPricePerTube <= 0
-                      }
-                      className="bg-primary text-primary-foreground flex-1 rounded-xl py-3 font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
-                    >
-                      {tCommon("confirm")}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </motion.div>
-          </motion.div>
+      <BaseModal open={showBuyShuttle} onClose={() => setShowBuyShuttle(false)}>
+        <h3 className="mb-1 text-lg font-bold">
+          {t("modalBuyShuttlecockTitle")}
+        </h3>
+        <p className="text-muted-foreground mb-4 text-xs">
+          {t("modalBuyShuttlecockHint")}
+        </p>
+        {brands.length === 0 ? (
+          <div className="text-muted-foreground py-6 text-center text-sm">
+            {t("noBrandsAvailable")}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                {t("brandLabel")}
+              </label>
+              <CustomSelect
+                value={bsBrandId ? String(bsBrandId) : ""}
+                onChange={(v) => {
+                  const id = v ? Number(v) : null;
+                  setBsBrandId(id);
+                  const b = brands.find((x) => x.id === id);
+                  if (b) setBsPricePerTube(b.pricePerTube);
+                }}
+                placeholder={t("selectBrandPlaceholder")}
+                options={brands.map((b) => ({
+                  value: String(b.id),
+                  label: `${b.name} (${formatK(b.pricePerTube)}/ống)`,
+                }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-sm font-medium">
+                  {t("tubesLabel")}
+                </label>
+                <NumberStepper
+                  value={bsTubes}
+                  onChange={setBsTubes}
+                  min={1}
+                  max={1000}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">
+                  {t("pricePerTubeLabel")}
+                </label>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  value={
+                    bsPricePerTube ? bsPricePerTube.toLocaleString("vi-VN") : ""
+                  }
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, "");
+                    setBsPricePerTube(digits ? Number(digits) : 0);
+                  }}
+                  placeholder="100000"
+                  className="tabular-nums"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                {t("purchasedAtLabel")}
+              </label>
+              <Input
+                type="date"
+                value={bsPurchasedAt}
+                onChange={(e) => setBsPurchasedAt(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                {t("noteLabel")}
+              </label>
+              <Input
+                type="text"
+                value={bsNote}
+                onChange={(e) => setBsNote(e.target.value)}
+                placeholder={t("buyShuttleNotePlaceholder")}
+              />
+            </div>
+            <div className="bg-muted flex items-center justify-between rounded-xl px-4 py-3">
+              <span className="text-sm font-medium">{t("totalLabel")}</span>
+              <span className="text-base font-bold tabular-nums">
+                {formatK(bsTotal)}
+              </span>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => setShowBuyShuttle(false)}
+                className="hover:bg-accent flex-1 rounded-xl border py-3 font-medium transition-colors"
+              >
+                {tCommon("cancel")}
+              </button>
+              <button
+                onClick={handleBuyShuttle}
+                disabled={!bsBrandId || bsTubes < 1 || bsPricePerTube <= 0}
+                className="bg-primary text-primary-foreground flex-1 rounded-xl py-3 font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {tCommon("confirm")}
+              </button>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      </BaseModal>
     </div>
   );
 }

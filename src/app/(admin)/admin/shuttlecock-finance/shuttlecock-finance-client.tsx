@@ -20,6 +20,7 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { SearchInput } from "@/components/shared/search-input";
 import { StatTile } from "@/components/shared/stat-tile";
+import { BaseModal } from "@/components/shared/base-modal";
 import { formatK, cn } from "@/lib/utils";
 import { formatSessionDate } from "@/lib/date-format";
 import { fireAction } from "@/lib/optimistic-action";
@@ -387,136 +388,112 @@ export function ShuttlecockFinanceClient({
       )}
 
       {/* Mua cầu — chi quỹ chung; tăng stock + ghi ledger inventory_purchase. */}
-      <AnimatePresence>
-        {showBuy && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-            onClick={() => setShowBuy(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-card w-full max-w-md rounded-2xl p-6 shadow-xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="mb-1 text-lg font-bold">{t("modalBuyTitle")}</h3>
-              <p className="text-muted-foreground mb-4 text-xs">
-                {t("modalBuyHint")}
-              </p>
-              {brands.length === 0 ? (
-                <div className="text-muted-foreground py-6 text-center text-sm">
-                  {t("noBrandsAvailable")}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium">
-                      {t("brandLabel")}
-                    </label>
-                    <CustomSelect
-                      value={bsBrandId ? String(bsBrandId) : ""}
-                      onChange={(v) => {
-                        const id = v ? Number(v) : null;
-                        setBsBrandId(id);
-                        const b = brands.find((x) => x.id === id);
-                        if (b) setBsPricePerTube(b.pricePerTube);
-                      }}
-                      placeholder={t("brandPlaceholder")}
-                      options={brands.map((b) => ({
-                        value: String(b.id),
-                        label: `${b.name} (${formatK(b.pricePerTube)}/ống)`,
-                      }))}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="mb-1 block text-sm font-medium">
-                        {t("tubesLabel")}
-                      </label>
-                      <NumberStepper
-                        value={bsTubes}
-                        onChange={setBsTubes}
-                        min={1}
-                        max={1000}
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-sm font-medium">
-                        {t("pricePerTubeLabel")}
-                      </label>
-                      <Input
-                        type="text"
-                        inputMode="numeric"
-                        value={
-                          bsPricePerTube
-                            ? bsPricePerTube.toLocaleString("vi-VN")
-                            : ""
-                        }
-                        onChange={(e) => {
-                          const digits = e.target.value.replace(/\D/g, "");
-                          setBsPricePerTube(digits ? Number(digits) : 0);
-                        }}
-                        placeholder="100000"
-                        className="tabular-nums"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium">
-                      {t("purchasedAtLabel")}
-                    </label>
-                    <Input
-                      type="date"
-                      value={bsPurchasedAt}
-                      onChange={(e) => setBsPurchasedAt(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium">
-                      {t("noteFieldLabel")}
-                    </label>
-                    <Input
-                      type="text"
-                      value={bsNote}
-                      onChange={(e) => setBsNote(e.target.value)}
-                      placeholder={t("notePlaceholder")}
-                    />
-                  </div>
-                  <div className="bg-muted flex items-center justify-between rounded-xl px-4 py-3">
-                    <span className="text-sm font-medium">
-                      {t("totalLabel")}
-                    </span>
-                    <span className="text-base font-bold tabular-nums">
-                      {formatK(bsTotal)}
-                    </span>
-                  </div>
-                  <div className="flex gap-2 pt-2">
-                    <button
-                      onClick={() => setShowBuy(false)}
-                      className="hover:bg-accent flex-1 rounded-xl border py-3 font-medium transition-colors"
-                    >
-                      {tCommon("cancel")}
-                    </button>
-                    <button
-                      onClick={handleBuy}
-                      disabled={
-                        !bsBrandId || bsTubes < 1 || bsPricePerTube <= 0
-                      }
-                      className="bg-primary text-primary-foreground flex-1 rounded-xl py-3 font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
-                    >
-                      {tCommon("confirm")}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </motion.div>
-          </motion.div>
+      <BaseModal open={showBuy} onClose={() => setShowBuy(false)}>
+        <h3 className="mb-1 text-lg font-bold">{t("modalBuyTitle")}</h3>
+        <p className="text-muted-foreground mb-4 text-xs">
+          {t("modalBuyHint")}
+        </p>
+        {brands.length === 0 ? (
+          <div className="text-muted-foreground py-6 text-center text-sm">
+            {t("noBrandsAvailable")}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                {t("brandLabel")}
+              </label>
+              <CustomSelect
+                value={bsBrandId ? String(bsBrandId) : ""}
+                onChange={(v) => {
+                  const id = v ? Number(v) : null;
+                  setBsBrandId(id);
+                  const b = brands.find((x) => x.id === id);
+                  if (b) setBsPricePerTube(b.pricePerTube);
+                }}
+                placeholder={t("brandPlaceholder")}
+                options={brands.map((b) => ({
+                  value: String(b.id),
+                  label: `${b.name} (${formatK(b.pricePerTube)}/ống)`,
+                }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-sm font-medium">
+                  {t("tubesLabel")}
+                </label>
+                <NumberStepper
+                  value={bsTubes}
+                  onChange={setBsTubes}
+                  min={1}
+                  max={1000}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">
+                  {t("pricePerTubeLabel")}
+                </label>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  value={
+                    bsPricePerTube ? bsPricePerTube.toLocaleString("vi-VN") : ""
+                  }
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, "");
+                    setBsPricePerTube(digits ? Number(digits) : 0);
+                  }}
+                  placeholder="100000"
+                  className="tabular-nums"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                {t("purchasedAtLabel")}
+              </label>
+              <Input
+                type="date"
+                value={bsPurchasedAt}
+                onChange={(e) => setBsPurchasedAt(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                {t("noteFieldLabel")}
+              </label>
+              <Input
+                type="text"
+                value={bsNote}
+                onChange={(e) => setBsNote(e.target.value)}
+                placeholder={t("notePlaceholder")}
+              />
+            </div>
+            <div className="bg-muted flex items-center justify-between rounded-xl px-4 py-3">
+              <span className="text-sm font-medium">{t("totalLabel")}</span>
+              <span className="text-base font-bold tabular-nums">
+                {formatK(bsTotal)}
+              </span>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => setShowBuy(false)}
+                className="hover:bg-accent flex-1 rounded-xl border py-3 font-medium transition-colors"
+              >
+                {tCommon("cancel")}
+              </button>
+              <button
+                onClick={handleBuy}
+                disabled={!bsBrandId || bsTubes < 1 || bsPricePerTube <= 0}
+                className="bg-primary text-primary-foreground flex-1 rounded-xl py-3 font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {tCommon("confirm")}
+              </button>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      </BaseModal>
     </div>
   );
 }

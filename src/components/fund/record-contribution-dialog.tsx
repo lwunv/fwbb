@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Minus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { NumberStepper } from "@/components/ui/number-stepper";
 import { Input } from "@/components/ui/input";
 import { MemberAvatar } from "@/components/shared/member-avatar";
+import { BaseModal } from "@/components/shared/base-modal";
 import { formatK } from "@/lib/utils";
 import { getFundStatus } from "@/lib/fund-core";
 
@@ -83,13 +83,8 @@ export function RecordContributionDialog({
     }
   }
 
-  const formattedAmount = amount ? Number(amount).toLocaleString("vi-VN") : "";
   const amountNum = parseInt(amount, 10) || 0;
   const canSubmit = memberId !== null && amountNum > 0 && !submitting;
-
-  function bump(delta: number) {
-    setAmount(String(Math.max(0, amountNum + delta)));
-  }
 
   function handleConfirm() {
     if (!canSubmit || memberId === null) return;
@@ -97,143 +92,100 @@ export function RecordContributionDialog({
   }
 
   return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={onClose}
-        >
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0 }}
-            className="bg-card w-full max-w-md rounded-2xl p-6 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="mb-4 text-lg font-bold">{t("modalRecordTitle")}</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  {t("memberLabel")}
-                </label>
-                {lockedMember ? (
-                  <div className="bg-muted/40 border-border flex items-center gap-2 rounded-xl border px-3 py-2.5">
-                    <MemberAvatar
-                      memberId={lockedMember.id}
-                      avatarKey={lockedMember.avatarKey ?? null}
-                      avatarUrl={lockedMember.avatarUrl ?? null}
-                      size={28}
-                    />
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                      {lockedMember.nickname || lockedMember.name}
-                    </span>
-                    {typeof lockedMember.balance === "number" && (
-                      <span
-                        className={
-                          getFundStatus(lockedMember.balance) === "owing"
-                            ? "text-destructive shrink-0 text-sm font-bold tabular-nums"
-                            : "text-muted-foreground shrink-0 text-sm font-bold tabular-nums"
-                        }
-                      >
-                        {getFundStatus(lockedMember.balance) === "owing"
-                          ? "−"
-                          : ""}
-                        {formatK(Math.abs(lockedMember.balance))}
-                      </span>
-                    )}
-                  </div>
-                ) : (
-                  <CustomSelect
-                    value={memberId !== null ? String(memberId) : ""}
-                    onChange={(v) => setMemberId(v ? Number(v) : null)}
-                    placeholder={t("selectMember")}
-                    searchable
-                    searchPlaceholder="Tìm thành viên..."
-                    options={(selectableMembers ?? []).map((m) => ({
-                      value: String(m.id),
-                      label: `${m.nickname || m.name}${
-                        typeof m.balance === "number"
-                          ? ` (${formatK(m.balance)})`
-                          : ""
-                      }`,
-                    }))}
-                  />
-                )}
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  {t("amountVnd")}
-                </label>
-                <div className="flex items-stretch gap-2">
-                  <button
-                    type="button"
-                    onClick={() => bump(-step)}
-                    disabled={submitting || amountNum <= 0}
-                    className="bg-card hover:bg-muted/50 inline-flex h-[42px] w-11 shrink-0 items-center justify-center rounded-xl border-2 transition-colors disabled:opacity-40"
-                    aria-label={`Giảm ${formatK(step)}`}
-                  >
-                    <Minus className="h-4 w-4" />
-                  </button>
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    value={formattedAmount}
-                    onChange={(e) =>
-                      setAmount(e.target.value.replace(/\D/g, ""))
-                    }
-                    placeholder={t("amountExample")}
-                    className="text-center tabular-nums"
-                    disabled={submitting}
-                    autoFocus={!!lockedMember}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => bump(step)}
-                    disabled={submitting}
-                    className="bg-card hover:bg-muted/50 inline-flex h-[42px] w-11 shrink-0 items-center justify-center rounded-xl border-2 transition-colors disabled:opacity-40"
-                    aria-label={`Tăng ${formatK(step)}`}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  {t("noteLabel")}
-                </label>
-                <Input
-                  type="text"
-                  value={desc}
-                  onChange={(e) => setDesc(e.target.value)}
-                  placeholder={t("notePlaceholder")}
-                  disabled={submitting}
-                />
-              </div>
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  disabled={submitting}
-                  className="hover:bg-accent flex-1 rounded-xl border py-3 font-medium transition-colors disabled:opacity-50"
+    <BaseModal open={open} onClose={onClose}>
+      <h3 className="mb-4 text-lg font-bold">{t("modalRecordTitle")}</h3>
+      <div className="space-y-4">
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            {t("memberLabel")}
+          </label>
+          {lockedMember ? (
+            <div className="bg-muted/40 border-border flex items-center gap-2 rounded-xl border px-3 py-2.5">
+              <MemberAvatar
+                memberId={lockedMember.id}
+                avatarKey={lockedMember.avatarKey ?? null}
+                avatarUrl={lockedMember.avatarUrl ?? null}
+                size={28}
+              />
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                {lockedMember.nickname || lockedMember.name}
+              </span>
+              {typeof lockedMember.balance === "number" && (
+                <span
+                  className={
+                    getFundStatus(lockedMember.balance) === "owing"
+                      ? "text-destructive shrink-0 text-sm font-bold tabular-nums"
+                      : "text-muted-foreground shrink-0 text-sm font-bold tabular-nums"
+                  }
                 >
-                  {tCommon("cancel")}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirm}
-                  disabled={!canSubmit}
-                  className="bg-primary text-primary-foreground flex-1 rounded-xl py-3 font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
-                >
-                  {tCommon("confirm")}
-                </button>
-              </div>
+                  {getFundStatus(lockedMember.balance) === "owing" ? "−" : ""}
+                  {formatK(Math.abs(lockedMember.balance))}
+                </span>
+              )}
             </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+          ) : (
+            <CustomSelect
+              value={memberId !== null ? String(memberId) : ""}
+              onChange={(v) => setMemberId(v ? Number(v) : null)}
+              placeholder={t("selectMember")}
+              searchable
+              searchPlaceholder="Tìm thành viên..."
+              options={(selectableMembers ?? []).map((m) => ({
+                value: String(m.id),
+                label: `${m.nickname || m.name}${
+                  typeof m.balance === "number"
+                    ? ` (${formatK(m.balance)})`
+                    : ""
+                }`,
+              }))}
+            />
+          )}
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            {t("amountVnd")}
+          </label>
+          <NumberStepper
+            value={amountNum}
+            onChange={(v) => setAmount(String(v))}
+            step={step}
+            disabled={submitting}
+            displayFormat="vnd"
+            autoFocus={!!lockedMember}
+            className="w-full"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            {t("noteLabel")}
+          </label>
+          <Input
+            type="text"
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+            placeholder={t("notePlaceholder")}
+            disabled={submitting}
+          />
+        </div>
+        <div className="flex gap-2 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="hover:bg-accent flex-1 rounded-xl border py-3 font-medium transition-colors disabled:opacity-50"
+          >
+            {tCommon("cancel")}
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={!canSubmit}
+            className="bg-primary text-primary-foreground flex-1 rounded-xl py-3 font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {tCommon("confirm")}
+          </button>
+        </div>
+      </div>
+    </BaseModal>
   );
 }
