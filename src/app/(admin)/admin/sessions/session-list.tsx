@@ -185,6 +185,7 @@ export function SessionList({
   defaultCourtId = null,
   sessionDays,
   memberBalances = {},
+  adminMemberId = null,
 }: {
   sessions: SessionCard[];
   courts?: Court[];
@@ -200,6 +201,9 @@ export function SessionList({
   /** Map memberId → fund balance, thread vào AdminVoteManager để render
    *  warning icon (Task 5a) cạnh tên member trong row. */
   memberBalances?: Record<number, number>;
+  /** Admin's memberId — guests có invitedById trùng = "Khách Admin" (quỹ
+   *  chung chi), khác = "Khách của X" (member X tự chi). */
+  adminMemberId?: number | null;
 }) {
   const [, setPage] = useQueryState(
     "page",
@@ -992,138 +996,159 @@ export function SessionList({
                           </Button>
                         </div>
                       )}
+
+                      {/* Expanded — attendee list + unpaid debts. Inline trong
+                          cùng CardContent (border-t divider) để không tạo ra
+                          card thứ 2 tách rời. */}
+                      {isExpanded && effectiveStatus === "completed" && (
+                        <div className="space-y-3 border-t pt-3">
+                          {(() => {
+                            const players = session.attendees.filter(
+                              (a) => a.attendsPlay,
+                            );
+                            const diners = session.attendees.filter(
+                              (a) => a.attendsDine,
+                            );
+                            const renderAttendee = (
+                              a: AttendeeInfo,
+                              idx: number,
+                            ) => {
+                              const isAdminGuest =
+                                a.isGuest &&
+                                adminMemberId !== null &&
+                                a.invitedById === adminMemberId;
+                              return (
+                                <div
+                                  key={`${a.memberId ?? "g"}-${a.guestName ?? ""}-${idx}`}
+                                  className="bg-muted/30 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm"
+                                >
+                                  {a.isGuest ? (
+                                    <span
+                                      className={cn(
+                                        "inline-flex h-7 w-7 items-center justify-center rounded-full text-xs",
+                                        isAdminGuest
+                                          ? "bg-blue-500/20"
+                                          : "bg-amber-500/20",
+                                      )}
+                                    >
+                                      {isAdminGuest ? "🎟" : "👤"}
+                                    </span>
+                                  ) : (
+                                    <MemberAvatar
+                                      memberId={a.memberId ?? 0}
+                                      avatarKey={a.memberAvatarKey}
+                                      avatarUrl={a.memberAvatarUrl}
+                                      size={28}
+                                    />
+                                  )}
+                                  <div className="min-w-0 flex-1">
+                                    <p className="truncate font-medium">
+                                      {a.isGuest
+                                        ? isAdminGuest
+                                          ? "Khách Admin"
+                                          : (a.guestName ?? "Khách")
+                                        : (a.memberName ?? `#${a.memberId}`)}
+                                    </p>
+                                    {a.isGuest &&
+                                      !isAdminGuest &&
+                                      a.invitedByName && (
+                                        <p className="text-muted-foreground truncate text-xs">
+                                          Khách của {a.invitedByName}
+                                        </p>
+                                      )}
+                                  </div>
+                                </div>
+                              );
+                            };
+                            return (
+                              <>
+                                {players.length > 0 && (
+                                  <div>
+                                    <p className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
+                                      🏸 Chơi ({players.length})
+                                    </p>
+                                    <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                                      {players.map(renderAttendee)}
+                                    </div>
+                                  </div>
+                                )}
+                                {diners.length > 0 && (
+                                  <div>
+                                    <p className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
+                                      🍻 Nhậu ({diners.length})
+                                    </p>
+                                    <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                                      {diners.map(renderAttendee)}
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+
+                          {optimisticUnpaidDebts.length > 0 && (
+                            <div className="space-y-2 border-t pt-3">
+                              <p className="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
+                                Còn nợ
+                              </p>
+                              {optimisticUnpaidDebts.map((d) => (
+                                <div
+                                  key={d.memberId}
+                                  className="flex items-center justify-between py-2 text-sm"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <MemberAvatar
+                                      memberId={d.memberId}
+                                      avatarKey={d.memberAvatarKey}
+                                      avatarUrl={d.memberAvatarUrl}
+                                      size={28}
+                                    />
+                                    <span>{d.memberName}</span>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-destructive font-medium">
+                                      {formatK(d.amount)}
+                                    </span>
+                                    <Button
+                                      size="sm"
+                                      variant="success"
+                                      className="gap-1"
+                                      onClick={() => {
+                                        const debtId = d.debtId;
+                                        const memberName = d.memberName;
+                                        // Wrap action để toast lỗi gắn member name
+                                        // — admin click nhiều row liên tiếp vẫn
+                                        // biết row nào fail.
+                                        paidDebts.addOptimistically(
+                                          debtId,
+                                          async () => {
+                                            const r =
+                                              await confirmPaymentByAdmin(
+                                                debtId,
+                                              );
+                                            if (r && "error" in r && r.error) {
+                                              return {
+                                                error: `${memberName}: ${r.error}`,
+                                              };
+                                            }
+                                            return r;
+                                          },
+                                        );
+                                      }}
+                                    >
+                                      <Check className="h-4 w-4" />
+                                      {tF("received")}
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 </LedBorder>
-
-                {/* AdminVoteManager đã chuyển vào trong Card phía trên (gộp chung
-                  border với toggle counts). Không còn block tách rời ở đây. */}
-
-                {/* Expanded: attendee list + unpaid debts for completed sessions */}
-                {isExpanded && effectiveStatus === "completed" && (
-                  <div className="bg-background/50 space-y-3 rounded-b-xl border border-t-0 p-4">
-                    {(() => {
-                      const players = session.attendees.filter(
-                        (a) => a.attendsPlay,
-                      );
-                      const diners = session.attendees.filter(
-                        (a) => a.attendsDine,
-                      );
-                      const renderAttendee = (a: AttendeeInfo, idx: number) => (
-                        <div
-                          key={`${a.memberId ?? "g"}-${a.guestName ?? ""}-${idx}`}
-                          className="bg-muted/30 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm"
-                        >
-                          {a.isGuest ? (
-                            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-amber-500/20 text-xs">
-                              👤
-                            </span>
-                          ) : (
-                            <MemberAvatar
-                              memberId={a.memberId ?? 0}
-                              avatarKey={a.memberAvatarKey}
-                              avatarUrl={a.memberAvatarUrl}
-                              size={28}
-                            />
-                          )}
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate font-medium">
-                              {a.isGuest
-                                ? (a.guestName ?? "Khách")
-                                : (a.memberName ?? `#${a.memberId}`)}
-                            </p>
-                            {a.isGuest && a.invitedByName && (
-                              <p className="text-muted-foreground truncate text-xs">
-                                Khách của {a.invitedByName}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                      return (
-                        <>
-                          {players.length > 0 && (
-                            <div>
-                              <p className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
-                                🏸 Chơi ({players.length})
-                              </p>
-                              <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                                {players.map(renderAttendee)}
-                              </div>
-                            </div>
-                          )}
-                          {diners.length > 0 && (
-                            <div>
-                              <p className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
-                                🍻 Nhậu ({diners.length})
-                              </p>
-                              <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                                {diners.map(renderAttendee)}
-                              </div>
-                            </div>
-                          )}
-                        </>
-                      );
-                    })()}
-
-                    {optimisticUnpaidDebts.length > 0 && (
-                      <div className="space-y-2 border-t pt-3">
-                        <p className="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
-                          Còn nợ
-                        </p>
-                        {optimisticUnpaidDebts.map((d) => (
-                          <div
-                            key={d.memberId}
-                            className="flex items-center justify-between py-2 text-sm"
-                          >
-                            <div className="flex items-center gap-3">
-                              <MemberAvatar
-                                memberId={d.memberId}
-                                avatarKey={d.memberAvatarKey}
-                                avatarUrl={d.memberAvatarUrl}
-                                size={28}
-                              />
-                              <span>{d.memberName}</span>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <span className="text-destructive font-medium">
-                                {formatK(d.amount)}
-                              </span>
-                              <Button
-                                size="sm"
-                                variant="success"
-                                className="gap-1"
-                                onClick={() => {
-                                  const debtId = d.debtId;
-                                  const memberName = d.memberName;
-                                  // Wrap action để toast lỗi gắn member name —
-                                  // admin click nhiều row liên tiếp vẫn biết
-                                  // row nào fail.
-                                  paidDebts.addOptimistically(
-                                    debtId,
-                                    async () => {
-                                      const r =
-                                        await confirmPaymentByAdmin(debtId);
-                                      if (r && "error" in r && r.error) {
-                                        return {
-                                          error: `${memberName}: ${r.error}`,
-                                        };
-                                      }
-                                      return r;
-                                    },
-                                  );
-                                }}
-                              >
-                                <Check className="h-4 w-4" />
-                                {tF("received")}
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             );
           })}

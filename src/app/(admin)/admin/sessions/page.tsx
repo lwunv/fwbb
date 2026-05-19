@@ -6,6 +6,7 @@ import {
   shuttlecockBrands,
   sessionMinDeductionExemptions,
   financialTransactions,
+  admins,
 } from "@/db/schema";
 import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { computeBalancesForMembers } from "@/lib/fund-core";
@@ -90,6 +91,14 @@ export default async function SessionsPage({
     getSessionDaysOfWeek(),
   ]);
 
+  // Admin's memberId — pass xuống SessionList để phân biệt "Khách Admin"
+  // (invitedBy=admin) khi render expanded attendee list. Không có admin =
+  // null → mọi guest đều coi là personal.
+  const adminRow = await db.query.admins.findFirst({
+    columns: { memberId: true },
+  });
+  const adminMemberId = adminRow?.memberId ?? null;
+
   const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
   const safePage = Math.min(pageNum, totalPages);
   const offset = (safePage - 1) * PAGE_SIZE;
@@ -108,7 +117,12 @@ export default async function SessionsPage({
       // stale (member voted but didn't show, or admin added a walk-in at
       // finalize time) so completed sessions MUST count from attendees to
       // match the stored debt split. See [[project-finance-money-flow-bugs]].
-      attendees: true,
+      attendees: {
+        with: {
+          member: true,
+          invitedBy: true,
+        },
+      },
     },
   });
 
@@ -247,6 +261,20 @@ export default async function SessionsPage({
       votes: s.votes,
       shuttlecocks: s.shuttlecocks,
       debtMap,
+      // attendees gắn member + invitedBy để client render expanded list cho
+      // completed sessions. Map về shape gọn để không nhồi cả member object.
+      attendees: s.attendees.map((a) => ({
+        memberId: a.memberId,
+        memberName: a.member?.name ?? null,
+        memberAvatarKey: a.member?.avatarKey ?? null,
+        memberAvatarUrl: a.member?.avatarUrl ?? null,
+        guestName: a.guestName,
+        isGuest: a.isGuest ?? false,
+        attendsPlay: a.attendsPlay ?? false,
+        attendsDine: a.attendsDine ?? false,
+        invitedById: a.invitedById,
+        invitedByName: a.invitedBy?.name ?? null,
+      })),
     };
   });
 
@@ -263,6 +291,7 @@ export default async function SessionsPage({
         defaultCourtId={defaultCourt?.id ?? null}
         sessionDays={sessionDays}
         memberBalances={memberBalances}
+        adminMemberId={adminMemberId}
       />
     </div>
   );

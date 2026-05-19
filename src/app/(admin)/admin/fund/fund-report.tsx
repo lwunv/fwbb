@@ -12,7 +12,10 @@ import {
   Plus,
   Minus,
   Check,
+  Pencil,
+  X,
 } from "lucide-react";
+import { NumberStepper } from "@/components/ui/number-stepper";
 import { useTranslations } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -85,6 +88,48 @@ export function FundReport({ fundMembers, transactions }: Props) {
   const [adjustDirty, setAdjustDirty] = useState(false);
   const [adjustFocused, setAdjustFocused] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
+  // Inline balance edit — click pencil bên cạnh số dư trên row header để mở
+  // stepper trực tiếp, set balance đến giá trị mong muốn. Auto-compute diff
+  // và gọi recordContribution / recordRefund.
+  const [editingBalanceId, setEditingBalanceId] = useState<number | null>(null);
+  const [balanceDraft, setBalanceDraft] = useState(0);
+
+  function startEditBalance(memberId: number, currentBalance: number) {
+    setEditingBalanceId(memberId);
+    setBalanceDraft(Math.max(0, currentBalance));
+  }
+
+  function cancelEditBalance() {
+    setEditingBalanceId(null);
+    setBalanceDraft(0);
+  }
+
+  function submitBalanceEdit(memberId: number, currentBalance: number) {
+    const diff = balanceDraft - currentBalance;
+    if (diff === 0) {
+      toast.info("Số tiền không thay đổi");
+      setEditingBalanceId(null);
+      setBalanceDraft(0);
+      return;
+    }
+    const idemKey = `${diff > 0 ? "set-contrib" : "set-refund"}-${crypto.randomUUID()}`;
+    setAdjusting(true);
+    fireAction(
+      () =>
+        diff > 0
+          ? recordContribution(memberId, diff, "Sửa balance", idemKey)
+          : recordRefund(memberId, -diff, "Sửa balance", idemKey),
+      () => setAdjusting(false),
+      {
+        successMsg: `Đã set balance → ${formatVND(balanceDraft)}`,
+        onSuccess: () => {
+          setAdjusting(false);
+          setEditingBalanceId(null);
+          setBalanceDraft(0);
+        },
+      },
+    );
+  }
 
   function handleAdjust(memberId: number) {
     const amount = parseInt(adjustAmount, 10);
@@ -319,11 +364,22 @@ export function FundReport({ fundMembers, transactions }: Props) {
                     isOpen && tones.open,
                   )}
                 >
-                  <button
-                    type="button"
-                    onClick={() => setExpandedId(isOpen ? null : fm.memberId)}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      if (editingBalanceId === fm.memberId) return;
+                      setExpandedId(isOpen ? null : fm.memberId);
+                    }}
+                    onKeyDown={(e) => {
+                      if (editingBalanceId === fm.memberId) return;
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setExpandedId(isOpen ? null : fm.memberId);
+                      }
+                    }}
                     className={cn(
-                      "flex w-full items-center gap-4 px-3 py-2 text-left transition-colors",
+                      "flex w-full cursor-pointer items-center gap-4 px-3 py-2 text-left transition-colors",
                       tones.hover,
                     )}
                   >
@@ -336,27 +392,84 @@ export function FundReport({ fundMembers, transactions }: Props) {
                     <span className="min-w-0 flex-1 truncate text-sm font-semibold">
                       {fm.member.nickname || fm.member.name}
                     </span>
-                    <span
-                      className={cn(
-                        "min-w-24 shrink-0 text-right text-base font-bold tabular-nums",
-                        balanceColor,
-                      )}
-                    >
-                      {formatK(fm.balance.balance)}
-                    </span>
-                    <StatusBadge
-                      variant={status.variant}
-                      className="w-[110px] shrink-0 justify-center"
-                    >
-                      {status.label}
-                    </StatusBadge>
-                    <ChevronDown
-                      className={cn(
-                        "text-muted-foreground h-4 w-4 shrink-0 transition-transform",
-                        isOpen && "rotate-180",
-                      )}
-                    />
-                  </button>
+                    {editingBalanceId === fm.memberId ? (
+                      <div
+                        className="flex items-center gap-1.5"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <NumberStepper
+                          value={balanceDraft}
+                          onChange={setBalanceDraft}
+                          step={1_000}
+                          min={0}
+                          max={100_000_000}
+                          disabled={adjusting}
+                          className="w-44"
+                        />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            submitBalanceEdit(fm.memberId, fm.balance.balance);
+                          }}
+                          disabled={adjusting}
+                          aria-label="Lưu balance"
+                          title="Lưu"
+                          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-blue-500 bg-blue-500 text-white transition-colors hover:bg-blue-600 disabled:opacity-60"
+                        >
+                          <Check className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            cancelEditBalance();
+                          }}
+                          disabled={adjusting}
+                          aria-label="Hủy"
+                          title="Hủy"
+                          className="border-border text-muted-foreground hover:bg-muted/50 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors disabled:opacity-60"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <span
+                          className={cn(
+                            "min-w-24 shrink-0 text-right text-base font-bold tabular-nums",
+                            balanceColor,
+                          )}
+                        >
+                          {formatK(fm.balance.balance)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            startEditBalance(fm.memberId, fm.balance.balance);
+                          }}
+                          aria-label="Sửa balance"
+                          title="Sửa balance"
+                          className="border-border text-muted-foreground hover:bg-muted/50 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border transition-colors"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <StatusBadge
+                          variant={status.variant}
+                          className="w-[110px] shrink-0 justify-center"
+                        >
+                          {status.label}
+                        </StatusBadge>
+                        <ChevronDown
+                          className={cn(
+                            "text-muted-foreground h-4 w-4 shrink-0 transition-transform",
+                            isOpen && "rotate-180",
+                          )}
+                        />
+                      </>
+                    )}
+                  </div>
 
                   <AnimatePresence initial={false}>
                     {isOpen && (
