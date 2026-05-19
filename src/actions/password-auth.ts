@@ -167,6 +167,7 @@ export async function loginWithPassword(input: {
 export async function setPassword(input: {
   currentPassword?: string;
   newPassword: string;
+  email?: string;
 }) {
   const user = await getUserFromCookie();
   if (!user) return { error: "Chưa đăng nhập" };
@@ -192,20 +193,34 @@ export async function setPassword(input: {
     if (!ok) return { error: "Mật khẩu hiện tại không đúng" };
   }
 
-  // Nếu chưa có email (user OAuth chỉ qua FB không cho email), bắt buộc add
-  // email trước khi set password. Nhưng FB scope public_profile mặc định
-  // không cho email → user phải nhập manually. Trường hợp này ít gặp.
+  // Nếu chưa có email — cho user nhập kèm trong form. Validate + check unique
+  // trước khi save. Email là UNIQUE column.
+  let emailToSave: string | null = null;
   if (!member.email) {
-    return {
-      error:
-        "Cần email để dùng password login. Vui lòng cập nhật email trong hồ sơ trước.",
-    };
+    const raw =
+      typeof input.email === "string"
+        ? normalizeEmail(input.email).slice(0, 200)
+        : "";
+    if (!raw || !isEmail(raw)) {
+      return { error: "Cần nhập email hợp lệ để đặt mật khẩu" };
+    }
+    const existing = await db.query.members.findFirst({
+      where: eq(members.email, raw),
+      columns: { id: true },
+    });
+    if (existing && existing.id !== member.id) {
+      return { error: "Email này đã được dùng bởi tài khoản khác" };
+    }
+    emailToSave = raw;
   }
 
   const hash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
   await db
     .update(members)
-    .set({ passwordHash: hash })
+    .set({
+      passwordHash: hash,
+      ...(emailToSave ? { email: emailToSave } : {}),
+    })
     .where(eq(members.id, member.id));
 
   revalidatePath("/me");

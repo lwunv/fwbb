@@ -23,6 +23,7 @@ interface Props {
  */
 export function SetPasswordSection({ hasPassword, hasEmail }: Props) {
   const [expanded, setExpanded] = useState(false);
+  const [email, setEmail] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -30,6 +31,10 @@ export function SetPasswordSection({ hasPassword, hasEmail }: Props) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!hasEmail && !email.trim()) {
+      toast.error("Vui lòng nhập email");
+      return;
+    }
     if (newPassword.length < 8) {
       toast.error("Mật khẩu phải từ 8 ký tự trở lên");
       return;
@@ -44,6 +49,7 @@ export function SetPasswordSection({ hasPassword, hasEmail }: Props) {
         setPassword({
           currentPassword: hasPassword ? currentPassword : undefined,
           newPassword,
+          email: !hasEmail ? email.trim() : undefined,
         }),
       () => setSaving(false),
       {
@@ -53,6 +59,7 @@ export function SetPasswordSection({ hasPassword, hasEmail }: Props) {
         onSuccess: () => {
           setSaving(false);
           setExpanded(false);
+          setEmail("");
           setCurrentPassword("");
           setNewPassword("");
           setConfirmPassword("");
@@ -87,10 +94,17 @@ export function SetPasswordSection({ hasPassword, hasEmail }: Props) {
         {expanded && (
           <form onSubmit={handleSubmit} className="mt-4 space-y-2.5">
             {!hasEmail && (
-              <p className="text-destructive rounded-md bg-red-50 p-2 text-xs dark:bg-red-950/30">
-                Tài khoản của bạn chưa có email. Cập nhật email trong hồ sơ
-                trước khi đặt mật khẩu.
-              </p>
+              <Input
+                type="email"
+                inputMode="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email"
+                maxLength={200}
+                autoComplete="email"
+                disabled={saving}
+                required
+              />
             )}
             {hasPassword && (
               <Input
@@ -99,7 +113,7 @@ export function SetPasswordSection({ hasPassword, hasEmail }: Props) {
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder="Mật khẩu hiện tại"
                 autoComplete="current-password"
-                disabled={saving || !hasEmail}
+                disabled={saving}
                 required
               />
             )}
@@ -115,7 +129,7 @@ export function SetPasswordSection({ hasPassword, hasEmail }: Props) {
               autoComplete="new-password"
               minLength={8}
               maxLength={128}
-              disabled={saving || !hasEmail}
+              disabled={saving}
               required
             />
             <Input
@@ -126,7 +140,7 @@ export function SetPasswordSection({ hasPassword, hasEmail }: Props) {
               autoComplete="new-password"
               minLength={8}
               maxLength={128}
-              disabled={saving || !hasEmail}
+              disabled={saving}
               required
             />
             <div className="flex gap-2 pt-1">
@@ -142,7 +156,7 @@ export function SetPasswordSection({ hasPassword, hasEmail }: Props) {
               </Button>
               <Button
                 type="submit"
-                disabled={saving || !hasEmail}
+                disabled={saving}
                 className="flex-1"
                 size="sm"
               >
