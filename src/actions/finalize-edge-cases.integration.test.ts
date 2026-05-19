@@ -132,7 +132,7 @@ describe("finalizeSession edge cases (integration)", () => {
     expect(debts.every((d) => (d.playAmount ?? 0) > 0)).toBe(true);
   });
 
-  it("admin has debt row but fund_deduction=0 (admin doesn't owe themselves)", async () => {
+  it("admin has fund_deduction = own play+dine (not totalAmount with guests)", async () => {
     const { adminMemberId } = await seedAdminWithMember();
     const p1 = await seedMember("P1");
     const sId = await seedSession();
@@ -160,7 +160,6 @@ describe("finalizeSession edge cases (integration)", () => {
       0,
     );
 
-    // Admin debt row exists
     const adminDebt = await testDb.query.sessionDebts.findFirst({
       where: and(
         eq(sessionDebts.sessionId, sId),
@@ -170,7 +169,8 @@ describe("finalizeSession edge cases (integration)", () => {
     expect(adminDebt).toBeTruthy();
     expect(adminDebt!.totalAmount).toBeGreaterThan(0);
 
-    // BUT no fund_deduction for admin (admin doesn't deduct from themselves)
+    // Admin charged like normal member for own play+dine (new design).
+    // Admin guests handled separately — see admin-guest test.
     const adminDeduction = await testDb.query.financialTransactions.findFirst({
       where: and(
         eq(financialTransactions.sessionId, sId),
@@ -178,9 +178,11 @@ describe("finalizeSession edge cases (integration)", () => {
         eq(financialTransactions.type, "fund_deduction"),
       ),
     });
-    expect(adminDeduction).toBeFalsy();
+    expect(adminDeduction).toBeTruthy();
+    expect(adminDeduction!.amount).toBe(
+      adminDebt!.playAmount! + adminDebt!.dineAmount!,
+    );
 
-    // Non-admin DOES get deduction
     const p1Deduction = await testDb.query.financialTransactions.findFirst({
       where: and(
         eq(financialTransactions.sessionId, sId),
@@ -264,7 +266,7 @@ describe("finalizeSession edge cases (integration)", () => {
     expect(dedSum).toBe(ctbSum);
   });
 
-  it("all-admin session (only admin attended) — admin debt row, no fund_deductions at all", async () => {
+  it("all-admin session (only admin attended) — admin debt + fund_deduction for own play", async () => {
     const { adminMemberId } = await seedAdminWithMember();
     const sId = await seedSession();
 
@@ -290,14 +292,18 @@ describe("finalizeSession edge cases (integration)", () => {
     expect(debts).toHaveLength(1);
     expect(debts[0].memberId).toBe(adminMemberId);
 
-    // Zero fund_deduction rows (admin doesn't deduct from themselves)
+    // Admin charged for own play (new design). Amount = playAmount + dineAmount.
     const deductions = await testDb.query.financialTransactions.findMany({
       where: and(
         eq(financialTransactions.sessionId, sId),
         eq(financialTransactions.type, "fund_deduction"),
       ),
     });
-    expect(deductions).toHaveLength(0);
+    expect(deductions).toHaveLength(1);
+    expect(deductions[0].memberId).toBe(adminMemberId);
+    expect(deductions[0].amount).toBe(
+      debts[0].playAmount! + debts[0].dineAmount!,
+    );
   });
 
   it("dining-only session (court=0, diningBill>0) — only dineAmount on debts", async () => {

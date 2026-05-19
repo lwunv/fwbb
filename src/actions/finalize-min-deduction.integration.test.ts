@@ -217,8 +217,8 @@ describe("finalizeSession — min-deduction penalty surplus → admin fund", () 
     // Bob and Carol deducted original share
     expect(dedByMember.get(bobId)?.amount).toBe(perHead);
     expect(dedByMember.get(carolId)?.amount).toBe(perHead);
-    // Admin: no deduction row
-    expect(dedByMember.get(adminMemberId)).toBeUndefined();
+    // Admin: charged own play (new design)
+    expect(dedByMember.get(adminMemberId)?.amount).toBe(perHead);
 
     // --- penalty fund_contribution for admin ---
     const penaltyContribs = await testDb.query.financialTransactions.findMany({
@@ -235,18 +235,14 @@ describe("finalizeSession — min-deduction penalty surplus → admin fund", () 
       /^min-deduction-penalty-/,
     );
 
-    // --- sum check: Σ fund_deduction − Σ admin penalty contribution = session cost ---
-    // Session cost (total billed to non-admin members) = perHead * 3 members = 69K.
-    // But admin is a player too; the real court cost was 90K spread over 4 heads.
-    // Members pay: Alice 60K + Bob 23K + Carol 23K = 106K gross deductions.
-    // Admin penalty contribution: 37K.
-    // Net from members: 106K - 37K = 69K, which equals the 3 non-admin shares (3×23K).
+    // --- sum check: Σ fund_deduction − Σ admin penalty contribution = total court cost rounded up ---
+    // Admin now charged like normal: 4 deductions (60K + 23K + 23K + 23K = 129K).
+    // Penalty: 37K. Net: 129K − 37K = 92K = 4 × perHead (= courtPrice 90K + 2K round-up bonus).
     const totalDeducted = deductions.reduce((s, d) => s + d.amount, 0);
     const totalPenalty = penaltyContribs.reduce((s, d) => s + d.amount, 0);
-    // totalDeducted = 60K + 23K + 23K = 106K; totalPenalty = 37K; net = 69K = 3 * perHead
-    expect(totalDeducted - totalPenalty).toBe(3 * perHead);
+    expect(totalDeducted - totalPenalty).toBe(4 * perHead);
 
-    // --- admin balance check: penalty credited to admin ---
+    // --- admin balance check: penalty credited − own play deducted ---
     const adminTxs = await testDb.query.financialTransactions.findMany({
       where: eq(financialTransactions.memberId, adminMemberId),
     });
@@ -254,7 +250,7 @@ describe("finalizeSession — min-deduction penalty surplus → admin fund", () 
       adminMemberId,
       adminTxs,
     ).balance;
-    expect(adminBalance).toBe(expectedPenalty);
+    expect(adminBalance).toBe(expectedPenalty - perHead);
 
     // --- Alice balance after finalize: deducted full floored amount ---
     const aliceTxs = await testDb.query.financialTransactions.findMany({

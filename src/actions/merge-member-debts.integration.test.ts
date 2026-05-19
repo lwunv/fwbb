@@ -273,16 +273,17 @@ describe("F2 — mergeMember conflict reversal prevents double-deduct", () => {
 
     // perHead = 20K; source floored 60K → penalty 40K to admin.
     // target's deduction = 20K (no floor, balance OK).
-    expect(await getBalance(adminMemberId)).toBe(40_000);
+    // Admin (new design): own play deducted 20K. Admin = 40K - 20K = 20K.
+    expect(await getBalance(adminMemberId)).toBe(20_000);
     expect(await getBalance(sourceId)).toBe(-60_000);
     expect(await getBalance(targetId)).toBe(80_000);
 
     const mergeR = await mergeMember(sourceId, targetId);
     expect("error" in mergeR).toBe(false);
 
-    // Admin's penalty for source's debt was reversed → admin balance = 0
-    // (only target's debt remains, no floor on target).
-    expect(await getBalance(adminMemberId)).toBe(0);
+    // After merge: source's penalty reversed (admin loses 40K).
+    // Admin's own play deduction stays → -20K.
+    expect(await getBalance(adminMemberId)).toBe(-20_000);
 
     // Target balance: started 80K (own debt). Gains source's voided
     // deduction-reversal pair (nets 0) + nothing else (source had no

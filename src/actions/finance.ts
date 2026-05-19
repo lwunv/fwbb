@@ -270,7 +270,15 @@ export async function finalizeSession(
       // unpaid rows.
       for (const debt of memberDebts) {
         const isAdminDebt = debt.memberId === adminMemberId;
-        const fundDeductionAmount = isAdminDebt ? 0 : debt.totalAmount;
+        // Admin trừ quỹ như member bình thường cho OWN play+dine.
+        // Khách của admin (admin guests) KHÔNG tính vào debt admin — quỹ chung
+        // gánh (hiển thị thành "lỗ" trên session card, đúng design: admin
+        // dùng quỹ đãi khách). Khách CỦA admin với tư cách cá nhân (future)
+        // sẽ là 1 attendee invitedBy=admin nhưng KHÔNG count trong
+        // adminGuestPlayCount → tự động dùng nhánh else.
+        const fundDeductionAmount = isAdminDebt
+          ? debt.playAmount + debt.dineAmount
+          : debt.totalAmount;
 
         const [insertedDebt] = await tx
           .insert(sessionDebts)

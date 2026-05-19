@@ -174,21 +174,19 @@ describe("finalizeSessionAuto (integration)", () => {
     expect(att).toHaveLength(3);
     expect(att.every((a) => a.attendsPlay && !a.attendsDine)).toBe(true);
 
-    // 3 debts (admin's = 0 fund_deduction but still has a debt row)
+    // 3 debts + 3 fund_deductions (admin now charged for own play, new design)
     const debts = await testDb.query.sessionDebts.findMany({
       where: eq(sessionDebts.sessionId, sId),
     });
     expect(debts).toHaveLength(3);
 
-    // fund_deductions for non-admin only
     const ded = await testDb.query.financialTransactions.findMany({
       where: and(
         eq(financialTransactions.sessionId, sId),
         eq(financialTransactions.type, "fund_deduction"),
       ),
     });
-    expect(ded).toHaveLength(2);
-    expect(ded.every((d) => d.memberId !== adminMemberId)).toBe(true);
+    expect(ded).toHaveLength(3);
     expect(ded.every((d) => d.amount > 0)).toBe(true);
   });
 

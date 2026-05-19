@@ -278,21 +278,22 @@ describe("F1 — undo → re-confirm cycle (confirmPaymentByAdmin)", () => {
 
     const aliceDebtId = await getDebtId(s.id, aliceId);
 
-    // After finalize: Alice = -60K, Admin = +30K (penalty surplus).
+    // After finalize: Alice = -60K, Admin = +30K (penalty) − 30K (own play) = 0.
     expect(await getBalance(aliceId)).toBe(-60_000);
-    expect(await getBalance(adminMemberId)).toBe(30_000);
+    expect(await getBalance(adminMemberId)).toBe(0);
 
-    // Undo: Alice → 0, Admin → 0 (penalty reversed too).
+    // Undo: Alice → 0 (her deduction reversed), penalty contribution reversed.
+    // Admin's own play deduction stays → admin = -30K.
     const undoR = await undoPaymentByAdmin(aliceDebtId);
     expect("error" in undoR).toBe(false);
     expect(await getBalance(aliceId)).toBe(0);
-    expect(await getBalance(adminMemberId)).toBe(0);
+    expect(await getBalance(adminMemberId)).toBe(-30_000);
 
-    // Re-confirm: BOTH balances should be restored.
+    // Re-confirm: penalty re-inserted (+30K). Admin back to 0.
     const confirmR = await confirmPaymentByAdmin(aliceDebtId);
     expect("error" in confirmR).toBe(false);
     expect(await getBalance(aliceId)).toBe(-60_000);
-    expect(await getBalance(adminMemberId)).toBe(30_000);
+    expect(await getBalance(adminMemberId)).toBe(0);
   });
 
   it("multi-cycle undo↔confirm stays balance-correct", async () => {
