@@ -38,7 +38,7 @@ export default async function MePage() {
     : null;
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-lg space-y-4">
       <MeClient
         key={`${member.id}-${member.name}-${member.nickname ?? ""}-${member.avatarKey ?? ""}`}
         memberId={member.id}
