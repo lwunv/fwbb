@@ -40,6 +40,7 @@ export async function createCourt(formData: FormData) {
     mapLink: parsed.data.mapLink || null,
   });
   revalidatePath("/admin/courts");
+  revalidatePath("/admin/court-rent");
   return { success: true };
 }
 
@@ -65,6 +66,7 @@ export async function updateCourt(id: number, formData: FormData) {
     })
     .where(eq(courts.id, id));
   revalidatePath("/admin/courts");
+  revalidatePath("/admin/court-rent");
   return { success: true };
 }
 
@@ -79,6 +81,7 @@ export async function toggleCourtActive(id: number) {
     .set({ isActive: !court.isActive })
     .where(eq(courts.id, id));
   revalidatePath("/admin/courts");
+  revalidatePath("/admin/court-rent");
   return { success: true };
 }
 
@@ -106,5 +109,6 @@ export async function deleteCourt(id: number) {
 
   await db.delete(courts).where(eq(courts.id, id));
   revalidatePath("/admin/courts");
+  revalidatePath("/admin/court-rent");
   return { success: true };
 }

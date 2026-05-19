@@ -154,9 +154,11 @@ export function CourtRentClient({
   // Payment form state
   const [formMonth, setFormMonth] = useState(new Date().getMonth() + 1);
   const [formYear, setFormYear] = useState(new Date().getFullYear());
+  // Default 2.4M ≈ 12 buổi × 200K (gói tháng cố định cho sân T2/T4/T6).
   const [formAmount, setFormAmount] = useState("2400000");
   const [formCourtId, setFormCourtId] = useState<string>("");
   const [formNote, setFormNote] = useState("");
+  const [formBucket, setFormBucket] = useState<"fixed" | "extra">("fixed");
 
   // Payments list for selected month
   const [payments, setPayments] = useState<PaymentRow[]>([]);
@@ -256,6 +258,7 @@ export function CourtRentClient({
           month: submittedMonth,
           amount,
           courtId: courtIdNum,
+          bucket: formBucket,
           note: note || undefined,
           idempotencyKey,
         }),
@@ -410,6 +413,24 @@ export function CourtRentClient({
         />
       </div>
 
+      {/* Row 2 — tách Cố định vs Phát sinh trong tổng expectedTotal cả năm.
+          Cố định = monthlyPrice × số buổi T2/T4/T6 ở default court (chỉ sân 1).
+          Phát sinh = sân 2+ + buổi off-schedule. */}
+      <div className="grid grid-cols-2 gap-2">
+        <StatTile
+          icon={TrendingUp}
+          label={t("yearFixedRent")}
+          value={formatK(report.yearTotal.fixedRent)}
+          tone="primary"
+        />
+        <StatTile
+          icon={TrendingUp}
+          label={t("yearExtraRent")}
+          value={formatK(report.yearTotal.extraRent)}
+          tone="amber"
+        />
+      </div>
+
       {/* Month tabs */}
       <div className="-mx-1 overflow-x-auto px-1">
         <div className="bg-muted inline-flex min-w-full gap-1 rounded-lg p-1">
@@ -455,14 +476,29 @@ export function CourtRentClient({
                 </p>
                 <p className="text-base font-bold tabular-nums">
                   {monthData.sessionCount}
-                  {monthData.extraCourtSessions > 0 && (
-                    <span className="text-muted-foreground ml-1 text-xs font-normal">
-                      {t("extraCourtSessions", {
-                        count: monthData.extraCourtSessions,
-                      })}
-                    </span>
-                  )}
                 </p>
+                {(monthData.extraCourtSessions > 0 ||
+                  monthData.offScheduleSessions > 0) && (
+                  <p className="text-muted-foreground mt-0.5 text-[10px] leading-tight">
+                    {monthData.extraCourtSessions > 0 && (
+                      <span>
+                        {t("extraCourtSessions", {
+                          count: monthData.extraCourtSessions,
+                        })}
+                      </span>
+                    )}
+                    {monthData.extraCourtSessions > 0 &&
+                      monthData.offScheduleSessions > 0 &&
+                      " "}
+                    {monthData.offScheduleSessions > 0 && (
+                      <span>
+                        {t("offScheduleSessions", {
+                          count: monthData.offScheduleSessions,
+                        })}
+                      </span>
+                    )}
+                  </p>
+                )}
               </div>
               <div>
                 <p className="text-muted-foreground text-xs">
@@ -471,6 +507,11 @@ export function CourtRentClient({
                 <p className="text-primary text-base font-bold tabular-nums">
                   {formatK(monthData.expectedTotal)}
                 </p>
+                <p className="text-muted-foreground mt-0.5 text-[10px] leading-tight">
+                  {t("monthFixedRent")} {formatK(monthData.fixedRentTotal)}
+                  {" · "}
+                  {t("monthExtraRent")} {formatK(monthData.extraRentTotal)}
+                </p>
               </div>
               <div>
                 <p className="text-muted-foreground text-xs">
@@ -478,6 +519,11 @@ export function CourtRentClient({
                 </p>
                 <p className="text-base font-bold text-green-600 tabular-nums dark:text-green-400">
                   {formatK(monthData.paidTotal)}
+                </p>
+                <p className="text-muted-foreground mt-0.5 text-[10px] leading-tight">
+                  {t("monthFixedPaid")} {formatK(monthData.paidFixedTotal)}
+                  {" · "}
+                  {t("monthExtraPaid")} {formatK(monthData.paidExtraTotal)}
                 </p>
               </div>
               {monthData.remaining < 0 ? (
@@ -504,6 +550,17 @@ export function CourtRentClient({
                       >
                         +{formatK(-monthData.remaining)}
                       </p>
+                      <p className="text-muted-foreground mt-0.5 text-[10px] leading-tight">
+                        {t("monthFixedRemaining")}{" "}
+                        {monthData.remainingFixed < 0
+                          ? `+${formatK(-monthData.remainingFixed)}`
+                          : formatK(monthData.remainingFixed)}
+                        {" · "}
+                        {t("monthExtraRemaining")}{" "}
+                        {monthData.remainingExtra < 0
+                          ? `+${formatK(-monthData.remainingExtra)}`
+                          : formatK(monthData.remainingExtra)}
+                      </p>
                     </div>
                   );
                 })()
@@ -521,6 +578,17 @@ export function CourtRentClient({
                     )}
                   >
                     {formatK(monthData.remaining)}
+                  </p>
+                  <p className="text-muted-foreground mt-0.5 text-[10px] leading-tight">
+                    {t("monthFixedRemaining")}{" "}
+                    {monthData.remainingFixed < 0
+                      ? `+${formatK(-monthData.remainingFixed)}`
+                      : formatK(monthData.remainingFixed)}
+                    {" · "}
+                    {t("monthExtraRemaining")}{" "}
+                    {monthData.remainingExtra < 0
+                      ? `+${formatK(-monthData.remainingExtra)}`
+                      : formatK(monthData.remainingExtra)}
                   </p>
                 </div>
               )}
@@ -574,6 +642,34 @@ export function CourtRentClient({
             <h3 className="text-base font-semibold">
               {t("recordPaymentTitle")}
             </h3>
+          </div>
+          {/* Bucket toggle — chọn loại payment (cố định / phát sinh). Đầu
+              form để admin chủ động set trước khi nhập số tiền. */}
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              type="button"
+              onClick={() => setFormBucket("fixed")}
+              className={cn(
+                "inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border-2 text-sm font-semibold transition-colors",
+                formBucket === "fixed"
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border text-muted-foreground hover:bg-muted/50",
+              )}
+            >
+              {t("bucketFixedLabel")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setFormBucket("extra")}
+              className={cn(
+                "inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border-2 text-sm font-semibold transition-colors",
+                formBucket === "extra"
+                  ? "border-amber-500 bg-amber-500 text-white"
+                  : "border-border text-muted-foreground hover:bg-muted/50",
+              )}
+            >
+              {t("bucketExtraLabel")}
+            </button>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <div>

@@ -70,24 +70,24 @@ describe("court-rent actions (integration)", () => {
     it("aggregates expected/paid/remaining by month for a year", async () => {
       const courtId = await seedCourt();
 
-      // April: 2 active sessions (200k + 400k), 1 cancelled with passRevenue=150k
+      // August: 2 active sessions (200k + 400k), 1 cancelled with passRevenue=150k
       await testDb.insert(sessions).values([
         {
-          date: "2026-04-06",
+          date: "2026-08-06",
           status: "completed",
           courtId,
           courtPrice: 200_000,
           courtQuantity: 1,
         },
         {
-          date: "2026-04-13",
+          date: "2026-08-13",
           status: "confirmed",
           courtId,
           courtPrice: 400_000,
           courtQuantity: 2,
         },
         {
-          date: "2026-04-20",
+          date: "2026-08-20",
           status: "cancelled",
           courtId,
           courtPrice: 200_000,
@@ -95,45 +95,45 @@ describe("court-rent actions (integration)", () => {
         },
       ]);
 
-      // March: 1 active 200k
+      // July: 1 active 200k
       await testDb.insert(sessions).values({
-        date: "2026-03-09",
+        date: "2026-07-09",
         status: "completed",
         courtId,
         courtPrice: 200_000,
       });
 
-      // Payment for April: 500k
+      // Payment for August: 500k
       await testDb.insert(financialTransactions).values({
         type: "court_rent_payment",
         direction: "out",
         amount: 500_000,
-        metadataJson: JSON.stringify({ targetMonth: "2026-04", courtId }),
+        metadataJson: JSON.stringify({ targetMonth: "2026-08", courtId }),
       });
-      // Payment for March: 200k full
+      // Payment for July: 200k full
       await testDb.insert(financialTransactions).values({
         type: "court_rent_payment",
         direction: "out",
         amount: 200_000,
-        metadataJson: JSON.stringify({ targetMonth: "2026-03", courtId }),
+        metadataJson: JSON.stringify({ targetMonth: "2026-07", courtId }),
       });
 
       const report = await getCourtRentReport(2026);
       expect(report.year).toBe(2026);
       expect(report.months).toHaveLength(12);
 
-      const april = report.months.find((m) => m.month === 4)!;
-      expect(april.sessionCount).toBe(3);
-      expect(april.extraCourtSessions).toBe(1);
-      expect(april.expectedTotal).toBe(600_000); // 200 + 400 (cancelled excluded)
-      expect(april.passRevenue).toBe(150_000);
-      expect(april.paidTotal).toBe(500_000);
-      expect(april.remaining).toBe(100_000);
+      const august = report.months.find((m) => m.month === 8)!;
+      expect(august.sessionCount).toBe(3);
+      expect(august.extraCourtSessions).toBe(1);
+      expect(august.expectedTotal).toBe(600_000); // 200 + 400 (cancelled excluded)
+      expect(august.passRevenue).toBe(150_000);
+      expect(august.paidTotal).toBe(500_000);
+      expect(august.remaining).toBe(100_000);
 
-      const march = report.months.find((m) => m.month === 3)!;
-      expect(march.expectedTotal).toBe(200_000);
-      expect(march.paidTotal).toBe(200_000);
-      expect(march.remaining).toBe(0);
+      const july = report.months.find((m) => m.month === 7)!;
+      expect(july.expectedTotal).toBe(200_000);
+      expect(july.paidTotal).toBe(200_000);
+      expect(july.remaining).toBe(0);
 
       // Tháng không có session vẫn empty
       const may = report.months.find((m) => m.month === 5)!;
@@ -151,7 +151,7 @@ describe("court-rent actions (integration)", () => {
     it("ignores payments from other years and malformed metadata", async () => {
       const courtId = await seedCourt();
       await testDb.insert(sessions).values({
-        date: "2026-01-05",
+        date: "2026-05-05",
         status: "completed",
         courtId,
         courtPrice: 100_000,
@@ -198,6 +198,8 @@ describe("court-rent actions (integration)", () => {
       expect(r.months).toEqual([]);
       expect(r.yearTotal).toEqual({
         expected: 0,
+        fixedRent: 0,
+        extraRent: 0,
         paid: 0,
         passRevenue: 0,
         remaining: 0,
@@ -207,7 +209,7 @@ describe("court-rent actions (integration)", () => {
     it("returns negative remaining when overpayment (UI shows 'Trả thừa')", async () => {
       const courtId = await seedCourt();
       await testDb.insert(sessions).values({
-        date: "2026-02-01",
+        date: "2026-06-01",
         status: "completed",
         courtId,
         courtPrice: 200_000,
@@ -216,13 +218,13 @@ describe("court-rent actions (integration)", () => {
         type: "court_rent_payment",
         direction: "out",
         amount: 500_000, // overpaid: 500k > expected 200k
-        metadataJson: JSON.stringify({ targetMonth: "2026-02" }),
+        metadataJson: JSON.stringify({ targetMonth: "2026-06" }),
       });
       const r = await getCourtRentReport(2026);
-      const feb = r.months.find((m) => m.month === 2)!;
+      const jun = r.months.find((m) => m.month === 6)!;
       // Trả thừa 300k → remaining = -300k. UI render badge "Trả thừa: +300k"
       // thay vì clamp về 0 (lặng lẽ giấu lỗi).
-      expect(feb.remaining).toBe(-300_000);
+      expect(jun.remaining).toBe(-300_000);
       expect(r.yearTotal.remaining).toBe(-300_000);
     });
   });

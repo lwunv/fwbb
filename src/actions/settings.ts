@@ -68,6 +68,7 @@ export async function setDefaultCourt(courtId: number) {
   revalidatePath("/admin/courts");
   revalidatePath("/admin/sessions");
   revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/court-rent");
   return { success: true };
 }
 
@@ -170,6 +171,7 @@ export async function setSessionDaysOfWeek(days: number[]) {
   }
   revalidatePath("/admin/dashboard");
   revalidatePath("/admin/sessions");
+  revalidatePath("/admin/court-rent");
   return { success: true };
 }
 
