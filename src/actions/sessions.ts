@@ -28,6 +28,7 @@ import {
   inArray,
 } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { computeDefaultDeadline } from "@/lib/vote-deadline";
 import {
   sendGroupMessage,
   buildNewSessionMessage,
@@ -128,6 +129,7 @@ export async function getNextSession() {
         courtId: defaultCourt?.id ?? null,
         courtPrice: defaultCourt?.pricePerSession ?? null,
         useMinDeduction: true,
+        voteDeadline: computeDefaultDeadline(candidate, "20:30"),
       })
       .returning();
     if (defaultBrand) {
@@ -195,6 +197,7 @@ export async function getAdminUpcomingSession() {
           courtId: defaultCourt?.id ?? null,
           courtPrice: defaultCourt?.pricePerSession ?? null,
           useMinDeduction: true,
+          voteDeadline: computeDefaultDeadline(today, "20:30"),
         })
         .returning();
       if (defaultBrand) {
@@ -600,6 +603,10 @@ export async function reopenSession(sessionId: number) {
         .set({
           status: "voting",
           passRevenue: null,
+          // Cancelled-session reopen: the old deadline is almost certainly in
+          // the past. Clear so admin can re-collect votes; admin can set a
+          // new deadline via setVoteDeadline if they want one.
+          voteDeadline: null,
           updatedAt: new Date().toISOString(),
         })
         .where(eq(sessions.id, sessionId));
@@ -706,6 +713,9 @@ export async function unlockSession(sessionId: number) {
         .update(sessions)
         .set({
           status: "voting",
+          // Completed-session unlock: old deadline is past. Clear so admin
+          // can re-collect votes without time pressure.
+          voteDeadline: null,
           updatedAt: new Date().toISOString(),
         })
         .where(eq(sessions.id, sessionId));
@@ -950,6 +960,7 @@ export async function createSessionManually(
       courtId: resolvedCourtId,
       courtPrice,
       useMinDeduction: true,
+      voteDeadline: computeDefaultDeadline(date, startTime || "20:30"),
     })
     .returning();
   // Pre-fill brand mặc định để admin chỉ cần đổi ống nếu cần.
