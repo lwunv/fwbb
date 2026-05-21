@@ -28,7 +28,10 @@ import {
   inArray,
 } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { computeDefaultDeadline } from "@/lib/vote-deadline";
+import {
+  computeDefaultDeadline,
+  formatLocalDeadline,
+} from "@/lib/vote-deadline";
 import {
   sendGroupMessage,
   buildNewSessionMessage,
@@ -1408,4 +1411,101 @@ export async function getSessionExemptions(
     .from(sessionMinDeductionExemptions)
     .where(eq(sessionMinDeductionExemptions.sessionId, sessionId));
   return rows.map((r) => r.memberId);
+}
+
+/**
+ * Set or clear a session's vote deadline.
+ *
+ * - `deadline = null` clears the deadline (vote stays open until status changes).
+ * - Otherwise must be `YYYY-MM-DDTHH:MM:SS` (no Z) and strictly in the future.
+ *
+ * See docs/superpowers/specs/2026-05-21-vote-deadline-design.md.
+ */
+export async function setVoteDeadline(
+  sessionId: number,
+  deadline: string | null,
+) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
+
+  if (!Number.isInteger(sessionId) || sessionId <= 0) {
+    return { error: t("invalidSessionId") };
+  }
+
+  if (deadline !== null) {
+    if (
+      typeof deadline !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(deadline)
+    ) {
+      return { error: t("invalidDeadlineFormat") };
+    }
+    const parsed = new Date(deadline);
+    if (Number.isNaN(parsed.getTime())) {
+      return { error: t("invalidDeadlineFormat") };
+    }
+    if (parsed.getTime() <= Date.now()) {
+      return { error: t("deadlineMustBeFuture") };
+    }
+  }
+
+  await db
+    .update(sessions)
+    .set({
+      voteDeadline: deadline,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(sessions.id, sessionId));
+
+  revalidatePath("/");
+  revalidatePath(`/vote/${sessionId}`);
+  revalidatePath("/admin/sessions");
+  revalidatePath(`/admin/sessions/${sessionId}`);
+  return { success: true };
+}
+
+/**
+ * Quick-extend the vote deadline by 2 or 24 hours. Pushes from `max(now,
+ * currentDeadline)` so calling it when the deadline is already in the past
+ * resets the clock from now, not from the past.
+ */
+export async function extendVoteDeadline(sessionId: number, hours: 2 | 24) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
+
+  if (!Number.isInteger(sessionId) || sessionId <= 0) {
+    return { error: t("invalidSessionId") };
+  }
+  if (hours !== 2 && hours !== 24) {
+    return { error: t("invalidExtendHours") };
+  }
+
+  const session = await db.query.sessions.findFirst({
+    where: eq(sessions.id, sessionId),
+    columns: { voteDeadline: true },
+  });
+  if (!session) return { error: t("sessionNotFound") };
+
+  const now = Date.now();
+  const currentDeadlineMs = session.voteDeadline
+    ? new Date(session.voteDeadline).getTime()
+    : now;
+  const baseMs = Math.max(now, currentDeadlineMs);
+  const newDeadline = new Date(baseMs + hours * 60 * 60 * 1000);
+  const newDeadlineStr = formatLocalDeadline(newDeadline);
+
+  await db
+    .update(sessions)
+    .set({
+      voteDeadline: newDeadlineStr,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(sessions.id, sessionId));
+
+  revalidatePath("/");
+  revalidatePath(`/vote/${sessionId}`);
+  revalidatePath("/admin/sessions");
+  revalidatePath(`/admin/sessions/${sessionId}`);
+  return { success: true, voteDeadline: newDeadlineStr };
 }
