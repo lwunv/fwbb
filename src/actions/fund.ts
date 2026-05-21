@@ -1093,7 +1093,11 @@ export interface SessionFinanceEntry {
  * Aggregates admin profit/loss per completed session.
  *
  * Chi = courtPrice + shuttleCost (via computeShuttlecockTotal, round-up) + diningBill
- * Thu = Σ sessionDebts.totalAmount
+ * Thu = Σ live fund_deductions (members' settled payments) for this session.
+ *   Reversed pairs (via `reversalOfId`) are excluded so an `undoPaymentByAdmin`
+ *   correctly removes the row from thu instead of leaving it inflated.
+ *   Previously read `sessionDebts.totalAmount` directly — that's a cached
+ *   denormalized number that drifts after any undo cycle.
  * Lãi = Thu − Chi (negative = admin subsidized the session)
  *
  * Only sessions with status="completed" are included — voting/confirmed have
@@ -1110,15 +1114,57 @@ export async function getSessionFinanceReport(): Promise<
     with: {
       court: { columns: { name: true } },
       shuttlecocks: true,
-      debts: { columns: { totalAmount: true } },
     },
     orderBy: [desc(sessions.date)],
   });
 
+  // Pull all live fund_deductions across the completed sessions in one query
+  // then bucket by sessionId. The `WHERE reversalOfId IS NULL` filter strips
+  // out reversal rows; we still need to drop ORIGINALS that have a paired
+  // reversal — done in JS using a single pass over the ledger like
+  // `computeBalanceFromTransactions` does.
+  const sessionIds = completedSessions.map((s) => s.id);
+  const ledgerRows =
+    sessionIds.length > 0
+      ? await db.query.financialTransactions.findMany({
+          where: and(
+            inArray(financialTransactions.sessionId, sessionIds),
+            eq(financialTransactions.type, "fund_deduction"),
+          ),
+          columns: {
+            id: true,
+            sessionId: true,
+            amount: true,
+            reversalOfId: true,
+          },
+        })
+      : [];
+
+  // Find originals that have been reversed away.
+  const voidedIds = new Set<number>();
+  for (const tx of ledgerRows) {
+    if (tx.reversalOfId !== null && tx.reversalOfId !== undefined) {
+      voidedIds.add(tx.reversalOfId);
+    }
+  }
+
+  const thuBySession = new Map<number, number>();
+  for (const tx of ledgerRows) {
+    // Reversal entries themselves don't count as thu (they undo, not collect).
+    if (tx.reversalOfId !== null && tx.reversalOfId !== undefined) continue;
+    // Originals that were reversed don't count either.
+    if (voidedIds.has(tx.id)) continue;
+    if (tx.sessionId === null) continue;
+    thuBySession.set(
+      tx.sessionId,
+      (thuBySession.get(tx.sessionId) ?? 0) + tx.amount,
+    );
+  }
+
   return completedSessions.map((s) => {
     const shuttleCost = computeShuttlecockTotal(s.shuttlecocks);
     const chi = (s.courtPrice ?? 0) + shuttleCost + (s.diningBill ?? 0);
-    const thu = s.debts.reduce((sum, d) => sum + d.totalAmount, 0);
+    const thu = thuBySession.get(s.id) ?? 0;
     return {
       sessionId: s.id,
       date: s.date,

@@ -313,10 +313,11 @@ export function AdminVoteManager({
     // Optimistic
     setLocalDebts((s) => ({ ...s, [memberId]: { adminConfirmed: newVal } }));
 
+    const idempotencyKey = crypto.randomUUID();
     fireAsync(
       () =>
         newVal
-          ? confirmPaymentByAdmin(debt.debtId)
+          ? confirmPaymentByAdmin(debt.debtId, idempotencyKey)
           : undoPaymentByAdmin(debt.debtId),
       () =>
         setLocalDebts((s) => ({

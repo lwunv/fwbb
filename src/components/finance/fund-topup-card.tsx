@@ -104,7 +104,7 @@ export function FundTopUpCard({ memberId, debtAmount, bare = false }: Props) {
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-semibold">Thanh toán nợ</span>
             <span
-              className={`block text-xs ${
+              className={`block text-sm ${
                 hasDebt
                   ? "text-destructive font-semibold tabular-nums"
                   : "text-muted-foreground"

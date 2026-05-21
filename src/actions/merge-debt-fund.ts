@@ -24,7 +24,26 @@ import { requireAdmin } from "@/lib/auth";
  * trigger ledger writes against any member's debts.
  */
 export async function mergeLegacyDebtsIntoFund(): Promise<
-  { migratedCount: number; totalAmount: number } | { error: string }
+  | {
+      migratedCount: number;
+      totalAmount: number;
+      /**
+       * Debts that were `memberConfirmed=true, adminConfirmed=false` before
+       * this migration. The member claimed they paid via QR/cash but no
+       * matching contribution exists. Migration marked them as deducted from
+       * the fund anyway; if the money DID arrive (in-person cash, off-ledger),
+       * admin needs to backfill a `recordContribution` for these members.
+       * Surfaced here so the UI can show a reconciliation queue instead of
+       * silently double-charging.
+       */
+      needsManualBackfill: Array<{
+        debtId: number;
+        memberId: number;
+        sessionId: number;
+        amount: number;
+      }>;
+    }
+  | { error: string }
 > {
   const auth = await requireAdmin();
   if ("error" in auth) return { error: auth.error };
@@ -43,68 +62,6 @@ export async function mergeLegacyDebtsIntoFund(): Promise<
     },
   });
 
-  if (unpaid.length === 0) return { migratedCount: 0, totalAmount: 0 };
-
-  let migratedCount = 0;
-  let totalAmount = 0;
-  const now = new Date().toISOString();
-
-  for (const debt of unpaid) {
-    if (debt.totalAmount <= 0) continue;
-
-    await db.transaction(async (tx) => {
-      await tx
-        .insert(fundMembers)
-        .values({ memberId: debt.memberId, isActive: true, joinedAt: now })
-        .onConflictDoNothing();
-
-      const sessionDate = (
-        await tx.query.sessions.findFirst({
-          where: eq(sessions.id, debt.sessionId),
-          columns: { date: true },
-        })
-      )?.date;
-
-      const r = await recordFinancialTransaction(
-        {
-          type: "fund_deduction",
-          direction: "out",
-          amount: debt.totalAmount,
-          memberId: debt.memberId,
-          sessionId: debt.sessionId,
-          debtId: debt.id,
-          description: `Chuyển công nợ buổi ${sessionDate ?? "?"} sang quỹ`,
-          metadata: { migratedFromDebt: true },
-          // Natural key per debt — if the loop crashes mid-way and is
-          // retried (page reload), the second pass re-fetches the same
-          // debts (still memberConfirmed=false until the UPDATE below
-          // commits). Without this key, a retry between the insert and
-          // the flag-flip would double-deduct the member's fund.
-          idempotencyKey: `merge-legacy-debt-${debt.id}`,
-        },
-        tx,
-      );
-      if ("error" in r) throw new Error(r.error);
-
-      await tx
-        .update(sessionDebts)
-        .set({
-          memberConfirmed: true,
-          memberConfirmedAt: now,
-          adminConfirmed: true,
-          adminConfirmedAt: now,
-        })
-        .where(eq(sessionDebts.id, debt.id));
-    });
-
-    migratedCount++;
-    totalAmount += debt.totalAmount;
-  }
-
-  // Member-confirmed-but-not-admin-confirmed debts are also collapsed: the
-  // member said they paid via QR/cash, but the money never actually landed in
-  // the fund. After merge, those become fund_deduction with metadata flag so
-  // admin can manually backfill a contribution if money did arrive.
   const memberClaimed = await db.query.sessionDebts.findMany({
     where: and(
       eq(sessionDebts.memberConfirmed, true),
@@ -118,44 +75,134 @@ export async function mergeLegacyDebtsIntoFund(): Promise<
     },
   });
 
-  for (const debt of memberClaimed) {
-    if (debt.totalAmount <= 0) continue;
-    await db.transaction(async (tx) => {
-      await tx
-        .insert(fundMembers)
-        .values({ memberId: debt.memberId, isActive: true, joinedAt: now })
-        .onConflictDoNothing();
-
-      const r = await recordFinancialTransaction(
-        {
-          type: "fund_deduction",
-          direction: "out",
-          amount: debt.totalAmount,
-          memberId: debt.memberId,
-          sessionId: debt.sessionId,
-          debtId: debt.id,
-          description: `Chuyển công nợ buổi (chờ admin xác nhận) sang quỹ`,
-          metadata: { migratedFromDebt: true, wasMemberClaimed: true },
-          // Same idempotency rationale as the first loop: prevents
-          // double-deduct on retry.
-          idempotencyKey: `merge-legacy-claim-${debt.id}`,
-        },
-        tx,
-      );
-      if ("error" in r) throw new Error(r.error);
-
-      await tx
-        .update(sessionDebts)
-        .set({
-          adminConfirmed: true,
-          adminConfirmedAt: now,
-        })
-        .where(eq(sessionDebts.id, debt.id));
-    });
-
-    migratedCount++;
-    totalAmount += debt.totalAmount;
+  if (unpaid.length === 0 && memberClaimed.length === 0) {
+    return { migratedCount: 0, totalAmount: 0, needsManualBackfill: [] };
   }
 
-  return { migratedCount, totalAmount };
+  const now = new Date().toISOString();
+  const needsManualBackfill: Array<{
+    debtId: number;
+    memberId: number;
+    sessionId: number;
+    amount: number;
+  }> = [];
+
+  // Wrap the entire migration in a single transaction. Previously each debt
+  // ran in its own tx — if iteration N succeeded but N+1 failed, the system
+  // was left half-migrated until a manual retry. With one tx, the migration
+  // is all-or-nothing; partial failures roll back to the pre-migration
+  // state so admin can investigate without a half-broken ledger.
+  let migratedCount = 0;
+  let totalAmount = 0;
+
+  try {
+    await db.transaction(async (tx) => {
+      for (const debt of unpaid) {
+        if (debt.totalAmount <= 0) continue;
+
+        await tx
+          .insert(fundMembers)
+          .values({ memberId: debt.memberId, isActive: true, joinedAt: now })
+          .onConflictDoNothing();
+
+        const sessionDate = (
+          await tx.query.sessions.findFirst({
+            where: eq(sessions.id, debt.sessionId),
+            columns: { date: true },
+          })
+        )?.date;
+
+        const r = await recordFinancialTransaction(
+          {
+            type: "fund_deduction",
+            direction: "out",
+            amount: debt.totalAmount,
+            memberId: debt.memberId,
+            sessionId: debt.sessionId,
+            debtId: debt.id,
+            description: `Chuyển công nợ buổi ${sessionDate ?? "?"} sang quỹ`,
+            metadata: { migratedFromDebt: true },
+            idempotencyKey: `merge-legacy-debt-${debt.id}`,
+          },
+          tx,
+        );
+        if ("error" in r) throw new Error(r.error);
+
+        await tx
+          .update(sessionDebts)
+          .set({
+            memberConfirmed: true,
+            memberConfirmedAt: now,
+            adminConfirmed: true,
+            adminConfirmedAt: now,
+          })
+          .where(eq(sessionDebts.id, debt.id));
+
+        migratedCount++;
+        totalAmount += debt.totalAmount;
+      }
+
+      // Member-confirmed-but-not-admin-confirmed debts: member said they
+      // paid but no matching contribution exists. Migration deducts from
+      // fund (so balance reflects truth-as-recorded), but the debt is
+      // surfaced via `needsManualBackfill` so admin can verify off-ledger
+      // and credit a contribution if needed. Without surfacing, member
+      // pays twice.
+      for (const debt of memberClaimed) {
+        if (debt.totalAmount <= 0) continue;
+
+        await tx
+          .insert(fundMembers)
+          .values({ memberId: debt.memberId, isActive: true, joinedAt: now })
+          .onConflictDoNothing();
+
+        const r = await recordFinancialTransaction(
+          {
+            type: "fund_deduction",
+            direction: "out",
+            amount: debt.totalAmount,
+            memberId: debt.memberId,
+            sessionId: debt.sessionId,
+            debtId: debt.id,
+            description: `Chuyển công nợ buổi (chờ admin xác nhận) sang quỹ`,
+            metadata: { migratedFromDebt: true, wasMemberClaimed: true },
+            idempotencyKey: `merge-legacy-claim-${debt.id}`,
+          },
+          tx,
+        );
+        if ("error" in r) throw new Error(r.error);
+
+        await tx
+          .update(sessionDebts)
+          .set({
+            adminConfirmed: true,
+            adminConfirmedAt: now,
+          })
+          .where(eq(sessionDebts.id, debt.id));
+
+        needsManualBackfill.push({
+          debtId: debt.id,
+          memberId: debt.memberId,
+          sessionId: debt.sessionId,
+          amount: debt.totalAmount,
+        });
+
+        migratedCount++;
+        totalAmount += debt.totalAmount;
+      }
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[mergeLegacyDebtsIntoFund] failed", { error: msg });
+    return { error: `Migration failed mid-run, rolled back: ${msg}` };
+  }
+
+  if (needsManualBackfill.length > 0) {
+    console.warn(
+      "[mergeLegacyDebtsIntoFund] member-claimed debts deducted from fund — admin must verify off-ledger payments and backfill contributions if money actually arrived",
+      { count: needsManualBackfill.length, items: needsManualBackfill },
+    );
+  }
+
+  return { migratedCount, totalAmount, needsManualBackfill };
 }

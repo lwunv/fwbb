@@ -14,7 +14,12 @@ export function formatVND(amount: number): string {
 }
 
 export function roundToThousand(amount: number): number {
-  return Math.ceil(amount / 1000) * 1000;
+  // Sign-preserving round-up-magnitude: for positive amounts behaves as before
+  // (rounds up to next 1K so admin isn't underpaid). For negative deltas
+  // (refunds, reversals) keeps the sign instead of silently flooring to 0.
+  if (amount === 0) return 0;
+  const sign = amount < 0 ? -1 : 1;
+  return sign * Math.ceil(Math.abs(amount) / 1000) * 1000;
 }
 
 /**

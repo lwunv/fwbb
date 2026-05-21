@@ -230,7 +230,7 @@ describe("F1 — undo → re-confirm cycle (confirmPaymentByAdmin)", () => {
     expect(await countLiveDeductions(aliceDebtId)).toBe(0);
 
     // Re-confirm: balance MUST be 80K again (re-deducted), not stuck at 100K.
-    const confirmR = await confirmPaymentByAdmin(aliceDebtId);
+    const confirmR = await confirmPaymentByAdmin(aliceDebtId, "cycle-1");
     expect("error" in confirmR).toBe(false);
     expect(await getBalance(aliceId)).toBe(80_000);
     // Exactly 1 live fund_deduction for Alice after re-confirm.
@@ -290,7 +290,7 @@ describe("F1 — undo → re-confirm cycle (confirmPaymentByAdmin)", () => {
     expect(await getBalance(adminMemberId)).toBe(-30_000);
 
     // Re-confirm: penalty re-inserted (+30K). Admin back to 0.
-    const confirmR = await confirmPaymentByAdmin(aliceDebtId);
+    const confirmR = await confirmPaymentByAdmin(aliceDebtId, "cycle-penalty");
     expect("error" in confirmR).toBe(false);
     expect(await getBalance(aliceId)).toBe(-60_000);
     expect(await getBalance(adminMemberId)).toBe(0);
@@ -316,7 +316,7 @@ describe("F1 — undo → re-confirm cycle (confirmPaymentByAdmin)", () => {
       expect("error" in u).toBe(false);
       expect(await getBalance(aliceId)).toBe(100_000);
 
-      const c = await confirmPaymentByAdmin(aliceDebtId);
+      const c = await confirmPaymentByAdmin(aliceDebtId, `cycle-${i}`);
       expect("error" in c).toBe(false);
       expect(await getBalance(aliceId)).toBe(80_000);
     }
@@ -338,7 +338,7 @@ describe("F1 — undo → re-confirm cycle (confirmPaymentByAdmin)", () => {
     const aliceDebtId = await getDebtId(sessionId, aliceId);
 
     // finalize already sets adminConfirmed=true, so this is a no-op.
-    const r = await confirmPaymentByAdmin(aliceDebtId);
+    const r = await confirmPaymentByAdmin(aliceDebtId, "no-op");
     expect("error" in r).toBe(false);
 
     // Still exactly 1 live deduction (the one from finalize).
@@ -372,7 +372,7 @@ describe("F1 — undo → re-confirm cycle (confirmPaymentByMember)", () => {
       memberId: aliceId,
       facebookId: "fb-alice",
     });
-    const confirmR = await confirmPaymentByMember(aliceDebtId);
+    const confirmR = await confirmPaymentByMember(aliceDebtId, "member-cycle");
     expect("error" in confirmR).toBe(false);
 
     // Balance must be re-deducted.

@@ -147,11 +147,10 @@ export function DebtCard({
               memo={t("qrMemoDebt", { id: debt.sessionId })}
             />
             <Button
-              size="sm"
               variant="default"
               onClick={() => onPayAction(debt.id)}
               disabled={actionLoading}
-              className="w-full"
+              className="min-h-11 w-full"
             >
               <CheckCircle className="mr-1 h-4 w-4" />
               {actionLabel ?? t("paid")}

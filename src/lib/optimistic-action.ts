@@ -14,24 +14,37 @@ type ActionResult = { error?: string; success?: boolean } | void;
 export function fireAction(
   action: () => Promise<ActionResult>,
   rollback?: () => void,
-  options?: { retry?: boolean; successMsg?: string; onSuccess?: () => void },
+  options?: {
+    retry?: boolean;
+    successMsg?: string;
+    onSuccess?: () => void;
+    /** Fires when the action settles unsuccessfully (after rollback + retry).
+     * Use for cleanup that must run regardless of error vs throw — e.g.
+     * clearing a `pending` UI flag without resorting to setTimeout races. */
+    onError?: () => void;
+  },
 ) {
-  const { retry = true, successMsg, onSuccess } = options ?? {};
+  const { retry = true, successMsg, onSuccess, onError } = options ?? {};
 
   const finishOk = () => {
     onSuccess?.();
     if (successMsg) toast.success(successMsg);
   };
 
-  const handleThrow = (err: unknown) => {
+  const finishErr = (msg: string) => {
     rollback?.();
+    onError?.();
+    toast.error(msg);
+  };
+
+  const handleThrow = (err: unknown) => {
     const msg =
       err instanceof Error
         ? err.message
         : typeof err === "string"
           ? err
           : "Lỗi không xác định";
-    toast.error(msg);
+    finishErr(msg);
   };
 
   action()
@@ -43,16 +56,14 @@ export function fireAction(
             .then((r2) => {
               const err2 = r2 && "error" in r2 ? r2.error : undefined;
               if (err2) {
-                rollback?.();
-                toast.error(err2);
+                finishErr(err2);
               } else {
                 finishOk();
               }
             })
             .catch(handleThrow);
         } else {
-          rollback?.();
-          toast.error(error);
+          finishErr(error);
         }
       } else {
         finishOk();

@@ -106,7 +106,13 @@ export async function changePassword(
     return { error: t("missingFields") };
   }
 
-  if (newPassword.length < 6) {
+  // Unified password policy: min 8 chars (was 6 — too weak), max 72 bytes
+  // (bcrypt silently truncates past byte 72 → user thinks they have a longer
+  // password than what is actually hashed).
+  if (newPassword.length < 8) {
+    return { error: t("newPasswordTooShort") };
+  }
+  if (Buffer.byteLength(newPassword, "utf8") > 72) {
     return { error: t("newPasswordTooShort") };
   }
 

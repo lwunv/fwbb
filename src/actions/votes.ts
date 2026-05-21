@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { votes, sessions } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { getUserFromCookie } from "@/lib/user-identity";
+import { requireApprovedMember } from "@/lib/member-auth";
 import { requireAdmin } from "@/lib/auth";
 import { adminGuestCountSchema, voteSchema } from "@/lib/validators";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -19,8 +19,9 @@ export async function submitVote(
   guestDineCount: number,
 ) {
   const t = await getTranslations("serverErrors");
-  const user = await getUserFromCookie();
-  if (!user) return { error: t("requireIdentity") };
+  const auth = await requireApprovedMember();
+  if ("error" in auth) return { error: auth.error };
+  const { user } = auth;
 
   // 60 vote-toggles per minute per member is plenty for normal use; spamming
   // the toggle (which writes to votes + revalidates) is rate-limited here.

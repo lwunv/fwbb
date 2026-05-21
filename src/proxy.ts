@@ -19,7 +19,9 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL("/admin/login", request.url));
     }
     try {
-      const { payload } = await jwtVerify(token, JWT_SECRET);
+      const { payload } = await jwtVerify(token, JWT_SECRET, {
+        algorithms: ["HS256"],
+      });
       // Defense-in-depth: even if a future signer accidentally uses the same
       // secret for non-admin tokens, only `role: "admin"` is allowed past the
       // /admin gate.

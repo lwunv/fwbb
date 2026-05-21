@@ -1116,6 +1116,8 @@ export function SessionList({
                                       onClick={() => {
                                         const debtId = d.debtId;
                                         const memberName = d.memberName;
+                                        const idempotencyKey =
+                                          crypto.randomUUID();
                                         // Wrap action để toast lỗi gắn member name
                                         // — admin click nhiều row liên tiếp vẫn
                                         // biết row nào fail.
@@ -1125,6 +1127,7 @@ export function SessionList({
                                             const r =
                                               await confirmPaymentByAdmin(
                                                 debtId,
+                                                idempotencyKey,
                                               );
                                             if (r && "error" in r && r.error) {
                                               return {

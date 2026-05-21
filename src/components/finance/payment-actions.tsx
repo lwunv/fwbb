@@ -29,8 +29,9 @@ export function PaymentActions({
 
   function handleConfirm() {
     setOptimisticConfirmed(true);
+    const idempotencyKey = crypto.randomUUID();
     fireAction(
-      () => confirmPaymentByAdmin(debtId),
+      () => confirmPaymentByAdmin(debtId, idempotencyKey),
       () => setOptimisticConfirmed(false),
     );
   }
@@ -48,9 +49,8 @@ export function PaymentActions({
       <div className="flex items-center gap-2">
         <Button
           variant="outline"
-          size="sm"
           onClick={handleUndo}
-          className="border-destructive/40 text-destructive hover:bg-destructive/10"
+          className="border-destructive/40 text-destructive hover:bg-destructive/10 min-h-11"
         >
           {t("notReceived")}
         </Button>
@@ -60,16 +60,15 @@ export function PaymentActions({
 
   return (
     <div className="flex items-center gap-1.5">
-      <Button size="sm" onClick={handleConfirm}>
+      <Button className="min-h-11" onClick={handleConfirm}>
         <CheckCircle className="mr-1 h-4 w-4" />
         {t("received")}
       </Button>
       {memberConfirmed && (
         <Button
           variant="outline"
-          size="sm"
           onClick={handleUndo}
-          className="border-destructive/40 text-destructive hover:bg-destructive/10"
+          className="border-destructive/40 text-destructive hover:bg-destructive/10 min-h-11"
         >
           {t("notReceived")}
         </Button>

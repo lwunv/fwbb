@@ -188,8 +188,9 @@ export function MemberList({
 
   function handleConfirmPayment(debtId: number) {
     setConfirmedDebts((prev) => new Set(prev).add(debtId));
+    const idempotencyKey = crypto.randomUUID();
     fireAction(
-      () => confirmPaymentByAdmin(debtId),
+      () => confirmPaymentByAdmin(debtId, idempotencyKey),
       () =>
         setConfirmedDebts((prev) => {
           const next = new Set(prev);

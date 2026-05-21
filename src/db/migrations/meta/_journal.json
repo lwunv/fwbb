@@ -71,6 +71,20 @@
       "when": 1779175027005,
       "tag": "0009_add_password_login",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1779439200000,
+      "tag": "0010_perf_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1779439300000,
+      "tag": "0011_fk_retrofit_and_invariants",
+      "breakpoints": true
     }
   ]
 }

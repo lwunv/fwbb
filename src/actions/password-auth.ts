@@ -172,6 +172,21 @@ export async function setPassword(input: {
   const user = await getUserFromCookie();
   if (!user) return { error: "Chưa đăng nhập" };
 
+  // Rate limit: 5 set-password attempts per member per 5 minutes. Caps
+  // online bcrypt.compare guesses on currentPassword for cookie-fixated
+  // attackers, and caps email-claim retries (relevant to anti-squat path).
+  const rl = await checkRateLimit(
+    `set-password:${user.memberId}`,
+    5,
+    5 * 60_000,
+  );
+  if (!rl.ok) {
+    const t = await getTranslations("serverErrors");
+    return {
+      error: t("tooManyLoginAttempts", { seconds: rl.retryAfter ?? 60 }),
+    };
+  }
+
   if (!isValidPassword(input.newPassword)) {
     return { error: "Mật khẩu mới phải từ 8 đến 128 ký tự" };
   }

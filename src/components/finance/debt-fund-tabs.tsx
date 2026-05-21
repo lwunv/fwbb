@@ -115,11 +115,9 @@ export function DebtFundTabs({
       {
         retry: true,
         onSuccess: () => setPending(false),
+        onError: () => setPending(false),
       },
     );
-    // pending will be reset on success via onSuccess; on failure rollback
-    // toggles fundClaimed back and we also clear pending here as a fallback.
-    setTimeout(() => setPending(false), 8_000);
   }
 
   // Empty state — nothing to show in either tab.
@@ -242,11 +240,10 @@ export function DebtFundTabs({
             />
             <Button
               type="button"
-              size="sm"
               variant={fundClaimed ? "outline" : "default"}
               onClick={handleClaimFund}
               disabled={pending || fundClaimed}
-              className="w-full"
+              className="min-h-11 w-full"
             >
               <CheckCircle className="mr-1 h-4 w-4" />
               {fundClaimed ? tFinance("memberReported") : tFinance("paid")}
@@ -283,11 +280,10 @@ export function DebtFundTabs({
             />
             <Button
               type="button"
-              size="sm"
               variant={fundClaimed ? "outline" : "default"}
               onClick={handleClaimFund}
               disabled={pending || fundClaimed}
-              className="w-full"
+              className="min-h-11 w-full"
             >
               <CheckCircle className="mr-1 h-4 w-4" />
               {fundClaimed ? tFinance("memberReported") : tFinance("paid")}

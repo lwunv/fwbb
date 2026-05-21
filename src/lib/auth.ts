@@ -19,7 +19,9 @@ export async function signAdminToken(adminId: number): Promise<string> {
 
 export async function verifyAdminToken(token: string) {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, JWT_SECRET, {
+      algorithms: ["HS256"],
+    });
     return payload;
   } catch {
     return null;

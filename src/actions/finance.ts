@@ -14,6 +14,7 @@ import {
 import { eq, desc, and, isNull, asc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getUserFromCookie } from "@/lib/user-identity";
+import { requireApprovedMember } from "@/lib/member-auth";
 import {
   calculateSessionCosts,
   applyMinDeductionFloor,
@@ -183,6 +184,10 @@ export async function finalizeSession(
               sessionId: ftx.sessionId,
               reversalOfId: ftx.id,
               description: `Hoàn lại khoản trừ quỹ khi chốt lại buổi ${session.date}`,
+              // Per-original-deduction natural key — collapses crash-retry
+              // double-inserts. The `alreadyReversed` check above guards the
+              // current tx; this guards across tx replays.
+              idempotencyKey: `finalize-reverse-${ftx.id}`,
             },
             tx,
           );
@@ -663,13 +668,20 @@ async function restoreVoidedLedgerForDebt(
   }
 }
 
-export async function confirmPaymentByMember(debtId: number) {
+export async function confirmPaymentByMember(
+  debtId: number,
+  idempotencyKey: string,
+) {
   const t = await getTranslations("serverErrors");
-  const user = await getUserFromCookie();
-  if (!user) return { error: t("requireIdentity") };
+  const memberAuth = await requireApprovedMember();
+  if ("error" in memberAuth) return { error: memberAuth.error };
+  const user = memberAuth.user;
 
   if (!Number.isInteger(debtId) || debtId <= 0) {
     return { error: t("invalidDebtId") };
+  }
+  if (typeof idempotencyKey !== "string" || idempotencyKey.length < 4) {
+    return { error: t("invalidIdempotencyKey") };
   }
 
   // 30 confirm-payment attempts per member per minute (prevents ledger-spam
@@ -733,9 +745,11 @@ export async function confirmPaymentByMember(debtId: number) {
           sessionId: debt.sessionId,
           debtId,
           description: "Thành viên xác nhận đã chuyển khoản",
-          // Belt-and-suspenders against a parallel double-submit slipping past
-          // the early-return idempotent guard above.
-          idempotencyKey: `debt-member-confirm-${debtId}`,
+          // Caller-supplied UUID — fresh per click. The early-return
+          // `debt.memberConfirmed` guard above suppresses no-op rewrites, but
+          // legitimate re-confirms after undo cycles need a fresh ledger row,
+          // which a server-hard-coded key (the old behaviour) would block.
+          idempotencyKey: `debt-member-confirm-${debtId}-${idempotencyKey}`,
         },
         tx,
       );
@@ -754,13 +768,31 @@ export async function confirmPaymentByMember(debtId: number) {
   return { success: true };
 }
 
-export async function confirmPaymentByAdmin(debtId: number) {
+export async function confirmPaymentByAdmin(
+  debtId: number,
+  idempotencyKey: string,
+) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
   const t = await getTranslations("serverErrors");
 
   if (!Number.isInteger(debtId) || debtId <= 0) {
     return { error: t("invalidDebtId") };
+  }
+  if (typeof idempotencyKey !== "string" || idempotencyKey.length < 4) {
+    return { error: t("invalidIdempotencyKey") };
+  }
+
+  // Same per-admin rate limit shape as member-side — compromised admin cookie
+  // could otherwise ledger-spam re-confirms across many debts.
+  const adminId = String(auth.admin.sub ?? "anon");
+  const rl = await checkRateLimit(
+    `confirm-payment-admin:${adminId}`,
+    60,
+    60_000,
+  );
+  if (!rl.ok) {
+    return { error: t("tooManyActions", { seconds: rl.retryAfter ?? 60 }) };
   }
 
   const debt = await db.query.sessionDebts.findFirst({
@@ -769,6 +801,16 @@ export async function confirmPaymentByAdmin(debtId: number) {
   });
   if (!debt) return { error: t("debtNotFound") };
   if (debt.adminConfirmed) return { success: true };
+  // Mirror the member-side guard: never re-insert a ledger row on a session
+  // that was cancelled or deleted (its fund_deductions are already reversed,
+  // and restoreVoidedLedgerForDebt below would re-credit the deduction →
+  // member silently pays for a session that no longer exists).
+  if (debt.session.status === "cancelled") {
+    return { error: t("sessionAlreadyCancelled") };
+  }
+  if (debt.session.status !== "completed") {
+    return { error: t("onlyConfirmAfterFinalize") };
+  }
 
   try {
     await db.transaction(async (tx) => {
@@ -805,7 +847,7 @@ export async function confirmPaymentByAdmin(debtId: number) {
           sessionId: debt.sessionId,
           debtId,
           description: "Admin xác nhận đã nhận tiền",
-          idempotencyKey: `debt-admin-confirm-${debtId}`,
+          idempotencyKey: `debt-admin-confirm-${debtId}-${idempotencyKey}`,
         },
         tx,
       );

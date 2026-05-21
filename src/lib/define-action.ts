@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "./auth";
-import { getUserFromCookie } from "./user-identity";
+import { requireApprovedMember } from "./member-auth";
 
 export type ActionResult<T = void> =
   | (T extends void ? { success: true } : { success: true; data: T })
@@ -78,8 +78,9 @@ export function defineMemberAction<S extends z.ZodTypeAny, TResult = void>(
   }) => Promise<ActionResult<TResult>>,
 ) {
   return async (input: unknown): Promise<ActionResult<TResult>> => {
-    const user = await getUserFromCookie();
-    if (!user) return { error: "Vui lòng xác nhận danh tính trước" };
+    const auth = await requireApprovedMember();
+    if ("error" in auth) return { error: auth.error };
+    const { user } = auth;
 
     let data: z.infer<S>;
     if (options.schema) {

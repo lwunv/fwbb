@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import { isFundMember } from "@/lib/fund-calculator";
 import { computeBalanceFromTransactions } from "@/lib/fund-core";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
-import { getUserFromCookie } from "@/lib/user-identity";
+import { requireApprovedMember } from "@/lib/member-auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getTranslations } from "next-intl/server";
 
@@ -15,6 +15,8 @@ export interface AutoApplyResult {
   appliedCount: number;
   appliedTotal: number;
   remainingBalance: number;
+  /** Set when the tx threw mid-loop — caller must surface to user. */
+  error?: string;
 }
 
 /**
@@ -98,9 +100,22 @@ export async function autoApplyFundToDebts(
       }
       finalBalance = balance;
     });
-  } catch {
-    // On error, balance reverts; return zero applied
-    return { appliedCount: 0, appliedTotal: 0, remainingBalance: 0 };
+  } catch (err) {
+    // AGENTS.md rule #8: never silently swallow errors in financial flows.
+    // The tx rolled back so no money moved, but the caller must know auto-apply
+    // failed so it can show a toast and skip declaring "đã trừ quỹ thành công"
+    // when nothing actually applied.
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[auto-fund] applyToDebts failed", {
+      memberId,
+      error: message,
+    });
+    return {
+      appliedCount: 0,
+      appliedTotal: 0,
+      remainingBalance: 0,
+      error: `Auto-trừ quỹ thất bại: ${message}`,
+    };
   }
 
   if (appliedCount > 0) {
@@ -134,9 +149,9 @@ export async function claimFundContribution(
   idempotencyKey?: string,
 ): Promise<{ success: true; replayed?: boolean } | { error: string }> {
   const t = await getTranslations("serverErrors");
-  const user = await getUserFromCookie();
-  if (!user) return { error: t("requireLogin") };
-  const memberId = user.memberId;
+  const auth = await requireApprovedMember();
+  if ("error" in auth) return { error: auth.error };
+  const memberId = auth.user.memberId;
 
   if (
     !Number.isFinite(amount) ||

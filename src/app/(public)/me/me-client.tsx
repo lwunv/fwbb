@@ -267,7 +267,7 @@ export function MeClient({
               <p className="text-lg leading-none font-bold text-yellow-600 tabular-nums dark:text-yellow-400">
                 {formatK(totalSpentThisMonth)}
               </p>
-              <p className="inline-flex max-w-[7rem] items-center justify-center gap-0.5 text-xs leading-snug font-medium text-yellow-700 dark:text-yellow-400/90">
+              <p className="inline-flex max-w-[7rem] items-center justify-center gap-0.5 text-sm leading-snug font-medium text-yellow-700 dark:text-yellow-400/90">
                 {tStats("totalSpentThisMonth")}
                 <ChevronRight className="h-3 w-3 shrink-0" aria-hidden />
               </p>
@@ -283,7 +283,7 @@ export function MeClient({
               <p className="text-primary text-lg leading-none font-bold tabular-nums">
                 {formatK(fundBalance ?? 0)}
               </p>
-              <p className="text-primary/80 inline-flex max-w-[7rem] items-center justify-center gap-0.5 text-xs leading-snug font-medium">
+              <p className="text-primary/80 inline-flex max-w-[7rem] items-center justify-center gap-0.5 text-sm leading-snug font-medium">
                 {tMe("myFund")}
                 <ChevronRight className="h-3 w-3 shrink-0" aria-hidden />
               </p>
@@ -306,7 +306,7 @@ export function MeClient({
               >
                 {formatK(outstandingDebt)}
               </p>
-              <p className="text-destructive inline-flex max-w-[7rem] items-center justify-center gap-0.5 text-xs leading-snug font-medium">
+              <p className="text-destructive inline-flex max-w-[7rem] items-center justify-center gap-0.5 text-sm leading-snug font-medium">
                 {tStats("outstandingDebt")}
                 <ChevronRight className="h-3 w-3 shrink-0" aria-hidden />
               </p>

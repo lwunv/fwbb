@@ -791,6 +791,7 @@ export async function deleteSession(sessionId: number) {
             reversalOfId: ftx.id,
             description: `Hoàn quỹ do xóa buổi ${session.date}`,
             metadata: { reversedDueToSessionDelete: true, sessionId },
+            idempotencyKey: `delete-session-reverse-deduction-${ftx.id}`,
           },
           tx,
         );
@@ -824,6 +825,7 @@ export async function deleteSession(sessionId: number) {
             reversalOfId: ftx.id,
             description: `Rút lại tiền pass do xóa buổi ${session.date}`,
             metadata: { reversedDueToSessionDelete: true, sessionId },
+            idempotencyKey: `delete-session-reverse-contribution-${ftx.id}`,
           },
           tx,
         );

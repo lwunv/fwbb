@@ -33,8 +33,9 @@ export function HistoryPaymentStatus({
     e.stopPropagation();
     if (!debtId) return;
     setOptimisticPaid(true);
+    const idempotencyKey = crypto.randomUUID();
     fireAction(
-      () => confirmPaymentByMember(debtId),
+      () => confirmPaymentByMember(debtId, idempotencyKey),
       () => setOptimisticPaid(false),
     );
   }
@@ -42,7 +43,7 @@ export function HistoryPaymentStatus({
   if (!debtId || !hasDebt) {
     return (
       <div className="flex min-w-0 shrink-0 items-center">
-        <p className="text-muted-foreground text-xs leading-snug">
+        <p className="text-muted-foreground text-sm leading-snug">
           {t("noDebt")}
         </p>
       </div>
@@ -52,7 +53,7 @@ export function HistoryPaymentStatus({
   if (optimisticPaid) {
     return (
       <div className="flex min-w-0 shrink-0 items-center">
-        <p className="text-xs leading-snug font-semibold text-green-600 dark:text-green-400">
+        <p className="text-sm leading-snug font-semibold text-green-600 dark:text-green-400">
           {t("paidStatus")}
         </p>
       </div>

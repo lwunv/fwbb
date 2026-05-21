@@ -78,7 +78,11 @@ export async function recordFinancialTransaction(
         reversalOfId: input.reversalOfId ?? null,
         description: input.description ?? null,
         metadataJson: input.metadata ? JSON.stringify(input.metadata) : null,
-        idempotencyKey: input.idempotencyKey ?? null,
+        // Schema column is NOT NULL with DB default `auto-${random}`; omit
+        // when caller didn't pass an explicit key so the default fires.
+        ...(input.idempotencyKey
+          ? { idempotencyKey: input.idempotencyKey }
+          : {}),
       })
       .returning({ id: financialTransactions.id });
 

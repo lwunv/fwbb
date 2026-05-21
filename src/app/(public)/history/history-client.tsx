@@ -28,6 +28,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import { useIsMobile } from "@/lib/use-is-mobile";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { formatK } from "@/lib/utils";
 import { usePolling } from "@/lib/use-polling";
@@ -124,6 +132,7 @@ export function HistoryClient({
   const dfLocale = useMemo(() => getDateFnsLocale(appLocale), [appLocale]);
   const t = useTranslations("history");
   const tVoting = useTranslations("voting");
+  const isMobile = useIsMobile();
   usePolling();
 
   const [viewMonth, setViewMonth] = useState(() =>
@@ -244,16 +253,32 @@ export function HistoryClient({
 
   return (
     <div className="space-y-4">
-      <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{detail?.title}</DialogTitle>
-            <DialogDescription className="text-left whitespace-pre-line">
-              {detail?.description}
-            </DialogDescription>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
+      {isMobile ? (
+        <Sheet open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
+          <SheetContent
+            side="bottom"
+            className="bg-popover rounded-t-2xl border-t pb-[env(safe-area-inset-bottom)]"
+          >
+            <SheetHeader>
+              <SheetTitle>{detail?.title}</SheetTitle>
+              <SheetDescription className="text-left whitespace-pre-line">
+                {detail?.description}
+              </SheetDescription>
+            </SheetHeader>
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>{detail?.title}</DialogTitle>
+              <DialogDescription className="text-left whitespace-pre-line">
+                {detail?.description}
+              </DialogDescription>
+            </DialogHeader>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Pay-all-debts QR — chỉ khi user đã đăng nhập + còn nợ */}
       {isIdentified &&

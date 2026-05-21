@@ -74,7 +74,7 @@ export function PendingApprovalGate({
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
-            <label className="text-foreground/80 mb-1 block text-xs font-medium">
+            <label className="text-foreground/80 mb-1 block text-sm font-medium">
               {t("labelNickname")}{" "}
               <span className="text-muted-foreground">{t("optional")}</span>
             </label>
@@ -88,7 +88,7 @@ export function PendingApprovalGate({
             />
           </div>
           <div>
-            <label className="text-foreground/80 mb-1 block text-xs font-medium">
+            <label className="text-foreground/80 mb-1 block text-sm font-medium">
               {t("labelPhone")}{" "}
               <span className="text-muted-foreground">{t("optional")}</span>
             </label>
@@ -103,7 +103,7 @@ export function PendingApprovalGate({
             />
           </div>
           <div>
-            <label className="text-foreground/80 mb-1 block text-xs font-medium">
+            <label className="text-foreground/80 mb-1 block text-sm font-medium">
               {t("labelBank")}{" "}
               <span className="text-muted-foreground">{t("optional")}</span>
             </label>

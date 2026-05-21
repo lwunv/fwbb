@@ -14,7 +14,11 @@ export const admins = sqliteTable("admins", {
   // Explicit pointer to the admin's own member record. Replaces the fragile
   // `members.name === admins.username` matching previously used to identify
   // admin's debts. Nullable so admins without a member row don't break.
-  memberId: integer("member_id"),
+  // FK ON DELETE SET NULL: if the linked member row is removed, the admin
+  // row stays (admin auth lives on username/password, not memberId).
+  memberId: integer("member_id").references(() => members.id, {
+    onDelete: "set null",
+  }),
   createdAt: text("created_at").default(sql`(current_timestamp)`),
 });
 
@@ -79,7 +83,9 @@ export const sessions = sqliteTable(
     date: text("date").notNull(),
     startTime: text("start_time").default("20:30"),
     endTime: text("end_time").default("22:30"),
-    courtId: integer("court_id").references(() => courts.id),
+    courtId: integer("court_id").references(() => courts.id, {
+      onDelete: "set null",
+    }),
     courtQuantity: integer("court_quantity").default(1),
     /**
      * Tổng tiền sân buổi này. NULL khi chưa chọn sân (session vừa tạo).
@@ -140,10 +146,10 @@ export const votes = sqliteTable(
     id: integer("id").primaryKey({ autoIncrement: true }),
     sessionId: integer("session_id")
       .notNull()
-      .references(() => sessions.id),
+      .references(() => sessions.id, { onDelete: "cascade" }),
     memberId: integer("member_id")
       .notNull()
-      .references(() => members.id),
+      .references(() => members.id, { onDelete: "cascade" }),
     willPlay: integer("will_play", { mode: "boolean" }).default(false),
     willDine: integer("will_dine", { mode: "boolean" }).default(false),
     guestPlayCount: integer("guest_play_count").default(0),
@@ -160,10 +166,14 @@ export const sessionAttendees = sqliteTable("session_attendees", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   sessionId: integer("session_id")
     .notNull()
-    .references(() => sessions.id),
-  memberId: integer("member_id").references(() => members.id),
+    .references(() => sessions.id, { onDelete: "cascade" }),
+  memberId: integer("member_id").references(() => members.id, {
+    onDelete: "set null",
+  }),
   guestName: text("guest_name"),
-  invitedById: integer("invited_by_id").references(() => members.id),
+  invitedById: integer("invited_by_id").references(() => members.id, {
+    onDelete: "set null",
+  }),
   isGuest: integer("is_guest", { mode: "boolean" }).default(false),
   attendsPlay: integer("attends_play", { mode: "boolean" }).default(false),
   attendsDine: integer("attends_dine", { mode: "boolean" }).default(false),
@@ -173,7 +183,9 @@ export const sessionShuttlecocks = sqliteTable("session_shuttlecocks", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   sessionId: integer("session_id")
     .notNull()
-    .references(() => sessions.id),
+    .references(() => sessions.id, { onDelete: "cascade" }),
+  // brandId stays no-action: deleting a brand with historical usage would
+  // lose the price snapshot needed for cost reconstruction.
   brandId: integer("brand_id")
     .notNull()
     .references(() => shuttlecockBrands.id),
@@ -208,10 +220,10 @@ export const sessionMinDeductionExemptions = sqliteTable(
   {
     sessionId: integer("session_id")
       .notNull()
-      .references(() => sessions.id),
+      .references(() => sessions.id, { onDelete: "cascade" }),
     memberId: integer("member_id")
       .notNull()
-      .references(() => members.id),
+      .references(() => members.id, { onDelete: "cascade" }),
     createdAt: text("created_at").default(sql`(current_timestamp)`),
   },
   (table) => [
@@ -242,10 +254,10 @@ export const sessionDebts = sqliteTable(
     id: integer("id").primaryKey({ autoIncrement: true }),
     sessionId: integer("session_id")
       .notNull()
-      .references(() => sessions.id),
+      .references(() => sessions.id, { onDelete: "cascade" }),
     memberId: integer("member_id")
       .notNull()
-      .references(() => members.id),
+      .references(() => members.id, { onDelete: "cascade" }),
     playAmount: integer("play_amount").default(0),
     dineAmount: integer("dine_amount").default(0),
     guestPlayAmount: integer("guest_play_amount").default(0),
@@ -375,7 +387,7 @@ export const fundMembers = sqliteTable("fund_members", {
   memberId: integer("member_id")
     .notNull()
     .unique()
-    .references(() => members.id),
+    .references(() => members.id, { onDelete: "cascade" }),
   isActive: integer("is_active", { mode: "boolean" }).default(true),
   joinedAt: text("joined_at").default(sql`(current_timestamp)`),
   leftAt: text("left_at"),
@@ -402,23 +414,42 @@ export const financialTransactions = sqliteTable(
     }).notNull(),
     direction: text("direction", { enum: ["in", "out", "neutral"] }).notNull(),
     amount: integer("amount").notNull(),
-    memberId: integer("member_id").references(() => members.id),
-    sessionId: integer("session_id").references(() => sessions.id),
-    debtId: integer("debt_id").references(() => sessionDebts.id),
+    // All FKs SET NULL on parent delete — the ledger is an immutable audit
+    // trail, so a deleted member/session/debt still leaves the transaction
+    // row behind for historical reconstruction.
+    memberId: integer("member_id").references(() => members.id, {
+      onDelete: "set null",
+    }),
+    sessionId: integer("session_id").references(() => sessions.id, {
+      onDelete: "set null",
+    }),
+    debtId: integer("debt_id").references(() => sessionDebts.id, {
+      onDelete: "set null",
+    }),
     paymentNotificationId: integer("payment_notification_id"),
     inventoryPurchaseId: integer("inventory_purchase_id").references(
       () => inventoryPurchases.id,
+      { onDelete: "set null" },
     ),
     reversalOfId: integer("reversal_of_id"),
     description: text("description"),
     metadataJson: text("metadata_json"),
     /**
-     * Optional idempotency key — set by client (UUID per logical action) so
-     * retries / double-submits coalesce into a single transaction. UNIQUE so
-     * the second insert with the same key fails at DB level (last line of
-     * defence under any race condition).
+     * Idempotency key — NOT NULL since migration 0011. Caller-supplied keys
+     * (UUID per logical action) make retries / double-submits coalesce into a
+     * single transaction. UNIQUE so the second insert with the same key fails
+     * at DB level — last line of defence under any race condition.
+     *
+     * DB default of `auto-${24 hex chars random}` covers callsites that don't
+     * pass a key (legacy code, seed scripts, tests) — those rows get a unique
+     * non-null key automatically so the invariant holds without forcing every
+     * single insert call to supply a UUID. New money-touching code SHOULD
+     * still pass an explicit key for true retry-safety. Legacy rows from
+     * before migration 0011 carry `legacy-tx-${id}`.
      */
-    idempotencyKey: text("idempotency_key"),
+    idempotencyKey: text("idempotency_key")
+      .notNull()
+      .default(sql`('auto-' || lower(hex(randomblob(12))))`),
     createdAt: text("created_at").default(sql`(current_timestamp)`),
   },
   (table) => [
@@ -426,6 +457,14 @@ export const financialTransactions = sqliteTable(
     index("idx_financial_transactions_session").on(table.sessionId),
     index("idx_financial_transactions_debt").on(table.debtId),
     index("idx_financial_transactions_type").on(table.type),
+    // Hot-path balance query: filter by (memberId + type bucket) ordered by
+    // createdAt. With only single-column indexes, SQLite picks one and
+    // table-scans the rest — cost grows linearly with ledger size.
+    index("idx_financial_transactions_member_type_created").on(
+      table.memberId,
+      table.type,
+      table.createdAt,
+    ),
     uniqueIndex("idx_financial_transactions_idempotency_key")
       .on(table.idempotencyKey)
       .where(sql`${table.idempotencyKey} IS NOT NULL`),
@@ -489,12 +528,16 @@ export const paymentNotifications = sqliteTable("payment_notifications", {
   amount: integer("amount"),
   transferContent: text("transfer_content"),
   senderAccountNo: text("sender_account_no"),
-  matchedDebtId: integer("matched_debt_id").references(() => sessionDebts.id),
+  matchedDebtId: integer("matched_debt_id").references(() => sessionDebts.id, {
+    onDelete: "set null",
+  }),
   // FK to financial_transactions — trước đây thiếu FK, dangling refs nếu
-  // ledger row bị hard-deleted (vd court-rent reversal cũ). Schema thực thi
-  // FK chỉ khi `PRAGMA foreign_keys=ON`, nhưng ít nhất ý định được khai báo.
+  // ledger row bị hard-deleted (vd court-rent reversal cũ). FK now enforced
+  // at runtime via PRAGMA foreign_keys=ON; SET NULL preserves the
+  // notification record even if the matched ledger row is reversed away.
   matchedTransactionId: integer("matched_transaction_id").references(
     () => financialTransactions.id,
+    { onDelete: "set null" },
   ),
   status: text("status", {
     enum: ["pending", "matched", "ignored", "failed"],

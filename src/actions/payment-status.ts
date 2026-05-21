@@ -40,11 +40,18 @@ export async function checkPaymentForMemo(
 
   const memoNorm = memo.trim().toUpperCase();
   // Memo phải khớp 1 trong 2 prefix hợp lệ của user gọi.
+  //
+  // SECURITY: require an explicit boundary after the id to prevent cross-
+  // member leakage. With raw `startsWith("FWBB QUY 1")`, caller id=1 also
+  // matches "FWBB QUY 12 ..." (target id=12) — they could probe another
+  // member's incoming payment events.
   const allowedPrefixes = [
     `FWBB QUY ${user.memberId}`,
     `FWBB NO ${user.memberId}`,
   ];
-  const matchesOwner = allowedPrefixes.some((p) => memoNorm.startsWith(p));
+  const matchesOwner = allowedPrefixes.some(
+    (p) => memoNorm === p || memoNorm.startsWith(`${p} `),
+  );
   if (!matchesOwner) return { received: false, matched: false };
 
   const since = new Date(Date.now() - sinceMinutes * 60_000).toISOString();

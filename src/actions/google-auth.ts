@@ -121,14 +121,29 @@ export async function googleLogin(idToken: string) {
     return { success: true, memberName: existing.name };
   }
 
-  // Check if there's an existing member with the same email (e.g., user
-  // previously signed in with Facebook, now Google with same Gmail). If so,
-  // link Google to the same member instead of creating a duplicate.
+  // Auto-link by email is the safe FB→Google-add-on path: user signed in
+  // with Facebook (which set facebookId but no password), now wants to add
+  // Google sign-in with their Gmail.
+  //
+  // SECURITY: only auto-link when the existing row has facebookId set AND
+  // no passwordHash. Otherwise an attacker who pw-signed-up with a victim's
+  // email (claiming it via setPassword) would receive the victim's Google
+  // login on first Google attempt — full account takeover. By requiring
+  // facebookId + no passwordHash, we restrict auto-linking to OAuth-only
+  // accounts the attacker cannot have created with someone else's email.
+  // Users with passwords (or mixed-provider accounts) must add Google via
+  // an explicit in-app linking flow.
   if (claims.email) {
     const byEmail = await db.query.members.findFirst({
       where: eq(members.email, claims.email),
     });
-    if (byEmail && byEmail.isActive) {
+    if (
+      byEmail &&
+      byEmail.isActive &&
+      byEmail.facebookId &&
+      !byEmail.passwordHash &&
+      !byEmail.googleId
+    ) {
       await db
         .update(members)
         .set({
@@ -140,6 +155,21 @@ export async function googleLogin(idToken: string) {
       revalidatePath("/");
       return { success: true, memberName: byEmail.name };
     }
+    // If email collides with an account that has a password (or other
+    // provider already), DO NOT auto-link. Fall through to "create new
+    // member" with email=null so the UNIQUE constraint doesn't fire.
+    // Admin can resolve the collision via the approval queue.
+  }
+
+  // Email collision check for the create branch: skip writing email if it's
+  // already claimed by another row.
+  let emailToWrite: string | null = claims.email ?? null;
+  if (emailToWrite) {
+    const collision = await db.query.members.findFirst({
+      where: eq(members.email, emailToWrite),
+      columns: { id: true },
+    });
+    if (collision) emailToWrite = null;
   }
 
   // Create new member — pending admin approval. Khác với member admin tạo
@@ -149,7 +179,7 @@ export async function googleLogin(idToken: string) {
     .values({
       name: claims.name ?? "Google user",
       googleId: claims.sub,
-      email: claims.email ?? null,
+      email: emailToWrite,
       avatarUrl: claims.picture ?? null,
       approvalStatus: "pending",
     })

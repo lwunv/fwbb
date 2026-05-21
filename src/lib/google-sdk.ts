@@ -59,19 +59,35 @@ const SDK_TIMEOUT_MS = 10_000;
 const GIS_SCRIPT_ID = "google-identity-services";
 const GIS_SRC = "https://accounts.google.com/gsi/client";
 
-let initialized = false;
-let pendingCredential: ((idToken: string) => void) | null = null;
+let scriptLoaded = false;
 
-export function initGoogleSDK(): Promise<void> {
+/**
+ * Each `signInWithGoogle()` / `renderGoogleButton()` call re-runs
+ * `accounts.id.initialize()` with its OWN callback closure, replacing the
+ * previous global handler. This sidesteps the shared-state bug where a
+ * module-level `pendingCredential` was overwritten by re-renders (e.g.
+ * locale change re-running renderGoogleButton mid-flow): if the previous
+ * caller had an in-flight handler, the late-arriving token used to go to
+ * the wrong callback. With per-call init, the most recently registered
+ * caller is canonical — older callers' buttons are already unmounted so
+ * they can't fire anyway.
+ */
+function reInitializeWithCallback(
+  clientId: string,
+  callback: (idToken: string) => void,
+) {
+  window.google!.accounts!.id!.initialize({
+    client_id: clientId,
+    callback: (response) => callback(response.credential),
+    ux_mode: "popup",
+    auto_select: false,
+  });
+}
+
+function loadScript(): Promise<void> {
   return new Promise((resolve, reject) => {
-    if (initialized && window.google?.accounts?.id) {
+    if (scriptLoaded && window.google?.accounts?.id) {
       resolve();
-      return;
-    }
-
-    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (!clientId) {
-      reject(new Error("NEXT_PUBLIC_GOOGLE_CLIENT_ID not configured"));
       return;
     }
 
@@ -81,24 +97,8 @@ export function initGoogleSDK(): Promise<void> {
 
     const onReady = () => {
       clearTimeout(timer);
-      try {
-        window.google!.accounts!.id!.initialize({
-          client_id: clientId,
-          callback: (response) => {
-            if (pendingCredential) {
-              const cb = pendingCredential;
-              pendingCredential = null;
-              cb(response.credential);
-            }
-          },
-          ux_mode: "popup",
-          auto_select: false,
-        });
-        initialized = true;
-        resolve();
-      } catch (err) {
-        reject(err);
-      }
+      scriptLoaded = true;
+      resolve();
     };
 
     if (window.google?.accounts?.id) {
@@ -119,11 +119,18 @@ export function initGoogleSDK(): Promise<void> {
       };
       document.head.appendChild(script);
     } else {
-      // Script already in DOM but not yet loaded — listen for it.
       const existing = document.getElementById(GIS_SCRIPT_ID);
       existing?.addEventListener("load", onReady, { once: true });
     }
   });
+}
+
+export async function initGoogleSDK(): Promise<void> {
+  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+  if (!clientId) {
+    throw new Error("NEXT_PUBLIC_GOOGLE_CLIENT_ID not configured");
+  }
+  await loadScript();
 }
 
 /**
@@ -133,14 +140,21 @@ export function initGoogleSDK(): Promise<void> {
  */
 export function signInWithGoogle(): Promise<string> {
   return new Promise((resolve, reject) => {
-    if (!initialized || !window.google?.accounts?.id) {
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      reject(new Error("NEXT_PUBLIC_GOOGLE_CLIENT_ID not configured"));
+      return;
+    }
+    if (!scriptLoaded || !window.google?.accounts?.id) {
       reject(new Error("Google SDK not initialized"));
       return;
     }
-    pendingCredential = resolve;
+    // Per-call init: the closure captures THIS Promise's resolve, so even if
+    // another caller re-initializes mid-flow, our resolve is dead and
+    // can't be invoked by accident with the other caller's token.
+    reInitializeWithCallback(clientId, resolve);
     window.google.accounts.id.prompt((notification) => {
       if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-        pendingCredential = null;
         reject(new Error("User dismissed Google sign-in"));
       }
     });
@@ -159,10 +173,18 @@ export function renderGoogleButton(
   onCredential: (idToken: string) => void,
   options?: { width?: number; locale?: string },
 ) {
-  if (!initialized || !window.google?.accounts?.id) {
+  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+  if (!clientId) {
+    throw new Error("NEXT_PUBLIC_GOOGLE_CLIENT_ID not configured");
+  }
+  if (!scriptLoaded || !window.google?.accounts?.id) {
     throw new Error("Google SDK not initialized");
   }
-  pendingCredential = onCredential;
+  // Per-render init: this button's clicks fire onCredential via a closure.
+  // A subsequent renderGoogleButton call re-initializes with the new
+  // callback; this button — being unmounted by React before that point —
+  // can't fire anymore so the stale callback isn't reachable.
+  reInitializeWithCallback(clientId, onCredential);
   window.google.accounts.id.renderButton(parent, {
     type: "standard",
     theme: "outline",

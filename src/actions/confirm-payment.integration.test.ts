@@ -103,7 +103,7 @@ describe("confirmPaymentByMember — idempotency via ledger key", () => {
       memberId: bob.id,
       facebookId: "fb-b",
     });
-    const r = await confirmPaymentByMember(debtId);
+    const r = await confirmPaymentByMember(debtId, "test-key-1");
     expect("error" in r).toBe(true);
   });
 
@@ -115,10 +115,10 @@ describe("confirmPaymentByMember — idempotency via ledger key", () => {
       facebookId: "fb-a",
     });
 
-    const r1 = await confirmPaymentByMember(debtId);
+    const r1 = await confirmPaymentByMember(debtId, "test-key-replay-1");
     expect("error" in r1).toBe(false);
 
-    const r2 = await confirmPaymentByMember(debtId);
+    const r2 = await confirmPaymentByMember(debtId, "test-key-replay-2");
     expect("error" in r2).toBe(false);
 
     const ledger = await testDb.query.financialTransactions.findMany({
@@ -137,7 +137,7 @@ describe("confirmPaymentByMember — idempotency via ledger key", () => {
       memberId: aliceId,
       facebookId: "fb-a",
     });
-    const r = await confirmPaymentByMember(debtId);
+    const r = await confirmPaymentByMember(debtId, "test-key-cancelled");
     expect("error" in r).toBe(true);
   });
 });
@@ -149,9 +149,9 @@ describe("confirmPaymentByAdmin — idempotency", () => {
     const aliceId = await seedMember();
     const { debtId } = await seedDebt(aliceId);
 
-    const r1 = await confirmPaymentByAdmin(debtId);
+    const r1 = await confirmPaymentByAdmin(debtId, "test-admin-1");
     expect("error" in r1).toBe(false);
-    const r2 = await confirmPaymentByAdmin(debtId);
+    const r2 = await confirmPaymentByAdmin(debtId, "test-admin-2");
     expect("error" in r2).toBe(false);
 
     const ledger = await testDb.query.financialTransactions.findMany({
@@ -166,7 +166,7 @@ describe("confirmPaymentByAdmin — idempotency", () => {
   it("undoPaymentByAdmin clears both flags AND inserts debt_undo", async () => {
     const aliceId = await seedMember();
     const { debtId } = await seedDebt(aliceId);
-    await confirmPaymentByAdmin(debtId);
+    await confirmPaymentByAdmin(debtId, "test-undo-setup");
 
     const r = await undoPaymentByAdmin(debtId);
     expect("error" in r).toBe(false);

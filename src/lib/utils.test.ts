@@ -19,10 +19,16 @@ describe("roundToThousand", () => {
     expect(roundToThousand(1000)).toBe(1000);
   });
 
-  it("should handle negative values (rounds towards +∞)", () => {
-    expect(roundToThousand(-1500)).toBe(-1000);
-    expect(roundToThousand(-1499)).toBe(-1000);
-    expect(roundToThousand(-1501)).toBe(-1000);
+  it("should handle negative values (sign-preserving, rounds up in magnitude)", () => {
+    // Previous behavior rounded -500 to 0 (silently zeroing refund deltas).
+    // New behavior preserves sign + rounds magnitude up, so refunds /
+    // reversals don't get clipped. Symmetric to positive rounding.
+    expect(roundToThousand(-1500)).toBe(-2000);
+    expect(roundToThousand(-1499)).toBe(-2000);
+    expect(roundToThousand(-1001)).toBe(-2000);
+    expect(roundToThousand(-1000)).toBe(-1000);
+    expect(roundToThousand(-500)).toBe(-1000);
+    expect(roundToThousand(-1)).toBe(-1000);
   });
 });
 
