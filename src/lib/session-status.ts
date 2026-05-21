@@ -78,3 +78,26 @@ export function assertEditable(
   }
   return { ok: true };
 }
+
+/**
+ * Combined vote-acceptance gate: status must be voting/confirmed AND, if a
+ * deadline is set, it must not have passed yet.
+ *
+ * Status check fires BEFORE deadline check so a completed session never
+ * reports `reason: "deadline"` — that would be misleading (vote is closed
+ * because finalize ran, not because the clock expired).
+ *
+ * See docs/superpowers/specs/2026-05-21-vote-deadline-design.md.
+ */
+export function isVoteOpen(session: {
+  status: SessionStatus;
+  voteDeadline: string | null;
+}): { open: true } | { open: false; reason: "status" | "deadline" } {
+  if (session.status !== "voting" && session.status !== "confirmed") {
+    return { open: false, reason: "status" };
+  }
+  if (session.voteDeadline && new Date(session.voteDeadline) <= new Date()) {
+    return { open: false, reason: "deadline" };
+  }
+  return { open: true };
+}
