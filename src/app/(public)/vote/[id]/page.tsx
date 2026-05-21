@@ -3,6 +3,7 @@ import { getSessionVotes } from "@/actions/votes";
 import { getActiveMembers } from "@/actions/members";
 import { getUserFromCookie } from "@/lib/user-identity";
 import { SessionVoteOptimisticPanel } from "@/components/sessions/session-vote-optimistic-panel";
+import { VoteCountdown } from "@/components/sessions/vote-countdown";
 import { CopyLinkButton } from "@/components/shared/copy-link-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { notFound } from "next/navigation";
@@ -56,6 +57,10 @@ export default async function VoteSessionPage({
               : t("sessionCompleted")}
           </CardContent>
         </Card>
+      )}
+
+      {isVotingOpen && session.voteDeadline && (
+        <VoteCountdown deadline={session.voteDeadline} variant="banner" />
       )}
 
       <SessionVoteOptimisticPanel

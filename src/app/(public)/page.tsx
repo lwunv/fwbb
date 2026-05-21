@@ -5,6 +5,7 @@ import { getUserFromCookie } from "@/lib/user-identity";
 import { getFundBalance } from "@/lib/fund-calculator";
 import { SessionCard } from "@/components/sessions/session-card";
 import { SessionVoteOptimisticPanel } from "@/components/sessions/session-vote-optimistic-panel";
+import { VoteCountdown } from "@/components/sessions/vote-countdown";
 import { FundBalanceBanner } from "@/components/finance/fund-balance-banner";
 import { CopyLinkButton } from "@/components/shared/copy-link-button";
 import { getTranslations } from "next-intl/server";
@@ -81,6 +82,15 @@ export default async function HomePage() {
           <h1 className="text-lg font-bold">{tDashboard("upcomingSession")}</h1>
           <CopyLinkButton sessionId={nextSession.id} />
         </div>
+
+        {nextSession.voteDeadline &&
+          (nextSession.status === "voting" ||
+            nextSession.status === "confirmed") && (
+            <VoteCountdown
+              deadline={nextSession.voteDeadline}
+              variant="inline"
+            />
+          )}
 
         <SessionVoteOptimisticPanel
           sessionId={nextSession.id}
