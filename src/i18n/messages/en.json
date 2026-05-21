@@ -102,7 +102,17 @@
     "guestSummaryDineTail": "{count, plural, one {dining guest} other {dining guests}}",
     "addGuestShort": "Add guest",
     "addPlayer": "Add player",
-    "addDiner": "Add diner"
+    "addDiner": "Add diner",
+    "voteDeadlinePassed": "Voting closed for this session",
+    "voteDeadlineHint": "Voting closes at {time}",
+    "voteCountdownDays": "{days}d {hours}h left",
+    "voteCountdownHours": "{hours}h {minutes}m left",
+    "voteCountdownMinutes": "{minutes}m {seconds}s left",
+    "voteClosedLabel": "Voting closed",
+    "voteDeadlineSet": "Set deadline",
+    "voteDeadlineClear": "Clear deadline",
+    "voteDeadlineExtend2h": "+2 hours",
+    "voteDeadlineExtend24h": "+24 hours"
   },
   "finance": {
     "debts": "Debts",
@@ -881,7 +891,11 @@
     "emptyName": "Name cannot be empty",
     "missingAdminGuestPlay": "Missing admin guests: need {expected} players, payload has only {actual}",
     "missingAdminGuestDine": "Missing admin guests: need {expected} diners, payload has only {actual}",
-    "unknownError": "unknown error"
+    "unknownError": "unknown error",
+    "voteDeadlinePassed": "Voting closed for this session",
+    "invalidDeadlineFormat": "Invalid deadline format",
+    "deadlineMustBeFuture": "Deadline must be in the future",
+    "invalidExtendHours": "Extend hours must be 2 or 24"
   },
   "adminShuttlecockFinance": {
     "title": "Shuttlecock finance",

@@ -102,7 +102,17 @@
     "guestSummaryDineTail": "位聚餐嘉宾",
     "addGuestShort": "添加嘉宾",
     "addPlayer": "添加打球",
-    "addDiner": "添加聚餐"
+    "addDiner": "添加聚餐",
+    "voteDeadlinePassed": "投票已结束",
+    "voteDeadlineHint": "投票将于 {time} 结束",
+    "voteCountdownDays": "剩 {days} 天 {hours} 小时",
+    "voteCountdownHours": "剩 {hours} 小时 {minutes} 分",
+    "voteCountdownMinutes": "剩 {minutes} 分 {seconds} 秒",
+    "voteClosedLabel": "投票已结束",
+    "voteDeadlineSet": "设置截止",
+    "voteDeadlineClear": "清除截止",
+    "voteDeadlineExtend2h": "+2 小时",
+    "voteDeadlineExtend24h": "+24 小时"
   },
   "finance": {
     "debts": "债务",
@@ -881,7 +891,11 @@
     "emptyName": "名称不能为空",
     "missingAdminGuestPlay": "缺少管理员嘉宾:需要 {expected} 个打球人,payload 仅有 {actual}",
     "missingAdminGuestDine": "缺少管理员嘉宾:需要 {expected} 个聚餐人,payload 仅有 {actual}",
-    "unknownError": "未知错误"
+    "unknownError": "未知错误",
+    "voteDeadlinePassed": "投票已结束",
+    "invalidDeadlineFormat": "截止时间格式无效",
+    "deadlineMustBeFuture": "截止时间必须是未来时间",
+    "invalidExtendHours": "延长小时数必须是 2 或 24"
   },
   "adminShuttlecockFinance": {
     "title": "球品收支",

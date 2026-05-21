@@ -102,7 +102,17 @@
     "guestSummaryDineTail": "khách nhậu",
     "addGuestShort": "Thêm khách",
     "addPlayer": "Thêm chơi cầu",
-    "addDiner": "Thêm nhậu"
+    "addDiner": "Thêm nhậu",
+    "voteDeadlinePassed": "Đã hết hạn vote cho buổi này",
+    "voteDeadlineHint": "Vote sẽ đóng lúc {time}",
+    "voteCountdownDays": "còn {days} ngày {hours}h",
+    "voteCountdownHours": "còn {hours}h {minutes}p",
+    "voteCountdownMinutes": "còn {minutes}p {seconds}s",
+    "voteClosedLabel": "Đã đóng vote",
+    "voteDeadlineSet": "Đặt deadline",
+    "voteDeadlineClear": "Bỏ deadline",
+    "voteDeadlineExtend2h": "+2 giờ",
+    "voteDeadlineExtend24h": "+24 giờ"
   },
   "finance": {
     "debts": "Công nợ",
@@ -881,7 +891,11 @@
     "emptyName": "Tên không được để trống",
     "missingAdminGuestPlay": "Thiếu khách của admin: cần {expected} người chơi, payload chỉ có {actual}",
     "missingAdminGuestDine": "Thiếu khách của admin: cần {expected} người ăn, payload chỉ có {actual}",
-    "unknownError": "lỗi không xác định"
+    "unknownError": "lỗi không xác định",
+    "voteDeadlinePassed": "Đã hết hạn vote cho buổi này",
+    "invalidDeadlineFormat": "Format deadline không hợp lệ",
+    "deadlineMustBeFuture": "Deadline phải sau thời điểm hiện tại",
+    "invalidExtendHours": "Số giờ extend phải là 2 hoặc 24"
   },
   "adminShuttlecockFinance": {
     "title": "Tiền cầu",
