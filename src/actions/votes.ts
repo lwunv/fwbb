@@ -8,7 +8,11 @@ import { requireApprovedMember } from "@/lib/member-auth";
 import { requireAdmin } from "@/lib/auth";
 import { adminGuestCountSchema, voteSchema } from "@/lib/validators";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { assertEditable, type SessionStatus } from "@/lib/session-status";
+import {
+  assertEditable,
+  isVoteOpen,
+  type SessionStatus,
+} from "@/lib/session-status";
 import { getTranslations } from "next-intl/server";
 
 export async function submitVote(
@@ -49,8 +53,17 @@ export async function submitVote(
     where: eq(sessions.id, data.sessionId),
   });
   if (!session) return { error: t("sessionNotFound") };
-  if (session.status !== "voting" && session.status !== "confirmed") {
-    return { error: t("voteNotAccepted") };
+  const gate = isVoteOpen({
+    status: session.status as SessionStatus,
+    voteDeadline: session.voteDeadline,
+  });
+  if (!gate.open) {
+    return {
+      error:
+        gate.reason === "deadline"
+          ? t("voteDeadlinePassed")
+          : t("voteNotAccepted"),
+    };
   }
 
   await db
