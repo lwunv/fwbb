@@ -127,6 +127,14 @@ export const sessions = sqliteTable(
     /** Số tiền pass sân (nếu admin hủy buổi và pass cho team khác).
      * Khi cancelled + passRevenue > 0 → admin đã thu được tiền và nộp vào quỹ. */
     passRevenue: integer("pass_revenue"),
+    /**
+     * Per-session vote deadline. NULL = no deadline (vote always open until
+     * status changes). Default-filled at session creation as
+     * `${date}T${startTime}:00` minus 4 hours. Format: ISO 8601 without `Z`
+     * suffix, interpreted as Vietnam local time (matches `date` / `startTime`
+     * convention). See docs/superpowers/specs/2026-05-21-vote-deadline-design.md.
+     */
+    voteDeadline: text("vote_deadline"),
     notes: text("notes"),
     createdAt: text("created_at").default(sql`(current_timestamp)`),
     updatedAt: text("updated_at").default(sql`(current_timestamp)`),

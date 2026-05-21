@@ -85,6 +85,13 @@
       "when": 1779439300000,
       "tag": "0011_fk_retrofit_and_invariants",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1779439400000,
+      "tag": "0012_vote_deadline",
+      "breakpoints": true
     }
   ]
 }
