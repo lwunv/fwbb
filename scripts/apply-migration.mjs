@@ -12,15 +12,22 @@
  */
 
 import { config } from "dotenv";
-config({ path: ".env.local" });
+// Pass `--env=.env.prod` to apply to production. Default = .env.local (dev).
+const envArg = process.argv.find((a) => a.startsWith("--env="));
+const envPath = envArg ? envArg.slice("--env=".length) : ".env.local";
+const dotenvResult = config({ path: envPath, override: true });
+console.log(`Loaded env from ${envPath}`);
+// Fallback: some sandboxed shells filter env vars out of process.env after
+// dotenv writes to it. Read from `parsed` directly when process.env is empty.
+const parsed = dotenvResult.parsed ?? {};
 
 import { createClient } from "@libsql/client";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 
-const url = process.env.TURSO_DATABASE_URL;
-const authToken = process.env.TURSO_AUTH_TOKEN;
+const url = process.env.TURSO_DATABASE_URL || parsed.TURSO_DATABASE_URL;
+const authToken = process.env.TURSO_AUTH_TOKEN || parsed.TURSO_AUTH_TOKEN;
 if (!url) {
   console.error("TURSO_DATABASE_URL missing");
   process.exit(1);
