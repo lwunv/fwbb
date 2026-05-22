@@ -29,6 +29,8 @@ import { ShuttlecockSelector } from "@/components/sessions/shuttlecock-selector"
 import { AdminVoteManager } from "@/components/sessions/admin-vote-manager";
 import { WeekStrip } from "@/components/sessions/week-strip";
 import { SessionCostStats } from "@/components/sessions/session-cost-stats";
+import { VoteCountdown } from "@/components/sessions/vote-countdown";
+import { VoteDeadlineEdit } from "@/components/sessions/vote-deadline-edit";
 import {
   Dialog,
   DialogContent,
@@ -134,6 +136,7 @@ interface SessionCard {
     { amount: number; adminConfirmed: boolean; debtId: number }
   >;
   attendees: AttendeeInfo[];
+  voteDeadline: string | null;
 }
 
 type SessionStatus = "voting" | "confirmed" | "completed" | "cancelled";
@@ -670,6 +673,19 @@ export function SessionList({
                             brands={brands}
                             currentShuttlecocks={session.shuttlecocks}
                           />
+                          {(session.status === "voting" ||
+                            session.status === "confirmed") && (
+                            <div className="flex flex-wrap items-center gap-2 pt-1">
+                              <VoteCountdown
+                                deadline={session.voteDeadline}
+                                variant="inline"
+                              />
+                              <VoteDeadlineEdit
+                                sessionId={session.id}
+                                current={session.voteDeadline}
+                              />
+                            </div>
+                          )}
                         </div>
                       )}
 
