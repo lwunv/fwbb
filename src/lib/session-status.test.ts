@@ -1,9 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { isVoteOpen } from "./session-status";
+import { formatLocalDeadline } from "./vote-deadline";
 
+// Use the same local-time-no-Z format the production code stores (matches
+// integration tests + DB rows). Comparison in isVoteOpen is absolute-ms so
+// either format would pass — using local format is cosmetic consistency.
 describe("isVoteOpen", () => {
-  const future = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-  const past = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const future = formatLocalDeadline(new Date(Date.now() + 60 * 60 * 1000));
+  const past = formatLocalDeadline(new Date(Date.now() - 60 * 60 * 1000));
 
   it("returns open=true when status=voting and deadline in future", () => {
     expect(isVoteOpen({ status: "voting", voteDeadline: future })).toEqual({

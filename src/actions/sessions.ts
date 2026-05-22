@@ -31,6 +31,7 @@ import { revalidatePath } from "next/cache";
 import {
   computeDefaultDeadline,
   formatLocalDeadline,
+  DEFAULT_PLAY_START_TIME,
 } from "@/lib/vote-deadline";
 import {
   sendGroupMessage,
@@ -132,7 +133,10 @@ export async function getNextSession() {
         courtId: defaultCourt?.id ?? null,
         courtPrice: defaultCourt?.pricePerSession ?? null,
         useMinDeduction: true,
-        voteDeadline: computeDefaultDeadline(candidate, "20:30"),
+        voteDeadline: computeDefaultDeadline(
+          candidate,
+          DEFAULT_PLAY_START_TIME,
+        ),
       })
       .returning();
     if (defaultBrand) {
@@ -200,7 +204,7 @@ export async function getAdminUpcomingSession() {
           courtId: defaultCourt?.id ?? null,
           courtPrice: defaultCourt?.pricePerSession ?? null,
           useMinDeduction: true,
-          voteDeadline: computeDefaultDeadline(today, "20:30"),
+          voteDeadline: computeDefaultDeadline(today, DEFAULT_PLAY_START_TIME),
         })
         .returning();
       if (defaultBrand) {
@@ -963,7 +967,10 @@ export async function createSessionManually(
       courtId: resolvedCourtId,
       courtPrice,
       useMinDeduction: true,
-      voteDeadline: computeDefaultDeadline(date, startTime || "20:30"),
+      voteDeadline: computeDefaultDeadline(
+        date,
+        startTime || DEFAULT_PLAY_START_TIME,
+      ),
     })
     .returning();
   // Pre-fill brand mặc định để admin chỉ cần đổi ống nếu cần.
@@ -1434,20 +1441,45 @@ export async function setVoteDeadline(
   }
 
   if (deadline !== null) {
-    if (
-      typeof deadline !== "string" ||
-      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(deadline)
-    ) {
-      return { error: t("invalidDeadlineFormat") };
-    }
+    // Strict component-level validation: regex alone allows roll-over inputs
+    // like "2026-02-30T10:00:00" which JS Date silently coerces to Mar 02.
+    // We require the parsed Date to round-trip to the exact components.
+    const m =
+      typeof deadline === "string"
+        ? deadline.match(
+            /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/,
+          )
+        : null;
+    if (!m) return { error: t("invalidDeadlineFormat") };
+    const [, y, mo, d, h, mi, s] = m;
     const parsed = new Date(deadline);
-    if (Number.isNaN(parsed.getTime())) {
+    if (
+      Number.isNaN(parsed.getTime()) ||
+      parsed.getFullYear() !== Number(y) ||
+      parsed.getMonth() + 1 !== Number(mo) ||
+      parsed.getDate() !== Number(d) ||
+      parsed.getHours() !== Number(h) ||
+      parsed.getMinutes() !== Number(mi) ||
+      (s !== undefined && parsed.getSeconds() !== Number(s))
+    ) {
       return { error: t("invalidDeadlineFormat") };
     }
     if (parsed.getTime() <= Date.now()) {
       return { error: t("deadlineMustBeFuture") };
     }
   }
+
+  const session = await db.query.sessions.findFirst({
+    where: eq(sessions.id, sessionId),
+    columns: { status: true },
+  });
+  if (!session) return { error: t("sessionNotFound") };
+  // Editable check: don't let admin set a deadline on a session that's
+  // already completed/cancelled — voting is closed by status, deadline has
+  // no effect there, and the UI shouldn't have rendered the edit button in
+  // the first place. Defense-in-depth.
+  const guard = assertEditable(session.status as SessionStatus);
+  if (!guard.ok) return { error: guard.error };
 
   await db
     .update(sessions)
@@ -1483,9 +1515,11 @@ export async function extendVoteDeadline(sessionId: number, hours: 2 | 24) {
 
   const session = await db.query.sessions.findFirst({
     where: eq(sessions.id, sessionId),
-    columns: { voteDeadline: true },
+    columns: { voteDeadline: true, status: true },
   });
   if (!session) return { error: t("sessionNotFound") };
+  const guard = assertEditable(session.status as SessionStatus);
+  if (!guard.ok) return { error: guard.error };
 
   const now = Date.now();
   const currentDeadlineMs = session.voteDeadline

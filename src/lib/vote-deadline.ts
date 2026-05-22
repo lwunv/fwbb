@@ -8,6 +8,16 @@
  * Node and browsers, which is what we want (no TZ math at the boundary).
  */
 
+/**
+ * Default session start time used when constructing a new session without an
+ * explicit start time (cron auto-create, getNextSession auto-create, manual
+ * create with empty startTime). Used by `computeDefaultDeadline` to derive
+ * the default vote deadline = startTime − 4h.
+ *
+ * If the group's regular play time changes, update this single constant.
+ */
+export const DEFAULT_PLAY_START_TIME = "20:30";
+
 export function formatLocalDeadline(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;

@@ -8,7 +8,10 @@ import {
   getDefaultBrand,
   getSessionDaysOfWeek,
 } from "@/actions/settings";
-import { computeDefaultDeadline } from "@/lib/vote-deadline";
+import {
+  computeDefaultDeadline,
+  DEFAULT_PLAY_START_TIME,
+} from "@/lib/vote-deadline";
 
 export async function GET(request: NextRequest) {
   // Fail-closed nếu CRON_SECRET missing — tránh ai cũng trigger được tạo
@@ -58,7 +61,7 @@ export async function GET(request: NextRequest) {
       courtId: defaultCourt?.id ?? null,
       courtPrice: defaultCourt?.pricePerSession ?? null,
       useMinDeduction: true,
-      voteDeadline: computeDefaultDeadline(dateStr, "20:30"),
+      voteDeadline: computeDefaultDeadline(dateStr, DEFAULT_PLAY_START_TIME),
     })
     .returning();
 
