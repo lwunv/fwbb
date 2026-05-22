@@ -30,6 +30,12 @@ interface SessionVoteOptimisticPanelProps {
   members: Member[];
   currentMemberId: number | null;
   isVotingOpen: boolean;
+  /**
+   * When set, vote buttons auto-disable once `now >= voteDeadline`, even if
+   * `isVotingOpen` (status-based) is still true. Server-side `submitVote` is
+   * the source of truth; this is defense-in-depth UI per the vote-deadline spec.
+   */
+  voteDeadline?: string | null;
 }
 
 export function SessionVoteOptimisticPanel({
@@ -39,6 +45,7 @@ export function SessionVoteOptimisticPanel({
   members,
   currentMemberId,
   isVotingOpen,
+  voteDeadline,
 }: SessionVoteOptimisticPanelProps) {
   const t = useTranslations("sessions");
   const tv = useTranslations("voting");
@@ -51,6 +58,31 @@ export function SessionVoteOptimisticPanel({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- optimistic list must converge after server revalidation.
     setOptimisticVotes(serverVotes);
   }, [serverVotes]);
+
+  // Defense-in-depth: when `voteDeadline` passes mid-session, flip a local
+  // flag so vote buttons disable client-side. Server still rejects with
+  // `voteDeadlinePassed` (source of truth) — this just avoids the confusing
+  // "countdown shows closed but button still clickable" UX.
+  // Init `false` (not Date.now()-based) to stay hydration-safe; the effect
+  // below converges to the correct value on the first client tick.
+  const [deadlinePassed, setDeadlinePassed] = useState(false);
+  useEffect(() => {
+    if (!voteDeadline) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- must reset when deadline clears mid-session.
+      setDeadlinePassed(false);
+      return;
+    }
+    const msUntil = new Date(voteDeadline).getTime() - Date.now();
+    if (msUntil <= 0) {
+      setDeadlinePassed(true);
+      return;
+    }
+    setDeadlinePassed(false);
+    const timeout = setTimeout(() => setDeadlinePassed(true), msUntil);
+    return () => clearTimeout(timeout);
+  }, [voteDeadline]);
+
+  const effectiveIsVotingOpen = isVotingOpen && !deadlinePassed;
 
   const playerCount = useMemo(
     () => optimisticVotes.filter((v) => !!v.willPlay).length,
@@ -115,7 +147,7 @@ export function SessionVoteOptimisticPanel({
         guestDineCount={totalGuestDine}
       />
 
-      {isVotingOpen && (
+      {effectiveIsVotingOpen && (
         <Card className="border-primary/20 bg-card/95 supports-[backdrop-filter]:bg-card/85 sticky bottom-20 z-30 shadow-lg backdrop-blur sm:static sm:shadow-sm">
           <CardContent className="p-4">
             <h2 className="mb-3 font-semibold">{t("yourVote")}</h2>

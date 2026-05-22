@@ -106,6 +106,7 @@ export default async function HomePage() {
           members={members}
           currentMemberId={user?.memberId ?? null}
           isVotingOpen={isVotingOpen}
+          voteDeadline={nextSession.voteDeadline}
         />
       </div>
     );

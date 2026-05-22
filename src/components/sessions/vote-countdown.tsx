@@ -21,9 +21,9 @@ export function VoteCountdown({
   onExpired,
 }: VoteCountdownProps) {
   const t = useTranslations("voting");
-  const [remainingMs, setRemainingMs] = useState<number | null>(() =>
-    deadline ? new Date(deadline).getTime() - Date.now() : null,
-  );
+  // Init `null` (not Date.now()-based) so SSR and client hydration match.
+  // First real value comes from the useEffect below, which only runs client-side.
+  const [remainingMs, setRemainingMs] = useState<number | null>(null);
 
   useEffect(() => {
     if (!deadline) {
@@ -44,8 +44,11 @@ export function VoteCountdown({
   }, [deadline, onExpired]);
 
   if (!deadline) return null;
+  // Pre-hydration: render nothing (avoids "flash of stale time"). The useEffect
+  // sets remainingMs on the first client tick.
+  if (remainingMs === null) return null;
 
-  if (remainingMs !== null && remainingMs <= 0) {
+  if (remainingMs <= 0) {
     if (variant === "banner") {
       return (
         <div className="border-destructive/30 bg-destructive/10 text-destructive rounded-xl border p-3 text-center text-sm font-semibold">
@@ -60,7 +63,7 @@ export function VoteCountdown({
     );
   }
 
-  const ms = remainingMs ?? 0;
+  const ms = remainingMs;
   const seconds = Math.floor(ms / 1000) % 60;
   const minutes = Math.floor(ms / 60_000) % 60;
   const hours = Math.floor(ms / 3_600_000) % 24;

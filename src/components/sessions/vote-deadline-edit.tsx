@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +34,15 @@ export function VoteDeadlineEdit({
   const t = useTranslations("voting");
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(() => toDatetimeLocalValue(current));
+
+  // Sync local picker value when the server-side `current` changes (after
+  // setVoteDeadline / extendVoteDeadline revalidates and parent re-renders).
+  // Without this, useState's lazy init runs once and the dialog shows the
+  // stale value the admin last typed. AGENTS.md: "Client hooks that mirror
+  // server props should useEffect-sync when props change."
+  useEffect(() => {
+    setValue(toDatetimeLocalValue(current));
+  }, [current]);
 
   function handleSet() {
     // datetime-local returns "YYYY-MM-DDTHH:MM"; pad seconds to match stored
