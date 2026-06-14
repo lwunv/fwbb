@@ -297,7 +297,26 @@
     "avatarDefault": "Mặc định",
     "fundBalance": "Số dư quỹ",
     "manageFund": "Quản lý số dư, nạp thêm và lịch sử giao dịch",
-    "myFund": "Quỹ của tôi"
+    "myFund": "Quỹ của tôi",
+    "setPassword": {
+      "titleSet": "Đặt mật khẩu",
+      "titleChange": "Đổi mật khẩu",
+      "descSet": "Cho phép login bằng email + mật khẩu",
+      "descChange": "Đổi mật khẩu hiện tại",
+      "emailPlaceholder": "Email",
+      "currentPlaceholder": "Mật khẩu hiện tại",
+      "newPlaceholderSet": "Mật khẩu (≥ 8 ký tự)",
+      "newPlaceholderChange": "Mật khẩu mới (≥ 8 ký tự)",
+      "confirmPlaceholder": "Xác nhận mật khẩu",
+      "cancel": "Hủy",
+      "submitSet": "Đặt mật khẩu",
+      "submitChange": "Đổi",
+      "emailRequired": "Vui lòng nhập email",
+      "tooShort": "Mật khẩu phải từ 8 ký tự trở lên",
+      "mismatch": "Mật khẩu xác nhận không khớp",
+      "successSet": "Đã đặt mật khẩu. Lần sau có thể login bằng email + mật khẩu.",
+      "successChange": "Đã đổi mật khẩu"
+    }
   },
   "dashboard": {
     "overview": "Tổng quan",

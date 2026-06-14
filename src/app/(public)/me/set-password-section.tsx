@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,7 @@ interface Props {
  * nên một số FB user không có; họ cần cập nhật email trước.
  */
 export function SetPasswordSection({ hasPassword, hasEmail }: Props) {
+  const t = useTranslations("me.setPassword");
   const [expanded, setExpanded] = useState(false);
   const [email, setEmail] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
@@ -32,15 +34,15 @@ export function SetPasswordSection({ hasPassword, hasEmail }: Props) {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!hasEmail && !email.trim()) {
-      toast.error("Vui lòng nhập email");
+      toast.error(t("emailRequired"));
       return;
     }
     if (newPassword.length < 8) {
-      toast.error("Mật khẩu phải từ 8 ký tự trở lên");
+      toast.error(t("tooShort"));
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast.error("Mật khẩu xác nhận không khớp");
+      toast.error(t("mismatch"));
       return;
     }
     setSaving(true);
@@ -53,9 +55,7 @@ export function SetPasswordSection({ hasPassword, hasEmail }: Props) {
         }),
       () => setSaving(false),
       {
-        successMsg: hasPassword
-          ? "Đã đổi mật khẩu"
-          : "Đã đặt mật khẩu. Lần sau có thể login bằng email + mật khẩu.",
+        successMsg: hasPassword ? t("successChange") : t("successSet"),
         onSuccess: () => {
           setSaving(false);
           setExpanded(false);
@@ -81,12 +81,10 @@ export function SetPasswordSection({ hasPassword, hasEmail }: Props) {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium">
-              {hasPassword ? "Đổi mật khẩu" : "Đặt mật khẩu"}
+              {hasPassword ? t("titleChange") : t("titleSet")}
             </p>
-            <p className="text-muted-foreground text-xs">
-              {hasPassword
-                ? "Đổi mật khẩu hiện tại"
-                : "Cho phép login bằng email + mật khẩu"}
+            <p className="text-muted-foreground text-sm">
+              {hasPassword ? t("descChange") : t("descSet")}
             </p>
           </div>
         </button>
@@ -99,7 +97,7 @@ export function SetPasswordSection({ hasPassword, hasEmail }: Props) {
                 inputMode="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email"
+                placeholder={t("emailPlaceholder")}
                 maxLength={200}
                 autoComplete="email"
                 disabled={saving}
@@ -111,7 +109,7 @@ export function SetPasswordSection({ hasPassword, hasEmail }: Props) {
                 type="password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
-                placeholder="Mật khẩu hiện tại"
+                placeholder={t("currentPlaceholder")}
                 autoComplete="current-password"
                 disabled={saving}
                 required
@@ -122,9 +120,7 @@ export function SetPasswordSection({ hasPassword, hasEmail }: Props) {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder={
-                hasPassword
-                  ? "Mật khẩu mới (≥ 8 ký tự)"
-                  : "Mật khẩu (≥ 8 ký tự)"
+                hasPassword ? t("newPlaceholderChange") : t("newPlaceholderSet")
               }
               autoComplete="new-password"
               minLength={8}
@@ -136,7 +132,7 @@ export function SetPasswordSection({ hasPassword, hasEmail }: Props) {
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Xác nhận mật khẩu"
+              placeholder={t("confirmPlaceholder")}
               autoComplete="new-password"
               minLength={8}
               maxLength={128}
@@ -152,7 +148,7 @@ export function SetPasswordSection({ hasPassword, hasEmail }: Props) {
                 className="flex-1"
                 size="sm"
               >
-                Hủy
+                {t("cancel")}
               </Button>
               <Button
                 type="submit"
@@ -161,7 +157,7 @@ export function SetPasswordSection({ hasPassword, hasEmail }: Props) {
                 size="sm"
               >
                 {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {hasPassword ? "Đổi" : "Đặt mật khẩu"}
+                {hasPassword ? t("submitChange") : t("submitSet")}
               </Button>
             </div>
           </form>

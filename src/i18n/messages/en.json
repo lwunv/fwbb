@@ -297,7 +297,26 @@
     "avatarDefault": "Default",
     "fundBalance": "Fund balance",
     "manageFund": "Manage balance, top up and transaction history",
-    "myFund": "My fund"
+    "myFund": "My fund",
+    "setPassword": {
+      "titleSet": "Set password",
+      "titleChange": "Change password",
+      "descSet": "Enable login with email + password",
+      "descChange": "Change your current password",
+      "emailPlaceholder": "Email",
+      "currentPlaceholder": "Current password",
+      "newPlaceholderSet": "Password (≥ 8 characters)",
+      "newPlaceholderChange": "New password (≥ 8 characters)",
+      "confirmPlaceholder": "Confirm password",
+      "cancel": "Cancel",
+      "submitSet": "Set password",
+      "submitChange": "Change",
+      "emailRequired": "Please enter your email",
+      "tooShort": "Password must be at least 8 characters",
+      "mismatch": "Password confirmation does not match",
+      "successSet": "Password set. Next time you can log in with email + password.",
+      "successChange": "Password changed"
+    }
   },
   "dashboard": {
     "overview": "Overview",

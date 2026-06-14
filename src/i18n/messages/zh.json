@@ -297,7 +297,26 @@
     "avatarDefault": "默认",
     "fundBalance": "基金余额",
     "manageFund": "管理余额、充值和交易记录",
-    "myFund": "我的基金"
+    "myFund": "我的基金",
+    "setPassword": {
+      "titleSet": "设置密码",
+      "titleChange": "修改密码",
+      "descSet": "允许使用邮箱 + 密码登录",
+      "descChange": "修改当前密码",
+      "emailPlaceholder": "邮箱",
+      "currentPlaceholder": "当前密码",
+      "newPlaceholderSet": "密码（≥ 8 个字符）",
+      "newPlaceholderChange": "新密码（≥ 8 个字符）",
+      "confirmPlaceholder": "确认密码",
+      "cancel": "取消",
+      "submitSet": "设置密码",
+      "submitChange": "修改",
+      "emailRequired": "请输入邮箱",
+      "tooShort": "密码至少需要 8 个字符",
+      "mismatch": "确认密码不一致",
+      "successSet": "密码已设置。下次可使用邮箱 + 密码登录。",
+      "successChange": "密码已修改"
+    }
   },
   "dashboard": {
     "overview": "概览",
