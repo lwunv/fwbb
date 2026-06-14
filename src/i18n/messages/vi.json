@@ -969,5 +969,25 @@
     "defaultHint": "Mặc định: {amount}",
     "customSuffix": "· Đang dùng giá tùy chỉnh",
     "resetButton": "Về mặc định"
+  },
+  "adminVote": {
+    "badminton": "Cầu",
+    "court": "Sân",
+    "dining": "Nhậu",
+    "totalSpend": "Tổng chi",
+    "shuttleUnit": "quả",
+    "owes": "nợ",
+    "paidOff": "✓ hết nợ",
+    "perHead": "/mạng",
+    "adminGuests": "Khách của admin:",
+    "paid": "Đã thanh toán",
+    "unpaid": "Chưa thanh toán",
+    "exemptOn": "Đã miễn 60K min — click để áp dụng lại",
+    "exemptOff": "Đang áp dụng 60K min — click để miễn member này",
+    "guests": "Khách:",
+    "guestUnit": "khách",
+    "removeTitle": "Xóa {name}?",
+    "removeDesc": "Xóa khỏi danh sách buổi chơi này?",
+    "min60k": "Min 60K: {from} → {to}"
   }
 }

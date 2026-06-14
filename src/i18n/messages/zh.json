@@ -969,5 +969,25 @@
     "defaultHint": "默认: {amount}",
     "customSuffix": "· 使用自定义价格",
     "resetButton": "恢复默认"
+  },
+  "adminVote": {
+    "badminton": "羽毛球",
+    "court": "球场",
+    "dining": "聚餐",
+    "totalSpend": "总支出",
+    "shuttleUnit": "个",
+    "owes": "欠",
+    "paidOff": "✓ 已结清",
+    "perHead": "/人",
+    "adminGuests": "管理员的客人：",
+    "paid": "已付款",
+    "unpaid": "未付款",
+    "exemptOn": "已豁免 60K 下限 — 点击重新应用",
+    "exemptOff": "正在应用 60K 下限 — 点击豁免此成员",
+    "guests": "客人：",
+    "guestUnit": "位客人",
+    "removeTitle": "移除 {name}？",
+    "removeDesc": "从本场名单中移除？",
+    "min60k": "下限 60K：{from} → {to}"
   }
 }

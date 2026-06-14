@@ -969,5 +969,25 @@
     "defaultHint": "Default: {amount}",
     "customSuffix": "· Using custom price",
     "resetButton": "Reset to default"
+  },
+  "adminVote": {
+    "badminton": "Badminton",
+    "court": "Court",
+    "dining": "Dining",
+    "totalSpend": "Total spend",
+    "shuttleUnit": "shuttles",
+    "owes": "owes",
+    "paidOff": "✓ paid off",
+    "perHead": "/head",
+    "adminGuests": "Admin's guests:",
+    "paid": "Paid",
+    "unpaid": "Unpaid",
+    "exemptOn": "Exempted from 60K min — click to re-apply",
+    "exemptOff": "60K min applied — click to exempt this member",
+    "guests": "Guests:",
+    "guestUnit": "guests",
+    "removeTitle": "Remove {name}?",
+    "removeDesc": "Remove from this session's list?",
+    "min60k": "Min 60K: {from} → {to}"
   }
 }

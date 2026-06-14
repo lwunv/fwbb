@@ -29,6 +29,7 @@ import {
   type FundAdjustDialogTarget,
 } from "@/components/fund/fund-adjust-dialog";
 import { confirmPaymentByAdmin, undoPaymentByAdmin } from "@/actions/finance";
+import { fireAction } from "@/lib/optimistic-action";
 import type { InferSelectModel } from "drizzle-orm";
 import type { votes as votesTable, members as membersTable } from "@/db/schema";
 
@@ -103,12 +104,12 @@ export function AdminVoteManager({
 }: AdminVoteManagerProps) {
   const t = useTranslations("voting");
   const tCommon = useTranslations("common");
+  const tA = useTranslations("adminVote");
   const [search, setSearch] = useState("");
   const [removeTarget, setRemoveTarget] = useState<{
     memberId: number;
     name: string;
   } | null>(null);
-  const [error, setError] = useState("");
 
   // Optimistic local state — overrides server data instantly
   const [localVotes, setLocalVotes] = useState<Record<number, LocalVote>>({});
@@ -192,18 +193,15 @@ export function AdminVoteManager({
   const playerCount = memberPlayerCount + totalGuestPlay;
   const dinerCount = memberDinerCount + totalGuestDine;
 
-  // Fire-and-forget with rollback on error
+  // Fire-and-forget with rollback on error. Routes through the canonical
+  // fireAction (auto-retry once + toast.error + rollback) — replaces the old
+  // setTimeout-cleared inline error. All these actions are idempotent
+  // (set vote / set guest count / remove / confirm-with-key) so retry is safe.
   function fireAsync(
     fn: () => Promise<{ error?: string; success?: boolean }>,
     rollback: () => void,
   ) {
-    fn().then((result) => {
-      if (result.error) {
-        rollback();
-        setError(result.error);
-        setTimeout(() => setError(""), 3000);
-      }
-    });
+    fireAction(fn, rollback);
   }
 
   function toggleTag(memberId: number, tag: "play" | "dine") {
@@ -458,13 +456,14 @@ export function AdminVoteManager({
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">
                       <span className="inline-block w-6 text-center">🏸</span>{" "}
-                      Cầu
+                      {tA("badminton")}
                     </span>
                     <span className="font-medium">
                       {sc.shuttlecocks.map((s, i) => (
                         <span key={i}>
                           {i > 0 && ", "}
-                          <strong>{s.quantity}</strong> quả {s.brandName}
+                          <strong>{s.quantity}</strong> {tA("shuttleUnit")}{" "}
+                          {s.brandName}
                         </span>
                       ))}{" "}
                       ·{" "}
@@ -478,7 +477,7 @@ export function AdminVoteManager({
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">
                       <span className="inline-block w-6 text-center">🏟</span>{" "}
-                      {sc.courtName ?? "Sân"}
+                      {sc.courtName ?? tA("court")}
                     </span>
                     <span className="text-primary font-medium">
                       {formatK(sc.courtPrice)}
@@ -489,7 +488,7 @@ export function AdminVoteManager({
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">
                       <span className="inline-block w-6 text-center">🍻</span>{" "}
-                      Nhậu
+                      {tA("dining")}
                     </span>
                     <span className="font-medium text-orange-500 dark:text-orange-400">
                       {formatK(sc.diningBill)}
@@ -499,7 +498,7 @@ export function AdminVoteManager({
                 <div className="flex items-center justify-between font-bold">
                   <span>
                     <span className="inline-block w-6 text-center">💰</span>{" "}
-                    Tổng chi
+                    {tA("totalSpend")}
                   </span>
                   <span>
                     <span className="text-primary">
@@ -508,13 +507,13 @@ export function AdminVoteManager({
                     {totalOwed > 0 && (
                       <span className="text-red-600 dark:text-red-400">
                         {" "}
-                        (nợ {formatK(totalOwed)})
+                        ({tA("owes")} {formatK(totalOwed)})
                       </span>
                     )}
                     {totalOwed <= 0 && totalDebtAmount > 0 && (
                       <span className="text-green-600 dark:text-green-400">
                         {" "}
-                        (✓ hết nợ)
+                        ({tA("paidOff")})
                       </span>
                     )}
                   </span>
@@ -522,7 +521,7 @@ export function AdminVoteManager({
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-1">
                     <span>
-                      🏸Cầu{" "}
+                      🏸{tA("badminton")}{" "}
                       <strong className="text-primary">{playerCount}</strong>
                     </span>
                     {playPerHead > 0 && (
@@ -531,13 +530,13 @@ export function AdminVoteManager({
                         <strong className="text-primary">
                           {formatK(playPerHead)}
                         </strong>
-                        /mạng
+                        {tA("perHead")}
                       </span>
                     )}
                   </div>
                   <div className="flex items-center gap-1">
                     <span>
-                      🍻Nhậu{" "}
+                      🍻{tA("dining")}{" "}
                       <strong className="text-orange-500 dark:text-orange-400">
                         {dinerCount}
                       </strong>
@@ -548,7 +547,7 @@ export function AdminVoteManager({
                         <strong className="text-orange-500 dark:text-orange-400">
                           {formatK(dinePerHead)}
                         </strong>
-                        /mạng
+                        {tA("perHead")}
                       </span>
                     )}
                   </div>
@@ -574,7 +573,7 @@ export function AdminVoteManager({
       {!readOnly && onAdminGuestChange && (
         <div className="flex flex-wrap items-center gap-3 px-1">
           <span className="text-muted-foreground text-sm font-medium">
-            Khách của admin:
+            {tA("adminGuests")}
           </span>
           <div className="flex items-center gap-2">
             <span className="text-sm">🏸</span>
@@ -610,12 +609,6 @@ export function AdminVoteManager({
           row member là card duy nhất nổi lên (bg-card đặc + shadow nhẹ) để
           tách biệt rõ giữa các thành viên mà không gây "card-trong-card". */}
       <div className="space-y-2">
-        {error && (
-          <div className="bg-destructive/10 text-destructive rounded-md p-2 text-center text-xs">
-            {error}
-          </div>
-        )}
-
         {/* Đã tham gia */}
         <div className="space-y-2">
           {activeMembers.map((member) => {
@@ -693,7 +686,7 @@ export function AdminVoteManager({
                           // No deduction yet (un-priced session or member not contributing).
                           return (
                             <span
-                              className={`text-xs tabular-nums ${balColor}`}
+                              className={`text-sm tabular-nums ${balColor}`}
                             >
                               {formatK(bal)}
                             </span>
@@ -711,7 +704,7 @@ export function AdminVoteManager({
                               : "text-foreground";
 
                         return (
-                          <span className="flex items-baseline gap-1 text-xs tabular-nums">
+                          <span className="flex items-baseline gap-1 text-sm tabular-nums">
                             <span className={balColor}>{formatK(bal)}</span>
                             <span className="font-medium text-rose-500 dark:text-rose-400">
                               − {formatK(ded)}
@@ -719,7 +712,10 @@ export function AdminVoteManager({
                             {after.totalAmount > raw.totalAmount && (
                               <span
                                 className="text-xs text-orange-500 dark:text-orange-400"
-                                title={`Min 60K: ${formatK(raw.totalAmount)} → ${formatK(after.totalAmount)}`}
+                                title={tA("min60k", {
+                                  from: formatK(raw.totalAmount),
+                                  to: formatK(after.totalAmount),
+                                })}
                               >
                                 🛡
                               </span>
@@ -825,9 +821,7 @@ export function AdminVoteManager({
                     {debt ? (
                       <button
                         type="button"
-                        title={
-                          isConfirmed ? "Đã thanh toán" : "Chưa thanh toán"
-                        }
+                        title={isConfirmed ? tA("paid") : tA("unpaid")}
                         onClick={() => togglePayment(member.id)}
                         className={`inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border text-lg transition-all hover:opacity-80 ${
                           isConfirmed
@@ -864,10 +858,10 @@ export function AdminVoteManager({
                         onClick={() => handleToggleExempt(member.id)}
                         title={
                           getExempt(member.id)
-                            ? "Đã miễn 60K min — click để áp dụng lại"
-                            : "Đang áp dụng 60K min — click để miễn member này"
+                            ? tA("exemptOn")
+                            : tA("exemptOff")
                         }
-                        className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-colors ${
+                        className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors ${
                           getExempt(member.id)
                             ? "border-muted-foreground/30 bg-muted/30 text-muted-foreground hover:bg-muted/50"
                             : "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
@@ -889,7 +883,7 @@ export function AdminVoteManager({
                             name: member.name,
                           })
                         }
-                        className="border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-colors"
+                        className="border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors"
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -904,7 +898,7 @@ export function AdminVoteManager({
                     return isOpen ? (
                       <div className="flex flex-wrap items-center gap-2 pt-2 pb-1">
                         <span className="text-muted-foreground text-sm font-medium">
-                          Khách:
+                          {tA("guests")}
                         </span>
                         {v.willPlay && (
                           <>
@@ -949,13 +943,17 @@ export function AdminVoteManager({
                             className="text-primary hover:text-primary/80 pt-1 pb-1 text-left text-sm transition-colors"
                           >
                             {showPlayGuest && (
-                              <span>🏸 {guests.play} khách</span>
+                              <span>
+                                🏸 {guests.play} {tA("guestUnit")}
+                              </span>
                             )}
                             {showPlayGuest && showDineGuest && (
                               <span className="mx-2">·</span>
                             )}
                             {showDineGuest && (
-                              <span>🍻 {guests.dine} khách</span>
+                              <span>
+                                🍻 {guests.dine} {tA("guestUnit")}
+                              </span>
                             )}
                           </button>
                         );
@@ -1038,7 +1036,7 @@ export function AdminVoteManager({
                                       : "font-semibold text-blue-600 dark:text-blue-400";
                               return (
                                 <span
-                                  className={`text-xs tabular-nums ${balColor}`}
+                                  className={`text-sm tabular-nums ${balColor}`}
                                 >
                                   {formatK(bal)}
                                 </span>
@@ -1083,8 +1081,8 @@ export function AdminVoteManager({
         onOpenChange={(open) => {
           if (!open) setRemoveTarget(null);
         }}
-        title={`Xóa ${removeTarget?.name ?? ""}?`}
-        description="Xóa khỏi danh sách buổi chơi này?"
+        title={tA("removeTitle", { name: removeTarget?.name ?? "" })}
+        description={tA("removeDesc")}
         onConfirm={handleRemoveConfirm}
       />
       <FundAdjustDialog
