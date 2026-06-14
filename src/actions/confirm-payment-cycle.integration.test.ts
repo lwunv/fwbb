@@ -25,7 +25,6 @@ import {
   sessions,
   sessionDebts,
   financialTransactions,
-  fundMembers,
   admins as adminsTable,
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -73,7 +72,6 @@ async function reset() {
   await client.execute("DELETE FROM session_attendees");
   await client.execute("DELETE FROM session_shuttlecocks");
   await client.execute("DELETE FROM votes");
-  await client.execute("DELETE FROM fund_members");
   await client.execute("DELETE FROM sessions");
   await client.execute("DELETE FROM admins");
   await client.execute("DELETE FROM members");
@@ -112,11 +110,12 @@ async function contributeToFund(memberId: number, amount: number) {
   });
 }
 
-async function joinFund(memberId: number) {
-  await testDb
-    .insert(fundMembers)
-    .values({ memberId, isActive: true })
-    .onConflictDoNothing();
+async function joinFund(_memberId: number) {
+  // No-op under the post-0013 model: fund roster is derived from
+  // members.isActive=true AND approvalStatus='approved', which is the default
+  // for every member inserted in seedActors. There is no fund_members table to
+  // enrol into anymore — a freshly inserted member is already "in fund".
+  void _memberId;
 }
 
 async function getBalance(memberId: number): Promise<number> {

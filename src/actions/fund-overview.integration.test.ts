@@ -17,7 +17,6 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
 import {
   members,
-  fundMembers,
   financialTransactions,
   inventoryPurchases,
   shuttlecockBrands,
@@ -41,16 +40,16 @@ async function reset() {
   await client.execute("DELETE FROM financial_transactions");
   await client.execute("DELETE FROM inventory_purchases");
   await client.execute("DELETE FROM shuttlecock_brands");
-  await client.execute("DELETE FROM fund_members");
   await client.execute("DELETE FROM members");
 }
 
 async function seedMember(name: string, fbId: string) {
+  // Member mặc định isActive=true + approvalStatus='approved' → tự trong quỹ
+  // (roster quỹ giờ derive từ members, bảng fund_members đã bị drop ở 0013).
   const [m] = await testDb
     .insert(members)
     .values({ name, facebookId: fbId })
     .returning({ id: members.id });
-  await testDb.insert(fundMembers).values({ memberId: m.id, isActive: true });
   return m.id;
 }
 

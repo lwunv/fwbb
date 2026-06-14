@@ -14,7 +14,6 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
 import {
   members,
-  fundMembers,
   sessions,
   sessionDebts,
   financialTransactions,
@@ -39,12 +38,18 @@ async function reset() {
   await client.execute("DELETE FROM session_shuttlecocks");
   await client.execute("DELETE FROM votes");
   await client.execute("DELETE FROM sessions");
-  await client.execute("DELETE FROM fund_members");
   await client.execute("DELETE FROM members");
 }
 
 let counter = 0;
-async function seedMember(opts?: { name?: string; bankAccountNo?: string }) {
+// Roster quỹ MỚI: member mặc định (isActive=true, approvalStatus='approved')
+// đã tự động trong quỹ — không còn bảng fund_members. Để tạo member CỐ Ý
+// "không trong quỹ", truyền inFund:false → set isActive=false.
+async function seedMember(opts?: {
+  name?: string;
+  bankAccountNo?: string;
+  inFund?: boolean;
+}) {
   counter += 1;
   const [m] = await testDb
     .insert(members)
@@ -52,16 +57,10 @@ async function seedMember(opts?: { name?: string; bankAccountNo?: string }) {
       name: opts?.name ?? `Member${counter}`,
       facebookId: `fb-${counter}-${Date.now()}`,
       bankAccountNo: opts?.bankAccountNo ?? null,
+      isActive: opts?.inFund === false ? false : true,
     })
     .returning({ id: members.id });
   return m.id;
-}
-
-async function joinFund(memberId: number) {
-  await testDb
-    .insert(fundMembers)
-    .values({ memberId, isActive: true })
-    .onConflictDoNothing();
 }
 
 async function seedSession(date = "2026-04-10") {
@@ -107,7 +106,6 @@ describe("processPayment (integration)", () => {
 
   it("returns duplicate when same gmail_message_id processed twice", async () => {
     const memberId = await seedMember({ bankAccountNo: "9021" });
-    await joinFund(memberId);
     const payment = basePayment({
       amount: 200_000,
       memo: `FWBB QUY ${memberId}`,
@@ -133,7 +131,6 @@ describe("processPayment (integration)", () => {
 
   it("matches QUY {id} memo even without senderAccountNo", async () => {
     const m = await seedMember();
-    await joinFund(m);
     const r = await processPayment(
       basePayment({
         amount: 500_000,
@@ -154,7 +151,6 @@ describe("processPayment (integration)", () => {
 
   it("matches plain QUY keyword via senderAccountNo lookup", async () => {
     const m = await seedMember({ bankAccountNo: "8888777766" });
-    await joinFund(m);
     const r = await processPayment(
       basePayment({
         amount: 300_000,
@@ -168,8 +164,8 @@ describe("processPayment (integration)", () => {
   });
 
   it("returns pending if member is not in fund", async () => {
-    await seedMember({ bankAccountNo: "1111" });
-    // Not joined fund
+    await seedMember({ bankAccountNo: "1111", inFund: false });
+    // isActive=false → không trong quỹ (thay cho việc trước đây không insert fund_members)
     const r = await processPayment(
       basePayment({
         amount: 200_000,
@@ -267,7 +263,6 @@ describe("processPayment (integration)", () => {
 
   it("treats NO {id} as fund contribution when no debts and member is fund member", async () => {
     const m = await seedMember();
-    await joinFund(m);
     const r = await processPayment(
       basePayment({
         amount: 200_000,
@@ -280,7 +275,7 @@ describe("processPayment (integration)", () => {
   });
 
   it("returns pending when NO {id} has no debts and member is NOT fund member", async () => {
-    const m = await seedMember();
+    const m = await seedMember({ inFund: false });
     const r = await processPayment(
       basePayment({
         amount: 200_000,
@@ -405,7 +400,6 @@ describe("processPayment (integration)", () => {
 
   it("treats unknown memo + no debts + fund member as fund contribution", async () => {
     const m = await seedMember({ bankAccountNo: "5555" });
-    await joinFund(m);
     const r = await processPayment(
       basePayment({
         amount: 100_000,

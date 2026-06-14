@@ -349,15 +349,11 @@ export const sessionDebtsRelations = relations(sessionDebts, ({ one }) => ({
   }),
 }));
 
-export const membersRelations = relations(members, ({ many, one }) => ({
+export const membersRelations = relations(members, ({ many }) => ({
   votes: many(votes),
   debts: many(sessionDebts),
   attendances: many(sessionAttendees, { relationName: "attendeeMember" }),
   guestsInvited: many(sessionAttendees, { relationName: "invitedByMember" }),
-  fundMembership: one(fundMembers, {
-    fields: [members.id],
-    references: [fundMembers.memberId],
-  }),
   financialTransactions: many(financialTransactions),
 }));
 
@@ -390,16 +386,8 @@ export const inventoryPurchasesRelations = relations(
 
 // ─── Fund (Quỹ nhóm) ───
 
-export const fundMembers = sqliteTable("fund_members", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  memberId: integer("member_id")
-    .notNull()
-    .unique()
-    .references(() => members.id, { onDelete: "cascade" }),
-  isActive: integer("is_active", { mode: "boolean" }).default(true),
-  joinedAt: text("joined_at").default(sql`(current_timestamp)`),
-  leftAt: text("left_at"),
-});
+// (removed) fund_members — roster quỹ giờ derive từ
+// members.isActive=true AND approvalStatus='approved'. Xem fund-calculator.ts.
 
 export const financialTransactions = sqliteTable(
   "financial_transactions",
@@ -478,13 +466,6 @@ export const financialTransactions = sqliteTable(
       .where(sql`${table.idempotencyKey} IS NOT NULL`),
   ],
 );
-
-export const fundMembersRelations = relations(fundMembers, ({ one }) => ({
-  member: one(members, {
-    fields: [fundMembers.memberId],
-    references: [members.id],
-  }),
-}));
 
 export const financialTransactionsRelations = relations(
   financialTransactions,

@@ -49,7 +49,6 @@ async function reset() {
   await client.execute("DELETE FROM session_attendees");
   await client.execute("DELETE FROM session_shuttlecocks");
   await client.execute("DELETE FROM votes");
-  await client.execute("DELETE FROM fund_members");
   await client.execute("DELETE FROM sessions");
   await client.execute("DELETE FROM admins");
   await client.execute("DELETE FROM members");

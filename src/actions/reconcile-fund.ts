@@ -3,7 +3,7 @@
 import { db } from "@/db";
 import {
   financialTransactions,
-  fundMembers,
+  members,
   paymentNotifications,
   sessionDebts,
 } from "@/db/schema";
@@ -103,9 +103,14 @@ export async function reconcileFund(): Promise<ReconcileReport> {
         reversalOfId: true,
       },
     }),
-    db.query.fundMembers.findMany({
-      where: eq(fundMembers.isActive, true),
-      columns: { memberId: true },
+    // Roster quỹ = members.isActive+approved (không còn bảng fund_members).
+    // fmRows[].id là memberId của roster.
+    db.query.members.findMany({
+      where: and(
+        eq(members.isActive, true),
+        eq(members.approvalStatus, "approved"),
+      ),
+      columns: { id: true },
     }),
     db.query.paymentNotifications.findMany({
       columns: { id: true, status: true, matchedTransactionId: true },
@@ -179,6 +184,20 @@ export async function reconcileFund(): Promise<ReconcileReport> {
     });
   }
 
+  // I10: member NGOÀI roster quỹ (đã khóa / chưa duyệt) nhưng còn balance ≠ 0.
+  // Model mới "khóa = đóng băng balance" → tiền của họ vẫn trong két (bal>0) hoặc
+  // nợ chưa thu (bal<0) mà không hiện trên roster. Warn để admin hoàn/thu chủ động.
+  const rosterIdSet = new Set(fmRows.map((r) => r.id));
+  for (const [memberId, bal] of balancesByMember.entries()) {
+    if (bal !== 0 && !rosterIdSet.has(memberId)) {
+      issues.push({
+        severity: "warn",
+        code: "I10_frozen_balance",
+        message: `Member #${memberId} ngoài roster quỹ (đã khóa/chưa duyệt) còn balance ${bal}đ (đóng băng).`,
+      });
+    }
+  }
+
   // I3: notifications matched but no linked tx
   const txByNotifId = new Map<number, number>();
   for (const tx of txWithNotif) {
@@ -231,13 +250,6 @@ export async function reconcileFund(): Promise<ReconcileReport> {
       });
     } else {
       seenKeys.set(tx.idempotencyKey, tx.id);
-    }
-  }
-
-  // Bonus invariant: every active fund member should resolve via balancesByMember.
-  for (const fm of fmRows) {
-    if (!balancesByMember.has(fm.memberId)) {
-      // Member chưa có giao dịch nào → balance = 0, hợp lệ. Không cần báo.
     }
   }
 
@@ -341,7 +353,7 @@ export async function reconcileFund(): Promise<ReconcileReport> {
   // Cross-check invariant (sanity): recompute one balance via library function
   // and compare — proves computeBalanceFromTransactions matches our aggregate.
   if (fmRows[0]) {
-    const sampleId = fmRows[0].memberId;
+    const sampleId = fmRows[0].id;
     const sampleTxs = allFundTxs.filter((t) => t.memberId === sampleId);
     const libBalance = computeBalanceFromTransactions(
       sampleId,

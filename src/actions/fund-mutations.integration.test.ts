@@ -16,7 +16,7 @@
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
-import { members, fundMembers, financialTransactions } from "@/db/schema";
+import { members, financialTransactions } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 vi.mock("@/lib/auth", () => ({
@@ -41,16 +41,17 @@ async function reset() {
   await client.execute("DELETE FROM session_shuttlecocks");
   await client.execute("DELETE FROM votes");
   await client.execute("DELETE FROM sessions");
-  await client.execute("DELETE FROM fund_members");
   await client.execute("DELETE FROM members");
 }
 
 async function seedFundMember(name = "Alice", fbId = "fb-a") {
+  // Roster quỹ giờ derive từ members.isActive=true AND approvalStatus='approved'
+  // — cả hai là default khi insert, nên member mới tự "trong quỹ". Không còn
+  // bảng fund_members để insert.
   const [m] = await testDb
     .insert(members)
     .values({ name, facebookId: fbId })
     .returning({ id: members.id });
-  await testDb.insert(fundMembers).values({ memberId: m.id, isActive: true });
   return m.id;
 }
 

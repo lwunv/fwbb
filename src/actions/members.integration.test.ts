@@ -1,20 +1,21 @@
 /**
  * Integration tests for member actions (HIGH+MEDIUM gaps per audit):
- *  - removeFundMember: refund positive balance atomically, flip isActive,
- *    handle negative balance (no refund issued), idempotent re-remove
+ *  - toggleMemberActive: locking a member = leaving the fund (roster derives
+ *    from members.isActive). Balance is FROZEN — no auto fund_refund issued.
  *  - findDuplicateMembers: detects name collisions, computes balance per
  *    duplicate via computeBalanceFromTransactions (no double-count of
  *    bank_payment_received audit rows)
+ *
+ * NOTE: the `fund_members` table was dropped (migration 0013). Fund membership
+ * is now derived: in-fund ⇔ members.isActive=true AND approvalStatus='approved'.
+ * Members insert with those defaults, so a plain insert = in-fund. "Not in fund"
+ * is now expressed via isActive=false (locked) or approvalStatus!='approved'.
+ * The old addFundMember/removeFundMember actions were removed.
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
-import {
-  admins,
-  members,
-  fundMembers,
-  financialTransactions,
-} from "@/db/schema";
+import { admins, members, financialTransactions } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -25,12 +26,11 @@ vi.mock("@/lib/auth", () => ({
 const { db: testDb, client } = await createTestDb();
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { removeFundMember } = await import("./fund");
-const { findDuplicateMembers } = await import("./members");
+const { toggleMemberActive, findDuplicateMembers } = await import("./members");
+const { getFundBalance } = await import("@/lib/fund-calculator");
 
 async function reset() {
   await client.execute("DELETE FROM financial_transactions");
-  await client.execute("DELETE FROM fund_members");
   await client.execute("DELETE FROM admins");
   await client.execute("DELETE FROM members");
 }
@@ -43,58 +43,58 @@ async function seedMember(name: string, fid = `fb-${name}-${Date.now()}`) {
   return m.id;
 }
 
-async function seedFundMember(memberId: number) {
-  await testDb.insert(fundMembers).values({
-    memberId,
-    isActive: true,
-    joinedAt: new Date().toISOString(),
-  });
-}
-
 async function seedAdmin() {
   await testDb
     .insert(admins)
     .values({ username: `a${Date.now()}`, passwordHash: "hash" });
 }
 
-describe("removeFundMember (integration)", () => {
+describe("toggleMemberActive (integration)", () => {
   beforeEach(async () => {
     await reset();
     await seedAdmin();
   });
 
-  it("rejects when member not in fund", async () => {
-    const memberId = await seedMember("Solo");
-    const r = await removeFundMember(memberId);
-    expect("error" in r).toBe(true);
+  it("new member is in-fund by default (isActive=true)", async () => {
+    const memberId = await seedMember("Default");
+    const m = await testDb.query.members.findFirst({
+      where: eq(members.id, memberId),
+    });
+    expect(m?.isActive).toBe(true);
+    expect(m?.approvalStatus).toBe("approved");
   });
 
-  it("removes with no balance — flips isActive=false, no refund tx", async () => {
-    const memberId = await seedMember("Empty");
-    await seedFundMember(memberId);
+  it("locks an in-fund member — flips isActive=false (leaves fund)", async () => {
+    const memberId = await seedMember("Lockable");
 
-    const r = await removeFundMember(memberId);
+    const r = await toggleMemberActive(memberId);
     expect(r).toEqual({ success: true });
 
-    const fm = await testDb.query.fundMembers.findFirst({
-      where: eq(fundMembers.memberId, memberId),
+    const m = await testDb.query.members.findFirst({
+      where: eq(members.id, memberId),
     });
-    expect(fm?.isActive).toBe(false);
-    expect(fm?.leftAt).toBeTruthy();
-
-    const refunds = await testDb.query.financialTransactions.findMany({
-      where: and(
-        eq(financialTransactions.memberId, memberId),
-        eq(financialTransactions.type, "fund_refund"),
-      ),
-    });
-    expect(refunds).toHaveLength(0);
+    expect(m?.isActive).toBe(false);
   });
 
-  it("positive balance — issues fund_refund + flips isActive (atomic)", async () => {
+  it("toggle is reversible — relock then unlock restores in-fund state", async () => {
+    const memberId = await seedMember("Reversible");
+
+    await toggleMemberActive(memberId); // → false
+    let m = await testDb.query.members.findFirst({
+      where: eq(members.id, memberId),
+    });
+    expect(m?.isActive).toBe(false);
+
+    await toggleMemberActive(memberId); // → true
+    m = await testDb.query.members.findFirst({
+      where: eq(members.id, memberId),
+    });
+    expect(m?.isActive).toBe(true);
+  });
+
+  it("locking a member with positive balance does NOT issue a fund_refund (balance frozen)", async () => {
     const memberId = await seedMember("Positive");
-    await seedFundMember(memberId);
-    // Seed 100k contribution
+    // Seed 100k contribution → balance = +100k
     await testDb.insert(financialTransactions).values({
       memberId,
       type: "fund_contribution",
@@ -103,32 +103,31 @@ describe("removeFundMember (integration)", () => {
       idempotencyKey: `seed-contrib-${memberId}`,
     });
 
-    const r = await removeFundMember(memberId);
+    const r = await toggleMemberActive(memberId);
     expect(r).toEqual({ success: true });
 
+    // No auto-refund row inserted — balance is frozen in the ledger.
     const refunds = await testDb.query.financialTransactions.findMany({
       where: and(
         eq(financialTransactions.memberId, memberId),
         eq(financialTransactions.type, "fund_refund"),
       ),
     });
-    expect(refunds).toHaveLength(1);
-    expect(refunds[0].amount).toBe(100_000);
-    expect(refunds[0].direction).toBe("out");
-    // Natural-keyed by fundMembers.id
-    expect(refunds[0].idempotencyKey?.startsWith("leave-fund-refund-")).toBe(
-      true,
-    );
+    expect(refunds).toHaveLength(0);
 
-    const fm = await testDb.query.fundMembers.findFirst({
-      where: eq(fundMembers.memberId, memberId),
+    // Balance unchanged (still readable for a locked member — frozen, not zeroed).
+    const bal = await getFundBalance(memberId);
+    expect(bal.balance).toBe(100_000);
+
+    // Member is out of fund (isActive=false).
+    const m = await testDb.query.members.findFirst({
+      where: eq(members.id, memberId),
     });
-    expect(fm?.isActive).toBe(false);
+    expect(m?.isActive).toBe(false);
   });
 
-  it("negative balance (member owes fund) — no refund, just deactivates", async () => {
+  it("locking a member who owes the fund does NOT issue any refund either", async () => {
     const memberId = await seedMember("Negative");
-    await seedFundMember(memberId);
     // Seed 50k deduction → balance = -50k
     await testDb.insert(financialTransactions).values({
       memberId,
@@ -138,7 +137,7 @@ describe("removeFundMember (integration)", () => {
       idempotencyKey: `seed-debt-${memberId}`,
     });
 
-    const r = await removeFundMember(memberId);
+    const r = await toggleMemberActive(memberId);
     expect(r).toEqual({ success: true });
 
     const refunds = await testDb.query.financialTransactions.findMany({
@@ -149,95 +148,13 @@ describe("removeFundMember (integration)", () => {
     });
     expect(refunds).toHaveLength(0);
 
-    const fm = await testDb.query.fundMembers.findFirst({
-      where: eq(fundMembers.memberId, memberId),
-    });
-    expect(fm?.isActive).toBe(false);
+    const bal = await getFundBalance(memberId);
+    expect(bal.balance).toBe(-50_000);
   });
 
-  it("refundBalance=false — keeps balance, just deactivates", async () => {
-    const memberId = await seedMember("KeepBalance");
-    await seedFundMember(memberId);
-    await testDb.insert(financialTransactions).values({
-      memberId,
-      type: "fund_contribution",
-      direction: "in",
-      amount: 80_000,
-      idempotencyKey: `seed-contrib-${memberId}`,
-    });
-
-    const r = await removeFundMember(memberId, false);
-    expect(r).toEqual({ success: true });
-
-    const refunds = await testDb.query.financialTransactions.findMany({
-      where: and(
-        eq(financialTransactions.memberId, memberId),
-        eq(financialTransactions.type, "fund_refund"),
-      ),
-    });
-    expect(refunds).toHaveLength(0);
-  });
-
-  it("idempotent — second remove on already-removed member rejects (no double-refund)", async () => {
-    const memberId = await seedMember("Twice");
-    await seedFundMember(memberId);
-    await testDb.insert(financialTransactions).values({
-      memberId,
-      type: "fund_contribution",
-      direction: "in",
-      amount: 60_000,
-      idempotencyKey: `seed-contrib-${memberId}`,
-    });
-
-    const r1 = await removeFundMember(memberId);
-    expect(r1).toEqual({ success: true });
-
-    // Second call: member's fundMembers row is now isActive=false → rejects
-    const r2 = await removeFundMember(memberId);
-    expect("error" in r2).toBe(true);
-
-    // Still only 1 refund
-    const refunds = await testDb.query.financialTransactions.findMany({
-      where: and(
-        eq(financialTransactions.memberId, memberId),
-        eq(financialTransactions.type, "fund_refund"),
-      ),
-    });
-    expect(refunds).toHaveLength(1);
-  });
-
-  it("ignores audit-only rows (bank_payment_received) when computing balance", async () => {
-    const memberId = await seedMember("Audit");
-    await seedFundMember(memberId);
-    // Contribution = real money in
-    await testDb.insert(financialTransactions).values({
-      memberId,
-      type: "fund_contribution",
-      direction: "in",
-      amount: 80_000,
-      idempotencyKey: `c1-${memberId}`,
-    });
-    // Audit row paired with contribution (bank webhook). MUST NOT double-count.
-    await testDb.insert(financialTransactions).values({
-      memberId,
-      type: "bank_payment_received",
-      direction: "in",
-      amount: 80_000,
-      idempotencyKey: `bank-${memberId}`,
-    });
-
-    const r = await removeFundMember(memberId);
-    expect(r).toEqual({ success: true });
-
-    // Refund = 80k (not 160k — bank row is audit-only, excluded from balance)
-    const refunds = await testDb.query.financialTransactions.findMany({
-      where: and(
-        eq(financialTransactions.memberId, memberId),
-        eq(financialTransactions.type, "fund_refund"),
-      ),
-    });
-    expect(refunds).toHaveLength(1);
-    expect(refunds[0].amount).toBe(80_000);
+  it("rejects when member does not exist", async () => {
+    const r = await toggleMemberActive(999_999);
+    expect("error" in r).toBe(true);
   });
 });
 

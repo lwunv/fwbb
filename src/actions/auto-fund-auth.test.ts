@@ -11,7 +11,7 @@
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
-import { members, fundMembers, paymentNotifications } from "@/db/schema";
+import { members, paymentNotifications } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -30,7 +30,6 @@ const { claimFundContribution } = await import("./auto-fund");
 async function reset() {
   await client.execute("DELETE FROM payment_notifications");
   await client.execute("DELETE FROM financial_transactions");
-  await client.execute("DELETE FROM fund_members");
   await client.execute("DELETE FROM session_debts");
   await client.execute("DELETE FROM session_attendees");
   await client.execute("DELETE FROM session_shuttlecocks");
@@ -40,11 +39,12 @@ async function reset() {
 }
 
 async function seedFundMember(name: string, fbId: string) {
+  // Roster quỹ giờ derive: members.isActive=true AND approvalStatus='approved'
+  // (default khi insert) → member tự động "trong quỹ". Không còn fund_members row.
   const [m] = await testDb
     .insert(members)
     .values({ name, facebookId: fbId })
     .returning({ id: members.id });
-  await testDb.insert(fundMembers).values({ memberId: m.id, isActive: true });
   return m.id;
 }
 
@@ -116,9 +116,11 @@ describe("claimFundContribution — authorization", () => {
   });
 
   it("rejects logged-in user not in fund", async () => {
+    // "Không trong quỹ" giờ = members.isActive=false (member bị khóa khỏi quỹ),
+    // không còn là việc thiếu fund_members row.
     const [m] = await testDb
       .insert(members)
-      .values({ name: "NotInFund", facebookId: "fb-notin" })
+      .values({ name: "NotInFund", facebookId: "fb-notin", isActive: false })
       .returning({ id: members.id });
     userMock.getUserFromCookie.mockResolvedValue({
       memberId: m.id,

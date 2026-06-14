@@ -92,6 +92,13 @@
       "when": 1779439400000,
       "tag": "0012_vote_deadline",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1781415849177,
+      "tag": "0013_drop_fund_members",
+      "breakpoints": true
     }
   ]
 }

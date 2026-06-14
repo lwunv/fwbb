@@ -15,7 +15,6 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
 import {
   members,
-  fundMembers,
   sessions,
   sessionDebts,
   financialTransactions,
@@ -52,11 +51,11 @@ async function reset() {
   await client.execute("DELETE FROM session_shuttlecocks");
   await client.execute("DELETE FROM votes");
   await client.execute("DELETE FROM sessions");
-  await client.execute("DELETE FROM fund_members");
   await client.execute("DELETE FROM members");
 }
 
 async function seedMember(name = "Alice", facebookId = "fb-1") {
+  // members default to isActive=true + approvalStatus='approved' → in-fund.
   const [m] = await testDb
     .insert(members)
     .values({ name, facebookId })
@@ -64,8 +63,22 @@ async function seedMember(name = "Alice", facebookId = "fb-1") {
   return m.id;
 }
 
-async function joinFund(memberId: number) {
-  await testDb.insert(fundMembers).values({ memberId, isActive: true });
+/**
+ * Membership quỹ giờ derive từ members.isActive=true AND approvalStatus='approved'
+ * (bảng fund_members đã bị drop ở migration 0013). seedMember() đã tạo member
+ * in-fund mặc định, nên joinFund chỉ còn là no-op giữ lại để call site đọc rõ
+ * intent "member này trong quỹ".
+ */
+async function joinFund(_memberId: number) {
+  // no-op: member đã in-fund mặc định
+}
+
+/** Đẩy member ra khỏi quỹ: khóa (isActive=false). Balance đóng băng, không hoàn. */
+async function leaveFund(memberId: number) {
+  await testDb
+    .update(members)
+    .set({ isActive: false })
+    .where(eq(members.id, memberId));
 }
 
 async function contribute(memberId: number, amount: number) {
@@ -111,6 +124,7 @@ describe("autoApplyFundToDebts (integration)", () => {
 
   it("returns no-op when member is not in fund", async () => {
     const m = await seedMember();
+    await leaveFund(m); // isActive=false → ngoài quỹ
     const s = await seedSession();
     await seedDebt(s, m, 100_000);
 
@@ -337,6 +351,7 @@ describe("claimFundContribution (integration)", () => {
 
   it("rejects member who is not in fund", async () => {
     const m = await seedMember();
+    await leaveFund(m); // isActive=false → ngoài quỹ
     actAs(m);
     const r = await claimFundContribution(100_000);
     expect("error" in r).toBe(true);

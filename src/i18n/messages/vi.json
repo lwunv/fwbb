@@ -201,7 +201,8 @@
     "savedOk": "Đã lưu thành công!",
     "purchased": "Đã mua",
     "used": "Đã dùng",
-    "onHand": "Tồn kho"
+    "onHand": "Tồn kho",
+    "adjust": "Điều chỉnh"
   },
   "stats": {
     "activeMembers": "Thành viên tích cực",

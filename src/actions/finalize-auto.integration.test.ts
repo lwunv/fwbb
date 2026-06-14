@@ -19,7 +19,6 @@ import {
   admins,
   members,
   votes,
-  fundMembers,
   sessionAttendees,
   sessionDebts,
   financialTransactions,
@@ -50,7 +49,6 @@ async function reset() {
   await client.execute("DELETE FROM financial_transactions");
   await client.execute("DELETE FROM session_debts");
   await client.execute("DELETE FROM session_attendees");
-  await client.execute("DELETE FROM fund_members");
   await client.execute("DELETE FROM votes");
   await client.execute("DELETE FROM sessions");
   await client.execute("DELETE FROM admins");
@@ -294,7 +292,11 @@ describe("finalizeSessionAuto (integration)", () => {
     expect(att.find((a) => a.memberId === p1)).toBeUndefined();
   });
 
-  it("auto-enrolls non-fund members into fund (merged Quỹ + Nợ model)", async () => {
+  it("charges fund members via ledger fund_deduction (merged Quỹ + Nợ model)", async () => {
+    // Post-refactor: không còn bảng fund_members. Roster quỹ derive từ
+    // members.isActive=true AND approvalStatus='approved' (mặc định khi insert).
+    // "Enrolled into fund" giờ thể hiện qua: member là roster member +
+    // finalize ghi một fund_deduction vào ledger cho họ.
     const { adminMemberId } = await seedAdminWithMember();
     const newMid = await seedMember("NewMember");
 
@@ -305,10 +307,23 @@ describe("finalizeSessionAuto (integration)", () => {
     const r = await finalizeSessionAuto(sId);
     expect("error" in r).toBe(false);
 
-    const fundRows = await testDb.query.fundMembers.findMany({
-      where: eq(fundMembers.memberId, newMid),
+    // Member tự động trong quỹ (active + approved by default).
+    const m = await testDb.query.members.findFirst({
+      where: eq(members.id, newMid),
+      columns: { isActive: true, approvalStatus: true },
     });
-    expect(fundRows).toHaveLength(1);
-    expect(fundRows[0].isActive).toBe(true);
+    expect(m?.isActive).toBe(true);
+    expect(m?.approvalStatus).toBe("approved");
+
+    // finalize ghi fund_deduction cho member vào ledger (merged Quỹ + Nợ).
+    const ded = await testDb.query.financialTransactions.findMany({
+      where: and(
+        eq(financialTransactions.sessionId, sId),
+        eq(financialTransactions.memberId, newMid),
+        eq(financialTransactions.type, "fund_deduction"),
+      ),
+    });
+    expect(ded).toHaveLength(1);
+    expect(ded[0].amount).toBeGreaterThan(0);
   });
 });

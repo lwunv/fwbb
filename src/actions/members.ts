@@ -6,7 +6,6 @@ import {
   votes,
   sessionAttendees,
   sessionDebts,
-  fundMembers,
   financialTransactions,
   admins,
 } from "@/db/schema";
@@ -281,7 +280,13 @@ export async function toggleMemberActive(id: number) {
     .update(members)
     .set({ isActive: !member.isActive })
     .where(eq(members.id, id));
+  // Khóa/mở member = rời/vào quỹ (roster derive từ isActive). KHÔNG auto-hoàn —
+  // balance đóng băng. Revalidate mọi surface phụ thuộc roster quỹ.
   revalidatePath("/admin/members");
+  revalidatePath("/admin/fund");
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/my-fund");
+  revalidatePath("/");
   return { success: true };
 }
 
@@ -318,10 +323,6 @@ export async function deleteMember(id: number) {
     .select({ debtCount: sql<number>`count(*)` })
     .from(sessionDebts)
     .where(eq(sessionDebts.memberId, id));
-  const [{ fundCount }] = await db
-    .select({ fundCount: sql<number>`count(*)` })
-    .from(fundMembers)
-    .where(eq(fundMembers.memberId, id));
   const [{ ledgerCount }] = await db
     .select({ ledgerCount: sql<number>`count(*)` })
     .from(financialTransactions)
@@ -338,8 +339,6 @@ export async function deleteMember(id: number) {
     refs.push(t("refAttendance", { count: Number(attendCount) }));
   if (Number(debtCount) > 0)
     refs.push(t("refDebt", { count: Number(debtCount) }));
-  if (Number(fundCount) > 0)
-    refs.push(t("refFund", { count: Number(fundCount) }));
   if (Number(ledgerCount) > 0)
     refs.push(t("refLedger", { count: Number(ledgerCount) }));
   if (Number(adminCount) > 0) refs.push(t("refAdminLink"));
@@ -643,19 +642,8 @@ export async function mergeMember(sourceId: number, targetId: number) {
       .set({ memberId: targetId })
       .where(eq(financialTransactions.memberId, sourceId));
 
-    // 5. fundMembers — UNIQUE memberId. Nếu target đã có row, xóa source row;
-    //    nếu chỉ source có, update sang target.
-    const targetFund = await tx.query.fundMembers.findFirst({
-      where: eq(fundMembers.memberId, targetId),
-    });
-    if (targetFund) {
-      await tx.delete(fundMembers).where(eq(fundMembers.memberId, sourceId));
-    } else {
-      await tx
-        .update(fundMembers)
-        .set({ memberId: targetId })
-        .where(eq(fundMembers.memberId, sourceId));
-    }
+    // 5. (removed fundMembers re-point — roster derive từ members.isActive,
+    //     không còn bảng fund_members. Ledger đã re-point ở bước 4.)
 
     // 6. admins.memberId — chuyển link nếu source được link.
     await tx

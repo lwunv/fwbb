@@ -9,6 +9,7 @@ import { PurchaseForm } from "@/components/inventory/purchase-form";
 import { TabSegment } from "@/components/shared/tab-segment";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatK } from "@/lib/utils";
+import { calculateShuttlecockCost } from "@/lib/cost-calculator";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { Calendar, ArrowDown, ArrowUp, Pencil, Check, X } from "lucide-react";
 import { updatePurchaseTubes } from "@/actions/inventory";
@@ -229,7 +230,9 @@ export function InventoryClient({
                     </div>
                   </div>
                   <div className="text-muted-foreground text-sm">
-                    {formatK(u.quantityUsed * (u.pricePerTube / 12))}
+                    {formatK(
+                      calculateShuttlecockCost(u.quantityUsed, u.pricePerTube),
+                    )}
                   </div>
                 </CardContent>
               </Card>

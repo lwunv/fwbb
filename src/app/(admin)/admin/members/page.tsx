@@ -5,12 +5,8 @@ import {
 } from "@/actions/members";
 import { getAllDebts } from "@/actions/finance";
 import { db } from "@/db";
-import {
-  financialTransactions,
-  fundMembers as fundMembersTable,
-  members as membersTable,
-} from "@/db/schema";
-import { eq, inArray, asc } from "drizzle-orm";
+import { financialTransactions, members as membersTable } from "@/db/schema";
+import { eq, inArray, asc, and } from "drizzle-orm";
 import { computeBalancesForMembers } from "@/lib/fund-core";
 import { getNameMatches } from "@/actions/member-approval";
 import { MemberList } from "./member-list";
@@ -33,9 +29,12 @@ export default async function MembersPage() {
     getAllDebts(),
     getCurrentAdminMemberId(),
     findDuplicateMembers(),
-    db.query.fundMembers.findMany({
-      where: eq(fundMembersTable.isActive, true),
-      columns: { memberId: true },
+    db.query.members.findMany({
+      where: and(
+        eq(membersTable.isActive, true),
+        eq(membersTable.approvalStatus, "approved"),
+      ),
+      columns: { id: true },
     }),
     db.query.members.findMany({
       where: eq(membersTable.approvalStatus, "pending"),
@@ -61,7 +60,7 @@ export default async function MembersPage() {
     })),
   );
 
-  const fundMemberIdList = fundMemberRows.map((r) => r.memberId);
+  const fundMemberIdList = fundMemberRows.map((r) => r.id);
 
   const memberIds = members.map((m) => m.id);
   const memberTxs =

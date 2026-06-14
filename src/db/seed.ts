@@ -19,7 +19,6 @@ async function seed() {
   // ========== 0. RESET DATA (giữ lại member thật đã login bằng FB) ==========
   console.log("Resetting data (keeping real FB-authenticated members)...");
   await client.execute("DELETE FROM financial_transactions");
-  await client.execute("DELETE FROM fund_members");
   await client.execute("DELETE FROM session_debts");
   await client.execute("DELETE FROM session_attendees");
   await client.execute("DELETE FROM session_shuttlecocks");
@@ -768,21 +767,8 @@ async function seed() {
   // ========================================================================
   // ========== FUND DATA (5 members tham gia quỹ) ==========
   // ========================================================================
-  const fundMemberNames = [
-    "Tin Tin",
-    "Nguyễn Lưu",
-    "Tuấn Béo",
-    "Đàm Hùng",
-    "Sơn Vĩ",
-  ];
-  for (const name of fundMemberNames) {
-    const mid = memberMap.get(name)!;
-    await db.insert(schema.fundMembers).values({
-      memberId: mid,
-      isActive: true,
-    });
-  }
-  console.log(`\n✓ ${fundMemberNames.length} fund members seeded`);
+  // Roster quỹ giờ derive từ members.isActive+approved — không cần seed
+  // fund_members. Member seeded mặc định active+approved nên tự trong quỹ.
 
   // Fund contributions — mỗi người nạp 1-2tr
   const fundContributions: Array<[string, number]> = [
@@ -920,11 +906,7 @@ async function seed() {
       adminConfirmedAt: null,
     });
 
-    // Cho vào quỹ + nạp 1.5tr
-    await db.insert(schema.fundMembers).values({
-      memberId: real.id,
-      isActive: true,
-    });
+    // Member active+approved tự trong quỹ — chỉ cần nạp 1.5tr.
     await db.insert(schema.financialTransactions).values({
       type: "fund_contribution",
       direction: "in",
@@ -962,7 +944,6 @@ async function seed() {
   console.log(`Courts: ${courtData.length}`);
   console.log(`Brands: ${brandData.length}`);
   console.log(`Sessions: 6 (3 cũ + 2 tháng này + 1 đang vote)`);
-  console.log(`Fund: ${fundMemberNames.length} members`);
   console.log(
     `\nSession 1 (16/03): ${session1Players.length} players, ${session1Diners.length} diners - ALL PAID`,
   );

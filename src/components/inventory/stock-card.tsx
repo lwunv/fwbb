@@ -36,9 +36,11 @@ export function StockCard({ stock }: StockCardProps) {
               </div>
             </div>
           </div>
-          {!stock.isActive && (
+          {!stock.isActive ? (
             <Badge variant="secondary">{tCommon("inactive")}</Badge>
-          )}
+          ) : stock.isLowStock ? (
+            <Badge variant="destructive">{t("lowStockWarning")}</Badge>
+          ) : null}
         </div>
 
         {/* Stock display */}
@@ -132,16 +134,26 @@ export function StockCard({ stock }: StockCardProps) {
           </div>
         )}
 
-        {/* Details: Đã mua includes adjustment so math always works */}
+        {/* Details: "Đã mua" = tổng mua thực (purchases×12), KHÔNG suy từ tồn
+            đã clamp. Điều chỉnh tay hiển thị riêng nếu khác 0 để math reconcile. */}
         <div className="text-muted-foreground grid grid-cols-2 gap-x-4 border-t pt-2 text-sm">
           <span>{t("purchased")}</span>
           <span className="text-right">
-            {stock.currentStockQua + stock.totalUsedQua} {t("piece")}
+            {stock.totalPurchasedQua} {t("piece")}
           </span>
           <span>{t("used")}</span>
           <span className="text-right">
             {stock.totalUsedQua} {t("piece")}
           </span>
+          {stock.adjustQua !== 0 && (
+            <>
+              <span>{t("adjust")}</span>
+              <span className="text-right">
+                {stock.adjustQua > 0 ? "+" : ""}
+                {stock.adjustQua} {t("piece")}
+              </span>
+            </>
+          )}
           <span className="text-foreground font-medium">{t("onHand")}</span>
           <span className="text-foreground text-right font-medium">
             {stock.currentStockQua} {t("piece")}

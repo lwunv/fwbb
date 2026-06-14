@@ -201,7 +201,8 @@
     "savedOk": "Saved successfully!",
     "purchased": "Purchased",
     "used": "Used",
-    "onHand": "On hand"
+    "onHand": "On hand",
+    "adjust": "Adjustment"
   },
   "stats": {
     "activeMembers": "Active members",

@@ -201,7 +201,8 @@
     "savedOk": "保存成功！",
     "purchased": "已采购",
     "used": "已用",
-    "onHand": "库存"
+    "onHand": "库存",
+    "adjust": "调整"
   },
   "stats": {
     "activeMembers": "活跃成员",

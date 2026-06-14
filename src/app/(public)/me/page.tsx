@@ -33,9 +33,10 @@ export default async function MePage() {
     .reduce((sum, d) => sum + d.totalAmount, 0);
 
   const isInFund = await isFundMember(user.memberId);
-  const fundBalance = isInFund
-    ? (await getFundBalance(user.memberId)).balance
-    : null;
+  const rawBalance = (await getFundBalance(user.memberId)).balance;
+  // Hiển thị balance nếu còn trong quỹ HOẶC còn số dư đóng băng (member đã khóa
+  // nhưng chưa hoàn) — tránh member tưởng mất tiền.
+  const fundBalance = isInFund || rawBalance !== 0 ? rawBalance : null;
 
   return (
     <div className="mx-auto max-w-lg space-y-4">

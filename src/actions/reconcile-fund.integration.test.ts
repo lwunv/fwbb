@@ -16,7 +16,6 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
 import {
   members,
-  fundMembers,
   paymentNotifications,
   financialTransactions,
   sessions,
@@ -40,20 +39,16 @@ async function reset() {
   await client.execute("DELETE FROM payment_notifications");
   await client.execute("DELETE FROM session_debts");
   await client.execute("DELETE FROM sessions");
-  await client.execute("DELETE FROM fund_members");
   await client.execute("DELETE FROM members");
 }
 
 async function seedMember(name: string, fbId: string) {
+  // Members insert mặc định isActive=true, approvalStatus='approved'
+  // → tự động trong roster quỹ (không còn bảng fund_members).
   const [m] = await testDb
     .insert(members)
     .values({ name, facebookId: fbId })
     .returning({ id: members.id });
-  await testDb.insert(fundMembers).values({
-    memberId: m.id,
-    isActive: true,
-    joinedAt: new Date().toISOString(),
-  });
   return m.id;
 }
 
@@ -417,5 +412,45 @@ describe("reconcileFund — I7/I8/I9 (debt ledger consistency)", () => {
 
     const r = await reconcileFund();
     expect(r.debtLedger.orphanReversals).toBe(0);
+  });
+});
+
+describe("reconcileFund — I10 frozen balance (member ngoài roster)", () => {
+  beforeEach(reset);
+
+  it("warn khi member đã khóa (isActive=false) còn balance ≠ 0", async () => {
+    const [locked] = await testDb
+      .insert(members)
+      .values({ name: "Locked", facebookId: "fb-lock", isActive: false })
+      .returning({ id: members.id });
+    await testDb.insert(financialTransactions).values({
+      type: "fund_contribution",
+      direction: "in",
+      amount: 200_000,
+      memberId: locked.id,
+      idempotencyKey: "i10-c",
+    });
+
+    const r = await reconcileFund();
+    const i10 = r.issues.find((i) => i.code === "I10_frozen_balance");
+    expect(i10).toBeDefined();
+    expect(i10?.severity).toBe("warn");
+    // Warn không làm reconcile fail.
+    expect(r.ok).toBe(true);
+  });
+
+  it("KHÔNG warn khi member active+approved còn balance", async () => {
+    const id = await seedMember("Active", "fb-act");
+    await testDb.insert(financialTransactions).values({
+      type: "fund_contribution",
+      direction: "in",
+      amount: 100_000,
+      memberId: id,
+      idempotencyKey: "i10-active",
+    });
+    const r = await reconcileFund();
+    expect(
+      r.issues.find((i) => i.code === "I10_frozen_balance"),
+    ).toBeUndefined();
   });
 });

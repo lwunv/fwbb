@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { formatVND, formatK } from "@/lib/utils";
 import { fireAction } from "@/lib/optimistic-action";
-import { addFundMember, recordContribution } from "@/actions/fund";
+import { recordContribution } from "@/actions/fund";
 import { recordCourtRentPayment } from "@/actions/court-rent";
 import { recordPurchase } from "@/actions/inventory";
 import { CustomSelect } from "@/components/ui/custom-select";
@@ -19,7 +19,6 @@ import {
   Wallet,
   Plus,
   Minus,
-  UserPlus,
   TrendingUp,
   TrendingDown,
   AlertCircle,
@@ -118,16 +117,9 @@ export function FundDashboard({
   const tCommon = useTranslations("common");
   const [localOverview, setLocalOverview] = useState(overview);
   const [localMembers, setLocalMembers] = useState(fundMembers);
-  const [showAddMember, setShowAddMember] = useState(false);
   const [showContribution, setShowContribution] = useState(false);
   const [showCourtRent, setShowCourtRent] = useState(false);
   const [showBuyShuttle, setShowBuyShuttle] = useState(false);
-  // Two-step add-member modal state
-  const [pendingFundMember, setPendingFundMember] = useState<{
-    id: number;
-    name: string;
-  } | null>(null);
-  const [initialAmount, setInitialAmount] = useState("");
 
   // Court-rent form state
   const [crYear, setCrYear] = useState(currentYear);
@@ -167,64 +159,6 @@ export function FundDashboard({
     setPrevMembers(fundMembers);
     setLocalOverview(overview);
     setLocalMembers(fundMembers);
-  }
-
-  const nonFundMemberIds = new Set(localMembers.map((fm) => fm.memberId));
-  const availableMembers = allMembers.filter(
-    (m) => !nonFundMemberIds.has(m.id),
-  );
-
-  function handleAddMember(memberId: number) {
-    const m = allMembers.find((x) => x.id === memberId);
-    if (!m) return;
-    const prev = cloneFundState(localOverview, localMembers);
-    const newRow: FundMemberWithBalance = {
-      id: 0,
-      memberId: m.id,
-      isActive: true,
-      joinedAt: new Date().toISOString(),
-      leftAt: null,
-      member: m,
-      balance: {
-        memberId: m.id,
-        totalContributions: 0,
-        totalDeductions: 0,
-        totalRefunds: 0,
-        balance: 0,
-      },
-    };
-    setLocalMembers((ms) =>
-      [...ms, newRow].sort((a, b) => b.balance.balance - a.balance.balance),
-    );
-    setLocalOverview((o) => ({ ...o, memberCount: o.memberCount + 1 }));
-    fireAction(
-      () => addFundMember(memberId),
-      () => {
-        setLocalOverview(prev.overview);
-        setLocalMembers(prev.members);
-      },
-      { successMsg: t("successAddMember") },
-    );
-    setShowAddMember(false);
-  }
-
-  function handleAddMemberWithAmount() {
-    if (!pendingFundMember) return;
-    const { id: memberId, name } = pendingFundMember;
-    const amount = parseInt(initialAmount.replace(/\D/g, ""), 10) || 0;
-
-    if (amount > 0) {
-      // recordContribution auto-enrols → no need to also call addFundMember
-      handleContribution(
-        memberId,
-        amount,
-        t("modalAddMemberAmountTitle", { name }),
-      );
-    } else {
-      handleAddMember(memberId);
-    }
-    setPendingFundMember(null);
-    setInitialAmount("");
   }
 
   function handleContribution(
@@ -413,13 +347,6 @@ export function FundDashboard({
             <Plus className="h-4 w-4" />
             {t("recordContribution")}
           </button>
-          <button
-            onClick={() => setShowAddMember(true)}
-            className="bg-card hover:bg-accent flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors"
-          >
-            <UserPlus className="h-4 w-4" />
-            {t("addMemberShort")}
-          </button>
         </div>
       </div>
 
@@ -512,99 +439,6 @@ export function FundDashboard({
 
       {/* Báo cáo Thu/Chi từ buổi chơi */}
       <SessionFinanceReport entries={sessionFinanceEntries} />
-
-      {/* Add Member Modal */}
-      <BaseModal
-        open={showAddMember}
-        onClose={() => {
-          setShowAddMember(false);
-          setPendingFundMember(null);
-          setInitialAmount("");
-        }}
-      >
-        {pendingFundMember ? (
-          /* Step 2: enter initial contribution amount */
-          <>
-            <h3 className="mb-1 text-lg font-bold">
-              {t("modalAddMemberAmountTitle", {
-                name: pendingFundMember.name,
-              })}
-            </h3>
-            <p className="text-muted-foreground mb-4 text-xs">
-              {t("modalAddMemberAmountPlaceholder")}
-            </p>
-            <NumberStepper
-              value={parseInt(initialAmount, 10) || 0}
-              onChange={(v) => setInitialAmount(String(v))}
-              step={100_000}
-              displayFormat="vnd"
-              autoFocus
-              className="w-full"
-            />
-            <div className="mt-4 flex gap-2">
-              <button
-                onClick={() => {
-                  setPendingFundMember(null);
-                  setInitialAmount("");
-                }}
-                className="hover:bg-accent flex-1 rounded-xl border py-2.5 text-sm font-medium transition-colors"
-              >
-                {t("addMemberBack")}
-              </button>
-              <button
-                onClick={() => {
-                  // Add with 0 — just enrol, no contribution
-                  handleAddMember(pendingFundMember.id);
-                  setPendingFundMember(null);
-                  setInitialAmount("");
-                }}
-                className="hover:bg-accent flex-1 rounded-xl border py-2.5 text-sm font-medium transition-colors"
-              >
-                {t("addWithoutAmount")}
-              </button>
-              <button
-                onClick={handleAddMemberWithAmount}
-                disabled={!initialAmount || Number(initialAmount) <= 0}
-                className="bg-primary text-primary-foreground flex-1 rounded-xl py-2.5 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                {tCommon("save")}
-              </button>
-            </div>
-          </>
-        ) : (
-          /* Step 1: pick a member */
-          <>
-            <h3 className="mb-4 text-lg font-bold">{t("modalAddTitle")}</h3>
-            {availableMembers.length === 0 ? (
-              <p className="text-muted-foreground text-sm">{t("allInFund")}</p>
-            ) : (
-              <div className="max-h-72 space-y-2 overflow-y-auto">
-                {availableMembers.map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() =>
-                      setPendingFundMember({
-                        id: m.id,
-                        name: m.nickname || m.name,
-                      })
-                    }
-                    className="hover:bg-accent flex w-full items-center gap-3 rounded-xl p-3 text-left transition-colors"
-                  >
-                    <UserPlus className="text-primary h-4 w-4" />
-                    <span className="font-medium">{m.nickname || m.name}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            <button
-              onClick={() => setShowAddMember(false)}
-              className="hover:bg-accent mt-4 w-full rounded-xl border py-2 text-sm transition-colors"
-            >
-              {t("close")}
-            </button>
-          </>
-        )}
-      </BaseModal>
 
       {/* Record Contribution Modal */}
       <RecordContributionDialog

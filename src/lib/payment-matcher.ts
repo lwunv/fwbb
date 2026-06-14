@@ -422,7 +422,7 @@ async function matchAllDebts(
             debtId: debt.id,
             description: "Bank webhook tự xác nhận admin đã nhận tiền (bulk)",
             metadata: { transId: payment.transId, autoConfirmedByBank: true },
-            idempotencyKey: `debt-admin-confirm-${debt.id}`,
+            idempotencyKey: `debt-admin-confirm-${payment.transId}-${debt.id}`,
           },
           tx,
         );
@@ -441,7 +441,7 @@ async function matchAllDebts(
             debtId: debt.id,
             description: `Cân bằng quỹ — đã trả nợ #${debt.id} qua chuyển khoản (bulk)`,
             metadata: { transId: payment.transId, balancesDebt: true },
-            idempotencyKey: `bank-payment-balance-${debt.id}`,
+            idempotencyKey: `bank-payment-balance-${payment.transId}-${debt.id}`,
           },
           tx,
         );
@@ -631,7 +631,7 @@ async function confirmDebtFromBankTransfer(
             transId: payment.transId,
             autoConfirmedByBank: true,
           },
-          idempotencyKey: `debt-admin-confirm-${debt.id}`,
+          idempotencyKey: `debt-admin-confirm-${payment.transId}-${debt.id}`,
         },
         tx,
       );
@@ -653,7 +653,7 @@ async function confirmDebtFromBankTransfer(
             transId: payment.transId,
             balancesDebt: true,
           },
-          idempotencyKey: `bank-payment-balance-${debt.id}`,
+          idempotencyKey: `bank-payment-balance-${payment.transId}-${debt.id}`,
         },
         tx,
       );

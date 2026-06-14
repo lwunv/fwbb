@@ -1,16 +1,15 @@
 "use server";
 
 import { db } from "@/db";
-import {
-  financialTransactions,
-  fundMembers,
-  members,
-  sessions,
-} from "@/db/schema";
+import { financialTransactions, members, sessions } from "@/db/schema";
 import { eq, and, desc, inArray, isNotNull, notInArray } from "drizzle-orm";
 import { computeShuttlecockTotal } from "@/lib/cost-calculator";
 import { revalidatePath } from "next/cache";
-import { getFundBalance, getAllFundBalances } from "@/lib/fund-calculator";
+import {
+  getFundBalance,
+  getAllFundBalances,
+  isFundMember,
+} from "@/lib/fund-calculator";
 import { computeBalanceFromTransactions } from "@/lib/fund-core";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
 import { requireAdmin, getAdminFromCookie } from "@/lib/auth";
@@ -30,108 +29,11 @@ const FUND_TRANSACTION_TYPES: FundTransactionType[] = [
 ];
 
 // ─── Fund Member Management ───
-
-export async function addFundMember(memberId: number) {
-  const auth = await requireAdmin();
-  if ("error" in auth) return auth;
-  const t = await getTranslations("serverErrors");
-
-  // Check if member exists
-  const member = await db.query.members.findFirst({
-    where: eq(members.id, memberId),
-  });
-  if (!member) return { error: t("memberNotFound") };
-
-  // Check if already a fund member
-  const existing = await db.query.fundMembers.findFirst({
-    where: eq(fundMembers.memberId, memberId),
-  });
-
-  if (existing) {
-    if (existing.isActive) return { error: t("memberAlreadyInFund") };
-
-    // Re-activate
-    await db
-      .update(fundMembers)
-      .set({ isActive: true, leftAt: null, joinedAt: new Date().toISOString() })
-      .where(eq(fundMembers.id, existing.id));
-  } else {
-    await db.insert(fundMembers).values({ memberId });
-  }
-
-  revalidatePath("/admin/fund");
-  revalidatePath("/my-fund");
-  return { success: true };
-}
-
-export async function removeFundMember(
-  memberId: number,
-  refundBalance: boolean = true,
-) {
-  const auth = await requireAdmin();
-  if ("error" in auth) return auth;
-
-  const t = await getTranslations("serverErrors");
-  const fm = await db.query.fundMembers.findFirst({
-    where: and(
-      eq(fundMembers.memberId, memberId),
-      eq(fundMembers.isActive, true),
-    ),
-  });
-  if (!fm) return { error: t("memberNotInFund") };
-
-  // If refunding, check balance and create refund transaction. The whole
-  // sequence (read balance → insert refund → flip isActive=false) runs in
-  // a single transaction so two admins clicking "Remove + refund" at the
-  // same time can't double-refund: the second tx sees `isActive=false` and
-  // bails out, OR (if both sneak past the isActive check) the
-  // idempotency key on `fundMembers.id` collapses both refunds into one.
-  // Atomic: refund (nếu có) + flip isActive=false trong CÙNG transaction.
-  // Trước đây refund inside tx, isActive flip outside → contribution arriving
-  // giữa 2 query có thể leave member với positive balance + isActive=false.
-  try {
-    await db.transaction(async (tx) => {
-      if (refundBalance) {
-        const txs = await tx.query.financialTransactions.findMany({
-          where: eq(financialTransactions.memberId, memberId),
-        });
-        // Use canonical helper — filters reversal pairs (reversalOfId) so a
-        // previously-reversed contribution doesn't inflate the refund amount.
-        const { balance: bal } = computeBalanceFromTransactions(memberId, txs);
-        if (bal > 0) {
-          const r = await recordFinancialTransaction(
-            {
-              memberId,
-              type: "fund_refund",
-              direction: "out",
-              amount: bal,
-              description: "Hoàn quỹ khi rời nhóm",
-              // Natural key — `fundMembers.id` is monotonic and never
-              // recycled, so this guards against double-click /
-              // multi-admin races without needing a client UUID.
-              idempotencyKey: `leave-fund-refund-${fm.id}`,
-            },
-            tx,
-          );
-          if ("error" in r) throw new Error(r.error);
-        }
-      }
-
-      await tx
-        .update(fundMembers)
-        .set({ isActive: false, leftAt: new Date().toISOString() })
-        .where(eq(fundMembers.id, fm.id));
-    });
-  } catch (err) {
-    return {
-      error: err instanceof Error ? err.message : "Không rời được khỏi quỹ",
-    };
-  }
-
-  revalidatePath("/admin/fund");
-  revalidatePath("/my-fund");
-  return { success: true };
-}
+//
+// (removed) addFundMember / removeFundMember — roster quỹ giờ derive trực tiếp
+// từ members.isActive=true AND approvalStatus='approved' (xem fund-calculator).
+// "Khóa member" (toggleMemberActive → isActive=false) = rời quỹ; balance ĐÓNG
+// BĂNG (KHÔNG auto-hoàn). Hoàn thủ công nếu cần qua recordRefund.
 
 // ─── Fund Contributions ───
 
@@ -171,9 +73,8 @@ export async function recordContribution(
     };
   }
 
-  // Auto-enrol + record trong CÙNG transaction. Trước đây upsert ngoài tx
-  // có thể race khi 2 admin cùng đóng quỹ cho 1 member chưa enroll → DB
-  // UNIQUE (fundMembers.memberId) ném exception thứ 2 không catch được.
+  // Member chỉ cần tồn tại — roster quỹ derive từ members.isActive+approved,
+  // không còn bảng fund_members để auto-enrol. Ghi fund_contribution trong tx.
   const member = await db.query.members.findFirst({
     where: eq(members.id, parsed.data.memberId),
     columns: { id: true },
@@ -183,19 +84,6 @@ export async function recordContribution(
   let replayed = false;
   try {
     await db.transaction(async (tx) => {
-      // onConflictDoUpdate — atomic upsert, không race vs concurrent insert.
-      await tx
-        .insert(fundMembers)
-        .values({ memberId: parsed.data.memberId })
-        .onConflictDoUpdate({
-          target: fundMembers.memberId,
-          set: {
-            isActive: true,
-            leftAt: null,
-            joinedAt: new Date().toISOString(),
-          },
-        });
-
       const r = await recordFinancialTransaction(
         {
           memberId: parsed.data.memberId,
@@ -318,28 +206,44 @@ export async function recordRefund(
 // signed-in member could call these via devtools and leak the whole group's
 // fund history.
 
+/** Roster quỹ = members.isActive+approved. Shape giữ tương thích UI cũ
+ *  ({id, memberId, isActive, joinedAt, leftAt, member}). */
+function toFundMemberShape(m: typeof members.$inferSelect) {
+  return {
+    id: m.id,
+    memberId: m.id,
+    isActive: true as const,
+    joinedAt: m.createdAt,
+    leftAt: null,
+    member: m,
+  };
+}
+
+const rosterWhere = and(
+  eq(members.isActive, true),
+  eq(members.approvalStatus, "approved"),
+);
+
 export async function getFundMembers() {
   const auth = await requireAdmin();
   if ("error" in auth) return [];
-  return db.query.fundMembers.findMany({
-    with: { member: true },
-    orderBy: [desc(fundMembers.joinedAt)],
+  const roster = await db.query.members.findMany({
+    where: rosterWhere,
+    orderBy: [desc(members.createdAt)],
   });
+  return roster.map(toFundMemberShape);
 }
 
 export async function getFundMembersWithBalances() {
   const auth = await requireAdmin();
   if ("error" in auth) return [];
 
-  const fms = await db.query.fundMembers.findMany({
-    where: eq(fundMembers.isActive, true),
-    with: { member: true },
-  });
+  const roster = await db.query.members.findMany({ where: rosterWhere });
 
   const result = [];
-  for (const fm of fms) {
-    const balance = await getFundBalance(fm.memberId);
-    result.push({ ...fm, balance });
+  for (const m of roster) {
+    const balance = await getFundBalance(m.id);
+    result.push({ ...toFundMemberShape(m), balance });
   }
 
   return result.sort((a, b) => b.balance.balance - a.balance.balance);
@@ -637,8 +541,16 @@ export async function getFundOverview() {
     };
   }
 
-  const [balances, groupTxs] = await Promise.all([
+  const [balances, fundTxs, groupTxs] = await Promise.all([
     getAllFundBalances(),
+    db.query.financialTransactions.findMany({
+      where: inArray(financialTransactions.type, [
+        "fund_contribution",
+        "fund_deduction",
+        "fund_refund",
+      ]),
+      columns: { id: true, type: true, amount: true, reversalOfId: true },
+    }),
     db.query.financialTransactions.findMany({
       where: inArray(financialTransactions.type, [
         "court_rent_payment",
@@ -653,16 +565,25 @@ export async function getFundOverview() {
       },
     }),
   ]);
-  const totalBalance = balances.reduce((sum, b) => sum + b.balance, 0);
-  const totalContributions = balances.reduce(
-    (sum, b) => sum + b.totalContributions,
-    0,
+
+  // Totals tiền tính LEDGER-WIDE (gồm cả member đã khóa — tiền vẫn trong két),
+  // loại cặp reversal. `balances` (danh sách hiển thị) vẫn chỉ là roster.
+  const voidedFundIds = new Set(
+    fundTxs
+      .map((t) => t.reversalOfId)
+      .filter((id): id is number => id !== null),
   );
-  const totalDeductions = balances.reduce(
-    (sum, b) => sum + b.totalDeductions,
-    0,
-  );
-  const totalRefunds = balances.reduce((sum, b) => sum + b.totalRefunds, 0);
+  let totalContributions = 0;
+  let totalDeductions = 0;
+  let totalRefunds = 0;
+  for (const t of fundTxs) {
+    if (t.reversalOfId !== null) continue;
+    if (voidedFundIds.has(t.id)) continue;
+    if (t.type === "fund_contribution") totalContributions += t.amount;
+    else if (t.type === "fund_deduction") totalDeductions += t.amount;
+    else if (t.type === "fund_refund") totalRefunds += t.amount;
+  }
+  const totalBalance = totalContributions - totalDeductions - totalRefunds;
   const memberCount = balances.length;
 
   // Group expenses (memberId-agnostic real cash out): bỏ cặp original+reversal
@@ -1024,14 +945,10 @@ export async function confirmFundClaim(notificationId: number) {
     return { error: t("invalidMemberIdInMemo") };
   }
 
-  // Verify member is in fund
-  const fm = await db.query.fundMembers.findFirst({
-    where: and(
-      eq(fundMembers.memberId, memberId),
-      eq(fundMembers.isActive, true),
-    ),
-  });
-  if (!fm) return { error: t("memberNotFundMember") };
+  // Verify member is in fund (active + approved)
+  if (!(await isFundMember(memberId))) {
+    return { error: t("memberNotFundMember") };
+  }
 
   // Record fund_contribution + mark notification matched. The notification id
   // is a natural idempotency key — re-confirming the same claim never produces

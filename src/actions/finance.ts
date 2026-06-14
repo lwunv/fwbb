@@ -8,7 +8,6 @@ import {
   sessionMinDeductionExemptions,
   members,
   financialTransactions,
-  fundMembers,
   admins,
 } from "@/db/schema";
 import { eq, desc, and, isNull, asc, inArray } from "drizzle-orm";
@@ -21,8 +20,10 @@ import {
   type AttendeeInput,
   type MemberDebt,
 } from "@/lib/cost-calculator";
-import { computeBalanceFromTransactions } from "@/lib/fund-core";
-import { isFundMember } from "@/lib/fund-calculator";
+import {
+  computeBalanceFromTransactions,
+  computeBalancesForMembers,
+} from "@/lib/fund-core";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
 import { getAdminFromCookie, requireAdmin } from "@/lib/auth";
 import { sendGroupMessage, buildDebtReminderMessage } from "@/lib/messenger";
@@ -146,14 +147,26 @@ export async function finalizeSession(
 
   const now = new Date().toISOString();
 
-  // Merged Quỹ + Nợ model: every non-admin member is auto-enrolled in the fund
-  // and the FULL session debt is deducted via fund_deduction. Balance can go
-  // negative — that negative number is the unified "còn nợ".
-  const memberIdsToEnroll = new Set<number>();
-  for (const debt of breakdown.memberDebts) {
-    if (debt.memberId !== adminMemberId) {
-      const inFund = await isFundMember(debt.memberId);
-      if (!inFund) memberIdsToEnroll.add(debt.memberId);
+  // Merged Quỹ + Nợ model: roster quỹ = members.isActive+approved (không còn
+  // bảng fund_members để enrol). FULL session debt được trừ qua fund_deduction;
+  // balance âm = "còn nợ" thống nhất.
+
+  // Guard: member đã khóa/rời quỹ (isActive=false hoặc chưa approved) KHÔNG
+  // được tính nợ — sẽ bị trừ quỹ (balance âm) trái với spec "khóa = đóng băng".
+  // Bắt admin bỏ họ khỏi buổi trước khi chốt.
+  const debtMemberIds = breakdown.memberDebts.map((d) => d.memberId);
+  if (debtMemberIds.length > 0) {
+    const rosterRows = await db.query.members.findMany({
+      where: inArray(members.id, debtMemberIds),
+      columns: { id: true, name: true, isActive: true, approvalStatus: true },
+    });
+    const lockedNames = rosterRows
+      .filter((mb) => !mb.isActive || mb.approvalStatus !== "approved")
+      .map((mb) => mb.name);
+    if (lockedNames.length > 0) {
+      return {
+        error: `Thành viên đã khóa/rời quỹ không thể tính nợ: ${lockedNames.join(", ")}. Bỏ họ khỏi buổi rồi chốt lại.`,
+      };
     }
   }
 
@@ -222,15 +235,6 @@ export async function finalizeSession(
           attendsPlay: a.attendsPlay,
           attendsDine: a.attendsDine,
         });
-      }
-
-      // 3.5. Auto-enroll missing members into fund (merged model: everyone is
-      // a fund member; balance can go negative).
-      for (const memberId of memberIdsToEnroll) {
-        await tx
-          .insert(fundMembers)
-          .values({ memberId, isActive: true, joinedAt: now })
-          .onConflictDoNothing();
       }
 
       // 3.6. Apply min-deduction floor (if session opt-in). MUST happen AFTER
@@ -1136,49 +1140,53 @@ export async function getMemberFinanceOverview(): Promise<MemberFinanceRow[]> {
   const allMembers = await db.query.members.findMany({
     orderBy: [asc(members.name)],
   });
-  const debts = await db.query.sessionDebts.findMany();
 
-  const byId = new Map<
-    number,
-    { totalOutstanding: number; totalPendingReview: number; totalPaid: number }
-  >();
-  for (const m of allMembers) {
-    byId.set(m.id, {
-      totalOutstanding: 0,
-      totalPendingReview: 0,
-      totalPaid: 0,
-    });
-  }
-  for (const debt of debts) {
-    const agg = byId.get(debt.memberId);
-    if (!agg) continue;
-    if (debt.adminConfirmed) {
-      agg.totalPaid += debt.totalAmount;
-    } else if (debt.memberConfirmed) {
-      agg.totalPendingReview += debt.totalAmount;
-    } else {
-      agg.totalOutstanding += debt.totalAmount;
-    }
-  }
+  // Merged Quỹ+Nợ: "còn nợ"/"còn quỹ" = balance từ LEDGER (single source).
+  // KHÔNG suy từ cờ memberConfirmed/adminConfirmed — trong model gộp, 2 cờ này
+  // chỉ còn nghĩa "đã ghi ledger" (finalize/auto/bank set =true ngay) nên bucket
+  // theo cờ sẽ đẩy mọi nợ vào "đã trả" → totalOutstanding sai (≈0).
+  const memberIds = allMembers.map((m) => m.id);
+  const allTxs =
+    memberIds.length > 0
+      ? await db.query.financialTransactions.findMany({
+          where: inArray(financialTransactions.memberId, memberIds),
+          columns: {
+            memberId: true,
+            type: true,
+            amount: true,
+            id: true,
+            reversalOfId: true,
+          },
+        })
+      : [];
+  const balances = computeBalancesForMembers(
+    memberIds,
+    allTxs.map((t) => ({
+      memberId: t.memberId!,
+      type: t.type,
+      amount: t.amount,
+      id: t.id,
+      reversalOfId: t.reversalOfId,
+    })),
+  );
 
   const rows: MemberFinanceRow[] = allMembers.map((m) => {
-    const agg = byId.get(m.id)!;
+    const bal = balances[m.id] ?? 0;
     return {
       memberId: m.id,
       memberName: m.name,
       memberAvatarKey: m.avatarKey ?? null,
       memberAvatarUrl: m.avatarUrl ?? null,
       isActive: m.isActive ?? true,
-      totalOutstanding: agg.totalOutstanding,
-      totalPendingReview: agg.totalPendingReview,
-      totalPaid: agg.totalPaid,
+      totalOutstanding: bal < 0 ? -bal : 0,
+      totalPendingReview: 0,
+      totalPaid: bal > 0 ? bal : 0,
     };
   });
 
   return rows.sort((a, b) => {
-    const sa = a.totalOutstanding + a.totalPendingReview;
-    const sb = b.totalOutstanding + b.totalPendingReview;
-    if (sb !== sa) return sb - sa;
+    if (b.totalOutstanding !== a.totalOutstanding)
+      return b.totalOutstanding - a.totalOutstanding;
     return a.memberName.localeCompare(b.memberName, undefined, {
       sensitivity: "base",
     });

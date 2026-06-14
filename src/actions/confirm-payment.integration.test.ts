@@ -21,6 +21,7 @@ import {
   financialTransactions,
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import { computeBalanceFromTransactions } from "@/lib/fund-core";
 
 const userMock = vi.hoisted(() => ({
   getUserFromCookie:
@@ -58,10 +59,17 @@ async function reset() {
   userMock.getUserFromCookie.mockReset();
 }
 
-async function seedMember() {
+async function seedMember(inFund = true) {
   const [m] = await testDb
     .insert(members)
-    .values({ name: "Alice", facebookId: "fb-a", bankAccountNo: "0123" })
+    .values({
+      name: "Alice",
+      facebookId: "fb-a",
+      bankAccountNo: "0123",
+      // inFund=false → khóa member, KHÔNG thuộc roster quỹ (thay cho việc
+      // trước đây không insert fund_members row). Roster = isActive+approved.
+      isActive: inFund,
+    })
     .returning({ id: members.id });
   return m.id;
 }
@@ -208,7 +216,9 @@ describe("processPayment — bank transfer matching", () => {
   });
 
   it("does NOT match a debt whose session was cancelled", async () => {
-    const aliceId = await seedMember();
+    // Alice không thuộc roster quỹ (isActive=false) để cô lập nhánh "không
+    // khớp debt cancelled" — tránh tiền rớt vào fund-contribution fallback.
+    const aliceId = await seedMember(false);
     const { debtId } = await seedDebt(aliceId, "cancelled");
 
     const result = await processPayment(
@@ -322,5 +332,55 @@ describe("processPayment — bank transfer matching", () => {
     });
     expect(notif?.status).toBe("matched");
     expect(notif?.matchedDebtId).not.toBeNull();
+  });
+});
+
+describe("bank re-payment sau undo (idempotencyKey kèm transId)", () => {
+  beforeEach(reset);
+
+  async function balanceOf(memberId: number) {
+    const txs = await testDb.query.financialTransactions.findMany({
+      where: eq(financialTransactions.memberId, memberId),
+    });
+    return computeBalanceFromTransactions(memberId, txs).balance;
+  }
+
+  it("CK trả lại sau undo được credit lại — không buổi miễn phí", async () => {
+    const aliceId = await seedMember();
+    const { debtId } = await seedDebt(aliceId, "completed", 100_000);
+
+    // Lần 1: chuyển khoản trả nợ
+    await processPayment(
+      {
+        amount: 100_000,
+        memo: `FWBB NO ${aliceId}`,
+        senderAccountNo: "0123",
+        transId: "TX-A",
+      },
+      "gmail-A",
+    );
+    const afterPay = await balanceOf(aliceId);
+
+    // Admin undo (nợ trở lại chưa trả)
+    const undo = await undoPaymentByAdmin(debtId);
+    expect("error" in undo).toBe(false);
+    const afterUndo = await balanceOf(aliceId);
+
+    // Lần 2: chuyển khoản trả lại với transId MỚI
+    await processPayment(
+      {
+        amount: 100_000,
+        memo: `FWBB NO ${aliceId}`,
+        senderAccountNo: "0123",
+        transId: "TX-B",
+      },
+      "gmail-B",
+    );
+    const afterRepay = await balanceOf(aliceId);
+
+    // Bug cũ: balance-fix lần 2 bị chặn (key chỉ theo debtId) → afterRepay ==
+    // afterUndo → member được buổi miễn phí. Fix: key kèm transId → credit lại.
+    expect(afterRepay).toBeGreaterThan(afterUndo);
+    expect(afterRepay).toBe(afterPay);
   });
 });

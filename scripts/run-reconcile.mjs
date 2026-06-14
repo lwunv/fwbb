@@ -31,7 +31,7 @@ async function main() {
     sql: `SELECT id, payment_notification_id as paymentNotificationId FROM financial_transactions WHERE payment_notification_id IS NOT NULL`,
   });
   const { rows: fmRows } = await client.execute({
-    sql: `SELECT member_id as memberId FROM fund_members WHERE is_active = 1`,
+    sql: `SELECT id as memberId FROM members WHERE is_active = 1 AND approval_status = 'approved'`,
   });
   const { rows: debtScopedTxs } = await client.execute({
     sql: `SELECT id, type, debt_id as debtId FROM financial_transactions

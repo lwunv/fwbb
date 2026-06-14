@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { sessionDebts, fundMembers, sessions } from "@/db/schema";
+import { sessionDebts, sessions } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
 import { requireAdmin } from "@/lib/auth";
@@ -100,11 +100,6 @@ export async function mergeLegacyDebtsIntoFund(): Promise<
       for (const debt of unpaid) {
         if (debt.totalAmount <= 0) continue;
 
-        await tx
-          .insert(fundMembers)
-          .values({ memberId: debt.memberId, isActive: true, joinedAt: now })
-          .onConflictDoNothing();
-
         const sessionDate = (
           await tx.query.sessions.findFirst({
             where: eq(sessions.id, debt.sessionId),
@@ -150,11 +145,6 @@ export async function mergeLegacyDebtsIntoFund(): Promise<
       // pays twice.
       for (const debt of memberClaimed) {
         if (debt.totalAmount <= 0) continue;
-
-        await tx
-          .insert(fundMembers)
-          .values({ memberId: debt.memberId, isActive: true, joinedAt: now })
-          .onConflictDoNothing();
 
         const r = await recordFinancialTransaction(
           {

@@ -25,7 +25,6 @@ import {
   sessions,
   sessionDebts,
   financialTransactions,
-  fundMembers,
   admins as adminsTable,
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -66,7 +65,6 @@ async function reset() {
   await client.execute("DELETE FROM session_attendees");
   await client.execute("DELETE FROM session_shuttlecocks");
   await client.execute("DELETE FROM votes");
-  await client.execute("DELETE FROM fund_members");
   await client.execute("DELETE FROM sessions");
   await client.execute("DELETE FROM admins");
   await client.execute("DELETE FROM members");
@@ -110,13 +108,6 @@ async function contributeToFund(memberId: number, amount: number) {
   });
 }
 
-async function joinFund(memberId: number) {
-  await testDb
-    .insert(fundMembers)
-    .values({ memberId, isActive: true })
-    .onConflictDoNothing();
-}
-
 async function getBalance(memberId: number): Promise<number> {
   const txs = await testDb.query.financialTransactions.findMany({
     where: eq(financialTransactions.memberId, memberId),
@@ -147,8 +138,7 @@ describe("F2 — mergeMember conflict reversal prevents double-deduct", () => {
   it("does NOT double-deduct target when both duplicates have debts in same session", async () => {
     // Setup: admin + source + target. Both seeded with 100K.
     const { adminMemberId, sourceId, targetId } = await seedActors();
-    await joinFund(sourceId);
-    await joinFund(targetId);
+    // Members default isActive=true, approvalStatus='approved' → in-fund.
     await contributeToFund(sourceId, 100_000);
     await contributeToFund(targetId, 100_000);
 
@@ -226,7 +216,7 @@ describe("F2 — mergeMember conflict reversal prevents double-deduct", () => {
     // After merge: admin's penalty for source's debt must be reversed,
     // admin only keeps target's debt (no floor for target → no penalty).
     const { adminMemberId, sourceId, targetId } = await seedActors();
-    await joinFund(targetId);
+    // Members default in-fund. Only target funded.
     await contributeToFund(targetId, 100_000);
     // source: no contribution → balance 0 → floor fires.
 
@@ -298,8 +288,7 @@ describe("F2 — mergeMember conflict reversal prevents double-deduct", () => {
     // Only target attends the session — source has no debt for it.
     // Merge should just move source's ledger to target without reversal.
     const { adminMemberId, sourceId, targetId } = await seedActors();
-    await joinFund(sourceId);
-    await joinFund(targetId);
+    // Members default in-fund.
     await contributeToFund(sourceId, 50_000);
     await contributeToFund(targetId, 100_000);
 
@@ -350,8 +339,7 @@ describe("F2 — mergeMember conflict reversal prevents double-deduct", () => {
     // doesn't double-reverse. We seed the reversal manually and check the
     // merge path doesn't insert another.
     const { adminMemberId, sourceId, targetId } = await seedActors();
-    await joinFund(sourceId);
-    await joinFund(targetId);
+    // Members default in-fund.
     await contributeToFund(sourceId, 100_000);
     await contributeToFund(targetId, 100_000);
 

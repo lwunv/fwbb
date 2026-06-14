@@ -17,7 +17,6 @@ import {
   sessions,
   sessionDebts,
   financialTransactions,
-  fundMembers,
   admins as adminsTable,
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -57,7 +56,6 @@ async function reset() {
   await client.execute("DELETE FROM session_attendees");
   await client.execute("DELETE FROM session_shuttlecocks");
   await client.execute("DELETE FROM votes");
-  await client.execute("DELETE FROM fund_members");
   await client.execute("DELETE FROM sessions");
   await client.execute("DELETE FROM admins");
   await client.execute("DELETE FROM members");
@@ -106,13 +104,6 @@ async function contributeToFund(memberId: number, amount: number) {
   });
 }
 
-async function joinFund(memberId: number) {
-  await testDb
-    .insert(fundMembers)
-    .values({ memberId, isActive: true })
-    .onConflictDoNothing();
-}
-
 async function seedSessionWithMinDeduction(courtPrice: number) {
   // Use a unique date to avoid UNIQUE constraint conflict when reset() is used.
   const date = `2026-05-${String(Math.floor(Math.random() * 27) + 1).padStart(2, "0")}`;
@@ -137,8 +128,7 @@ describe("finalizeSession — min-deduction penalty surplus → admin fund", () 
     const { adminMemberId, aliceId, bobId, carolId } = await seedActors();
 
     // Only Bob and Carol have fund balance; Alice has 0.
-    await joinFund(bobId);
-    await joinFund(carolId);
+    // (All members are in-fund by default: isActive=true, approvalStatus='approved'.)
     await contributeToFund(bobId, 200_000);
     await contributeToFund(carolId, 200_000);
 
@@ -267,8 +257,6 @@ describe("finalizeSession — min-deduction penalty surplus → admin fund", () 
     // All members have plenty of balance → floor never fires → no penalty.
     const { adminMemberId, aliceId, bobId } = await seedActors();
 
-    await joinFund(aliceId);
-    await joinFund(bobId);
     await contributeToFund(aliceId, 300_000);
     await contributeToFund(bobId, 300_000);
 

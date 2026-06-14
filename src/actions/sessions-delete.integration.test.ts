@@ -20,7 +20,6 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
 import {
   members,
-  fundMembers,
   sessions,
   sessionAttendees,
   sessionDebts,
@@ -58,16 +57,16 @@ async function reset() {
   await client.execute("DELETE FROM votes");
   await client.execute("DELETE FROM sessions");
   await client.execute("DELETE FROM shuttlecock_brands");
-  await client.execute("DELETE FROM fund_members");
   await client.execute("DELETE FROM members");
 }
 
 async function seedMemberInFund(name: string, fbId: string) {
+  // Members default to isActive=true, approvalStatus='approved' → in-fund.
+  // No separate fund_members row anymore (roster is derived from members).
   const [m] = await testDb
     .insert(members)
     .values({ name, facebookId: fbId })
     .returning({ id: members.id });
-  await testDb.insert(fundMembers).values({ memberId: m.id, isActive: true });
   return m.id;
 }
 

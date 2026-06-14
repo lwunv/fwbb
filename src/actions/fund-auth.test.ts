@@ -17,7 +17,6 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
 import {
   members,
-  fundMembers,
   financialTransactions,
   sessions,
   sessionDebts,
@@ -64,7 +63,6 @@ async function reset() {
   await client.execute("DELETE FROM session_shuttlecocks");
   await client.execute("DELETE FROM votes");
   await client.execute("DELETE FROM sessions");
-  await client.execute("DELETE FROM fund_members");
   await client.execute("DELETE FROM members");
 }
 
@@ -98,7 +96,8 @@ async function seedMember(name: string, fbId: string) {
       bankAccountNo: `bank-${fbId}`,
     })
     .returning({ id: members.id });
-  await testDb.insert(fundMembers).values({ memberId: m.id, isActive: true });
+  // Member mặc định isActive=true, approvalStatus='approved' → tự trong quỹ.
+  // Không còn bảng fund_members để enrol.
   await testDb.insert(financialTransactions).values({
     type: "fund_contribution",
     direction: "in",
