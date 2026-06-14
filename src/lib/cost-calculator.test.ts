@@ -661,6 +661,7 @@ describe("applyMinDeductionFloor", () => {
       playAmount: 30_000,
       dineAmount: 0,
       guestPlayAmount: 0,
+      guestPlayCount: 0,
       guestDineAmount: 0,
       totalAmount: 30_000,
     };
@@ -709,23 +710,62 @@ describe("applyMinDeductionFloor", () => {
     expect(r).toEqual(d);
   });
 
-  it("guests + dine preserved khi override", () => {
-    // Member chơi 30K + nhậu 40K + mời 1 khách chơi 30K → total 100K. Balance thiếu.
-    // Floor chỉ apply playAmount → playAmount: 30K → 60K, others unchanged.
-    // New total = 60 + 40 + 30 + 0 = 130K.
+  it("member play + dine + 1 khách chơi <60K: floor CẢ member VÀ khách lên 60K", () => {
+    // Member chơi 30K + nhậu 40K + 1 khách chơi 30K. Balance thiếu.
+    // playAmount 30K → 60K (member floor). guest 30K → 60K (khách mặc định 60K).
+    // dine 40K giữ nguyên (nhậu tự nguyện). Total = 60 + 40 + 60 + 0 = 160K.
     const d = debt({
       playAmount: 30_000,
       dineAmount: 40_000,
       guestPlayAmount: 30_000,
+      guestPlayCount: 1,
       guestDineAmount: 0,
       totalAmount: 100_000,
     });
     const r = applyMinDeductionFloor(d, 10_000);
     expect(r.playAmount).toBe(60_000);
     expect(r.dineAmount).toBe(40_000);
-    expect(r.guestPlayAmount).toBe(30_000);
+    expect(r.guestPlayAmount).toBe(60_000);
     expect(r.guestDineAmount).toBe(0);
-    expect(r.totalAmount).toBe(130_000);
+    expect(r.totalAmount).toBe(160_000);
+  });
+
+  it("khách floor 60K KỂ CẢ khi host dư quỹ (khách không có quỹ riêng)", () => {
+    // Member không chơi, 1 khách share 46K. Host balance dư → member không bị
+    // floor, NHƯNG khách vẫn mặc định 60K.
+    const d = debt({
+      playAmount: 0,
+      guestPlayAmount: 46_000,
+      guestPlayCount: 1,
+      totalAmount: 46_000,
+    });
+    const r = applyMinDeductionFloor(d, 1_000_000);
+    expect(r.guestPlayAmount).toBe(60_000);
+    expect(r.totalAmount).toBe(60_000);
+  });
+
+  it("khách share ≥ floor → KHÔNG hạ xuống (giữ per-head, admin không lỗ)", () => {
+    const d = debt({
+      playAmount: 0,
+      guestPlayAmount: 70_000,
+      guestPlayCount: 1,
+      totalAmount: 70_000,
+    });
+    const r = applyMinDeductionFloor(d, 0);
+    expect(r.guestPlayAmount).toBe(70_000);
+    expect(r.totalAmount).toBe(70_000);
+  });
+
+  it("2 khách share 46K mỗi người → floor 120K (60K × 2)", () => {
+    const d = debt({
+      playAmount: 0,
+      guestPlayAmount: 92_000,
+      guestPlayCount: 2,
+      totalAmount: 92_000,
+    });
+    const r = applyMinDeductionFloor(d, 0);
+    expect(r.guestPlayAmount).toBe(120_000);
+    expect(r.totalAmount).toBe(120_000);
   });
 
   it("custom floor amount honored", () => {
@@ -831,6 +871,30 @@ describe("computePredictedMinDeductionSurplus", () => {
       memberBalances: { 1: 0 },
       exemptMemberIds: [],
       playCostPerHead: 34_000,
+    });
+    expect(r).toBe(0);
+  });
+
+  it("cộng surplus từ khách — mỗi khách floor lên 60K, độc lập balance", () => {
+    // perHead 34K, 2 khách chơi → mỗi khách surplus (60−34)=26K → +52K.
+    // Không member nào chơi → chỉ surplus khách.
+    const r = computePredictedMinDeductionSurplus({
+      playingMemberIds: [],
+      memberBalances: {},
+      exemptMemberIds: [],
+      playCostPerHead: 34_000,
+      guestPlayCount: 2,
+    });
+    expect(r).toBe(52_000);
+  });
+
+  it("guest surplus = 0 khi perHead ≥ floor", () => {
+    const r = computePredictedMinDeductionSurplus({
+      playingMemberIds: [],
+      memberBalances: {},
+      exemptMemberIds: [],
+      playCostPerHead: 70_000,
+      guestPlayCount: 3,
     });
     expect(r).toBe(0);
   });

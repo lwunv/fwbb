@@ -66,6 +66,9 @@ export interface MemberDebt {
   playAmount: number;
   dineAmount: number;
   guestPlayAmount: number;
+  /** Số khách CHƠI của member này — cần để `applyMinDeductionFloor` floor mỗi
+   *  khách lên mức tối thiểu (mặc định 60K) độc lập với balance của host. */
+  guestPlayCount: number;
   guestDineAmount: number;
   totalAmount: number;
 }
@@ -104,16 +107,20 @@ export function calculateExactShuttlecockCost(
 }
 
 /**
- * Min-deduction floor cho 1 buổi (mỗi member): khi member không đủ quỹ trả
- * play share AND play share < floor → override `playAmount` lên `floor`.
- * Admin opt-in qua `sessions.use_min_deduction` + có thể miễn từng member qua
- * `session_min_deduction_exemptions`. Floor amount mặc định 60K — hardcode
- * trước (nếu cần admin đổi sẽ thêm app_setting sau).
+ * Min-deduction floor cho 1 buổi. Áp khi `sessions.use_min_deduction = true`
+ * (member có thể miễn qua `session_min_deduction_exemptions`). Floor mặc định
+ * 60K — hardcode trước (nếu cần admin đổi sẽ thêm app_setting sau).
  *
- * Scope: chỉ apply lên `playAmount`. KHÔNG floor `dineAmount` (nhậu tự
- * nguyện) hoặc guest amounts (khách không có balance riêng).
+ * Hai vế ĐỘC LẬP:
+ * - **Member (play của chính mình):** chỉ floor khi member CHƠI + thiếu quỹ
+ *   trả play share + share < floor → nâng `playAmount` lên `floor`. Member đủ
+ *   quỹ trả per-head thật → không phạt.
+ * - **Khách (play):** khách KHÔNG có quỹ riêng → mỗi khách MẶC ĐỊNH tối thiểu
+ *   `floor` (60K), KHÔNG phụ thuộc balance của host. perGuest < floor → nâng
+ *   từng khách lên floor; perGuest ≥ floor → giữ per-head (admin không lỗ).
  *
- * Round-up rule giữ nguyên — admin không bao giờ lỗ.
+ * Scope: chỉ floor PLAY (sân). KHÔNG floor `dineAmount` / `guestDineAmount`
+ * (nhậu tự nguyện). Round-up rule giữ nguyên — admin không bao giờ lỗ.
  */
 export const MIN_DEDUCTION_PER_HEAD = 60_000;
 
@@ -122,19 +129,34 @@ export function applyMinDeductionFloor(
   balance: number,
   floor: number = MIN_DEDUCTION_PER_HEAD,
 ): MemberDebt {
-  // Member không chơi → playAmount = 0 → rule không apply (chỉ phạt người
-  // chơi). Member chỉ nhậu vẫn trả dineAmount thường.
-  if (debt.playAmount === 0) return debt;
-  // Đủ quỹ trả play share → không cần penalty.
-  if (balance >= debt.playAmount) return debt;
-  // Play share đã ≥ floor → đã đóng đủ, không cần thêm.
-  if (debt.playAmount >= floor) return debt;
-  const newPlay = floor;
+  // Vế member: chỉ phạt người chơi, thiếu quỹ, và share < floor.
+  const playAmount =
+    debt.playAmount > 0 && balance < debt.playAmount && debt.playAmount < floor
+      ? floor
+      : debt.playAmount;
+
+  // Vế khách: mỗi khách tối thiểu `floor`. perGuest = guestPlayAmount /
+  // guestPlayCount; < floor → nâng cả nhóm lên `guestPlayCount × floor`.
+  let guestPlayAmount = debt.guestPlayAmount;
+  if (debt.guestPlayCount > 0) {
+    const perGuest = debt.guestPlayAmount / debt.guestPlayCount;
+    if (perGuest < floor) {
+      guestPlayAmount = debt.guestPlayCount * floor;
+    }
+  }
+
+  if (
+    playAmount === debt.playAmount &&
+    guestPlayAmount === debt.guestPlayAmount
+  ) {
+    return debt; // không đổi gì
+  }
   return {
     ...debt,
-    playAmount: newPlay,
+    playAmount,
+    guestPlayAmount,
     totalAmount:
-      newPlay + debt.dineAmount + debt.guestPlayAmount + debt.guestDineAmount,
+      playAmount + debt.dineAmount + guestPlayAmount + debt.guestDineAmount,
   };
 }
 
@@ -161,6 +183,10 @@ export function computePredictedMinDeductionSurplus(input: {
   memberBalances: Readonly<Record<number, number>>;
   exemptMemberIds: ReadonlyArray<number>;
   playCostPerHead: number;
+  /** Số khách CHƠI (của host không-miễn). Mỗi khách floor lên `floor` độc lập
+   *  balance → +(floor − perHead) mỗi khách. Khớp guest-floor ở
+   *  `applyMinDeductionFloor` để forecast không lệch debt thật. */
+  guestPlayCount?: number;
   floor?: number;
 }): number {
   const floor = input.floor ?? MIN_DEDUCTION_PER_HEAD;
@@ -174,6 +200,10 @@ export function computePredictedMinDeductionSurplus(input: {
     if (balance < input.playCostPerHead) {
       surplus += floor - input.playCostPerHead;
     }
+  }
+  // Khách floor lên `floor` luôn (không có quỹ riêng) → surplus mỗi khách.
+  if (input.guestPlayCount && input.guestPlayCount > 0) {
+    surplus += input.guestPlayCount * (floor - input.playCostPerHead);
   }
   return surplus;
 }
@@ -321,6 +351,7 @@ export function calculateSessionCosts(
         playAmount,
         dineAmount,
         guestPlayAmount,
+        guestPlayCount: guestsPlay,
         guestDineAmount,
         totalAmount,
       });

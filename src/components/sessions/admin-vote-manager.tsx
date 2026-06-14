@@ -432,6 +432,7 @@ export function AdminVoteManager({
       playAmount,
       dineAmount,
       guestPlayAmount,
+      guestPlayCount: gp,
       guestDineAmount,
       totalAmount: playAmount + dineAmount + guestPlayAmount + guestDineAmount,
     };

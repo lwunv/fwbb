@@ -778,6 +778,25 @@ export function SessionList({
                           // surplus (members below playPerHead get floored to
                           // 60K, admin captures the difference). Plain
                           // `players × playPerHead` understates "Tổng thu".
+                          // Khách floor lên 60K (host không-miễn) cũng tạo
+                          // surplus → cộng vào forecast để khớp debt thật.
+                          const floorableGuestPlay =
+                            session.votes
+                              .filter(
+                                (v) =>
+                                  v.willPlay &&
+                                  !session.exemptMemberIds.includes(
+                                    v.member.id,
+                                  ),
+                              )
+                              .reduce(
+                                (s, v) => s + (v.guestPlayCount ?? 0),
+                                0,
+                              ) +
+                            (adminMemberId !== null &&
+                            !session.exemptMemberIds.includes(adminMemberId)
+                              ? ag.play
+                              : 0);
                           const predictedPenaltySurplus =
                             session.useMinDeduction
                               ? computePredictedMinDeductionSurplus({
@@ -787,6 +806,7 @@ export function SessionList({
                                   memberBalances,
                                   exemptMemberIds: session.exemptMemberIds,
                                   playCostPerHead,
+                                  guestPlayCount: floorableGuestPlay,
                                 })
                               : 0;
                           const predictedRevenue =
