@@ -76,9 +76,11 @@ export function WeekSessionsView({
           d.session?.status === "completed" ||
           d.session?.status === "cancelled";
         const noSession = !d.session;
-        // Số người vote đi chơi cầu cho thứ đó (member willPlay).
+        // Số người đi chơi cầu cho thứ đó = member willPlay + tổng khách chơi
+        // (khớp "N người (gồm K khách)" trên thẻ).
         const playCount = d.session
-          ? d.session.votes.filter((v) => !!v.willPlay).length
+          ? d.session.votes.filter((v) => !!v.willPlay).length +
+            d.session.votes.reduce((s, v) => s + (v.guestPlayCount ?? 0), 0)
           : 0;
         return (
           <motion.button

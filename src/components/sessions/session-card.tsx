@@ -77,7 +77,7 @@ export function SessionCard({
             trống của hàng chip → KHÔNG chiếm height). Không chips (vote page):
             render inline trong header (không có hàng chip để đè). */}
         {topSlot && showCountdown && (
-          <div className="absolute top-4 right-4 z-20">
+          <div className="absolute top-4 right-4 z-20 flex h-11 items-center">
             <VoteCountdown deadline={voteDeadline ?? null} variant="compact" />
           </div>
         )}
