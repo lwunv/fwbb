@@ -48,13 +48,22 @@ test.beforeAll(async () => {
   await c.execute("DELETE FROM rate_limit_buckets");
 
   const court = (await c.execute("SELECT id FROM courts LIMIT 1")).rows[0];
-  for (const date of targetDates()) {
+  const dates = targetDates();
+  for (const date of dates) {
     await c.execute("DELETE FROM sessions WHERE date=?", [date]);
-    // voteDeadline cuối ngày → countdown (HH:MM:SS) chắc chắn còn thời gian.
+  }
+  // Deadline = NOW + 6h (giờ local) → countdown LUÔN còn thời gian (< 1 ngày →
+  // hiện "còn HH:MM:SS"), KHÔNG phụ thuộc thứ chạy test → tránh flake theo ngày.
+  const dl = new Date(Date.now() + 6 * 3600 * 1000);
+  const p = (n: number) => String(n).padStart(2, "0");
+  const deadline = `${dl.getFullYear()}-${p(dl.getMonth() + 1)}-${p(dl.getDate())}T${p(dl.getHours())}:${p(dl.getMinutes())}:${p(dl.getSeconds())}`;
+  // Seed buổi cho T2 (dates[0]) + T6 (dates[2]); CHỪA T4 (dates[1]) trống để
+  // test chip "chưa có buổi".
+  for (const date of [dates[0], dates[2]]) {
     await c.execute({
       sql: `INSERT INTO sessions (date, start_time, end_time, court_id, court_quantity, court_price, status, vote_deadline)
             VALUES (?, '20:30', '22:30', ?, 1, 200000, 'voting', ?)`,
-      args: [date, court?.id ?? null, `${date}T23:59:59`],
+      args: [date, court?.id ?? null, deadline],
     });
   }
   c.close();
@@ -69,7 +78,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe("selector thứ cầu lông + countdown trong card (e2e)", () => {
-  test("login member → home hiện 3 chip thứ, click được, countdown HH:MM:SS trong card", async ({
+  test("login member → ĐỦ 3 chip thứ (kể cả ngày trống), countdown trong card, empty-state", async ({
     page,
   }) => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
@@ -80,17 +89,28 @@ test.describe("selector thứ cầu lông + countdown trong card (e2e)", () => {
     await page.locator('input[type="password"]').fill(PASSWORD);
     await page.locator('button[type="submit"]').click();
 
-    // Rời gate → home member: 3 chip thứ (Thứ Hai/Tư/Sáu).
+    // ĐỦ 3 chip thứ cầu lông (T2/T4/T6) — kể cả T4 chưa có buổi.
     const chips = page.getByRole("button", { name: /Thứ/ });
     await expect(chips).toHaveCount(3, { timeout: 15_000 });
 
-    // Đồng hồ đếm ngược theo GIÂY hiện TRONG card (HH:MM:SS).
-    await expect(page.getByText(/\d{1,2}:\d{2}:\d{2}/).first()).toBeVisible({
+    // Countdown gọn "còn HH:MM:SS" (scoped, không khớp giờ buổi 20:30) + copy-link.
+    const countdown = page.getByText(/còn \d{1,2}:\d{2}:\d{2}/);
+    const copyLink = page.getByRole("button", { name: /Sao chép/i });
+
+    // Mặc định chọn buổi sắp tới có sẵn (T2) → countdown TRONG card.
+    await expect(countdown.first()).toBeVisible({ timeout: 10_000 });
+
+    // Click chip giữa (T4, chưa có buổi) → empty state; KHÔNG countdown/copy-link.
+    await chips.nth(1).click();
+    await expect(page.getByText(/Chưa có buổi/)).toBeVisible({
       timeout: 10_000,
     });
+    await expect(countdown).toHaveCount(0);
+    await expect(copyLink).toHaveCount(0);
 
-    // Click chip thứ 2 → vẫn render card buổi đó (header ngày dd/MM/yyyy).
-    await chips.nth(1).click();
-    await expect(page.getByText(/\d{2}\/\d{2}\/\d{4}/).first()).toBeVisible();
+    // Quay lại chip T2 (có buổi) → countdown + copy-link lại hiện.
+    await chips.nth(0).click();
+    await expect(countdown.first()).toBeVisible({ timeout: 10_000 });
+    await expect(copyLink).toBeVisible();
   });
 });

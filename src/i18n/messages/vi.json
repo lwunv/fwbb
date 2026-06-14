@@ -45,6 +45,7 @@
     "session": "Buổi chơi",
     "sessionCancelled": "Buổi chơi này đã bị hủy",
     "sessionCompleted": "Buổi chơi này đã hoàn thành",
+    "noSessionYet": "Chưa có buổi chơi cho ngày này",
     "yourVote": "Vote của bạn",
     "voteList": "Danh sách",
     "votedOf": "{voted}/{total} đã vote",

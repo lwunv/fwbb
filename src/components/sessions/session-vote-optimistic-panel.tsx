@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { SessionCard } from "@/components/sessions/session-card";
 import { VoteButtons } from "@/components/sessions/vote-buttons";
@@ -36,6 +36,8 @@ interface SessionVoteOptimisticPanelProps {
    * the source of truth; this is defense-in-depth UI per the vote-deadline spec.
    */
   voteDeadline?: string | null;
+  /** Render ở đỉnh SessionCard (vd hàng chip chọn thứ). Forward xuống topSlot. */
+  headerSlot?: ReactNode;
 }
 
 export function SessionVoteOptimisticPanel({
@@ -46,6 +48,7 @@ export function SessionVoteOptimisticPanel({
   currentMemberId,
   isVotingOpen,
   voteDeadline,
+  headerSlot,
 }: SessionVoteOptimisticPanelProps) {
   const t = useTranslations("sessions");
   const tv = useTranslations("voting");
@@ -146,6 +149,7 @@ export function SessionVoteOptimisticPanel({
         guestPlayCount={totalGuestPlay}
         guestDineCount={totalGuestDine}
         voteDeadline={voteDeadline ?? null}
+        topSlot={headerSlot}
       />
 
       {effectiveIsVotingOpen && (

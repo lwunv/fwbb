@@ -10,6 +10,7 @@ import {
 } from "@/components/shared/status-badge";
 import { VoteCountdown } from "@/components/sessions/vote-countdown";
 import type { AppLocale } from "@/lib/date-fns-locale";
+import type { ReactNode } from "react";
 
 interface SessionCardProps {
   date: string;
@@ -27,6 +28,8 @@ interface SessionCardProps {
    * theo GIÂY ngay TRONG thẻ. Quá hạn → component tự hiển "Đã đóng vote".
    */
   voteDeadline?: string | null;
+  /** Nội dung render ở ĐỈNH thẻ (vd hàng chip chọn thứ) — nằm bên trong card. */
+  topSlot?: ReactNode;
 }
 
 export function SessionCard({
@@ -41,6 +44,7 @@ export function SessionCard({
   guestPlayCount,
   guestDineCount,
   voteDeadline,
+  topSlot,
 }: SessionCardProps) {
   const t = useTranslations("sessions");
   const tF = useTranslations("finance");
@@ -68,6 +72,7 @@ export function SessionCard({
   const card = (
     <Card className={isVoting ? "ring-0" : ""}>
       <CardContent className="space-y-3 p-4">
+        {topSlot}
         <div className="flex items-start justify-between gap-2">
           {/* Ngày + giờ trên CÙNG một dòng header (gộp theo design ảnh 2) */}
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -79,12 +84,16 @@ export function SessionCard({
               {startTime ?? "20:30"} - {endTime ?? "22:30"}
             </span>
           </div>
-          <StatusBadge variant={badgeVariant}>{badgeText}</StatusBadge>
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
+            <StatusBadge variant={badgeVariant}>{badgeText}</StatusBadge>
+            {showCountdown && (
+              <VoteCountdown
+                deadline={voteDeadline ?? null}
+                variant="compact"
+              />
+            )}
+          </div>
         </div>
-
-        {showCountdown && (
-          <VoteCountdown deadline={voteDeadline ?? null} variant="card" />
-        )}
 
         <div className="space-y-2 text-sm">
           {courtName && (

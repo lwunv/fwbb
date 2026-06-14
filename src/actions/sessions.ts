@@ -102,15 +102,21 @@ async function getSessionDaysSet(): Promise<Set<number>> {
  * CHỈ trả buổi ĐÃ TỒN TẠI (ngày chưa tạo session → bỏ), sort theo ngày. Ngày
  * cầu lông lấy từ getSessionDaysOfWeek().
  */
-export async function getWeekBadmintonSessions() {
+/**
+ * Tất cả các thứ cầu lông của TUẦN ĐÍCH (T2/4/6 theo getSessionDaysOfWeek;
+ * T7/CN → tuần sau), kèm buổi tương ứng nếu Admin đã tạo (null nếu chưa). Dùng
+ * cho selector trang chủ: chip hiện ĐỦ các thứ, kể cả ngày chưa có buổi.
+ */
+export async function getWeekBadmintonDays() {
   const days = await getSessionDaysOfWeek();
   const dates = badmintonDatesForTargetWeek(ymdInVN(), days);
   if (dates.length === 0) return [];
-  return db.query.sessions.findMany({
+  const rows = await db.query.sessions.findMany({
     where: inArray(sessions.date, dates),
-    orderBy: [sessions.date],
     with: { court: true },
   });
+  const byDate = new Map(rows.map((s) => [s.date, s]));
+  return dates.map((date) => ({ date, session: byDate.get(date) ?? null }));
 }
 
 export async function getNextSession() {

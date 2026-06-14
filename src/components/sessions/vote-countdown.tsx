@@ -11,9 +11,9 @@ interface VoteCountdownProps {
   deadline: string | null;
   /**
    * banner = sticky pill on vote page. inline = single text line for lists.
-   * card   = pill đặt BÊN TRONG thẻ buổi chơi (có icon đồng hồ).
+   * compact = pill NHỎ GỌN đặt cạnh badge trong thẻ buổi chơi (icon đồng hồ).
    */
-  variant: "banner" | "inline" | "card";
+  variant: "banner" | "inline" | "compact";
   /** Fires once when remaining time hits 0. Use to flip parent's isVotingOpen. */
   onExpired?: () => void;
 }
@@ -61,12 +61,12 @@ export function VoteCountdown({
         <span className="text-destructive text-sm font-medium">{label}</span>
       );
     }
-    if (variant === "card") {
+    if (variant === "compact") {
       return (
-        <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold">
-          <Timer className="h-4 w-4 shrink-0" aria-hidden />
+        <span className="border-destructive/30 bg-destructive/10 text-destructive inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-semibold">
+          <Timer className="h-3 w-3 shrink-0" aria-hidden />
           {label}
-        </div>
+        </span>
       );
     }
     return (
@@ -96,19 +96,19 @@ export function VoteCountdown({
     );
   }
 
-  if (variant === "card") {
+  if (variant === "compact") {
     return (
-      <div
+      <span
         className={cn(
-          "flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold tabular-nums",
+          "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums",
           urgent
-            ? "border-destructive/30 bg-destructive/10 text-destructive animate-pulse"
-            : "border-primary/30 bg-primary/10 text-primary",
+            ? "bg-destructive/10 text-destructive animate-pulse"
+            : "bg-primary/10 text-primary",
         )}
       >
-        <Timer className="h-4 w-4 shrink-0" aria-hidden />
-        <span>{text}</span>
-      </div>
+        <Timer className="h-3 w-3 shrink-0" aria-hidden />
+        {text}
+      </span>
     );
   }
 

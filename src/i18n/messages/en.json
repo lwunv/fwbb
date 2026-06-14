@@ -45,6 +45,7 @@
     "session": "Session",
     "sessionCancelled": "This session has been cancelled",
     "sessionCompleted": "This session has been completed",
+    "noSessionYet": "No session scheduled for this day yet",
     "yourVote": "Your vote",
     "voteList": "Vote list",
     "votedOf": "{voted}/{total} voted",

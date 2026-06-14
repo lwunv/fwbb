@@ -1,7 +1,7 @@
 import {
   getNextSession,
   getLatestCompletedSession,
-  getWeekBadmintonSessions,
+  getWeekBadmintonDays,
 } from "@/actions/sessions";
 import { WeekSessionsView } from "@/components/sessions/week-sessions-view";
 import { getSessionVotes } from "@/actions/votes";
@@ -15,11 +15,12 @@ import { CopyLinkButton } from "@/components/shared/copy-link-button";
 import { getTranslations } from "next-intl/server";
 import { AutoRefresh } from "@/components/shared/auto-refresh";
 import { isVoteOpen, type SessionStatus } from "@/lib/session-status";
+import { ymdInVN } from "@/lib/date-format";
 
 export default async function HomePage() {
-  const [nextSession, weekSessions, user, tDashboard] = await Promise.all([
+  const [nextSession, weekDays, user, tDashboard] = await Promise.all([
     getNextSession(),
-    getWeekBadmintonSessions(),
+    getWeekBadmintonDays(),
     getUserFromCookie(),
     getTranslations("dashboard"),
   ]);
@@ -67,27 +68,45 @@ export default async function HomePage() {
     );
   }
 
-  // Selector các thứ cầu lông trong tuần (T2/4/6 theo setting; T7/CN → tuần
-  // sau). Chỉ cho khách / member đã hết nợ — member còn nợ đi nhánh trả tiền ở
-  // trên. Buổi đang mở → vote; buổi đã xong → chip muted + chỉ xem.
-  if (weekSessions.length > 0 && !(user && hasOutstandingDebt)) {
-    const items = await Promise.all(
-      weekSessions.map(async (s) => ({
-        id: s.id,
-        date: s.date,
-        startTime: s.startTime,
-        endTime: s.endTime,
-        courtName: s.court?.name ?? null,
-        courtMapLink: s.court?.mapLink ?? null,
-        status: s.status,
-        voteDeadline: s.voteDeadline ?? null,
-        isVotingOpen: isVoteOpen({
-          status: s.status as SessionStatus,
-          voteDeadline: s.voteDeadline ?? null,
-        }).open,
-        votes: await getSessionVotes(s.id),
-      })),
+  // Selector ĐỦ các thứ cầu lông của tuần đích (T2/4/6 theo setting; T7/CN →
+  // tuần sau) — kể cả ngày Admin chưa tạo buổi. Chỉ cho khách / member đã hết
+  // nợ (member còn nợ đi nhánh trả tiền ở trên). Hiện khi tuần có ≥ 1 buổi.
+  if (weekDays.some((d) => d.session) && !(user && hasOutstandingDebt)) {
+    const days = await Promise.all(
+      weekDays.map(async (d) => {
+        if (!d.session) return { date: d.date, session: null };
+        const s = d.session;
+        return {
+          date: d.date,
+          session: {
+            id: s.id,
+            date: s.date,
+            startTime: s.startTime,
+            endTime: s.endTime,
+            courtName: s.court?.name ?? null,
+            courtMapLink: s.court?.mapLink ?? null,
+            status: s.status,
+            voteDeadline: s.voteDeadline ?? null,
+            isVotingOpen: isVoteOpen({
+              status: s.status as SessionStatus,
+              voteDeadline: s.voteDeadline ?? null,
+            }).open,
+            votes: await getSessionVotes(s.id),
+          },
+        };
+      }),
     );
+
+    // defaultDate tính SERVER-SIDE (hydration-safe) — thứ sắp tới gần nhất có
+    // buổi; nếu không có → thứ sắp tới gần nhất; cuối cùng → thứ cuối tuần.
+    const today = ymdInVN();
+    const upcoming = days.filter((d) => d.date >= today);
+    const defaultDate =
+      upcoming.find((d) => d.session)?.date ??
+      upcoming[0]?.date ??
+      [...days].reverse().find((d) => d.session)?.date ??
+      days[days.length - 1]?.date ??
+      null;
 
     return (
       <div className="mx-auto max-w-lg space-y-4">
@@ -98,9 +117,9 @@ export default async function HomePage() {
             memberId={user.memberId}
           />
         )}
-        <h1 className="text-lg font-bold">{tDashboard("upcomingSession")}</h1>
         <WeekSessionsView
-          sessions={items}
+          days={days}
+          defaultDate={defaultDate}
           members={members}
           currentMemberId={user?.memberId ?? null}
         />
