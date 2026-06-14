@@ -14,6 +14,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { usePolling } from "@/lib/use-polling";
 import { ArrowLeft, XCircle } from "lucide-react";
 import { formatSessionDate, ymdInVN } from "@/lib/date-format";
+import { deriveSessionBadge } from "@/lib/session-status";
 import { StatusBadge } from "@/components/shared/status-badge";
 import type { InferSelectModel } from "drizzle-orm";
 import type {
@@ -82,14 +83,9 @@ export function SessionDetail({
     setLocalStatus(session.status);
   }, [session.status]);
 
-  type SessionStatus = "voting" | "confirmed" | "completed" | "cancelled";
-  const statusKey = (
-    ["voting", "confirmed", "completed", "cancelled"].includes(
-      localStatus ?? "",
-    )
-      ? localStatus
-      : "voting"
-  ) as SessionStatus;
+  // Shared badge derivation (session-card/list dùng chung). Past-pending →
+  // amber "needsConfirm" (trước đây detail giữ màu voting — nay đồng nhất).
+  const sessionBadge = deriveSessionBadge(localStatus, session.date, ymdInVN());
 
   const [showCancelDialog, setShowCancelDialog] = useState(false);
 
@@ -122,11 +118,10 @@ export function SessionDetail({
             )}
           </h1>
         </div>
-        <StatusBadge variant={statusKey}>
-          {(statusKey === "voting" || statusKey === "confirmed") &&
-          session.date < ymdInVN()
+        <StatusBadge variant={sessionBadge.variant}>
+          {sessionBadge.isPastPending
             ? tF("needsConfirm")
-            : t(statusKey)}
+            : t(sessionBadge.labelKey)}
         </StatusBadge>
       </div>
 

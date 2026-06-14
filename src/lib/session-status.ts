@@ -24,6 +24,46 @@
 
 export type SessionStatus = "voting" | "confirmed" | "completed" | "cancelled";
 
+/** Subset of StatusBadge variants a session row can show. */
+export type SessionBadgeVariant = SessionStatus | "needsConfirm";
+
+export interface SessionBadge {
+  /** Variant to pass to <StatusBadge>. */
+  variant: SessionBadgeVariant;
+  /** `sessions` i18n key for the normal label (caller maps needsConfirm itself). */
+  labelKey: SessionStatus;
+  /** Buổi đã qua ngày nhưng vẫn voting/confirmed → "Cần xác nhận", KHÔNG LED. */
+  isPastPending: boolean;
+  /** Đang mở vote thật (voting + chưa qua ngày) → viền LED. */
+  isVoting: boolean;
+}
+
+/**
+ * Single source for the session badge derivation duplicated across session-card,
+ * session-list, and session-detail. A session whose date already passed but is still
+ * voting/confirmed shows "needsConfirm" (admin chưa chốt sổ) instead of a live
+ * LED. Pure — caller passes today's VN ymd (`ymdInVN()`) so it stays testable.
+ */
+export function deriveSessionBadge(
+  status: string | null,
+  dateYmd: string,
+  todayYmd: string,
+): SessionBadge {
+  const s = status ?? "voting";
+  const labelKey: SessionStatus = (
+    ["voting", "confirmed", "completed", "cancelled"] as const
+  ).includes(s as SessionStatus)
+    ? (s as SessionStatus)
+    : "voting";
+  const isPastPending =
+    (s === "voting" || s === "confirmed") && dateYmd < todayYmd;
+  const isVoting = s === "voting" && !isPastPending;
+  const variant: SessionBadgeVariant = isPastPending
+    ? "needsConfirm"
+    : labelKey;
+  return { variant, labelKey, isPastPending, isVoting };
+}
+
 const TRANSITIONS: Record<SessionStatus, ReadonlySet<SessionStatus>> = {
   voting: new Set<SessionStatus>(["confirmed", "completed", "cancelled"]),
   confirmed: new Set<SessionStatus>(["voting", "completed", "cancelled"]),

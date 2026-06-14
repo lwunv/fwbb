@@ -4,10 +4,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Clock, MapPin, Navigation, Users } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { formatSessionDate, ymdInVN } from "@/lib/date-format";
-import {
-  StatusBadge,
-  type StatusVariant,
-} from "@/components/shared/status-badge";
+import { StatusBadge } from "@/components/shared/status-badge";
+import { deriveSessionBadge } from "@/lib/session-status";
 import { VoteCountdown } from "@/components/sessions/vote-countdown";
 import type { AppLocale } from "@/lib/date-fns-locale";
 import type { ReactNode } from "react";
@@ -50,24 +48,18 @@ export function SessionCard({
   const tF = useTranslations("finance");
   const locale = useLocale() as AppLocale;
 
-  const statusKey = (status ?? "voting") as StatusVariant;
-  const statusLabelKey = (
-    ["voting", "confirmed", "completed", "cancelled"].includes(statusKey)
-      ? statusKey
-      : "voting"
-  ) as "voting" | "confirmed" | "completed" | "cancelled";
-  // Buổi đã qua nhưng vẫn voting/confirmed → "Cần xác nhận", không LED xanh.
-  const isPastPending =
-    (statusKey === "voting" || statusKey === "confirmed") && date < ymdInVN();
-  const isVoting = statusKey === "voting" && !isPastPending;
-  const badgeVariant: StatusVariant = isPastPending
-    ? "needsConfirm"
-    : statusKey;
-  const badgeText = isPastPending ? tF("needsConfirm") : t(statusLabelKey);
+  // Badge derivation shared with session-list + session-detail (single source).
+  const {
+    variant: badgeVariant,
+    labelKey,
+    isPastPending,
+    isVoting,
+  } = deriveSessionBadge(status, date, ymdInVN());
+  const badgeText = isPastPending ? tF("needsConfirm") : t(labelKey);
 
   // Countdown chỉ có nghĩa với buổi còn đang mở vote (voting/confirmed).
   const showCountdown =
-    !!voteDeadline && (statusKey === "voting" || statusKey === "confirmed");
+    !!voteDeadline && (status === "voting" || status === "confirmed");
 
   const card = (
     <Card className={isVoting ? "ring-0" : ""}>

@@ -1,6 +1,52 @@
 import { describe, it, expect } from "vitest";
-import { isVoteOpen } from "./session-status";
+import { isVoteOpen, deriveSessionBadge } from "./session-status";
 import { formatLocalDeadline } from "./vote-deadline";
+
+describe("deriveSessionBadge", () => {
+  const today = "2026-06-15";
+
+  it("voting + future/today date → live voting, voting variant", () => {
+    expect(deriveSessionBadge("voting", "2026-06-15", today)).toEqual({
+      variant: "voting",
+      labelKey: "voting",
+      isPastPending: false,
+      isVoting: true,
+    });
+  });
+
+  it("voting + past date → needsConfirm variant, not LED", () => {
+    expect(deriveSessionBadge("voting", "2026-06-10", today)).toEqual({
+      variant: "needsConfirm",
+      labelKey: "voting",
+      isPastPending: true,
+      isVoting: false,
+    });
+  });
+
+  it("confirmed + past date → needsConfirm (admin chưa chốt)", () => {
+    const b = deriveSessionBadge("confirmed", "2026-06-10", today);
+    expect(b.variant).toBe("needsConfirm");
+    expect(b.isPastPending).toBe(true);
+    expect(b.isVoting).toBe(false);
+  });
+
+  it("completed/cancelled → own variant, never past-pending", () => {
+    expect(deriveSessionBadge("completed", "2026-06-10", today)).toMatchObject({
+      variant: "completed",
+      isPastPending: false,
+      isVoting: false,
+    });
+    expect(deriveSessionBadge("cancelled", "2026-06-10", today)).toMatchObject({
+      variant: "cancelled",
+      isPastPending: false,
+    });
+  });
+
+  it("null/unknown status falls back to voting", () => {
+    expect(deriveSessionBadge(null, today, today).labelKey).toBe("voting");
+    expect(deriveSessionBadge("weird", today, today).variant).toBe("voting");
+  });
+});
 
 // Use the same local-time-no-Z format the production code stores (matches
 // integration tests + DB rows). Comparison in isVoteOpen is absolute-ms so

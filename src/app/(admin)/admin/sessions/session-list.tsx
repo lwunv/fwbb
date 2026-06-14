@@ -20,6 +20,7 @@ import {
   computePredictedMinDeductionSurplus,
 } from "@/lib/cost-calculator";
 import { floorableGuestPlayCount } from "@/lib/vote-list-utils";
+import { deriveSessionBadge } from "@/lib/session-status";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -585,7 +586,13 @@ export function SessionList({
             // Buổi đã qua nhưng vẫn ở voting/confirmed → admin chưa chốt sổ.
             // Tách visual khỏi "đang vote" để LED xanh chỉ giữ cho buổi sắp/đang
             // diễn ra (yêu cầu UX), còn buổi này hiện amber + badge "Cần xác nhận".
-            const isPastPending = isActive && session.date < todayYmd;
+            // Badge derivation shared with session-card + session-detail.
+            const badge = deriveSessionBadge(
+              effectiveStatus,
+              session.date,
+              todayYmd,
+            );
+            const isPastPending = badge.isPastPending;
             // Cho phép admin finalize từ HÔM NAY (đánh xong là chốt được ngay).
             // Future session vẫn block — chốt sớm thì lỗi thiếu attendees thật.
             const canFinalize = isActive && session.date <= todayYmd;
@@ -593,9 +600,7 @@ export function SessionList({
             const cardBgClass = isPastPending
               ? "bg-card border-rose-400 border-2 ring-2 ring-rose-200/50 dark:ring-rose-900/30"
               : status.cardBg;
-            const badgeVariant = isPastPending
-              ? "needsConfirm"
-              : effectiveStatus;
+            const badgeVariant = badge.variant;
             const badgeText = isPastPending
               ? tF("needsConfirm")
               : t(status.labelKey);
