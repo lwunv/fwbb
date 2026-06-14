@@ -45,6 +45,14 @@ certificates
 /.playwright-mcp/
 /login-check.png
 
+# Playwright e2e — local cloned DB (chứa PII member thật) + outputs
+/e2e/local.db
+/e2e/local.db-*
+/e2e/.auth/
+/test-results/
+/playwright-report/
+/playwright/.cache/
+
 # Personal financial data — accountant's spreadsheets, exports, etc.
 # never commit member balances / transaction dumps to a remote repo.
 .claude/*.csv
