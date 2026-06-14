@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Minus, Pencil, Check, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -38,6 +39,7 @@ export function FundAdjustDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useTranslations("adminMisc");
   const [mode, setMode] = useState<Mode>("add");
   const [amount, setAmount] = useState(0);
   const [note, setNote] = useState("");
@@ -77,7 +79,7 @@ export function FundAdjustDialog({
     if (!target) return;
     const diff = balanceDraft - target.currentBalance;
     if (diff === 0) {
-      toast.error("Số tiền hiện đã đúng");
+      toast.error(t("balanceAlreadyCorrect"));
       return;
     }
 
@@ -85,16 +87,24 @@ export function FundAdjustDialog({
     if (diff > 0) {
       const idemKey = `set-contrib-${crypto.randomUUID()}`;
       action = () =>
-        recordContribution(target.memberId, diff, "Sửa balance", idemKey);
+        recordContribution(
+          target.memberId,
+          diff,
+          t("editBalanceNote"),
+          idemKey,
+        );
     } else {
       const idemKey = `set-refund-${crypto.randomUUID()}`;
       action = () =>
-        recordRefund(target.memberId, -diff, "Sửa balance", idemKey);
+        recordRefund(target.memberId, -diff, t("editBalanceNote"), idemKey);
     }
 
     setSubmitting(true);
     fireAction(action, () => setSubmitting(false), {
-      successMsg: `Đã sửa balance ${target.memberNickname || target.memberName} → ${formatK(balanceDraft)}`,
+      successMsg: t("toastEditBalance", {
+        name: target.memberNickname || target.memberName,
+        amount: formatK(balanceDraft),
+      }),
       onSuccess: () => {
         setSubmitting(false);
         handleClose();
@@ -105,22 +115,29 @@ export function FundAdjustDialog({
   function handleSubmit() {
     if (!target) return;
     if (amount <= 0) {
-      toast.error("Nhập số tiền hợp lệ");
+      toast.error(t("enterValidAmount"));
       return;
     }
 
     let action: () => Promise<{ error?: string } | { success: boolean }>;
     let successMsg: string;
     const desc = note.trim() || undefined;
+    const memberLabel = target.memberNickname || target.memberName;
 
     if (mode === "add") {
       const idemKey = `contrib-${crypto.randomUUID()}`;
       action = () => recordContribution(target.memberId, amount, desc, idemKey);
-      successMsg = `Đã cộng ${formatK(amount)} vào quỹ ${target.memberNickname || target.memberName}`;
+      successMsg = t("toastFundAdd", {
+        amount: formatK(amount),
+        name: memberLabel,
+      });
     } else {
       const idemKey = `refund-${crypto.randomUUID()}`;
       action = () => recordRefund(target.memberId, amount, desc, idemKey);
-      successMsg = `Đã trừ ${formatK(amount)} khỏi quỹ ${target.memberNickname || target.memberName}`;
+      successMsg = t("toastFundSubtract", {
+        amount: formatK(amount),
+        name: memberLabel,
+      });
     }
 
     setSubmitting(true);
@@ -187,8 +204,8 @@ export function FundAdjustDialog({
                       type="button"
                       onClick={submitBalanceEdit}
                       disabled={submitting}
-                      aria-label="Lưu balance"
-                      title="Lưu"
+                      aria-label={t("saveBalanceAria")}
+                      title={t("save")}
                       className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-blue-500 bg-blue-500 text-white transition-colors hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <Check className="h-4 w-4" />
@@ -197,8 +214,8 @@ export function FundAdjustDialog({
                       type="button"
                       onClick={cancelEditingBalance}
                       disabled={submitting}
-                      aria-label="Hủy sửa balance"
-                      title="Hủy"
+                      aria-label={t("cancelEditBalanceAria")}
+                      title={t("cancel")}
                       className="border-border text-muted-foreground hover:bg-muted/50 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-colors disabled:opacity-60"
                     >
                       <X className="h-4 w-4" />
@@ -217,8 +234,8 @@ export function FundAdjustDialog({
                     <button
                       type="button"
                       onClick={startEditingBalance}
-                      aria-label="Sửa balance"
-                      title="Sửa balance"
+                      aria-label={t("editBalanceAria")}
+                      title={t("editBalanceAria")}
                       className="border-border text-muted-foreground hover:bg-muted/50 inline-flex h-9 w-9 items-center justify-center rounded-md border transition-colors"
                     >
                       <Pencil className="h-3.5 w-3.5" />
@@ -230,7 +247,7 @@ export function FundAdjustDialog({
                 type="button"
                 onClick={handleClose}
                 className="text-muted-foreground hover:text-foreground p-1"
-                aria-label="Đóng"
+                aria-label={t("close")}
               >
                 <X className="h-5 w-5" />
               </button>
@@ -242,14 +259,14 @@ export function FundAdjustDialog({
                 active={mode === "add"}
                 onClick={() => setMode("add")}
                 icon={Plus}
-                label="Cộng quỹ"
+                label={t("modeAdd")}
                 activeClass="border-primary bg-primary text-primary-foreground"
               />
               <ModeButton
                 active={mode === "subtract"}
                 onClick={() => setMode("subtract")}
                 icon={Minus}
-                label="Trừ quỹ"
+                label={t("modeSubtract")}
                 activeClass="border-rose-500 bg-rose-500 text-white"
               />
             </div>
@@ -272,7 +289,7 @@ export function FundAdjustDialog({
               type="text"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Ghi chú (không bắt buộc)"
+              placeholder={t("notePlaceholder")}
               className="mb-3 text-sm"
               disabled={submitting || editingBalance}
             />
@@ -284,7 +301,7 @@ export function FundAdjustDialog({
               disabled={submitting || amount <= 0 || editingBalance}
             >
               <Check className="mr-1 h-4 w-4" />
-              {submitting ? "Đang lưu..." : "Lưu"}
+              {submitting ? t("saving") : t("save")}
             </Button>
           </motion.div>
         </motion.div>

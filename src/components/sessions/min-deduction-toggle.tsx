@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Shield, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fireAction } from "@/lib/optimistic-action";
@@ -29,6 +30,7 @@ export function MinDeductionToggle({
   /** True khi session completed/cancelled — chặn toggle. */
   disabled?: boolean;
 }) {
+  const t = useTranslations("adminMisc");
   const [localEnabled, setLocalEnabled] = useState(enabled);
   // Resync local state CHỈ khi server prop đổi (prev-prop tracking).
   const [prevEnabled, setPrevEnabled] = useState(enabled);
@@ -61,7 +63,7 @@ export function MinDeductionToggle({
         disabled && "cursor-not-allowed opacity-60",
       )}
       aria-pressed={localEnabled}
-      aria-label="Bật/tắt rule tối thiểu 60K cho member thiếu quỹ"
+      aria-label={t("minDeductionAria")}
     >
       {localEnabled ? (
         <ShieldCheck className="text-primary h-4 w-4 shrink-0" />
@@ -74,10 +76,10 @@ export function MinDeductionToggle({
           localEnabled ? "text-primary" : "text-foreground/80",
         )}
       >
-        Tối thiểu 60K khi thiếu quỹ
+        {t("minDeductionLabel")}
         {localEnabled && exemptCount > 0 && (
           <span className="text-muted-foreground ml-1 font-normal">
-            · miễn {exemptCount}
+            {t("minDeductionExempt", { count: exemptCount })}
           </span>
         )}
       </span>

@@ -1021,7 +1021,7 @@ export function SessionList({
                           {finalizingSessions.has(session.id) ? (
                             <span className="text-muted-foreground ml-auto inline-flex items-center gap-1.5 text-sm">
                               <span className="border-muted-foreground/40 border-t-primary inline-block h-3 w-3 animate-spin rounded-full border-2" />
-                              Đang chốt sổ...
+                              {t("closingBooks")}
                             </span>
                           ) : !allPaid ? (
                             <button
@@ -1053,7 +1053,7 @@ export function SessionList({
                             }}
                           >
                             <RotateCcw className="h-3.5 w-3.5" />
-                            Mở lại
+                            {t("reopen")}
                           </Button>
                         </div>
                       )}
@@ -1094,7 +1094,7 @@ export function SessionList({
                             }}
                           >
                             <RotateCcw className="h-3.5 w-3.5" />
-                            Mở lại
+                            {t("reopen")}
                           </Button>
                         </div>
                       )}
@@ -1147,15 +1147,17 @@ export function SessionList({
                                     <p className="truncate font-medium">
                                       {a.isGuest
                                         ? isAdminGuest
-                                          ? "Khách Admin"
-                                          : (a.guestName ?? "Khách")
+                                          ? t("guestAdmin")
+                                          : (a.guestName ?? t("guestLabel"))
                                         : (a.memberName ?? `#${a.memberId}`)}
                                     </p>
                                     {a.isGuest &&
                                       !isAdminGuest &&
                                       a.invitedByName && (
                                         <p className="text-muted-foreground truncate text-xs">
-                                          Khách của {a.invitedByName}
+                                          {t("guestOf", {
+                                            name: a.invitedByName,
+                                          })}
                                         </p>
                                       )}
                                   </div>
@@ -1167,7 +1169,10 @@ export function SessionList({
                                 {players.length > 0 && (
                                   <div>
                                     <p className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
-                                      🏸 Chơi ({players.length})
+                                      🏸{" "}
+                                      {t("attendeePlay", {
+                                        count: players.length,
+                                      })}
                                     </p>
                                     <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                                       {players.map(renderAttendee)}
@@ -1177,7 +1182,10 @@ export function SessionList({
                                 {diners.length > 0 && (
                                   <div>
                                     <p className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
-                                      🍻 Nhậu ({diners.length})
+                                      🍻{" "}
+                                      {t("attendeeDine", {
+                                        count: diners.length,
+                                      })}
                                     </p>
                                     <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                                       {diners.map(renderAttendee)}
@@ -1191,7 +1199,7 @@ export function SessionList({
                           {optimisticUnpaidDebts.length > 0 && (
                             <div className="space-y-2 border-t pt-3">
                               <p className="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
-                                Còn nợ
+                                {t("stillOwing")}
                               </p>
                               {optimisticUnpaidDebts.map((d) => (
                                 <div
@@ -1278,8 +1286,13 @@ export function SessionList({
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="text-muted-foreground min-w-[5rem] text-center text-sm tabular-nums">
-              Trang <strong className="text-foreground">{currentPage}</strong> /{" "}
-              {totalPages}
+              {t.rich("pageOf", {
+                current: currentPage,
+                total: totalPages,
+                b: (chunks) => (
+                  <strong className="text-foreground">{chunks}</strong>
+                ),
+              })}
             </span>
             <Button
               variant="outline"
@@ -1313,17 +1326,16 @@ export function SessionList({
                 className="mt-0.5 h-4 w-4"
               />
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium">Pass được sân</div>
+                <div className="text-sm font-medium">{t("passCourtLabel")}</div>
                 <div className="text-muted-foreground text-xs">
-                  Tick nếu admin đã thu được tiền từ team khác. Tiền sẽ tự động
-                  vào quỹ admin.
+                  {t("passCourtHint")}
                 </div>
               </div>
             </label>
             {cancelPassed && (
               <div className="space-y-1.5">
                 <label className="text-muted-foreground text-xs font-medium">
-                  Số tiền nhận lại (VND)
+                  {t("passRevenueLabel")}
                 </label>
                 <Input
                   type="text"
@@ -1341,7 +1353,7 @@ export function SessionList({
                   className="tabular-nums"
                 />
                 <p className="text-muted-foreground text-xs">
-                  Mặc định = giá thuê sân của buổi. Có thể chỉnh nếu khác.
+                  {t("passRevenueHint")}
                 </p>
               </div>
             )}
@@ -1355,8 +1367,8 @@ export function SessionList({
             if (!open) setUnlockTarget(null);
           }}
           title={t("reopenCompletedTitle")}
-          description="Hệ thống sẽ hoàn lại các khoản trừ quỹ, xóa danh sách attendees và debts của buổi này. Sau đó admin có thể sửa lại thông tin và bấm 'Xác nhận buổi chơi' để chốt sổ lại."
-          confirmLabel="Mở lại"
+          description={t("reopenCompletedDesc")}
+          confirmLabel={t("reopen")}
           onConfirm={() => {
             if (!unlockTarget) return;
             const id = unlockTarget;

@@ -58,6 +58,7 @@ export function CourtSelector({
     isCourtPriceOverridden ? (currentCourtPrice ?? null) : null,
   );
   const tOverride = useTranslations("priceOverride");
+  const ts = useTranslations("sessions");
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
@@ -176,7 +177,7 @@ export function CourtSelector({
   }
 
   if (courts.length === 0) {
-    return <p className="text-muted-foreground text-sm">Chưa có sân nào.</p>;
+    return <p className="text-muted-foreground text-sm">{ts("noCourtsYet")}</p>;
   }
 
   // Khớp với server-side `selectCourt` (dùng cùng `computeCourtTotal`):
@@ -233,8 +234,8 @@ export function CourtSelector({
             )}
           >
             {selectedCourt
-              ? `${selectedCourt.name}${quantity > 1 ? ` · ${quantity} sân` : ""}`
-              : "Chọn sân..."}
+              ? `${selectedCourt.name}${quantity > 1 ? ` · ${ts("courtCountSuffix", { count: quantity })}` : ""}`
+              : ts("selectCourtPlaceholder")}
           </span>
           <ChevronDown
             className={cn(
@@ -311,7 +312,7 @@ export function CourtSelector({
                 onChange={(e) => handleToggleDouble(e.target.checked)}
                 className="accent-primary h-5 w-5 rounded"
               />
-              <span className="text-base">Thuê 2 sân</span>
+              <span className="text-base">{ts("rentTwoCourts")}</span>
             </label>
 
             {/* Court list */}

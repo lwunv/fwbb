@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Label } from "@/components/ui/label";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { ChevronDown, ChevronUp, UserPlus } from "lucide-react";
@@ -23,6 +24,7 @@ export function GuestForm({
   const [expanded, setExpanded] = useState(
     guestPlayCount > 0 || guestDineCount > 0,
   );
+  const t = useTranslations("adminMisc");
 
   return (
     <div className="space-y-3">
@@ -32,7 +34,7 @@ export function GuestForm({
         type="button"
       >
         <UserPlus className="h-4 w-4" />
-        <span>Them khach</span>
+        <span>{t("addGuest")}</span>
         {expanded ? (
           <ChevronUp className="h-4 w-4" />
         ) : (
@@ -40,7 +42,9 @@ export function GuestForm({
         )}
         {!expanded && (guestPlayCount > 0 || guestDineCount > 0) && (
           <span className="text-primary font-medium">
-            ({guestPlayCount + guestDineCount} khach)
+            {t("guestCountSummary", {
+              count: guestPlayCount + guestDineCount,
+            })}
           </span>
         )}
       </button>
@@ -48,7 +52,7 @@ export function GuestForm({
       {expanded && (
         <div className="flex flex-wrap items-end gap-4 pl-6">
           <div className="space-y-1">
-            <Label>Khách chơi</Label>
+            <Label>{t("guestPlay")}</Label>
             <NumberStepper
               value={guestPlayCount}
               onChange={onGuestPlayChange}
@@ -58,7 +62,7 @@ export function GuestForm({
             />
           </div>
           <div className="space-y-1">
-            <Label>Khách ăn</Label>
+            <Label>{t("guestDine")}</Label>
             <NumberStepper
               value={guestDineCount}
               onChange={onGuestDineChange}
