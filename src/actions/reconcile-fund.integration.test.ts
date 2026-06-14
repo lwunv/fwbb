@@ -5,7 +5,8 @@
  *   I1. Σ(in) − Σ(out) − Σ(refund) = Σ(per-member balance)
  *   I3. Mọi paymentNotification.matched có tx tham chiếu
  *   I4. Mọi tx.paymentNotificationId trỏ tới notif tồn tại
- *   I5. Không có tx amount âm hoặc non-integer (DB constraint không bắt; ta check)
+ *   I5. Không có tx amount âm hoặc non-integer (từ 0014 DB có CHECK amount≥0;
+ *       reconcile vẫn check như defense-in-depth + bắt non-integer)
  *   I6. Không có idempotencyKey trùng
  *
  * Test bằng cách dựng dữ liệu vi phạm rồi kỳ vọng `reconcileFund` báo issue
@@ -50,6 +51,22 @@ async function seedMember(name: string, fbId: string) {
     .values({ name, facebookId: fbId })
     .returning({ id: members.id });
   return m.id;
+}
+
+/**
+ * Seed dữ liệu VI PHẠM FK (dangling paymentNotificationId / reversalOfId) với
+ * `PRAGMA foreign_keys=OFF`. Từ migration 0014, các FK này được enforce ở DB
+ * nên không thể insert dangling ref qua đường bình thường — nhưng reconcile
+ * I4/I9 vẫn cần bắt được state đó nếu nó phát sinh từ dữ liệu legacy (trước khi
+ * có FK), từ SET NULL, hoặc thao tác raw ngoài app. Tắt FK để dựng đúng kịch bản.
+ */
+async function withFkOff<T>(fn: () => Promise<T>): Promise<T> {
+  await client.execute("PRAGMA foreign_keys=OFF");
+  try {
+    return await fn();
+  } finally {
+    await client.execute("PRAGMA foreign_keys=ON");
+  }
 }
 
 describe("reconcileFund — empty database", () => {
@@ -173,13 +190,15 @@ describe("reconcileFund — invariant violations", () => {
 
   it("flags I4: tx.paymentNotificationId pointing at a non-existent row", async () => {
     const a = await seedMember("Alice", "fb-A");
-    await testDb.insert(financialTransactions).values({
-      type: "fund_contribution",
-      direction: "in",
-      amount: 100_000,
-      memberId: a,
-      paymentNotificationId: 9999, // doesn't exist
-    });
+    await withFkOff(() =>
+      testDb.insert(financialTransactions).values({
+        type: "fund_contribution",
+        direction: "in",
+        amount: 100_000,
+        memberId: a,
+        paymentNotificationId: 9999, // doesn't exist (FK off to simulate legacy)
+      }),
+    );
 
     const r = await reconcileFund();
     const i4 = r.issues.find((i) => i.code === "I4_missing_notif");
@@ -234,14 +253,16 @@ describe("reconcileFund — invariant violations", () => {
       status: "matched",
       rawSnippet: "x",
     });
-    // I4: tx pointing to missing notif
-    await testDb.insert(financialTransactions).values({
-      type: "fund_contribution",
-      direction: "in",
-      amount: 100_000,
-      memberId: a,
-      paymentNotificationId: 9999,
-    });
+    // I4: tx pointing to missing notif (FK off to simulate legacy/raw data)
+    await withFkOff(() =>
+      testDb.insert(financialTransactions).values({
+        type: "fund_contribution",
+        direction: "in",
+        amount: 100_000,
+        memberId: a,
+        paymentNotificationId: 9999,
+      }),
+    );
 
     const r = await reconcileFund();
     expect(r.ok).toBe(false);
@@ -407,13 +428,15 @@ describe("reconcileFund — I7/I8/I9 (debt ledger consistency)", () => {
 
   it("flags I9: orphan reversal (reversalOfId points at a missing tx)", async () => {
     const m = await seedMember("Alice", "fb-A");
-    await testDb.insert(financialTransactions).values({
-      type: "fund_contribution",
-      direction: "in",
-      amount: 50_000,
-      memberId: m,
-      reversalOfId: 99_999, // never existed
-    });
+    await withFkOff(() =>
+      testDb.insert(financialTransactions).values({
+        type: "fund_contribution",
+        direction: "in",
+        amount: 50_000,
+        memberId: m,
+        reversalOfId: 99_999, // never existed (FK off to simulate legacy data)
+      }),
+    );
 
     const r = await reconcileFund();
     expect(r.debtLedger.orphanReversals).toBe(1);

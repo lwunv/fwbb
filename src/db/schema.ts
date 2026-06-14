@@ -4,6 +4,8 @@ import {
   integer,
   uniqueIndex,
   index,
+  check,
+  type AnySQLiteColumn,
 } from "drizzle-orm/sqlite-core";
 import { sql, relations } from "drizzle-orm";
 
@@ -47,12 +49,14 @@ export const members = sqliteTable("members", {
    *  chỉ OAuth signup mới set "pending". */
   approvalStatus: text("approval_status", {
     enum: ["pending", "approved", "rejected"],
-  }).default("approved"),
+  })
+    .notNull()
+    .default("approved"),
   approvedAt: text("approved_at"),
   /** admin.id of approver. NULL cho row legacy (đã approved trước khi feature
    *  này tồn tại). */
   approvedBy: integer("approved_by"),
-  isActive: integer("is_active", { mode: "boolean" }).default(true),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
   createdAt: text("created_at").default(sql`(current_timestamp)`),
 });
 
@@ -187,32 +191,52 @@ export const sessionAttendees = sqliteTable("session_attendees", {
   attendsDine: integer("attends_dine", { mode: "boolean" }).default(false),
 });
 
-export const sessionShuttlecocks = sqliteTable("session_shuttlecocks", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  sessionId: integer("session_id")
-    .notNull()
-    .references(() => sessions.id, { onDelete: "cascade" }),
-  // brandId stays no-action: deleting a brand with historical usage would
-  // lose the price snapshot needed for cost reconstruction.
-  brandId: integer("brand_id")
-    .notNull()
-    .references(() => shuttlecockBrands.id),
-  quantityUsed: integer("quantity_used").notNull(),
-  pricePerTube: integer("price_per_tube").notNull(),
-});
+export const sessionShuttlecocks = sqliteTable(
+  "session_shuttlecocks",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    sessionId: integer("session_id")
+      .notNull()
+      .references(() => sessions.id, { onDelete: "cascade" }),
+    // brandId stays no-action: deleting a brand with historical usage would
+    // lose the price snapshot needed for cost reconstruction.
+    brandId: integer("brand_id")
+      .notNull()
+      .references(() => shuttlecockBrands.id),
+    quantityUsed: integer("quantity_used").notNull(),
+    pricePerTube: integer("price_per_tube").notNull(),
+  },
+  (table) => [
+    // DB-level backstop for the app rule "quantityUsed ≥ 1" (recordPurchase /
+    // addSessionShuttlecocks validate it; CHECK stops raw inserts too).
+    check("session_shuttlecocks_qty_positive", sql`${table.quantityUsed} >= 1`),
+  ],
+);
 
-export const inventoryPurchases = sqliteTable("inventory_purchases", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  brandId: integer("brand_id")
-    .notNull()
-    .references(() => shuttlecockBrands.id),
-  tubes: integer("tubes").notNull(),
-  pricePerTube: integer("price_per_tube").notNull(),
-  totalPrice: integer("total_price").notNull(),
-  purchasedAt: text("purchased_at").notNull(),
-  notes: text("notes"),
-  createdAt: text("created_at").default(sql`(current_timestamp)`),
-});
+export const inventoryPurchases = sqliteTable(
+  "inventory_purchases",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    brandId: integer("brand_id")
+      .notNull()
+      .references(() => shuttlecockBrands.id),
+    tubes: integer("tubes").notNull(),
+    pricePerTube: integer("price_per_tube").notNull(),
+    totalPrice: integer("total_price").notNull(),
+    purchasedAt: text("purchased_at").notNull(),
+    notes: text("notes"),
+    createdAt: text("created_at").default(sql`(current_timestamp)`),
+  },
+  (table) => [
+    // DB-level backstop for "tubes ≥ 1" + non-negative money (recordPurchase
+    // validates; CHECK stops raw inserts / future bugs from writing garbage).
+    check("inventory_purchases_tubes_positive", sql`${table.tubes} >= 1`),
+    check(
+      "inventory_purchases_money_non_negative",
+      sql`${table.pricePerTube} >= 0 AND ${table.totalPrice} >= 0`,
+    ),
+  ],
+);
 
 /**
  * Per-member exemption khỏi `min_deduction_floor` rule cho 1 session cụ thể.
@@ -422,12 +446,25 @@ export const financialTransactions = sqliteTable(
     debtId: integer("debt_id").references(() => sessionDebts.id, {
       onDelete: "set null",
     }),
-    paymentNotificationId: integer("payment_notification_id"),
+    // FK to payment_notifications (was a bare integer). Reconcile I4 already
+    // flags dangling refs at runtime; this enforces it at the DB. SET NULL —
+    // the ledger row survives if the source notification is removed.
+    paymentNotificationId: integer("payment_notification_id").references(
+      (): AnySQLiteColumn => paymentNotifications.id,
+      { onDelete: "set null" },
+    ),
     inventoryPurchaseId: integer("inventory_purchase_id").references(
       () => inventoryPurchases.id,
       { onDelete: "set null" },
     ),
-    reversalOfId: integer("reversal_of_id"),
+    // Self-FK: a reversal row points at the original it voids. Reconcile I9
+    // flags orphan reversals at runtime; the DB FK (SET NULL) makes a dangling
+    // reversalOfId impossible — load-bearing for the deleteSession / idempotent
+    // finalize "already reversed?" guards.
+    reversalOfId: integer("reversal_of_id").references(
+      (): AnySQLiteColumn => financialTransactions.id,
+      { onDelete: "set null" },
+    ),
     description: text("description"),
     metadataJson: text("metadata_json"),
     /**
@@ -464,6 +501,13 @@ export const financialTransactions = sqliteTable(
     uniqueIndex("idx_financial_transactions_idempotency_key")
       .on(table.idempotencyKey)
       .where(sql`${table.idempotencyKey} IS NOT NULL`),
+    // Money is stored as a non-negative magnitude; `direction` (in/out/neutral)
+    // carries the sign. recordFinancialTransaction + reconcile I5 enforce this
+    // at the app layer — CHECK makes the DB reject any negative amount too.
+    check(
+      "financial_transactions_amount_non_negative",
+      sql`${table.amount} >= 0`,
+    ),
   ],
 );
 
