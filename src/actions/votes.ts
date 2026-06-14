@@ -27,13 +27,6 @@ export async function submitVote(
   if ("error" in auth) return { error: auth.error };
   const { user } = auth;
 
-  // 60 vote-toggles per minute per member is plenty for normal use; spamming
-  // the toggle (which writes to votes + revalidates) is rate-limited here.
-  const rl = await checkRateLimit(`vote:${user.memberId}`, 60, 60_000);
-  if (!rl.ok) {
-    return { error: t("tooManyActions", { seconds: rl.retryAfter ?? 60 }) };
-  }
-
   const parsed = voteSchema.safeParse({
     sessionId,
     willPlay,
@@ -64,6 +57,14 @@ export async function submitVote(
           ? t("voteDeadlinePassed")
           : t("voteNotAccepted"),
     };
+  }
+
+  // Rate-limit SAU validation + gate: chỉ đếm attempt hợp lệ thật sự đi tới
+  // mutation. Trước đây increment ngay đầu → call bị reject (input sai / session
+  // đóng / quá deadline) cũng đốt budget 60/phút và có thể tự khóa member.
+  const rl = await checkRateLimit(`vote:${user.memberId}`, 60, 60_000);
+  if (!rl.ok) {
+    return { error: t("tooManyActions", { seconds: rl.retryAfter ?? 60 }) };
   }
 
   await db
@@ -123,6 +124,10 @@ export async function adminSetVote(
     return { error: t("invalidSessionId") };
   if (!Number.isInteger(memberId) || memberId <= 0)
     return { error: t("invalidMemberId") };
+  // Validate booleans — server actions là RPC-callable, giá trị runtime là thứ
+  // caller serialize (project rule: validate trước khi ghi DB).
+  if (typeof willPlay !== "boolean" || typeof willDine !== "boolean")
+    return { error: t("invalidData", { detail: "willPlay/willDine" }) };
 
   const allow = await assertSessionAllowsVoteEdits(sessionId);
   if ("error" in allow) return allow;
@@ -230,9 +235,16 @@ export async function getSessionVotes(sessionId: number) {
     ...v,
     member: {
       ...v.member,
+      // SECURITY: payload này serialize tới MỌI khách public (home + /vote/:id).
+      // Redact TẤT CẢ secret + PII — blacklist phải đủ (passwordHash là bcrypt
+      // hash, googleId/phoneNumber/email/bank/fb là PII). Field mới nhạy cảm
+      // thêm vào members PHẢI bổ sung vào đây.
       email: null,
       bankAccountNo: null,
       facebookId: "",
+      passwordHash: null,
+      googleId: null,
+      phoneNumber: null,
     },
   }));
 }

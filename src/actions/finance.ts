@@ -10,7 +10,7 @@ import {
   financialTransactions,
   admins,
 } from "@/db/schema";
-import { eq, desc, and, isNull, asc, inArray } from "drizzle-orm";
+import { eq, desc, and, isNull, asc, inArray, like } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getUserFromCookie } from "@/lib/user-identity";
 import { requireApprovedMember } from "@/lib/member-auth";
@@ -201,6 +201,40 @@ export async function finalizeSession(
               // double-inserts. The `alreadyReversed` check above guards the
               // current tx; this guards across tx replays.
               idempotencyKey: `finalize-reverse-${ftx.id}`,
+            },
+            tx,
+          );
+          if ("error" in r) throw new Error(r.error);
+        }
+      }
+
+      // 2b. Reverse prior min-deduction penalty contributions (to admin). Bước
+      // trên CHỈ reverse fund_deduction; penalty là fund_contribution
+      // (memberId=adminMemberId) nên KHÔNG bị reverse → re-finalize sẽ
+      // double-credit admin (vỡ I1). Match qua idempotencyKey prefix.
+      const priorPenalties = await tx.query.financialTransactions.findMany({
+        where: and(
+          eq(financialTransactions.sessionId, data.sessionId),
+          eq(financialTransactions.type, "fund_contribution"),
+          isNull(financialTransactions.reversalOfId),
+          like(financialTransactions.idempotencyKey, "min-deduction-penalty-%"),
+        ),
+      });
+      for (const ptx of priorPenalties) {
+        const alreadyReversed = await tx.query.financialTransactions.findFirst({
+          where: eq(financialTransactions.reversalOfId, ptx.id),
+        });
+        if (!alreadyReversed) {
+          const r = await recordFinancialTransaction(
+            {
+              type: "fund_refund",
+              direction: "out",
+              amount: ptx.amount,
+              memberId: ptx.memberId,
+              sessionId: ptx.sessionId,
+              reversalOfId: ptx.id,
+              description: `Hoàn lại phần dư min-60K khi chốt lại buổi ${session.date}`,
+              idempotencyKey: `finalize-reverse-penalty-${ptx.id}`,
             },
             tx,
           );
@@ -461,6 +495,15 @@ export async function finalizeSessionAuto(sessionId: number) {
 
   const attendeeList: FinalizeAttendee[] = [];
   for (const v of session.votes) {
+    // Bỏ qua voter đã khóa / chưa duyệt (đã rời quỹ) — không tính nợ + không
+    // tạo guest cho họ. Nếu không, guard trong finalizeSession sẽ abort TOÀN BỘ
+    // one-click finalize khi có 1 voter bị khóa (dead-end, không có path gỡ).
+    if (
+      v.member &&
+      (!v.member.isActive || v.member.approvalStatus !== "approved")
+    ) {
+      continue;
+    }
     if (v.willPlay || v.willDine) {
       attendeeList.push({
         memberId: v.memberId,

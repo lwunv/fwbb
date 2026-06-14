@@ -26,6 +26,7 @@ import {
   ne,
   isNull,
   inArray,
+  like,
 } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
@@ -695,6 +696,41 @@ export async function unlockSession(sessionId: number) {
             // `alreadyReversed` ở trên, vẫn set explicit key để DB UNIQUE
             // chặn double-insert nếu logic guard bị refactor mất.
             idempotencyKey: `unlock-reverse-${ftx.id}`,
+          },
+          tx,
+        );
+        if ("error" in r) throw new Error(r.error);
+      }
+
+      // 1b. Reverse min-deduction penalty contributions (to admin) — mirror
+      // finalizeSession step 2b. Bước trên chỉ reverse fund_deduction; penalty
+      // là fund_contribution của admin nên không bị reverse → unlock để lại
+      // admin double-credit (vỡ I1). Match qua idempotencyKey prefix.
+      const priorPenalties = await tx.query.financialTransactions.findMany({
+        where: and(
+          eq(financialTransactions.sessionId, sessionId),
+          eq(financialTransactions.type, "fund_contribution"),
+          isNull(financialTransactions.reversalOfId),
+          like(financialTransactions.idempotencyKey, "min-deduction-penalty-%"),
+        ),
+      });
+      for (const ptx of priorPenalties) {
+        const alreadyReversed = await tx.query.financialTransactions.findFirst({
+          where: eq(financialTransactions.reversalOfId, ptx.id),
+          columns: { id: true },
+        });
+        if (alreadyReversed) continue;
+        const r = await recordFinancialTransaction(
+          {
+            type: "fund_refund",
+            direction: "out",
+            amount: ptx.amount,
+            memberId: ptx.memberId,
+            sessionId: ptx.sessionId,
+            reversalOfId: ptx.id,
+            description: `Hoàn lại phần dư min-60K khi mở lại buổi ${session.date}`,
+            metadata: { source: "session_unlocked", sessionId },
+            idempotencyKey: `unlock-reverse-penalty-${ptx.id}`,
           },
           tx,
         );

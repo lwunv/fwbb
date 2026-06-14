@@ -6,7 +6,14 @@
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
-import { sessions, admins, members, financialTransactions } from "@/db/schema";
+import {
+  sessions,
+  admins,
+  members,
+  financialTransactions,
+  votes,
+  sessionDebts,
+} from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -21,7 +28,7 @@ vi.mock("@/lib/messenger", () => ({
 const { db: testDb, client } = await createTestDb();
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { finalizeSession } = await import("./finance");
+const { finalizeSession, finalizeSessionAuto } = await import("./finance");
 import { requireAdmin } from "@/lib/auth";
 
 async function reset() {
@@ -109,5 +116,47 @@ describe("finalizeSession guard — member đã khóa", () => {
     );
 
     expect("error" in r).toBe(false);
+  });
+
+  it("finalizeSessionAuto bỏ qua voter đã khóa, vẫn chốt + không trừ quỹ họ", async () => {
+    const adminMemberId = await seedAdmin();
+    const [active] = await testDb
+      .insert(members)
+      .values({ name: "Active", facebookId: `fb-act-${Date.now()}` })
+      .returning({ id: members.id });
+    const [locked] = await testDb
+      .insert(members)
+      .values({
+        name: "Locked",
+        facebookId: `fb-lock-${Date.now()}`,
+        isActive: false,
+      })
+      .returning({ id: members.id });
+    const [s] = await testDb
+      .insert(sessions)
+      .values({ date: "2026-04-12", status: "voting", courtPrice: 200_000 })
+      .returning({ id: sessions.id });
+    for (const mid of [adminMemberId, active.id, locked.id]) {
+      await testDb
+        .insert(votes)
+        .values({ sessionId: s.id, memberId: mid, willPlay: true });
+    }
+
+    const r = await finalizeSessionAuto(s.id);
+    // Guard KHÔNG được làm hỏng one-click finalize: locked voter bị bỏ qua.
+    expect("error" in r).toBe(false);
+
+    const lockedDebts = await testDb.query.sessionDebts.findMany({
+      where: eq(sessionDebts.memberId, locked.id),
+    });
+    expect(lockedDebts.length).toBe(0);
+    const lockedDed = await testDb.query.financialTransactions.findMany({
+      where: eq(financialTransactions.memberId, locked.id),
+    });
+    expect(lockedDed.length).toBe(0);
+    const activeDebts = await testDb.query.sessionDebts.findMany({
+      where: eq(sessionDebts.memberId, active.id),
+    });
+    expect(activeDebts.length).toBe(1);
   });
 });

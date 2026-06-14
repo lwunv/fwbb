@@ -393,25 +393,20 @@ describe("finalizeSession — min-deduction penalty surplus → admin fund", () 
     const r2 = await finalizeSession(sessionId, attendeeList, 0);
     expect("error" in r2).toBe(false);
 
-    // After re-finalize:
-    // - Old deduction for Alice was reversed (fund_contribution with reversalOfId)
-    // - New deduction for Alice: 60K
-    // - Net admin penalty contributions: 2 inserts (one per finalize) minus
-    //   0 reversals for penalty rows (penalty rows for admin are NOT reversed
-    //   by the re-finalize reversal step, which only reverses member deductions).
-    //   However the OLD penalty contribution (from first finalize) is NOT reversed
-    //   because it belongs to adminMemberId, not Alice. So admin has 2 × 30K = 60K
-    //   gross, BUT the first deduction reversal (which reverses Alice's fund_deduction)
-    //   is a fund_contribution for Alice (not admin). We check admin balance is 30K
-    //   after re-finalize because the previous penalty row is reversed during the
-    //   re-finalize of old fund_deductions for session.
-    //
-    // Actually: the reversal step at the top of finalizeSession reverses ALL
-    // fund_deduction rows for the session — those belong to Alice, not admin.
-    // Admin's prior penalty fund_contribution is NOT a fund_deduction, so it is
-    // NOT reversed. The admin accumulates 2 × 30K = 60K from 2 finalizations.
-    // That would be wrong. Let's simply assert finalize succeeded and Alice's
-    // current debt is correct.
+    // Re-finalize PHẢI idempotent về tiền. Admin chơi (own deduction 30K) +
+    // nhận penalty surplus 30K từ Alice (bị floor) → net balance admin = 0 sau
+    // MỖI lần finalize. Bug cũ: penalty fund_contribution của admin KHÔNG bị
+    // reverse khi re-finalize (reverse step chỉ đụng fund_deduction) → admin
+    // double-credit (+30K). Fix: reverse penalty cũ → balance admin giữ 0.
+    const adminTxs = await testDb.query.financialTransactions.findMany({
+      where: eq(financialTransactions.memberId, adminMemberId),
+    });
+    const adminBalance = computeBalanceFromTransactions(
+      adminMemberId,
+      adminTxs,
+    ).balance;
+    expect(adminBalance).toBe(0);
+
     const debts = await testDb.query.sessionDebts.findMany({
       where: eq(sessionDebts.sessionId, sessionId),
     });
