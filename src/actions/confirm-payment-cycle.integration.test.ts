@@ -344,6 +344,70 @@ describe("F1 — undo → re-confirm cycle (confirmPaymentByAdmin)", () => {
     expect(await countLiveDeductions(aliceDebtId)).toBe(1);
     expect(await getBalance(aliceId)).toBe(80_000);
   });
+
+  it("re-confirm debt CỦA admin có khách → re-charge play, KHÔNG cộng phần khách", async () => {
+    const { adminMemberId } = await seedActors();
+    // Admin chơi + 1 khách của admin chơi → 2 players, court 100K → 50K/head.
+    // Admin debt: play 50K (own) + guestPlay 50K (khách) = total 100K, nhưng
+    // deduction admin = play+dine = 50K (khách do quỹ gánh).
+    const [s] = await testDb
+      .insert(sessions)
+      .values({
+        date: "2026-05-09",
+        status: "confirmed",
+        courtPrice: 100_000,
+        useMinDeduction: false,
+      })
+      .returning({ id: sessions.id });
+    const fr = await finalizeSession(
+      s.id,
+      [
+        {
+          memberId: adminMemberId,
+          guestName: null,
+          invitedById: null,
+          isGuest: false,
+          attendsPlay: true,
+          attendsDine: false,
+        },
+        {
+          memberId: null,
+          guestName: "Khách Admin",
+          invitedById: adminMemberId,
+          isGuest: true,
+          attendsPlay: true,
+          attendsDine: false,
+        },
+      ],
+      0,
+    );
+    expect("error" in fr).toBe(false);
+
+    const debtId = await getDebtId(s.id, adminMemberId);
+    const undo = await undoPaymentByAdmin(debtId);
+    expect("error" in undo).toBe(false);
+    const conf = await confirmPaymentByAdmin(debtId, "readmin-guest");
+    expect("error" in conf).toBe(false);
+
+    // Restore phải dùng amount của deduction GỐC (50K play), KHÔNG
+    // debt.totalAmount (100K incl khách). Bug cũ over-charge admin 50K.
+    const allRows = await testDb.query.financialTransactions.findMany({
+      where: eq(financialTransactions.debtId, debtId),
+    });
+    const voided = new Set(
+      allRows
+        .map((r) => r.reversalOfId)
+        .filter((id): id is number => id !== null),
+    );
+    const liveDed = allRows.filter(
+      (r) =>
+        r.type === "fund_deduction" &&
+        r.reversalOfId === null &&
+        !voided.has(r.id),
+    );
+    expect(liveDed.length).toBe(1);
+    expect(liveDed[0].amount).toBe(50_000);
+  });
 });
 
 describe("F1 — undo → re-confirm cycle (confirmPaymentByMember)", () => {

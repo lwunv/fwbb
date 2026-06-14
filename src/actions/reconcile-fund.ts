@@ -309,10 +309,21 @@ export async function reconcileFund(): Promise<ReconcileReport> {
       .map((t) => t.debtId)
       .filter((id): id is number => id !== null),
   );
+  // Debts admin đã chủ động undo (có row debt_undo): undoPaymentByAdmin set 2
+  // cờ về false nhưng GIỮ row bank_payment_received cũ (lịch sử) → I8 sẽ báo
+  // error giả. Đây là trạng thái HỢP LỆ (nợ trở lại chưa trả), không phải
+  // partial side-effect → loại khỏi check.
+  const debtIdsWithUndo = new Set(
+    debtScopedTxs
+      .filter((t) => t.type === "debt_undo")
+      .map((t) => t.debtId)
+      .filter((id): id is number => id !== null),
+  );
   let bankPaidWithoutFlags = 0;
   for (const debtId of debtIdsWithBankPayment) {
     const d = debtById.get(debtId);
     if (!d) continue; // already counted as orphan above
+    if (debtIdsWithUndo.has(debtId)) continue; // admin undo — hợp lệ, bỏ qua
     if (!d.memberConfirmed || !d.adminConfirmed) {
       bankPaidWithoutFlags++;
       issues.push({

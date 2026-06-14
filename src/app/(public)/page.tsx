@@ -10,6 +10,7 @@ import { FundBalanceBanner } from "@/components/finance/fund-balance-banner";
 import { CopyLinkButton } from "@/components/shared/copy-link-button";
 import { getTranslations } from "next-intl/server";
 import { AutoRefresh } from "@/components/shared/auto-refresh";
+import { isVoteOpen, type SessionStatus } from "@/lib/session-status";
 
 export default async function HomePage() {
   const [nextSession, user, tDashboard] = await Promise.all([
@@ -65,8 +66,11 @@ export default async function HomePage() {
   if (nextSession) {
     const votes = await getSessionVotes(nextSession.id);
 
-    const isVotingOpen =
-      nextSession.status === "voting" || nextSession.status === "confirmed";
+    // Helper canonical (deadline-aware) — khớp gate server-side submitVote.
+    const isVotingOpen = isVoteOpen({
+      status: nextSession.status as SessionStatus,
+      voteDeadline: nextSession.voteDeadline ?? null,
+    }).open;
 
     return (
       <div className="mx-auto max-w-lg space-y-4">

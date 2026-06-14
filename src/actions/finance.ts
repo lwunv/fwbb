@@ -634,7 +634,8 @@ async function restoreVoidedLedgerForDebt(
   });
 
   let liveMemberDeductionExists = false;
-  let cycleSeed = 0; // number of voided pairs we've seen → makes idempotency key unique per cycle
+  let cycleSeed = 0; // most-recent voided original id → makes idempotency key unique per cycle
+  let restoreAmount = 0; // amount of THAT voided deduction — re-charge EXACTLY this
   for (const d of debtDeductions) {
     const reversal = await tx.query.financialTransactions.findFirst({
       where: eq(financialTransactions.reversalOfId, d.id),
@@ -642,21 +643,23 @@ async function restoreVoidedLedgerForDebt(
     });
     if (!reversal) {
       liveMemberDeductionExists = true;
-    } else {
-      cycleSeed = Math.max(cycleSeed, d.id); // most-recent voided id seeds the key
+    } else if (d.id >= cycleSeed) {
+      cycleSeed = d.id; // most-recent voided id seeds the key
+      restoreAmount = d.amount; // ...và amount gốc của nó
     }
   }
 
-  if (!liveMemberDeductionExists && debt.totalAmount > 0) {
+  if (!liveMemberDeductionExists && restoreAmount > 0) {
     // No live deduction → debt was undone. Re-insert a fresh deduction so the
-    // member is actually charged for this session again. Use cycleSeed in the
-    // idempotency key so a future undo→confirm cycle (which voids THIS new row
-    // and inserts another) gets a different key.
+    // member is charged again. Dùng `restoreAmount` = amount của deduction GỐC
+    // (đã bị void), KHÔNG phải debt.totalAmount — debt của admin gồm cả phần
+    // khách (quỹ chung gánh) nên totalAmount > deduction thật (chỉ play+dine);
+    // dùng total sẽ over-charge admin. cycleSeed làm key unique mỗi cycle.
     const r = await recordFinancialTransaction(
       {
         type: "fund_deduction",
         direction: "out",
-        amount: debt.totalAmount,
+        amount: restoreAmount,
         memberId: debt.memberId,
         sessionId: debt.sessionId,
         debtId,

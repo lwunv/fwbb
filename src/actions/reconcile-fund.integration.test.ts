@@ -376,6 +376,35 @@ describe("reconcileFund — I7/I8/I9 (debt ledger consistency)", () => {
     expect(r.issues.filter((i) => i.code.startsWith("I8")).length).toBe(0);
   });
 
+  it("KHÔNG flag I8 khi debt đã được admin undo (debt_undo)", async () => {
+    const m = await seedMember("Alice", "fb-A");
+    const { debtId } = await seedSessionAndDebt(m, {
+      memberConfirmed: false,
+      adminConfirmed: false,
+    });
+    // Debt từng trả qua bank rồi admin undo: row bank_payment_received cũ vẫn
+    // còn (lịch sử), 2 cờ về false, có row debt_undo → trạng thái HỢP LỆ
+    // (nợ trở lại chưa trả), KHÔNG phải partial side-effect.
+    await testDb.insert(financialTransactions).values({
+      type: "bank_payment_received",
+      direction: "in",
+      amount: 100_000,
+      memberId: m,
+      debtId,
+    });
+    await testDb.insert(financialTransactions).values({
+      type: "debt_undo",
+      direction: "neutral",
+      amount: 100_000,
+      memberId: m,
+      debtId,
+    });
+
+    const r = await reconcileFund();
+    expect(r.issues.filter((i) => i.code.startsWith("I8")).length).toBe(0);
+    expect(r.debtLedger.bankPaidWithoutFlags).toBe(0);
+  });
+
   it("flags I9: orphan reversal (reversalOfId points at a missing tx)", async () => {
     const m = await seedMember("Alice", "fb-A");
     await testDb.insert(financialTransactions).values({

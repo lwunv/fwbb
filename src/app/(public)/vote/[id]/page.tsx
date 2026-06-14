@@ -11,6 +11,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getTranslations } from "next-intl/server";
+import { isVoteOpen, type SessionStatus } from "@/lib/session-status";
 
 export default async function VoteSessionPage({
   params,
@@ -34,8 +35,13 @@ export default async function VoteSessionPage({
     getActiveMembers(),
   ]);
 
-  const isVotingOpen =
-    session.status === "voting" || session.status === "confirmed";
+  // Helper canonical (deadline-aware) — khớp gate server-side của submitVote.
+  // KHÔNG chỉ check status: tránh controls render enabled quá deadline khi JS
+  // tắt / client timer regress (defense-in-depth).
+  const isVotingOpen = isVoteOpen({
+    status: session.status as SessionStatus,
+    voteDeadline: session.voteDeadline ?? null,
+  }).open;
 
   return (
     <div className="mx-auto max-w-lg space-y-4">
