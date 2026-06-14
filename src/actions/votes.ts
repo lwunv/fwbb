@@ -2,6 +2,10 @@
 
 import { db } from "@/db";
 import { votes, sessions } from "@/db/schema";
+import {
+  PUBLIC_MEMBER_COLUMNS,
+  type VoteWithMember,
+} from "@/lib/optimistic-votes";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireApprovedMember } from "@/lib/member-auth";
@@ -222,29 +226,17 @@ export async function adminRemoveVote(sessionId: number, memberId: number) {
   return { success: true };
 }
 
-/** Trả về votes kèm member — REDACT PII (email/bankAccountNo/facebookId)
- *  trước khi serialize về client. Hàm gọi từ cả public pages (home, /vote/:id)
- *  lẫn admin pages; redact ngay tại nguồn để tránh leak qua RSC payload bất
- *  kỳ caller nào. Admin nếu cần PII thật phải đi qua action admin-only riêng. */
-export async function getSessionVotes(sessionId: number) {
-  const rows = await db.query.votes.findMany({
+/** Trả về votes kèm member — WHITELIST cột an toàn ngay tại tầng query. Hàm gọi
+ *  từ cả public pages (home, /vote/:id) lẫn admin pages → payload serialize tới
+ *  MỌI khách vô danh. Dùng `PUBLIC_MEMBER_COLUMNS` (whitelist) nên secret/PII
+ *  (email/phone/bank/fb/google/passwordHash) KHÔNG bao giờ rời DB. Cột nhạy cảm
+ *  MỚI thêm vào members tự động bị loại (vắng khỏi whitelist) — không còn phải
+ *  nhớ blacklist. Admin cần PII thật phải đi qua action admin-only riêng. */
+export async function getSessionVotes(
+  sessionId: number,
+): Promise<VoteWithMember[]> {
+  return db.query.votes.findMany({
     where: eq(votes.sessionId, sessionId),
-    with: { member: true },
+    with: { member: { columns: PUBLIC_MEMBER_COLUMNS } },
   });
-  return rows.map((v) => ({
-    ...v,
-    member: {
-      ...v.member,
-      // SECURITY: payload này serialize tới MỌI khách public (home + /vote/:id).
-      // Redact TẤT CẢ secret + PII — blacklist phải đủ (passwordHash là bcrypt
-      // hash, googleId/phoneNumber/email/bank/fb là PII). Field mới nhạy cảm
-      // thêm vào members PHẢI bổ sung vào đây.
-      email: null,
-      bankAccountNo: null,
-      facebookId: "",
-      passwordHash: null,
-      googleId: null,
-      phoneNumber: null,
-    },
-  }));
 }

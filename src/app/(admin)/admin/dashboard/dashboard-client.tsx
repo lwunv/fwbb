@@ -77,7 +77,7 @@ import {
 } from "lucide-react";
 
 type Vote = InferSelectModel<typeof votesTable> & {
-  member: InferSelectModel<typeof membersTable>;
+  member: import("@/lib/optimistic-votes").PublicMember;
 };
 
 interface UpcomingSession {

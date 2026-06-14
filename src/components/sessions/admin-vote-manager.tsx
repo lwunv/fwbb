@@ -33,7 +33,7 @@ import type { InferSelectModel } from "drizzle-orm";
 import type { votes as votesTable, members as membersTable } from "@/db/schema";
 
 type Vote = InferSelectModel<typeof votesTable> & {
-  member: InferSelectModel<typeof membersTable>;
+  member: import("@/lib/optimistic-votes").PublicMember;
 };
 type Member = InferSelectModel<typeof membersTable>;
 

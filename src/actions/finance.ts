@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/db";
+import { PUBLIC_MEMBER_COLUMNS } from "@/lib/optimistic-votes";
 import {
   sessions,
   sessionAttendees,
@@ -1135,7 +1136,9 @@ export async function getDebtsForMember(
     where: eq(sessionDebts.memberId, memberId),
     with: {
       session: true,
-      member: true,
+      // Whitelist safe columns — never ship the member's own passwordHash/PII
+      // back to their browser (defense-in-depth even though owner-gated).
+      member: { columns: PUBLIC_MEMBER_COLUMNS },
     },
     orderBy: [desc(sessionDebts.id)],
   });
@@ -1156,7 +1159,9 @@ export async function getAllDebts(filter: string = "all") {
   const debts = await db.query.sessionDebts.findMany({
     with: {
       session: true,
-      member: true,
+      // Whitelist safe columns — admin UI never needs members' passwordHash/PII
+      // client-side (defense-in-depth even though admin-gated).
+      member: { columns: PUBLIC_MEMBER_COLUMNS },
     },
     orderBy: [desc(sessionDebts.id)],
   });

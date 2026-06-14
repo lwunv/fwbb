@@ -73,7 +73,7 @@ import type {
 } from "@/db/schema";
 
 type Vote = InferSelectModel<typeof votesTable> & {
-  member: InferSelectModel<typeof membersTable>;
+  member: import("@/lib/optimistic-votes").PublicMember;
 };
 type Court = InferSelectModel<typeof courtsTable>;
 type Brand = InferSelectModel<typeof brandsTable>;
