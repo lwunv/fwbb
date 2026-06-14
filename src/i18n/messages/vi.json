@@ -547,7 +547,7 @@
     "toastSaved": "Đã lưu",
     "toastLoggedOut": "Đã đăng xuất",
     "logoutAndUseOtherAccount": "Đăng xuất, dùng tài khoản khác",
-    "waitingNotice": "Khi admin duyệt xong, refresh lại trang để vào nhóm."
+    "waitingNotice": "Trang sẽ tự động vào nhóm ngay khi admin duyệt — bạn không cần làm gì thêm."
   },
   "adminCourts": {
     "count": "{count} sân",

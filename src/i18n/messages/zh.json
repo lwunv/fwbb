@@ -547,7 +547,7 @@
     "toastSaved": "已保存",
     "toastLoggedOut": "已注销",
     "logoutAndUseOtherAccount": "注销,使用其他帐户",
-    "waitingNotice": "管理员批准后,刷新此页面进入小组。"
+    "waitingNotice": "管理员批准后,本页将自动进入小组 — 无需任何操作。"
   },
   "adminCourts": {
     "count": "{count} 个场地",

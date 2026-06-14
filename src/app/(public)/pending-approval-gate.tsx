@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fireAction } from "@/lib/optimistic-action";
 import { updatePendingProfile, pendingLogout } from "@/actions/member-approval";
+import { usePolling } from "@/lib/use-polling";
 
 interface Props {
   memberName: string;
@@ -33,6 +34,11 @@ export function PendingApprovalGate({
   const [phoneNumber, setPhoneNumber] = useState(initialPhone ?? "");
   const [bankAccountNo, setBankAccountNo] = useState(initialBank ?? "");
   const [saving, setSaving] = useState(false);
+
+  // Tự phát hiện khi admin duyệt: poll router.refresh() mỗi 5s → (public)
+  // layout re-run; khi approvalStatus thành 'approved' nó render thẳng app →
+  // user vào nhóm KHÔNG cần F5. Form state (useState) được giữ qua soft-refresh.
+  usePolling();
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

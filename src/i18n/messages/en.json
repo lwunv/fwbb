@@ -547,7 +547,7 @@
     "toastSaved": "Saved",
     "toastLoggedOut": "Logged out",
     "logoutAndUseOtherAccount": "Log out, use a different account",
-    "waitingNotice": "Once admin approves, refresh this page to enter the group."
+    "waitingNotice": "This page enters the group automatically once admin approves — nothing else to do."
   },
   "adminCourts": {
     "count": "{count} courts",
