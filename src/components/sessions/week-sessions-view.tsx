@@ -102,12 +102,7 @@ export function WeekSessionsView({
             {d.session && (
               <span
                 title="Số người vote đi chơi cầu"
-                className={cn(
-                  "inline-flex min-w-5 items-center justify-center rounded-full px-1 text-xs font-bold tabular-nums",
-                  active
-                    ? "bg-primary-foreground/25"
-                    : "bg-primary/15 text-primary",
-                )}
+                className="inline-flex min-w-5 items-center justify-center rounded-full bg-orange-500 px-1 text-xs font-bold text-white tabular-nums"
               >
                 {playCount}
               </span>
