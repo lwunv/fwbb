@@ -775,7 +775,9 @@
     "txContribution": "充值",
     "txDeduction": "扣除（场次欠款）",
     "txRefund": "退款",
-    "session": "场次 {date}"
+    "session": "场次 {date}",
+    "owingFund": "欠基金",
+    "depletedFund": "基金已用完"
   },
   "adminCourtRent": {
     "title": "场地费",

@@ -219,7 +219,7 @@ export function FundAdjustDialog({
                       onClick={startEditingBalance}
                       aria-label="Sửa balance"
                       title="Sửa balance"
-                      className="border-border text-muted-foreground hover:bg-muted/50 inline-flex h-7 w-7 items-center justify-center rounded-md border transition-colors"
+                      className="border-border text-muted-foreground hover:bg-muted/50 inline-flex h-9 w-9 items-center justify-center rounded-md border transition-colors"
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </button>

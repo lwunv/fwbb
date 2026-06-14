@@ -247,7 +247,7 @@ export function ShuttlecockSelector({
               <button
                 type="button"
                 onClick={() => handleRemove(sc)}
-                className="border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors"
+                className="border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>

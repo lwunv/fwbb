@@ -90,9 +90,9 @@ export function MyFundClient({ balance, transactions, memberId }: Props) {
                   {(() => {
                     const s = getFundStatus(balance.balance);
                     return s === "owing"
-                      ? "Đang nợ quỹ"
+                      ? t("owingFund")
                       : s === "depleted"
-                        ? "Quỹ đã hết"
+                        ? t("depletedFund")
                         : t("currentBalance");
                   })()}
                 </p>

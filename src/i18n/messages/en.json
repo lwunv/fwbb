@@ -775,7 +775,9 @@
     "txContribution": "Contribution",
     "txDeduction": "Deduction (session debt)",
     "txRefund": "Refund",
-    "session": "Session {date}"
+    "session": "Session {date}",
+    "owingFund": "Owing the fund",
+    "depletedFund": "Fund depleted"
   },
   "adminCourtRent": {
     "title": "Court rent",

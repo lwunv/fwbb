@@ -775,7 +775,9 @@
     "txContribution": "Đóng quỹ",
     "txDeduction": "Trừ quỹ (Nợ buổi chơi)",
     "txRefund": "Hoàn quỹ",
-    "session": "Buổi {date}"
+    "session": "Buổi {date}",
+    "owingFund": "Đang nợ quỹ",
+    "depletedFund": "Quỹ đã hết"
   },
   "adminCourtRent": {
     "title": "Tiền sân",
