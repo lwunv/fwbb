@@ -145,6 +145,7 @@ export function SessionVoteOptimisticPanel({
         dinerCount={dinerCount}
         guestPlayCount={totalGuestPlay}
         guestDineCount={totalGuestDine}
+        voteDeadline={voteDeadline ?? null}
       />
 
       {effectiveIsVotingOpen && (

@@ -40,7 +40,12 @@ import {
   buildConfirmedMessage,
 } from "@/lib/messenger";
 import { requireAdmin } from "@/lib/auth";
-import { ymdInVN, ymdInVNAddDays, dayOfWeekVN } from "@/lib/date-format";
+import {
+  ymdInVN,
+  ymdInVNAddDays,
+  dayOfWeekVN,
+  badmintonDatesForTargetWeek,
+} from "@/lib/date-format";
 import { admins } from "@/db/schema";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
 import { computeCourtTotal } from "@/lib/cost-calculator";
@@ -89,6 +94,23 @@ export async function getSession(id: number) {
 async function getSessionDaysSet(): Promise<Set<number>> {
   const days = await getSessionDaysOfWeek();
   return new Set(days);
+}
+
+/**
+ * Các buổi cầu lông của TUẦN ĐÍCH cho selector trang user. Tuần đích = tuần
+ * hiện tại; nếu hôm nay T7/CN → tuần sau (xem badmintonDatesForTargetWeek).
+ * CHỈ trả buổi ĐÃ TỒN TẠI (ngày chưa tạo session → bỏ), sort theo ngày. Ngày
+ * cầu lông lấy từ getSessionDaysOfWeek().
+ */
+export async function getWeekBadmintonSessions() {
+  const days = await getSessionDaysOfWeek();
+  const dates = badmintonDatesForTargetWeek(ymdInVN(), days);
+  if (dates.length === 0) return [];
+  return db.query.sessions.findMany({
+    where: inArray(sessions.date, dates),
+    orderBy: [sessions.date],
+    with: { court: true },
+  });
 }
 
 export async function getNextSession() {

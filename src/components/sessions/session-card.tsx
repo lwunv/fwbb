@@ -8,6 +8,7 @@ import {
   StatusBadge,
   type StatusVariant,
 } from "@/components/shared/status-badge";
+import { VoteCountdown } from "@/components/sessions/vote-countdown";
 import type { AppLocale } from "@/lib/date-fns-locale";
 
 interface SessionCardProps {
@@ -21,6 +22,11 @@ interface SessionCardProps {
   dinerCount: number;
   guestPlayCount: number;
   guestDineCount: number;
+  /**
+   * Khi set + buổi còn votable (voting/confirmed) → render đồng hồ đếm ngược
+   * theo GIÂY ngay TRONG thẻ. Quá hạn → component tự hiển "Đã đóng vote".
+   */
+  voteDeadline?: string | null;
 }
 
 export function SessionCard({
@@ -34,6 +40,7 @@ export function SessionCard({
   dinerCount,
   guestPlayCount,
   guestDineCount,
+  voteDeadline,
 }: SessionCardProps) {
   const t = useTranslations("sessions");
   const tF = useTranslations("finance");
@@ -54,24 +61,32 @@ export function SessionCard({
     : statusKey;
   const badgeText = isPastPending ? tF("needsConfirm") : t(statusLabelKey);
 
+  // Countdown chỉ có nghĩa với buổi còn đang mở vote (voting/confirmed).
+  const showCountdown =
+    !!voteDeadline && (statusKey === "voting" || statusKey === "confirmed");
+
   const card = (
     <Card className={isVoting ? "ring-0" : ""}>
       <CardContent className="space-y-3 p-4">
-        <div className="flex items-start justify-between">
-          <h2 className="text-lg font-bold capitalize">
-            {formatSessionDate(date, "weekdayLong", locale)}
-          </h2>
-          <StatusBadge variant={badgeVariant}>{badgeText}</StatusBadge>
-        </div>
-
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center gap-2">
-            <Clock className="text-muted-foreground h-4 w-4" />
-            <span>
+        <div className="flex items-start justify-between gap-2">
+          {/* Ngày + giờ trên CÙNG một dòng header (gộp theo design ảnh 2) */}
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h2 className="text-lg font-bold capitalize">
+              {formatSessionDate(date, "weekdayLong", locale)}
+            </h2>
+            <span className="text-muted-foreground inline-flex items-center gap-1 text-sm font-normal">
+              <Clock className="h-4 w-4" />
               {startTime ?? "20:30"} - {endTime ?? "22:30"}
             </span>
           </div>
+          <StatusBadge variant={badgeVariant}>{badgeText}</StatusBadge>
+        </div>
 
+        {showCountdown && (
+          <VoteCountdown deadline={voteDeadline ?? null} variant="card" />
+        )}
+
+        <div className="space-y-2 text-sm">
           {courtName && (
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <MapPin className="text-muted-foreground h-4 w-4 shrink-0" />

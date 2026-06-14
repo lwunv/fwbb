@@ -6,6 +6,7 @@ export type SessionDateVariant =
   | "long" // 25/04/2026
   | "weekday" // T6 25/04
   | "weekdayLong" // Thứ 6, 25/04/2026
+  | "weekdayName" // Thứ Sáu
   | "monthDay"; // 25 thg 4
 
 const FORMATS: Record<SessionDateVariant, string> = {
@@ -13,6 +14,7 @@ const FORMATS: Record<SessionDateVariant, string> = {
   long: "dd/MM/yyyy",
   weekday: "EEE dd/MM",
   weekdayLong: "EEEE, dd/MM/yyyy",
+  weekdayName: "EEEE",
   monthDay: "dd 'thg' M",
 };
 
@@ -108,4 +110,35 @@ export function ymdInVNAddDays(days: number, ref: Date = new Date()): string {
 export function dayOfWeekVN(ymd: string): number {
   // Đặt giờ ở giữa ngày VN để tránh edge case DST/midnight.
   return new Date(`${ymd}T12:00:00+07:00`).getUTCDay();
+}
+
+/**
+ * Các ngày YYYY-MM-DD (VN) của những thứ cầu lông trong TUẦN ĐÍCH — dùng cho
+ * selector trang user. Tuần đích = tuần HIỆN TẠI (T2→CN); nếu hôm nay là
+ * T7/CN → TUẦN SAU (lịch tuần này đã chơi hết). Kết quả sort theo thứ tự trong
+ * tuần (Mon→Sun).
+ *
+ * @param todayYmd   hôm nay theo VN (dùng `ymdInVN()`).
+ * @param badmintonDays  dow 0=CN..6=T7 (từ `getSessionDaysOfWeek()`); rỗng → M/W/F.
+ */
+export function badmintonDatesForTargetWeek(
+  todayYmd: string,
+  badmintonDays?: readonly number[] | number[],
+): string[] {
+  const days =
+    badmintonDays && badmintonDays.length > 0
+      ? badmintonDays
+      : DEFAULT_SESSION_DAYS;
+  const todayDow = dayOfWeekVN(todayYmd); // 0=CN..6=T7
+  const base = new Date(`${todayYmd}T12:00:00+07:00`);
+  const addDays = (n: number) =>
+    ymdInVN(new Date(base.getTime() + n * 86_400_000));
+  // Offset từ Thứ Hai (tuần bắt đầu T2): T2→0, T3→1, …, CN→6.
+  const fromMonday = (dow: number) => (dow === 0 ? 6 : dow - 1);
+  // T7(6)/CN(0) → tuần sau.
+  const weekShift = todayDow === 6 || todayDow === 0 ? 7 : 0;
+  const mondayOffset = -fromMonday(todayDow) + weekShift;
+  return [...days]
+    .sort((a, b) => fromMonday(a) - fromMonday(b))
+    .map((dow) => addDays(mondayOffset + fromMonday(dow)));
 }

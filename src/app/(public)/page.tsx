@@ -1,11 +1,15 @@
-import { getNextSession, getLatestCompletedSession } from "@/actions/sessions";
+import {
+  getNextSession,
+  getLatestCompletedSession,
+  getWeekBadmintonSessions,
+} from "@/actions/sessions";
+import { WeekSessionsView } from "@/components/sessions/week-sessions-view";
 import { getSessionVotes } from "@/actions/votes";
 import { getActiveMembers } from "@/actions/members";
 import { getUserFromCookie } from "@/lib/user-identity";
 import { getFundBalance } from "@/lib/fund-calculator";
 import { SessionCard } from "@/components/sessions/session-card";
 import { SessionVoteOptimisticPanel } from "@/components/sessions/session-vote-optimistic-panel";
-import { VoteCountdown } from "@/components/sessions/vote-countdown";
 import { FundBalanceBanner } from "@/components/finance/fund-balance-banner";
 import { CopyLinkButton } from "@/components/shared/copy-link-button";
 import { getTranslations } from "next-intl/server";
@@ -13,8 +17,9 @@ import { AutoRefresh } from "@/components/shared/auto-refresh";
 import { isVoteOpen, type SessionStatus } from "@/lib/session-status";
 
 export default async function HomePage() {
-  const [nextSession, user, tDashboard] = await Promise.all([
+  const [nextSession, weekSessions, user, tDashboard] = await Promise.all([
     getNextSession(),
+    getWeekBadmintonSessions(),
     getUserFromCookie(),
     getTranslations("dashboard"),
   ]);
@@ -62,7 +67,48 @@ export default async function HomePage() {
     );
   }
 
-  // Buổi sắp tới + vote (toàn bộ khách; hoặc thành viên đã hết nợ)
+  // Selector các thứ cầu lông trong tuần (T2/4/6 theo setting; T7/CN → tuần
+  // sau). Chỉ cho khách / member đã hết nợ — member còn nợ đi nhánh trả tiền ở
+  // trên. Buổi đang mở → vote; buổi đã xong → chip muted + chỉ xem.
+  if (weekSessions.length > 0 && !(user && hasOutstandingDebt)) {
+    const items = await Promise.all(
+      weekSessions.map(async (s) => ({
+        id: s.id,
+        date: s.date,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        courtName: s.court?.name ?? null,
+        courtMapLink: s.court?.mapLink ?? null,
+        status: s.status,
+        voteDeadline: s.voteDeadline ?? null,
+        isVotingOpen: isVoteOpen({
+          status: s.status as SessionStatus,
+          voteDeadline: s.voteDeadline ?? null,
+        }).open,
+        votes: await getSessionVotes(s.id),
+      })),
+    );
+
+    return (
+      <div className="mx-auto max-w-lg space-y-4">
+        <AutoRefresh />
+        {user && (
+          <FundBalanceBanner
+            balance={userFundBalance}
+            memberId={user.memberId}
+          />
+        )}
+        <h1 className="text-lg font-bold">{tDashboard("upcomingSession")}</h1>
+        <WeekSessionsView
+          sessions={items}
+          members={members}
+          currentMemberId={user?.memberId ?? null}
+        />
+      </div>
+    );
+  }
+
+  // Fallback: buổi sắp tới đơn lẻ (vd buổi lẻ không rơi vào ngày cầu lông).
   if (nextSession) {
     const votes = await getSessionVotes(nextSession.id);
 
@@ -86,15 +132,6 @@ export default async function HomePage() {
           <h1 className="text-lg font-bold">{tDashboard("upcomingSession")}</h1>
           <CopyLinkButton sessionId={nextSession.id} />
         </div>
-
-        {nextSession.voteDeadline &&
-          (nextSession.status === "voting" ||
-            nextSession.status === "confirmed") && (
-            <VoteCountdown
-              deadline={nextSession.voteDeadline}
-              variant="inline"
-            />
-          )}
 
         <SessionVoteOptimisticPanel
           sessionId={nextSession.id}

@@ -2,13 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { Timer } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { countdownClock } from "@/lib/countdown";
 
 interface VoteCountdownProps {
   /** ISO-local string (YYYY-MM-DDTHH:MM:SS). NULL = render nothing. */
   deadline: string | null;
-  /** banner = sticky card on vote page. inline = single text line for cards/lists. */
-  variant: "banner" | "inline";
+  /**
+   * banner = sticky pill on vote page. inline = single text line for lists.
+   * card   = pill đặt BÊN TRONG thẻ buổi chơi (có icon đồng hồ).
+   */
+  variant: "banner" | "inline" | "card";
   /** Fires once when remaining time hits 0. Use to flip parent's isVotingOpen. */
   onExpired?: () => void;
 }
@@ -39,6 +44,7 @@ export function VoteCountdown({
       }
     };
     update();
+    // Tick mỗi giây → đồng hồ HH:MM:SS chạy theo giây.
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
   }, [deadline, onExpired]);
@@ -49,36 +55,33 @@ export function VoteCountdown({
   if (remainingMs === null) return null;
 
   if (remainingMs <= 0) {
-    if (variant === "banner") {
+    const label = t("voteClosedLabel");
+    if (variant === "inline") {
       return (
-        <div className="border-destructive/30 bg-destructive/10 text-destructive rounded-xl border p-3 text-center text-sm font-semibold">
-          {t("voteClosedLabel")}
+        <span className="text-destructive text-sm font-medium">{label}</span>
+      );
+    }
+    if (variant === "card") {
+      return (
+        <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold">
+          <Timer className="h-4 w-4 shrink-0" aria-hidden />
+          {label}
         </div>
       );
     }
     return (
-      <span className="text-destructive text-sm font-medium">
-        {t("voteClosedLabel")}
-      </span>
+      <div className="border-destructive/30 bg-destructive/10 text-destructive rounded-xl border p-3 text-center text-sm font-semibold">
+        {label}
+      </div>
     );
   }
 
-  const ms = remainingMs;
-  const seconds = Math.floor(ms / 1000) % 60;
-  const minutes = Math.floor(ms / 60_000) % 60;
-  const hours = Math.floor(ms / 3_600_000) % 24;
-  const days = Math.floor(ms / 86_400_000);
-
-  let text: string;
-  if (days > 0) {
-    text = t("voteCountdownDays", { days, hours });
-  } else if (hours > 0) {
-    text = t("voteCountdownHours", { hours, minutes });
-  } else {
-    text = t("voteCountdownMinutes", { minutes, seconds });
-  }
-
-  const urgent = ms < ONE_HOUR_MS;
+  const { days, clock } = countdownClock(remainingMs);
+  const text =
+    days > 0
+      ? t("voteCountdownLeftWithDays", { days, clock })
+      : t("voteCountdownLeft", { clock });
+  const urgent = remainingMs < ONE_HOUR_MS;
 
   if (variant === "inline") {
     return (
@@ -90,6 +93,22 @@ export function VoteCountdown({
       >
         {text}
       </span>
+    );
+  }
+
+  if (variant === "card") {
+    return (
+      <div
+        className={cn(
+          "flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold tabular-nums",
+          urgent
+            ? "border-destructive/30 bg-destructive/10 text-destructive animate-pulse"
+            : "border-primary/30 bg-primary/10 text-primary",
+        )}
+      >
+        <Timer className="h-4 w-4 shrink-0" aria-hidden />
+        <span>{text}</span>
+      </div>
     );
   }
 
