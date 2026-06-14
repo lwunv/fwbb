@@ -5,8 +5,6 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { Providers } from "@/components/providers";
-import { FloatingDecorations } from "@/components/shared/floating-decorations";
-import { ClickHearts } from "@/components/shared/click-hearts";
 import "./globals.css";
 
 /** vi/en: Roboto. zh: stack dùng Geist + font hệ thống Hán (`globals.css` html[lang="zh"]) */
@@ -63,11 +61,7 @@ export default async function RootLayout({
               enableSystem={false}
               disableTransitionOnChange
             >
-              <Providers>
-                <FloatingDecorations />
-                <ClickHearts />
-                {children}
-              </Providers>
+              <Providers>{children}</Providers>
             </ThemeProvider>
           </NuqsAdapter>
         </NextIntlClientProvider>

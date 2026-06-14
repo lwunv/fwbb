@@ -65,6 +65,13 @@ interface MemberDebt {
 const PAGE_SIZE = 20;
 
 type StatusFilter = "all" | "active" | "locked" | "hasDebt" | "lowFund";
+type SortMode =
+  | "smart"
+  | "balanceDesc"
+  | "balanceAsc"
+  | "newest"
+  | "oldest"
+  | "nameAsc";
 
 export function MemberList({
   members,
@@ -90,6 +97,7 @@ export function MemberList({
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [sortMode, setSortMode] = useState<SortMode>("smart");
   const [toggledMembers, setToggledMembers] = useState<Record<number, boolean>>(
     {},
   );
@@ -220,25 +228,43 @@ export function MemberList({
       if (!q) return true;
       return m.name.toLowerCase().includes(q);
     });
-    // Sort: members with debt first (by total debt desc), then alphabetical
+    const bal = (id: number) => memberBalances[id] ?? 0;
+    const created = (m: Member) => m.createdAt ?? "";
     return list.sort((a, b) => {
-      const debtA = (debtsByMember[a.id] ?? []).reduce(
-        (s, d) => s + d.totalAmount,
-        0,
-      );
-      const debtB = (debtsByMember[b.id] ?? []).reduce(
-        (s, d) => s + d.totalAmount,
-        0,
-      );
-      if (debtA > 0 && debtB === 0) return -1;
-      if (debtA === 0 && debtB > 0) return 1;
-      if (debtA > 0 && debtB > 0) return debtB - debtA;
-      return a.name.localeCompare(b.name);
+      switch (sortMode) {
+        case "balanceDesc":
+          return bal(b.id) - bal(a.id) || a.name.localeCompare(b.name);
+        case "balanceAsc": // ít quỹ / nợ nhiều nhất trước
+          return bal(a.id) - bal(b.id) || a.name.localeCompare(b.name);
+        case "newest": // ngày đăng ký mới → cũ (createdAt ISO so lexicographic)
+          return created(b).localeCompare(created(a));
+        case "oldest":
+          return created(a).localeCompare(created(b));
+        case "nameAsc":
+          return a.name.localeCompare(b.name);
+        case "smart":
+        default: {
+          // Mặc định: ai đang nợ lên trước (nợ nhiều nhất), rồi A-Z.
+          const debtA = (debtsByMember[a.id] ?? []).reduce(
+            (s, d) => s + d.totalAmount,
+            0,
+          );
+          const debtB = (debtsByMember[b.id] ?? []).reduce(
+            (s, d) => s + d.totalAmount,
+            0,
+          );
+          if (debtA > 0 && debtB === 0) return -1;
+          if (debtA === 0 && debtB > 0) return 1;
+          if (debtA > 0 && debtB > 0) return debtB - debtA;
+          return a.name.localeCompare(b.name);
+        }
+      }
     });
   }, [
     members,
     search,
     statusFilter,
+    sortMode,
     debtsByMember,
     deletedIds,
     memberBalances,
@@ -341,6 +367,29 @@ export function MemberList({
         <span className="text-muted-foreground shrink-0 text-sm whitespace-nowrap">
           {t("count", { count: filtered.length })}
         </span>
+      </div>
+
+      {/* Sort */}
+      <div className="mb-4 flex items-center justify-end gap-2">
+        <label htmlFor="member-sort" className="text-muted-foreground text-sm">
+          {t("sortLabel")}
+        </label>
+        <select
+          id="member-sort"
+          value={sortMode}
+          onChange={(e) => {
+            setSortMode(e.target.value as SortMode);
+            setPage(1);
+          }}
+          className="bg-card text-foreground h-9 rounded-lg border px-2 text-sm"
+        >
+          <option value="smart">{t("sortSmart")}</option>
+          <option value="balanceDesc">{t("sortBalanceDesc")}</option>
+          <option value="balanceAsc">{t("sortBalanceAsc")}</option>
+          <option value="newest">{t("sortNewest")}</option>
+          <option value="oldest">{t("sortOldest")}</option>
+          <option value="nameAsc">{t("sortNameAsc")}</option>
+        </select>
       </div>
 
       {/* Member cards */}
