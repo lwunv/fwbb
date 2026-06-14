@@ -45,6 +45,7 @@ export function ShuttlecockSelector({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
   const tOverride = useTranslations("priceOverride");
+  const ts = useTranslations("adminShuttlecocks");
   // Counter cấp id âm cho optimistic entry (chưa server-confirmed). Dùng
   // ref counter thay `Date.now()` để tránh `react-hooks/purity` lint flag
   // (Date.now là impure trong scope render-tracked).
@@ -172,9 +173,7 @@ export function ShuttlecockSelector({
   }
 
   if (brands.length === 0) {
-    return (
-      <p className="text-muted-foreground text-sm">Chưa có hãng cầu nào.</p>
-    );
+    return <p className="text-muted-foreground text-sm">{ts("noBrands")}</p>;
   }
 
   // Tổng dùng `computeShuttlecockTotal` (round UP tổng) để khớp với debt
@@ -333,7 +332,8 @@ export function ShuttlecockSelector({
                     {b.name}
                   </span>
                   <span className="text-primary shrink-0 text-sm font-medium tabular-nums">
-                    {formatK(b.pricePerTube)}/ống
+                    {formatK(b.pricePerTube)}
+                    {ts("perTube")}
                   </span>
                 </label>
               );

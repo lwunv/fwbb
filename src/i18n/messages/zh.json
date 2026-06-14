@@ -129,7 +129,8 @@
     "passCourtHint": "若已向其他团队收款请勾选。款项将自动计入管理员基金。",
     "passRevenueLabel": "收到的金额 (VND)",
     "passRevenueHint": "默认为本场场地租金。如有不同可调整。",
-    "createFailed": "创建场次失败"
+    "createFailed": "创建场次失败",
+    "playCountTitle": "投票打球人数"
   },
   "voting": {
     "play": "队1 - 羽毛球",
@@ -654,7 +655,8 @@
     "perTube": "/筒",
     "update": "更新",
     "active": "活跃",
-    "inactive": "停用"
+    "inactive": "停用",
+    "noBrands": "还没有羽毛球品牌。"
   },
   "appMeta": {
     "title": "FWBB - Friends with Beer & Badminton",
@@ -1008,7 +1010,10 @@
     "totalLabel": "合计",
     "toastInvalidTubes": "筒数无效",
     "toastInvalidPrice": "每筒价格无效",
-    "toastBuySuccess": "已记录购入 {amount}"
+    "toastBuySuccess": "已记录购入 {amount}",
+    "unitQua": "个",
+    "unitTube": "筒",
+    "perTube": "/筒"
   },
   "priceOverride": {
     "courtAria": "修改场地费",

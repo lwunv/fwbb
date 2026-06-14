@@ -129,7 +129,8 @@
     "passCourtHint": "Tick nếu admin đã thu được tiền từ team khác. Tiền sẽ tự động vào quỹ admin.",
     "passRevenueLabel": "Số tiền nhận lại (VND)",
     "passRevenueHint": "Mặc định = giá thuê sân của buổi. Có thể chỉnh nếu khác.",
-    "createFailed": "Không tạo được buổi chơi"
+    "createFailed": "Không tạo được buổi chơi",
+    "playCountTitle": "Số người vote đi chơi cầu"
   },
   "voting": {
     "play": "Tăng 1 - Cầu lông",
@@ -654,7 +655,8 @@
     "perTube": "/ống",
     "update": "Cập nhật",
     "active": "Hoạt động",
-    "inactive": "Ngừng"
+    "inactive": "Ngừng",
+    "noBrands": "Chưa có hãng cầu nào."
   },
   "appMeta": {
     "title": "FWBB - Friends with Beer & Badminton",
@@ -1008,7 +1010,10 @@
     "totalLabel": "Tổng",
     "toastInvalidTubes": "Số ống không hợp lệ",
     "toastInvalidPrice": "Giá / ống không hợp lệ",
-    "toastBuySuccess": "Đã ghi nhận mua cầu {amount}"
+    "toastBuySuccess": "Đã ghi nhận mua cầu {amount}",
+    "unitQua": "quả",
+    "unitTube": "ống",
+    "perTube": "/ống"
   },
   "priceOverride": {
     "courtAria": "Sửa tiền sân",

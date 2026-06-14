@@ -58,8 +58,11 @@ export function SessionCard({
   const badgeText = isPastPending ? tF("needsConfirm") : t(labelKey);
 
   // Countdown chỉ có nghĩa với buổi còn đang mở vote (voting/confirmed).
+  // Normalize null → "voting" (khớp deriveSessionBadge) để buổi status=null +
+  // có deadline vẫn hiện đồng hồ như trước refactor.
+  const normStatus = status ?? "voting";
   const showCountdown =
-    !!voteDeadline && (status === "voting" || status === "confirmed");
+    !!voteDeadline && (normStatus === "voting" || normStatus === "confirmed");
 
   const card = (
     <Card className={isVoting ? "ring-0" : ""}>

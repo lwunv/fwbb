@@ -310,8 +310,9 @@ export function ShuttlecockFinanceClient({
                         <p className="truncate text-sm font-medium">
                           {u.brandName}{" "}
                           <span className="text-muted-foreground text-xs font-normal">
-                            · {u.quantityUsed} quả × {formatK(u.pricePerTube)}
-                            /ống
+                            · {u.quantityUsed} {t("unitQua")} ×{" "}
+                            {formatK(u.pricePerTube)}
+                            {t("perTube")}
                           </span>
                         </p>
                         <p className="text-muted-foreground truncate text-xs">
@@ -353,7 +354,9 @@ export function ShuttlecockFinanceClient({
                       <p className="truncate text-sm font-medium">
                         {p.brandName}{" "}
                         <span className="text-muted-foreground text-xs font-normal">
-                          · {p.tubes} ống × {formatK(p.pricePerTube)}/ống
+                          · {p.tubes} {t("unitTube")} ×{" "}
+                          {formatK(p.pricePerTube)}
+                          {t("perTube")}
                         </span>
                       </p>
                       <p className="text-muted-foreground truncate text-xs">
@@ -415,7 +418,7 @@ export function ShuttlecockFinanceClient({
                 placeholder={t("brandPlaceholder")}
                 options={brands.map((b) => ({
                   value: String(b.id),
-                  label: `${b.name} (${formatK(b.pricePerTube)}/ống)`,
+                  label: `${b.name} (${formatK(b.pricePerTube)}${t("perTube")})`,
                 }))}
               />
             </div>

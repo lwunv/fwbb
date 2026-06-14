@@ -75,7 +75,8 @@ export function StockCard({ stock }: StockCardProps) {
                   const prevQua = editQua;
                   setEditing(false);
                   fireAction(
-                    () => setStockQua(stock.brandId, editOng * 12 + editQua),
+                    () =>
+                      setStockQua(stock.brandId, tubesToQua(editOng) + editQua),
                     () => {
                       setEditOng(prevOng);
                       setEditQua(prevQua);

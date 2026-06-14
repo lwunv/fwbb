@@ -1,4 +1,5 @@
 import { db } from "@/db";
+import { PUBLIC_MEMBER_COLUMNS } from "@/lib/optimistic-votes";
 import {
   sessions,
   courts,
@@ -120,7 +121,9 @@ export default async function SessionsPage({
     offset,
     with: {
       court: true,
-      votes: { with: { member: true } },
+      // Whitelist member cols — s.votes ships raw to the client SessionList, so
+      // never serialize PII (matches getSessionVotes + the narrowed Vote type).
+      votes: { with: { member: { columns: PUBLIC_MEMBER_COLUMNS } } },
       debts: { with: { member: true } },
       shuttlecocks: { with: { brand: true } },
       // attendees: locked-in headcount for completed sessions. votes can be

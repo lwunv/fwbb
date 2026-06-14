@@ -129,7 +129,8 @@
     "passCourtHint": "Tick if you collected money from another team. The money goes automatically into the admin fund.",
     "passRevenueLabel": "Amount received (VND)",
     "passRevenueHint": "Defaults to the session's court rent. Adjust if different.",
-    "createFailed": "Failed to create session"
+    "createFailed": "Failed to create session",
+    "playCountTitle": "Members voting to play"
   },
   "voting": {
     "play": "Team 1 - Badminton",
@@ -654,7 +655,8 @@
     "perTube": "/tube",
     "update": "Update",
     "active": "Active",
-    "inactive": "Inactive"
+    "inactive": "Inactive",
+    "noBrands": "No shuttle brands yet."
   },
   "appMeta": {
     "title": "FWBB - Friends with Beer & Badminton",
@@ -1008,7 +1010,10 @@
     "totalLabel": "Total",
     "toastInvalidTubes": "Invalid tube count",
     "toastInvalidPrice": "Invalid price per tube",
-    "toastBuySuccess": "Shuttlecock purchase recorded {amount}"
+    "toastBuySuccess": "Shuttlecock purchase recorded {amount}",
+    "unitQua": "shuttles",
+    "unitTube": "tubes",
+    "perTube": "/tube"
   },
   "priceOverride": {
     "courtAria": "Edit court fee",

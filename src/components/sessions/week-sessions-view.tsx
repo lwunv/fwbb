@@ -104,7 +104,7 @@ export function WeekSessionsView({
             {formatSessionDate(d.date, "weekdayName", locale)}
             {d.session && (
               <span
-                title="Số người vote đi chơi cầu"
+                title={tS("playCountTitle")}
                 className="inline-flex min-w-5 items-center justify-center rounded-full bg-orange-500 px-1 text-xs font-bold text-white tabular-nums"
               >
                 {playCount}
