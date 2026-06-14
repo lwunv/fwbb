@@ -74,8 +74,9 @@ export function SessionCard({
       <CardContent className="space-y-3 p-4">
         {topSlot}
         <div className="flex items-start justify-between gap-2">
-          {/* Ngày + giờ trên CÙNG một dòng header (gộp theo design ảnh 2) */}
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          {/* Ngày + giờ + countdown chung 1 cụm (countdown wrap thành pill nhỏ
+              dưới ngày trên mobile) → cột phải chỉ còn badge, không bị trống. */}
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1.5">
             <h2 className="text-lg font-bold capitalize">
               {formatSessionDate(date, "weekdayLong", locale)}
             </h2>
@@ -83,9 +84,6 @@ export function SessionCard({
               <Clock className="h-4 w-4" />
               {startTime ?? "20:30"} - {endTime ?? "22:30"}
             </span>
-          </div>
-          <div className="flex shrink-0 flex-col items-end gap-1.5">
-            <StatusBadge variant={badgeVariant}>{badgeText}</StatusBadge>
             {showCountdown && (
               <VoteCountdown
                 deadline={voteDeadline ?? null}
@@ -93,6 +91,7 @@ export function SessionCard({
               />
             )}
           </div>
+          <StatusBadge variant={badgeVariant}>{badgeText}</StatusBadge>
         </div>
 
         <div className="space-y-2 text-sm">
