@@ -11,11 +11,12 @@ import { isDefaultSessionDay } from "@/lib/date-format";
 import { getDefaultCourt, getSessionDaysOfWeek } from "@/actions/settings";
 
 /**
- * Threshold: court-rent stats chỉ tính từ tháng này trở đi (legacy data trước
- * thời điểm này không phản ánh thuê sân thực tế → admin yêu cầu skip).
- * Format: "YYYY-MM-DD" — start of inclusive.
+ * Threshold: court-rent stats chỉ tính từ MỐC này trở đi. Mọi nghĩa vụ tiền sân
+ * TRƯỚC mốc bị bỏ qua. Reset 6/2026 theo yêu cầu admin: tháng 5 đã tất toán
+ * ngoài hệ thống → dời mốc 1/5 → 1/6 để "Cần trả" của T5 về 0; T6 trở đi vẫn
+ * tự tính theo lịch. Format "YYYY-MM-DD", inclusive.
  */
-const COURT_RENT_START_DATE = "2026-05-01";
+const COURT_RENT_START_DATE = "2026-06-01";
 
 export interface CourtRentMonthSummary {
   /** YYYY-MM */

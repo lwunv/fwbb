@@ -150,8 +150,9 @@ describe("court-rent actions (integration)", () => {
 
     it("ignores payments from other years and malformed metadata", async () => {
       const courtId = await seedCourt();
+      // Buổi trong cửa sổ tính (>= COURT_RENT_START_DATE) để tạo expected ≠ 0.
       await testDb.insert(sessions).values({
-        date: "2026-05-05",
+        date: "2026-06-05",
         status: "completed",
         courtId,
         courtPrice: 100_000,
