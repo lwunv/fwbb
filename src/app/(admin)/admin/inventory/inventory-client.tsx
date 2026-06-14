@@ -10,6 +10,7 @@ import { TabSegment } from "@/components/shared/tab-segment";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatK } from "@/lib/utils";
 import { calculateShuttlecockCost } from "@/lib/cost-calculator";
+import { isLowStock } from "@/lib/inventory-core";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { Calendar, ArrowDown, ArrowUp, Pencil, Check, X } from "lucide-react";
 import { updatePurchaseTubes } from "@/actions/inventory";
@@ -65,12 +66,12 @@ export function InventoryClient({
   const totalQua = stock
     .filter((s) => s.isActive)
     .reduce((sum, s) => sum + s.currentStockQua, 0);
-  const isLowStock = totalQua < 12;
+  const lowStock = isLowStock(totalQua);
 
   return (
     <div className="space-y-4">
-      {/* Low stock warning — only when TOTAL across all brands < 12 */}
-      {isLowStock && (
+      {/* Low stock warning — only when TOTAL across all brands < 1 tube */}
+      {lowStock && (
         <Card>
           <CardContent className="bg-destructive/5 flex items-center gap-2 p-4">
             <Badge variant="destructive">!</Badge>

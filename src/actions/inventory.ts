@@ -11,6 +11,12 @@ import { revalidatePath } from "next/cache";
 import { purchaseSchema } from "@/lib/validators";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
 import { requireAdmin } from "@/lib/auth";
+import {
+  tubesToQua,
+  isLowStock,
+  splitOngQua,
+  computeCurrentStock,
+} from "@/lib/inventory-core";
 import { getTranslations } from "next-intl/server";
 
 export async function recordPurchase(formData: FormData) {
@@ -206,12 +212,18 @@ export async function setStockQua(brandId: number, desiredQua: number) {
         with: { session: { columns: { status: true } } },
       });
       const adjustQua = brand.stockAdjustQua ?? 0;
-      const totalPurchasedQua = purchases.reduce((s, p) => s + p.tubes, 0) * 12;
+      const totalPurchasedQua = tubesToQua(
+        purchases.reduce((s, p) => s + p.tubes, 0),
+      );
       const totalUsedQua = usage.reduce(
         (s, u) => (u.session?.status === "cancelled" ? s : s + u.quantityUsed),
         0,
       );
-      const currentStock = totalPurchasedQua - totalUsedQua + adjustQua;
+      const { rawStockQua: currentStock } = computeCurrentStock({
+        purchasedQua: totalPurchasedQua,
+        usedQua: totalUsedQua,
+        adjustQua,
+      });
 
       if (desiredQua === currentStock) return;
 
@@ -276,7 +288,7 @@ export async function getStockByBrand(): Promise<StockByBrand[]> {
       .filter((p) => p.brandId === brand.id)
       .reduce((sum, p) => sum + p.tubes, 0);
 
-    const totalPurchasedQua = totalPurchasedTubes * 12;
+    const totalPurchasedQua = tubesToQua(totalPurchasedTubes);
 
     // Sum used qua for this brand (exclude cancelled sessions)
     const totalUsedQua = usage
@@ -286,11 +298,14 @@ export async function getStockByBrand(): Promise<StockByBrand[]> {
       .reduce((sum, u) => sum + u.quantityUsed, 0);
 
     const adjustQua = brand.stockAdjustQua ?? 0;
-    const currentStockQua = totalPurchasedQua - totalUsedQua + adjustQua;
+    const { rawStockQua, currentStockQua } = computeCurrentStock({
+      purchasedQua: totalPurchasedQua,
+      usedQua: totalUsedQua,
+      adjustQua,
+    });
 
-    // Convert to ong + qua display
-    const ong = Math.floor(Math.max(0, currentStockQua) / 12);
-    const qua = Math.max(0, currentStockQua) % 12;
+    // Convert to ong + qua display (from the display-clamped value)
+    const { ong, qua } = splitOngQua(currentStockQua);
 
     result.push({
       brandId: brand.id,
@@ -301,11 +316,11 @@ export async function getStockByBrand(): Promise<StockByBrand[]> {
       totalPurchasedQua,
       totalUsedQua,
       adjustQua,
-      currentStockQua: Math.max(0, currentStockQua),
-      rawStockQua: currentStockQua,
+      currentStockQua,
+      rawStockQua,
       ong,
       qua,
-      isLowStock: currentStockQua < 12, // less than 1 tube
+      isLowStock: isLowStock(rawStockQua), // less than 1 tube
     });
   }
 
@@ -338,7 +353,7 @@ export async function checkLowStock(): Promise<{
   const activeStock = stock.filter((s) => s.isActive);
   const totalQua = activeStock.reduce((sum, s) => sum + s.currentStockQua, 0);
   return {
-    isLow: totalQua < 12,
+    isLow: isLowStock(totalQua),
     totalQua,
     items: activeStock,
   };

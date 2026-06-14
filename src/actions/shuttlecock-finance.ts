@@ -10,6 +10,7 @@ import {
 import { desc, eq } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth";
 import { calculateExactShuttlecockCost } from "@/lib/cost-calculator";
+import { tubesToQua } from "@/lib/inventory-core";
 import { roundToThousand } from "@/lib/utils";
 
 export interface ShuttlecockFinanceSummary {
@@ -110,7 +111,7 @@ export async function getShuttlecockFinanceSummary(): Promise<ShuttlecockFinance
     totalTubesPurchased += p.tubes;
     const s = ensureBrand(p.brandId);
     s.spent += p.totalPrice;
-    s.quaPurchased += p.tubes * 12;
+    s.quaPurchased += tubesToQua(p.tubes);
   }
 
   let totalRevenueExact = 0;
@@ -162,7 +163,7 @@ export async function getShuttlecockFinanceSummary(): Promise<ShuttlecockFinance
     netProfit,
     totalTubesPurchased,
     totalQuaUsed,
-    totalQuaPurchased: totalTubesPurchased * 12,
+    totalQuaPurchased: tubesToQua(totalTubesPurchased),
     totalQuaRemaining,
   };
 }

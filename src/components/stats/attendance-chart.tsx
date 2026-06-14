@@ -113,9 +113,9 @@ export function AttendanceChart({ data }: AttendanceChartProps) {
           <Line
             type="monotone"
             dataKey="dinerCount"
-            stroke="#f97316"
+            stroke="var(--color-chart-dine, #f97316)"
             strokeWidth={2}
-            dot={{ r: 3, fill: "#f97316" }}
+            dot={{ r: 3, fill: "var(--color-chart-dine, #f97316)" }}
             activeDot={{ r: 5 }}
             strokeDasharray="5 5"
           />
@@ -130,7 +130,7 @@ export function AttendanceChart({ data }: AttendanceChartProps) {
           <div
             className="h-0.5 w-3 border-dashed"
             style={{
-              borderTop: "2px dashed #f97316",
+              borderTop: "2px dashed var(--color-chart-dine, #f97316)",
               height: 0,
             }}
           />

@@ -119,7 +119,9 @@ export function MonthlyExpensesChart({
                 return (
                   <span
                     style={{
-                      color: isHidden ? "#999" : undefined,
+                      color: isHidden
+                        ? "var(--color-muted-foreground)"
+                        : undefined,
                       textDecoration: isHidden ? "line-through" : undefined,
                       cursor: "pointer",
                     }}
@@ -154,7 +156,7 @@ export function MonthlyExpensesChart({
             <Bar
               dataKey="diningCost"
               stackId="a"
-              fill="#f97316"
+              fill="var(--color-chart-dine, #f97316)"
               radius={[4, 4, 0, 0]}
               hide={hidden.has("diningCost")}
               activeBar={{

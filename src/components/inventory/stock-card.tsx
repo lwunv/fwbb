@@ -10,6 +10,7 @@ import { formatK } from "@/lib/utils";
 import { Package, Pencil, Check, X } from "lucide-react";
 import { setStockQua } from "@/actions/inventory";
 import { fireAction } from "@/lib/optimistic-action";
+import { tubesToQua } from "@/lib/inventory-core";
 import type { StockByBrand } from "@/actions/inventory";
 
 interface StockCardProps {

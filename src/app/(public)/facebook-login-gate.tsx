@@ -168,7 +168,7 @@ export function FacebookLoginGate({ appName = "FWBB" }: { appName?: string }) {
               <Button
                 onClick={handleFbLogin}
                 disabled={isPending}
-                className="w-full bg-[#1877F2] py-3 text-base font-medium text-white hover:bg-[#166FE5]"
+                className="w-full bg-blue-600 py-3 text-base font-medium text-white hover:bg-blue-700"
                 size="lg"
               >
                 {isPending ? (

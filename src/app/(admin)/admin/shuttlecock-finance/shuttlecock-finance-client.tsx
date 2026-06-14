@@ -17,6 +17,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { tubesToQua } from "@/lib/inventory-core";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { SearchInput } from "@/components/shared/search-input";
 import { StatTile } from "@/components/shared/stat-tile";
@@ -136,12 +137,12 @@ export function ShuttlecockFinanceClient({
       ...s,
       totalSpent: s.totalSpent + total,
       totalTubesPurchased: s.totalTubesPurchased + bsTubes,
-      totalQuaPurchased: s.totalQuaPurchased + bsTubes * 12,
+      totalQuaPurchased: s.totalQuaPurchased + tubesToQua(bsTubes),
       // Mới mua, chưa dùng → toàn bộ giá nhập đổ vào tồn kho.
       // netProfit = revenue + inventoryValue - totalSpent → KHÔNG đổi
       // (cả totalSpent lẫn inventoryValue cùng +total).
       inventoryValue: s.inventoryValue + total,
-      totalQuaRemaining: s.totalQuaRemaining + bsTubes * 12,
+      totalQuaRemaining: s.totalQuaRemaining + tubesToQua(bsTubes),
     }));
 
     const idemKey =

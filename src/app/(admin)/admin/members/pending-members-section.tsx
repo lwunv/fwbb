@@ -162,7 +162,7 @@ export function PendingMembersSection({
                       </span>
                     )}
                     {m.facebookId && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-[#1877F2]/10 px-2 py-0.5 text-[#1877F2]">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-blue-600 dark:text-blue-400">
                         Facebook
                       </span>
                     )}

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { submitVote } from "@/actions/votes";
 import type { VoteTotalsPatch } from "@/lib/optimistic-votes";
+import { fireAction } from "@/lib/optimistic-action";
 import { cn } from "@/lib/utils";
 import { Check, Minus, Plus } from "lucide-react";
 
@@ -136,7 +137,6 @@ export function VoteButtons({
   const [willDine, setWillDine] = useState(currentWillDine);
   const [guestPlayCount, setGuestPlayCount] = useState(currentGuestPlayCount);
   const [guestDineCount, setGuestDineCount] = useState(currentGuestDineCount);
-  const [error, setError] = useState("");
   const t = useTranslations("voting");
 
   useEffect(() => {
@@ -165,20 +165,16 @@ export function VoteButtons({
       guestPlayCount: guestPlay,
       guestDineCount: guestDine,
     });
-    setError("");
-    void submitVote(sessionId, play, dine, guestPlay, guestDine)
-      .then((result) => {
-        if (result.error) {
-          rollback();
-          optimisticListSync?.revert();
-          setError(result.error);
-        }
-      })
-      .catch(() => {
+    // Canonical optimistic helper: auto-retry once, then roll back BOTH the
+    // local controls and the mirrored list + toast.error (project rule). The
+    // server's localized error message is surfaced via the toast.
+    fireAction(
+      () => submitVote(sessionId, play, dine, guestPlay, guestDine),
+      () => {
         rollback();
         optimisticListSync?.revert();
-        setError("Không lưu được. Thử lại.");
-      });
+      },
+    );
   }
 
   function togglePlay() {
@@ -400,8 +396,6 @@ export function VoteButtons({
           </div>
         </div>
       </div>
-
-      {error && <p className="text-destructive pt-0.5 text-sm">{error}</p>}
     </div>
   );
 }

@@ -19,7 +19,8 @@ interface ActiveMembersChartProps {
 }
 
 const COLOR_PLAY = "var(--color-primary, #6366f1)";
-const COLOR_DINE = "#f97316"; // orange-500, matches dining accent on home/session cards
+// Dining accent — theme-aware token (falls back to orange-500).
+const COLOR_DINE = "var(--color-chart-dine, #f97316)";
 
 const DISPLAY_NAME_MAX = 11;
 

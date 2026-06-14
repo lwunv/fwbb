@@ -125,7 +125,7 @@ export function SessionCard({
             <div className="flex gap-4">
               <span>
                 {t("badminton")}:{" "}
-                <strong className="text-primary tabular-nums">
+                <strong className="text-primary text-xl font-extrabold tabular-nums">
                   {playerCount + guestPlayCount}
                 </strong>{" "}
                 <span className="text-foreground/80">{t("people")}</span>
@@ -143,7 +143,7 @@ export function SessionCard({
               </span>
               <span>
                 {t("dining")}:{" "}
-                <strong className="text-orange-600 tabular-nums dark:text-orange-400">
+                <strong className="text-xl font-extrabold text-orange-600 tabular-nums dark:text-orange-400">
                   {dinerCount + guestDineCount}
                 </strong>{" "}
                 <span className="text-foreground/80">{t("people")}</span>
