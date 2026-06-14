@@ -104,6 +104,13 @@ export default async function DashboardPage() {
     where: eq(members.isActive, true),
   });
 
+  // Admin's memberId — loại khách admin khỏi forecast floor (finalize bỏ qua
+  // debt admin → khách admin không bao giờ bị floor 60K).
+  const adminRow = await db.query.admins.findFirst({
+    columns: { memberId: true },
+  });
+  const adminMemberId = adminRow?.memberId ?? null;
+
   // Sessions this month — VN local YYYY-MM
   const todayVN = ymdInVN();
   const yearVN = parseInt(todayVN.slice(0, 4), 10);
@@ -345,6 +352,7 @@ export default async function DashboardPage() {
         editorBrands={editorBrands}
         editorMembers={activeMembers}
         memberBalances={memberBalances}
+        adminMemberId={adminMemberId}
         defaultCourtId={defaultCourt?.id ?? null}
         defaultBrandId={defaultBrand?.id ?? null}
         sessionDays={sessionDays}

@@ -49,6 +49,7 @@ import {
 import { admins } from "@/db/schema";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
 import { computeCourtTotal } from "@/lib/cost-calculator";
+import { countVoteParticipation } from "@/lib/vote-list-utils";
 import {
   getDefaultCourt,
   getDefaultBrand,
@@ -457,8 +458,8 @@ export async function confirmSession(sessionId: number) {
   const sessionVotes = await db.query.votes.findMany({
     where: eq(votes.sessionId, sessionId),
   });
-  const playCount = sessionVotes.filter((v) => v.willPlay).length;
-  const dineCount = sessionVotes.filter((v) => v.willDine).length;
+  const { memberPlay: playCount, memberDine: dineCount } =
+    countVoteParticipation(sessionVotes);
   sendGroupMessage(buildConfirmedMessage(session.date, playCount, dineCount));
 
   revalidatePath("/admin/sessions");

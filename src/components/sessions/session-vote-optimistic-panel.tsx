@@ -10,7 +10,10 @@ import {
   applyMemberVotePatch,
   type VoteWithMember,
 } from "@/lib/optimistic-votes";
-import { attendingVotesCount } from "@/lib/vote-list-utils";
+import {
+  attendingVotesCount,
+  countVoteParticipation,
+} from "@/lib/vote-list-utils";
 import type { InferSelectModel } from "drizzle-orm";
 import type { members as membersTable } from "@/db/schema";
 
@@ -87,22 +90,16 @@ export function SessionVoteOptimisticPanel({
 
   const effectiveIsVotingOpen = isVotingOpen && !deadlinePassed;
 
-  const playerCount = useMemo(
-    () => optimisticVotes.filter((v) => !!v.willPlay).length,
+  // Đếm 1 lần qua helper chung (member play/dine + tổng khách) — SINGLE SOURCE,
+  // khớp divisor chia tiền của cost-calculator.
+  const counts = useMemo(
+    () => countVoteParticipation(optimisticVotes),
     [optimisticVotes],
   );
-  const dinerCount = useMemo(
-    () => optimisticVotes.filter((v) => !!v.willDine).length,
-    [optimisticVotes],
-  );
-  const totalGuestPlay = useMemo(
-    () => optimisticVotes.reduce((s, v) => s + (v.guestPlayCount ?? 0), 0),
-    [optimisticVotes],
-  );
-  const totalGuestDine = useMemo(
-    () => optimisticVotes.reduce((s, v) => s + (v.guestDineCount ?? 0), 0),
-    [optimisticVotes],
-  );
+  const playerCount = counts.memberPlay;
+  const dinerCount = counts.memberDine;
+  const totalGuestPlay = counts.guestPlay;
+  const totalGuestDine = counts.guestDine;
   const listHeadCount = useMemo(
     () => attendingVotesCount(optimisticVotes),
     [optimisticVotes],

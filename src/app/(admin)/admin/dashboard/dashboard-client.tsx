@@ -26,6 +26,7 @@ import {
   computePerHeadCharges,
   computePredictedMinDeductionSurplus,
 } from "@/lib/cost-calculator";
+import { floorableGuestPlayCount } from "@/lib/vote-list-utils";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { updateAppName } from "@/actions/settings";
 import { setAdminGuestCount } from "@/actions/sessions";
@@ -197,6 +198,8 @@ interface DashboardClientProps {
   editorBrands: Brand[];
   editorMembers: InferSelectModel<typeof membersTable>[];
   memberBalances: Record<number, number>;
+  /** memberId của admin — loại khách admin khỏi forecast floor (khớp finalize). */
+  adminMemberId: number | null;
   defaultCourtId: number | null;
   defaultBrandId: number | null;
   sessionDays: number[];
@@ -257,6 +260,7 @@ export function DashboardClient({
   editorBrands,
   editorMembers,
   memberBalances,
+  adminMemberId,
   defaultCourtId,
   defaultBrandId,
   sessionDays,
@@ -627,6 +631,13 @@ export function DashboardClient({
               memberBalances,
               exemptMemberIds: upcomingSession.exemptMemberIds,
               playCostPerHead,
+              // Khách member (host không-miễn) cũng bị floor 60K khi finalize →
+              // phải cộng surplus, nếu không "Tổng thu dự kiến" thiếu tiền và
+              // lệch /admin/sessions. Helper chung loại admin + exempt.
+              guestPlayCount: floorableGuestPlayCount(upcomingSession.votes, {
+                adminMemberId,
+                exemptMemberIds: upcomingSession.exemptMemberIds,
+              }),
             })
           : 0;
         const predictedRevenue =

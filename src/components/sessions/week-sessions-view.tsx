@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { SessionVoteOptimisticPanel } from "./session-vote-optimistic-panel";
 import { CopyLinkButton } from "@/components/shared/copy-link-button";
+import { countVoteParticipation } from "@/lib/vote-list-utils";
 import type { AppLocale } from "@/lib/date-fns-locale";
 import type { VoteWithMember } from "@/lib/optimistic-votes";
 import type { InferSelectModel } from "drizzle-orm";
@@ -77,10 +78,10 @@ export function WeekSessionsView({
           d.session?.status === "cancelled";
         const noSession = !d.session;
         // Số người đi chơi cầu cho thứ đó = member willPlay + tổng khách chơi
-        // (khớp "N người (gồm K khách)" trên thẻ).
+        // (khớp "N người (gồm K khách)" trên thẻ). Helper chung countVote-
+        // Participation → khỏi drift với các chỗ đếm khác.
         const playCount = d.session
-          ? d.session.votes.filter((v) => !!v.willPlay).length +
-            d.session.votes.reduce((s, v) => s + (v.guestPlayCount ?? 0), 0)
+          ? countVoteParticipation(d.session.votes).totalPlayers
           : 0;
         return (
           <motion.button
