@@ -46,6 +46,7 @@
     "sessionCancelled": "此活动已被取消",
     "sessionCompleted": "此活动已完成",
     "noSessionYet": "这一天还没有安排活动",
+    "thisWeek": "本周",
     "yourVote": "您的投票",
     "voteList": "投票列表",
     "votedOf": "{voted}/{total} 已投票",

@@ -33,7 +33,7 @@ export default async function AdminLayout({
   const pendingMemberCount = Number(pendingCountRows[0]?.c ?? 0);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen overflow-x-hidden">
       <AdminDefaultTheme />
       <AdminSidebar appName={appName} pendingMemberCount={pendingMemberCount} />
       <AdminMobileNav

@@ -71,11 +71,18 @@ export function SessionCard({
 
   const card = (
     <Card className={isVoting ? "ring-0" : ""}>
-      <CardContent className="space-y-3 p-4">
+      <CardContent className="relative space-y-3 p-4">
         {topSlot}
+        {/* Có chips (trang chủ): countdown absolute góc phải-trên (đè vùng phải
+            trống của hàng chip → KHÔNG chiếm height). Không chips (vote page):
+            render inline trong header (không có hàng chip để đè). */}
+        {topSlot && showCountdown && (
+          <div className="absolute top-4 right-4 z-20">
+            <VoteCountdown deadline={voteDeadline ?? null} variant="compact" />
+          </div>
+        )}
         <div className="flex items-start justify-between gap-2">
-          {/* Ngày + giờ + countdown chung 1 cụm (countdown wrap thành pill nhỏ
-              dưới ngày trên mobile) → cột phải chỉ còn badge, không bị trống. */}
+          {/* Ngày + giờ trên 1 dòng header. */}
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1.5">
             <h2 className="text-lg font-bold capitalize">
               {formatSessionDate(date, "weekdayLong", locale)}
@@ -84,7 +91,7 @@ export function SessionCard({
               <Clock className="h-4 w-4" />
               {startTime ?? "20:30"} - {endTime ?? "22:30"}
             </span>
-            {showCountdown && (
+            {!topSlot && showCountdown && (
               <VoteCountdown
                 deadline={voteDeadline ?? null}
                 variant="compact"

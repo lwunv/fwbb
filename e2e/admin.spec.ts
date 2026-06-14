@@ -60,4 +60,15 @@ test.describe("fund + inventory flows (read-only)", () => {
     // Sau reset tồn = 0 (< 12) → badge cảnh báo per-brand phải hiện.
     await expect(page.getByText(/Cảnh báo tồn kho thấp/).first()).toBeVisible();
   });
+
+  test("sessions page có selector tuần đích (Tuần này + chip thứ)", async ({
+    page,
+  }) => {
+    await page.goto("/admin/sessions");
+    // Strip selector luôn render (getWeekBadmintonDays trả T2/4/6 theo lịch).
+    await expect(page.getByText("Tuần này")).toBeVisible({ timeout: 10_000 });
+    await expect(
+      page.getByRole("button", { name: /Thứ/ }).first(),
+    ).toBeVisible();
+  });
 });

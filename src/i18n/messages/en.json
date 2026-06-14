@@ -46,6 +46,7 @@
     "sessionCancelled": "This session has been cancelled",
     "sessionCompleted": "This session has been completed",
     "noSessionYet": "No session scheduled for this day yet",
+    "thisWeek": "This week",
     "yourVote": "Your vote",
     "voteList": "Vote list",
     "votedOf": "{voted}/{total} voted",

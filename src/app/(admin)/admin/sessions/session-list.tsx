@@ -36,7 +36,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { CustomSelect } from "@/components/ui/custom-select";
 import {
@@ -189,6 +188,7 @@ export function SessionList({
   sessionDays,
   memberBalances = {},
   adminMemberId = null,
+  weekDays = [],
 }: {
   sessions: SessionCard[];
   courts?: Court[];
@@ -207,6 +207,13 @@ export function SessionList({
   /** Admin's memberId — guests có invitedById trùng = "Khách Admin" (quỹ
    *  chung chi), khác = "Khách của X" (member X tự chi). */
   adminMemberId?: number | null;
+  /** Tuần đích (T2/4/6) cho selector đầu trang: chip cuộn tới buổi đã có / mở
+   *  dialog tạo (prefill ngày) cho ngày chưa có. */
+  weekDays?: {
+    date: string;
+    sessionId: number | null;
+    status: string | null;
+  }[];
 }) {
   const [, setPage] = useQueryState(
     "page",
@@ -246,6 +253,21 @@ export function SessionList({
     Record<number, { play: number; dine: number }>
   >({});
   const [selectedCourtId, setSelectedCourtId] = useState("");
+  // Create dialog date controllable → chip "ngày chưa có buổi" prefill được.
+  const [createDate, setCreateDate] = useState(DEFAULT_DATE);
+
+  function openCreateFor(date: string) {
+    setCreateDate(date);
+    setSelectedCourtId("");
+    setError("");
+    setDialogOpen(true);
+  }
+  function scrollToSession(id: number) {
+    document
+      .getElementById(`session-${id}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   const t = useTranslations("sessions");
   const tF = useTranslations("finance");
   const tVoting = useTranslations("voting");
@@ -413,7 +435,8 @@ export function SessionList({
                 id="date"
                 name="date"
                 type="date"
-                defaultValue={DEFAULT_DATE}
+                value={createDate}
+                onChange={(e) => setCreateDate(e.target.value)}
                 required
               />
             </div>
@@ -449,6 +472,45 @@ export function SessionList({
           </form>
         </DialogContent>
 
+        {/* Selector tuần đích (T2/4/6, như trang user) — chip CÓ buổi: cuộn tới
+            card; chip CHƯA có (dashed +): mở dialog tạo buổi prefill đúng ngày. */}
+        {weekDays.length > 0 && (
+          <div className="bg-card/60 mb-3 rounded-xl border p-3">
+            <p className="text-muted-foreground mb-2 text-xs font-medium">
+              {t("thisWeek")}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {weekDays.map((d) => {
+                const has = d.sessionId !== null;
+                const done =
+                  d.status === "completed" || d.status === "cancelled";
+                return (
+                  <button
+                    key={d.date}
+                    type="button"
+                    onClick={() =>
+                      has
+                        ? scrollToSession(d.sessionId!)
+                        : openCreateFor(d.date)
+                    }
+                    className={cn(
+                      "inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium capitalize transition-colors",
+                      has
+                        ? done
+                          ? "bg-muted text-muted-foreground border-transparent"
+                          : "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
+                        : "text-muted-foreground hover:bg-accent border-dashed",
+                    )}
+                  >
+                    {fmtSessionDate(d.date, "weekdayName")}
+                    {!has && <Plus className="h-3.5 w-3.5" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Top bar — filter chips (left, scroll-x trên mobile) + Tạo buổi chơi
             (right, không bị filter đẩy ra ngoài viewport). */}
         <div className="mb-3 flex items-center gap-2">
@@ -466,14 +528,14 @@ export function SessionList({
               ]}
             />
           </div>
-          <DialogTrigger
-            render={
-              <Button size="sm" className="h-9 shrink-0 gap-1 px-3 text-sm" />
-            }
+          <Button
+            size="sm"
+            className="h-9 shrink-0 gap-1 px-3 text-sm"
+            onClick={() => openCreateFor(DEFAULT_DATE)}
           >
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">{t("createSession")}</span>
-          </DialogTrigger>
+          </Button>
         </div>
 
         <div className="grid gap-3">
@@ -564,7 +626,11 @@ export function SessionList({
 
             const showLed = isActive && !isPastPending;
             return (
-              <div key={session.id}>
+              <div
+                key={session.id}
+                id={`session-${session.id}`}
+                className="scroll-mt-4"
+              >
                 <LedBorder active={showLed} variant="pink">
                   <Card className={cn("relative", cardBgClass)}>
                     <CardContent className="space-y-2 p-4">

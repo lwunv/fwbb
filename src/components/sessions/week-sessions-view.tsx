@@ -76,6 +76,10 @@ export function WeekSessionsView({
           d.session?.status === "completed" ||
           d.session?.status === "cancelled";
         const noSession = !d.session;
+        // Số người vote đi chơi cầu cho thứ đó (member willPlay).
+        const playCount = d.session
+          ? d.session.votes.filter((v) => !!v.willPlay).length
+          : 0;
         return (
           <motion.button
             key={d.date}
@@ -84,7 +88,7 @@ export function WeekSessionsView({
             onClick={() => setSelectedDate(d.date)}
             aria-pressed={active}
             className={cn(
-              "min-h-11 rounded-xl border px-3 py-2 text-sm font-medium capitalize transition-colors",
+              "inline-flex min-h-11 items-center gap-1.5 rounded-xl border px-3 py-2 text-sm font-medium capitalize transition-colors",
               active
                 ? "border-primary bg-primary text-primary-foreground shadow-sm"
                 : noSession
@@ -95,6 +99,19 @@ export function WeekSessionsView({
             )}
           >
             {formatSessionDate(d.date, "weekdayName", locale)}
+            {d.session && (
+              <span
+                title="Số người vote đi chơi cầu"
+                className={cn(
+                  "inline-flex min-w-5 items-center justify-center rounded-full px-1 text-xs font-bold tabular-nums",
+                  active
+                    ? "bg-primary-foreground/25"
+                    : "bg-primary/15 text-primary",
+                )}
+              >
+                {playCount}
+              </span>
+            )}
           </motion.button>
         );
       })}

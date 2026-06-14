@@ -5,6 +5,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { Providers } from "@/components/providers";
+import { PinkThemeEffects } from "@/components/shared/pink-theme-effects";
 import "./globals.css";
 
 /** vi/en: Roboto. zh: stack dùng Geist + font hệ thống Hán (`globals.css` html[lang="zh"]) */
@@ -62,6 +63,7 @@ export default async function RootLayout({
               disableTransitionOnChange
             >
               <Providers>{children}</Providers>
+              <PinkThemeEffects />
             </ThemeProvider>
           </NuqsAdapter>
         </NextIntlClientProvider>

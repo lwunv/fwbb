@@ -6,12 +6,12 @@ import {
   shuttlecockBrands,
   sessionMinDeductionExemptions,
   financialTransactions,
-  admins,
 } from "@/db/schema";
 import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { computeBalancesForMembers } from "@/lib/fund-core";
 import { ymdInVN } from "@/lib/date-format";
 import { getDefaultCourt, getSessionDaysOfWeek } from "@/actions/settings";
+import { getWeekBadmintonDays } from "@/actions/sessions";
 import { SessionList, type StatusFilter } from "./session-list";
 
 const PAGE_SIZE = 10;
@@ -69,6 +69,7 @@ export default async function SessionsPage({
     totalRows,
     defaultCourt,
     sessionDays,
+    weekBadmintonDays,
   ] = await Promise.all([
     db.query.courts.findMany({
       where: eq(courts.isActive, true),
@@ -89,7 +90,16 @@ export default async function SessionsPage({
       .then((r) => Number(r[0]?.count ?? 0)),
     getDefaultCourt(),
     getSessionDaysOfWeek(),
+    getWeekBadmintonDays(),
   ]);
+
+  // Selector tuần đích cho admin (T2/4/6) — lightweight: chỉ id+status để chip
+  // biết ngày nào đã có buổi (cuộn tới) vs chưa (mở dialog tạo, prefill ngày).
+  const weekDays = weekBadmintonDays.map((d) => ({
+    date: d.date,
+    sessionId: d.session?.id ?? null,
+    status: d.session?.status ?? null,
+  }));
 
   // Admin's memberId — pass xuống SessionList để phân biệt "Khách Admin"
   // (invitedBy=admin) khi render expanded attendee list. Không có admin =
@@ -293,6 +303,7 @@ export default async function SessionsPage({
         sessionDays={sessionDays}
         memberBalances={memberBalances}
         adminMemberId={adminMemberId}
+        weekDays={weekDays}
       />
     </div>
   );
