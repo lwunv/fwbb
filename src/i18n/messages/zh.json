@@ -823,7 +823,12 @@
     "txRefund": "退款",
     "session": "场次 {date}",
     "owingFund": "欠基金",
-    "depletedFund": "基金已用完"
+    "depletedFund": "基金已用完",
+    "topupContribute": "存入基金",
+    "topupContributeHint": "默认 500,000",
+    "topupPayDebt": "还款",
+    "topupNoDebt": "无欠款",
+    "topupOwes": "欠 {amount}"
   },
   "adminCourtRent": {
     "title": "场地费",

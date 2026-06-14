@@ -823,7 +823,12 @@
     "txRefund": "Refund",
     "session": "Session {date}",
     "owingFund": "Owing the fund",
-    "depletedFund": "Fund depleted"
+    "depletedFund": "Fund depleted",
+    "topupContribute": "Top up fund",
+    "topupContributeHint": "Default 500,000",
+    "topupPayDebt": "Repay debt",
+    "topupNoDebt": "No debt",
+    "topupOwes": "Owes {amount}"
   },
   "adminCourtRent": {
     "title": "Court rent",

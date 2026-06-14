@@ -4,8 +4,11 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { formatK } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { NumberStepper } from "@/components/ui/number-stepper";
 import { PaymentQR } from "@/components/payment/payment-qr";
+
+/** Bước ±50K cho ô nhập tiền nạp quỹ. */
+const TOPUP_STEP = 50_000;
 
 interface Props {
   memberId: number;
@@ -31,20 +34,14 @@ export function FundTopUpCard({ memberId, debtAmount, bare = false }: Props) {
   const [mode, setMode] = useState<"contribute" | "payDebt">(
     hasDebt ? "payDebt" : "contribute",
   );
-  const [customAmount, setCustomAmount] = useState<string>(
-    hasDebt ? String(debtAmount) : "500000",
-  );
+  const [amount, setAmount] = useState<number>(hasDebt ? debtAmount : 500000);
 
   function pickMode(next: "contribute" | "payDebt") {
     setMode(next);
-    if (next === "contribute") setCustomAmount("500000");
-    else setCustomAmount(String(debtAmount || 0));
+    setAmount(next === "contribute" ? 500000 : debtAmount || 0);
   }
 
-  const formattedAmount = customAmount
-    ? Number(customAmount).toLocaleString("vi-VN")
-    : "";
-  const qrAmount = Math.max(0, parseInt(customAmount, 10) || 0);
+  const qrAmount = Math.max(0, amount);
   const qrMemo =
     mode === "payDebt" ? `FWBB NO ${memberId}` : `FWBB QUY ${memberId}`;
 
@@ -74,9 +71,11 @@ export function FundTopUpCard({ memberId, debtAmount, bare = false }: Props) {
             )}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold">Nộp quỹ</span>
+            <span className="block text-sm font-semibold">
+              {t("topupContribute")}
+            </span>
             <span className="text-muted-foreground block text-xs">
-              Mặc định 500.000
+              {t("topupContributeHint")}
             </span>
           </span>
         </button>
@@ -102,7 +101,9 @@ export function FundTopUpCard({ memberId, debtAmount, bare = false }: Props) {
             )}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold">Thanh toán nợ</span>
+            <span className="block text-sm font-semibold">
+              {t("topupPayDebt")}
+            </span>
             <span
               className={`block text-sm ${
                 hasDebt
@@ -110,23 +111,22 @@ export function FundTopUpCard({ memberId, debtAmount, bare = false }: Props) {
                   : "text-muted-foreground"
               }`}
             >
-              {hasDebt ? `Nợ ${formatK(debtAmount)}` : "Không có nợ"}
+              {hasDebt
+                ? t("topupOwes", { amount: formatK(debtAmount) })
+                : t("topupNoDebt")}
             </span>
           </span>
         </button>
       </div>
 
-      <Input
-        type="text"
-        inputMode="numeric"
-        value={formattedAmount}
-        onChange={(e) => {
-          const digits = e.target.value.replace(/\D/g, "");
-          setCustomAmount(digits);
-        }}
-        placeholder={t("amountPlaceholder")}
-        className="tabular-nums"
-        aria-label={t("topUp")}
+      {/* −/+ stepper (bước 50K) + vẫn gõ tay được; format vi-VN. */}
+      <NumberStepper
+        value={amount}
+        onChange={setAmount}
+        step={TOPUP_STEP}
+        min={0}
+        displayFormat="vnd"
+        className="flex w-full"
       />
 
       {qrAmount > 0 && (

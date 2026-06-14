@@ -823,7 +823,12 @@
     "txRefund": "Hoàn quỹ",
     "session": "Buổi {date}",
     "owingFund": "Đang nợ quỹ",
-    "depletedFund": "Quỹ đã hết"
+    "depletedFund": "Quỹ đã hết",
+    "topupContribute": "Nộp quỹ",
+    "topupContributeHint": "Mặc định 500.000",
+    "topupPayDebt": "Thanh toán nợ",
+    "topupNoDebt": "Không có nợ",
+    "topupOwes": "Nợ {amount}"
   },
   "adminCourtRent": {
     "title": "Tiền sân",
