@@ -203,7 +203,7 @@ async function matchFundContribution(
   }
 
   // Auto-settle outstanding session debts with the new balance.
-  const { autoApplyFundToDebts } = await import("@/actions/auto-fund");
+  const { autoApplyFundToDebts } = await import("@/lib/auto-fund-core");
   await autoApplyFundToDebts(member.id);
 
   return {
@@ -488,7 +488,7 @@ async function matchAllDebts(
   // còn sót lại của member (nợ chưa nằm trong batch này, ví dụ nợ cũ chưa
   // member-confirm). Trước đây overpay ngồi idle cho đến contribution kế.
   if (overpay > 0) {
-    const { autoApplyFundToDebts } = await import("@/actions/auto-fund");
+    const { autoApplyFundToDebts } = await import("@/lib/auto-fund-core");
     await autoApplyFundToDebts(memberId);
   }
 
@@ -695,7 +695,7 @@ async function confirmDebtFromBankTransfer(
   // Overpay credit đã được ghi — auto-apply vào nợ còn lại của member (nợ
   // ngoài debt này, vd nợ cũ chưa member-confirm). Symmetric với matchAllDebts.
   if (overpay > 0) {
-    const { autoApplyFundToDebts } = await import("@/actions/auto-fund");
+    const { autoApplyFundToDebts } = await import("@/lib/auto-fund-core");
     await autoApplyFundToDebts(debt.memberId);
   }
 

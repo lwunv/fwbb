@@ -243,8 +243,24 @@ describe("validateEmailAuth", () => {
   });
 
   it("should be case insensitive", () => {
-    const auth = "SPF=PASS DKIM=PASS";
+    const auth = "SPF=PASS DKIM=PASS HEADER.D=TIMO.VN";
     expect(validateEmailAuth(auth)).toBe(true);
+  });
+
+  it("accepts DKIM aligned via header.i=@subdomain.timo.vn", () => {
+    const auth = "spf=pass dkim=pass header.i=@mail.timo.vn header.s=sel";
+    expect(validateEmailAuth(auth)).toBe(true);
+  });
+
+  it("rejects dkim=pass that is NOT aligned to timo.vn (DMARC-bypass guard)", () => {
+    // Attacker DKIM-signs their own domain + forges From: support@timo.vn.
+    const auth = "spf=pass (google.com) dkim=pass header.d=attacker.com";
+    expect(validateEmailAuth(auth)).toBe(false);
+  });
+
+  it("rejects a lookalike domain (timo.vn.evil.com)", () => {
+    const auth = "spf=pass dkim=pass header.d=timo.vn.evil.com";
+    expect(validateEmailAuth(auth)).toBe(false);
   });
 });
 

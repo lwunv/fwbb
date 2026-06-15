@@ -8,17 +8,8 @@ import { setAdminCookie, clearAdminCookie, requireAdmin } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { loginSchema } from "@/lib/validators";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { headers } from "next/headers";
+import { getTrustedClientIp } from "@/lib/client-ip";
 import { getTranslations } from "next-intl/server";
-
-async function getClientIp(): Promise<string> {
-  const h = await headers();
-  return (
-    h.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    h.get("x-real-ip") ||
-    "unknown"
-  );
-}
 
 export async function login(
   _prevState: { error: string } | null,
@@ -39,7 +30,7 @@ export async function login(
   // 1. Per (IP+username): 5 lần / 5 phút — chống guess password 1 user
   // 2. Per IP: 20 lần / 5 phút — chống enum username (mỗi username mới
   //    không reset bucket #1 → unbounded brute-force giữa nhiều username)
-  const ip = await getClientIp();
+  const ip = await getTrustedClientIp();
   const rlIp = await checkRateLimit(`login-ip:${ip}`, 20, 5 * 60_000);
   if (!rlIp.ok) {
     return {
@@ -54,6 +45,18 @@ export async function login(
   if (!rl.ok) {
     return {
       error: t("tooManyLoginAttempts", { seconds: rl.retryAfter ?? 60 }),
+    };
+  }
+  // 3. Per USERNAME (IP-independent): caps online guessing of one account even
+  //    when the attacker rotates source IPs (XFF can't reset this bucket).
+  const rlUser = await checkRateLimit(
+    `login-user:${parsed.data.username}`,
+    10,
+    15 * 60_000,
+  );
+  if (!rlUser.ok) {
+    return {
+      error: t("tooManyLoginAttempts", { seconds: rlUser.retryAfter ?? 900 }),
     };
   }
 
@@ -90,7 +93,7 @@ export async function changePassword(
 
   // Rate-limit per IP — bcrypt 12 round ~250ms/attempt, vẫn cần chặn online
   // brute-force ở quy mô lớn. Bucket 5 lần / 5 phút.
-  const ip = await getClientIp();
+  const ip = await getTrustedClientIp();
   const rl = await checkRateLimit(`change-password:${ip}`, 5, 5 * 60_000);
   if (!rl.ok) {
     return {

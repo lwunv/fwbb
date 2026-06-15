@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { setUserCookie, clearUserCookie } from "@/lib/user-identity";
 import { revalidatePath } from "next/cache";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { headers } from "next/headers";
+import { getTrustedClientIp } from "@/lib/client-ip";
 import { getTranslations } from "next-intl/server";
 
 interface FacebookUserInfo {
@@ -25,11 +25,7 @@ export async function facebookLogin(accessToken: string) {
   }
 
   // 10 FB login attempts per IP per 5 minutes
-  const h = await headers();
-  const ip =
-    h.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    h.get("x-real-ip") ||
-    "unknown";
+  const ip = await getTrustedClientIp();
   const rl = await checkRateLimit(`fb-login:${ip}`, 10, 5 * 60_000);
   if (!rl.ok) {
     const t = await getTranslations("serverErrors");

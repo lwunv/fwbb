@@ -35,8 +35,8 @@ vi.mock("@/lib/user-identity", () => userMock);
 const { db: testDb, client } = await createTestDb();
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { autoApplyFundToDebts, claimFundContribution } =
-  await import("./auto-fund");
+const { autoApplyFundToDebts } = await import("@/lib/auto-fund-core");
+const { claimFundContribution } = await import("./auto-fund");
 
 /** Helper: stub the cookie to act as `memberId`. Use before each claim call. */
 function actAs(memberId: number, facebookId = `fb-${memberId}`) {

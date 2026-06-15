@@ -105,7 +105,7 @@ export async function recordContribution(
   }
 
   // Auto-settle outstanding session debts with the new balance.
-  const { autoApplyFundToDebts } = await import("./auto-fund");
+  const { autoApplyFundToDebts } = await import("@/lib/auto-fund-core");
   await autoApplyFundToDebts(parsed.data.memberId);
 
   revalidatePath("/admin/fund");
@@ -512,7 +512,7 @@ export async function reverseFinancialTransaction(
   // contribution khiến balance tụt xuống nhưng vẫn > 0, không cần thêm logic.
   // Nhưng nếu reverse 1 refund → balance tăng → có thể auto-apply vào debt.
   if (original.memberId !== null && original.type === "fund_refund") {
-    const { autoApplyFundToDebts } = await import("./auto-fund");
+    const { autoApplyFundToDebts } = await import("@/lib/auto-fund-core");
     await autoApplyFundToDebts(original.memberId);
   }
 
@@ -984,7 +984,7 @@ export async function confirmFundClaim(notificationId: number) {
   }
 
   // Auto-settle outstanding session debts with the new balance.
-  const { autoApplyFundToDebts } = await import("./auto-fund");
+  const { autoApplyFundToDebts } = await import("@/lib/auto-fund-core");
   await autoApplyFundToDebts(memberId);
 
   revalidatePath("/admin/fund");

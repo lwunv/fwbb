@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { setUserCookie } from "@/lib/user-identity";
 import { revalidatePath } from "next/cache";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { headers } from "next/headers";
+import { getTrustedClientIp } from "@/lib/client-ip";
 import { getTranslations } from "next-intl/server";
 
 /**
@@ -78,11 +78,7 @@ export async function googleLogin(idToken: string) {
   }
 
   // 10 Google login attempts per IP per 5 minutes
-  const h = await headers();
-  const ip =
-    h.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    h.get("x-real-ip") ||
-    "unknown";
+  const ip = await getTrustedClientIp();
   const rl = await checkRateLimit(`google-login:${ip}`, 10, 5 * 60_000);
   if (!rl.ok) {
     const t = await getTranslations("serverErrors");

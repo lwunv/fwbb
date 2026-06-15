@@ -7,10 +7,11 @@ import bcrypt from "bcryptjs";
 import { setUserCookie, getUserFromCookie } from "@/lib/user-identity";
 import { revalidatePath } from "next/cache";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { headers } from "next/headers";
+import { getTrustedClientIp } from "@/lib/client-ip";
 import { getTranslations } from "next-intl/server";
 
-const BCRYPT_ROUNDS = 10;
+// Parity with the admin path (auth.ts): cost 12 + reject >72 UTF-8 bytes.
+const BCRYPT_ROUNDS = 12;
 
 function normalizeEmail(s: string): string {
   return s.trim().toLowerCase();
@@ -21,7 +22,15 @@ function isEmail(s: string): boolean {
 }
 
 function isValidPassword(s: string): boolean {
-  return typeof s === "string" && s.length >= 8 && s.length <= 128;
+  return (
+    typeof s === "string" &&
+    s.length >= 8 &&
+    s.length <= 128 &&
+    // bcrypt silently TRUNCATES at 72 bytes — reject (don't truncate) so a
+    // member's diacritic-heavy password (vd 25 ký tự 'ố' = 75 bytes) isn't
+    // weakened to its first ~24 chars. Matches admin path (auth.ts).
+    Buffer.byteLength(s, "utf8") <= 72
+  );
 }
 
 /**
@@ -37,11 +46,7 @@ export async function signupWithPassword(input: {
   bankAccountNo?: string;
 }) {
   // Rate limit: 5 signup attempts per IP per 10 minutes
-  const h = await headers();
-  const ip =
-    h.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    h.get("x-real-ip") ||
-    "unknown";
+  const ip = await getTrustedClientIp();
   const rl = await checkRateLimit(`pw-signup:${ip}`, 5, 10 * 60_000);
   if (!rl.ok) {
     const t = await getTranslations("serverErrors");
@@ -112,11 +117,7 @@ export async function loginWithPassword(input: {
   password: string;
 }) {
   // Rate limit: 10 login attempts per IP per 5 minutes
-  const h = await headers();
-  const ip =
-    h.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    h.get("x-real-ip") ||
-    "unknown";
+  const ip = await getTrustedClientIp();
   const rl = await checkRateLimit(`pw-login:${ip}`, 10, 5 * 60_000);
   if (!rl.ok) {
     const t = await getTranslations("serverErrors");

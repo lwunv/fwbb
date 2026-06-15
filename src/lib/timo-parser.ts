@@ -165,14 +165,36 @@ export function parseMemoIntent(memo: string): MemoIntent {
   };
 }
 
+/** Domain the bank signs its transactional email with (DKIM d= / header.i=@).
+ *  Override via env if Timo ever signs from a different domain. */
+const TIMO_AUTH_DOMAIN = process.env.TIMO_AUTH_DOMAIN || "timo.vn";
+
 /**
  * Validate email security headers.
- * Returns true only if both SPF and DKIM pass.
+ *
+ * SECURITY: requires SPF=pass AND a DKIM=pass that is ALIGNED to the bank's
+ * domain (header.d= / header.i=@ ending in TIMO_AUTH_DOMAIN). A bare
+ * `dkim=pass` check is a DMARC-bypass hole: an attacker can DKIM-sign their OWN
+ * domain (dkim=pass for d=attacker.com) while forging From: support@timo.vn —
+ * neither SPF (envelope) nor an unaligned DKIM authenticates the From header.
+ * Requiring d= alignment binds the pass to timo.vn.
+ *
+ * Note: the From===support@timo.vn check (route) + Gmail inbound DMARC + the
+ * message being fetched from the admin's own mailbox are additional layers; if
+ * a legitimate Timo email ever fails alignment, the admin can still confirm the
+ * payment manually (confirmPaymentByAdmin).
  */
 export function validateEmailAuth(authResults: string): boolean {
-  return (
-    /\bspf=pass\b/i.test(authResults) && /\bdkim=pass\b/i.test(authResults)
+  if (!/\bspf=pass\b/i.test(authResults)) return false;
+  const domain = TIMO_AUTH_DOMAIN.replace(/[.\\]/g, "\\$&");
+  // dkim=pass ... header.d=timo.vn  OR  dkim=pass ... header.i=@(sub.)timo.vn
+  // Negative lookahead (not \b) so a lookalike like timo.vn.evil.com is rejected
+  // (\b would match the timo.vn prefix and pass).
+  const aligned = new RegExp(
+    `\\bdkim=pass\\b[^;]*?\\bheader\\.(?:d=|i=@)(?:[a-z0-9-]+\\.)*${domain}(?![a-z0-9.-])`,
+    "i",
   );
+  return aligned.test(authResults);
 }
 
 /**

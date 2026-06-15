@@ -300,6 +300,26 @@ export async function approveAndMergeMember(
   if (target.approvalStatus === "rejected") {
     return { error: "Target đã bị reject, không thể merge" };
   }
+  // Account-takeover guard: KHÔNG graft OAuth credential lên một tài khoản đã
+  // có mật khẩu riêng. Suggester (getNameMatches) chỉ lọc account thiếu OAuth →
+  // có thể là account password-only thật của người khác; gán googleId/facebookId
+  // của pending vào đó sẽ cho pending user login AS họ (chiếm tài khoản + quỹ).
+  // Mirror invariant ở google-auth.ts — chỉ merge vào placeholder rỗng credential.
+  if (target.passwordHash) {
+    return {
+      error:
+        "Target đã có mật khẩu riêng — không merge OAuth vào (rủi ro chiếm tài khoản). Để member đó tự đăng nhập, hoặc duyệt pending thành tài khoản riêng.",
+    };
+  }
+  if (
+    (pending.facebookId && target.facebookId) ||
+    (pending.googleId && target.googleId)
+  ) {
+    return {
+      error:
+        "Target đã có tài khoản OAuth riêng — không merge để tránh ghi đè/nhầm danh tính.",
+    };
+  }
 
   const adminId = parseInt(String(auth.admin.sub), 10) || null;
 
