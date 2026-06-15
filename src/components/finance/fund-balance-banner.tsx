@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertCircle,
@@ -36,6 +37,7 @@ export function FundBalanceBanner({
   memberId?: number | null;
 }) {
   const [open, setOpen] = useState(false);
+  const t = useTranslations("fundStatus");
 
   const status = getFundStatus(balance);
   if (status === "hasFund") return null;
@@ -86,10 +88,10 @@ export function FundBalanceBanner({
           )}
         >
           {isOwing
-            ? "Bạn ơi, vẫn còn nợ quỹ đấy nhé, nhớ thanh toán sớm!"
+            ? t("bannerOwing")
             : isLowFund
-              ? `Quỹ sắp hết — còn ${formatK(balance)}, nạp thêm để chắc cho buổi sau nhé!`
-              : "Hết quỹ rồi bạn ơi, nộp thêm đi nhé!"}
+              ? t("bannerLowFund", { amount: formatK(balance) })
+              : t("bannerDepleted")}
         </p>
         {isOwing && (
           <p className="text-destructive mt-1 text-base font-bold tabular-nums">
@@ -99,9 +101,9 @@ export function FundBalanceBanner({
         <p className="text-muted-foreground mt-1 text-xs">
           {canExpand
             ? open
-              ? "Bấm lại để đóng QR"
-              : "Bấm để mở QR ngay tại đây"
-            : "Bấm để mở trang Quỹ và nộp tiền"}
+              ? t("tapToClose")
+              : t("tapToOpen")
+            : t("tapToOpenPage")}
         </p>
       </div>
       {canExpand ? (
@@ -166,7 +168,7 @@ export function FundBalanceBanner({
                       : "border-amber-500/40 text-amber-700 hover:bg-amber-500/10 dark:text-amber-300",
                 )}
               >
-                Xem chi tiết
+                {t("viewDetail")}
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </div>

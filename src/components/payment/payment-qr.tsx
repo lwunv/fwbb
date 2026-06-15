@@ -101,8 +101,8 @@ export function PaymentQR({
       });
       toast.success(
         status.matched
-          ? `Đã nhận thanh toán ${formatVND(status.amount ?? amount)}`
-          : `Đã nhận chuyển khoản — chờ xác nhận`,
+          ? tF("qrToastMatched", { amount: formatVND(status.amount ?? amount) })
+          : tF("qrToastReceived"),
       );
       router.refresh();
     });
@@ -142,7 +142,17 @@ export function PaymentQR({
     value: string;
     icon: typeof Banknote;
     display?: string;
-  }) => <CopyRow {...props} copied={copied} onCopy={(v, l) => copy(v, l)} />;
+  }) => (
+    <CopyRow
+      {...props}
+      copied={copied}
+      onCopy={(v, l) => copy(v, l)}
+      ariaLabel={tF("qrCopyAria", {
+        label: props.label,
+        value: props.display ?? props.value,
+      })}
+    />
+  );
 
   // ─── INLINE MODE ───
   if (variant === "inline") {
@@ -162,15 +172,19 @@ export function PaymentQR({
           </div>
           <div className="min-w-0 flex-1 space-y-1.5">
             {renderRow({
-              label: "Số tiền",
+              label: tF("qrAmount"),
               value: String(amount),
               icon: Banknote,
               display: formatVND(amount),
             })}
-            {renderRow({ label: "Nội dung", value: memo, icon: FileText })}
+            {renderRow({
+              label: tF("qrContent"),
+              value: memo,
+              icon: FileText,
+            })}
             {!compact &&
               renderRow({
-                label: "STK Timo",
+                label: tF("qrAccountTimo"),
                 value: ACCOUNT_NO,
                 icon: Banknote,
                 display: ACCOUNT_NO,
@@ -182,8 +196,10 @@ export function PaymentQR({
             khiến user gõ tay sai memo và auto-match webhook fail. */}
         <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-2">
           <p className="text-xs text-amber-700 dark:text-amber-400">
-            ⚠️ Nhập <strong>đúng nội dung chuyển khoản</strong> để hệ thống tự
-            động xác nhận.
+            ⚠️{" "}
+            {tF.rich("qrMemoWarning", {
+              b: (chunks) => <strong>{chunks}</strong>,
+            })}
           </p>
         </div>
         {banner}
@@ -244,7 +260,7 @@ export function PaymentQR({
                 {formatVND(amount)}
               </p>
               <p className="text-muted-foreground mt-1 text-sm">
-                Quét mã QR bằng app ngân hàng bất kỳ
+                {tF("qrScanHint")}
               </p>
             </div>
             <div className="mt-3">{banner}</div>
@@ -253,26 +269,40 @@ export function PaymentQR({
           <div className="space-y-2 px-5 pb-5">
             <div className="bg-muted/30 space-y-3 rounded-xl border p-4">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground text-sm">Ngân hàng</span>
+                <span className="text-muted-foreground text-sm">
+                  {tF("qrBank")}
+                </span>
                 <span className="text-sm font-medium">Timo (VPBank)</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground text-sm">Chủ TK</span>
+                <span className="text-muted-foreground text-sm">
+                  {tF("qrAccountHolder")}
+                </span>
                 <span className="text-sm font-medium">{ACCOUNT_NAME}</span>
               </div>
             </div>
-            {renderRow({ label: "STK", value: ACCOUNT_NO, icon: Banknote })}
             {renderRow({
-              label: "Số tiền",
+              label: tF("qrAccountShort"),
+              value: ACCOUNT_NO,
+              icon: Banknote,
+            })}
+            {renderRow({
+              label: tF("qrAmount"),
               value: String(amount),
               icon: Banknote,
               display: formatVND(amount),
             })}
-            {renderRow({ label: "Nội dung", value: memo, icon: FileText })}
+            {renderRow({
+              label: tF("qrContent"),
+              value: memo,
+              icon: FileText,
+            })}
             <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
               <p className="text-xs text-amber-700 dark:text-amber-400">
-                ⚠️ Nhập <strong>đúng nội dung chuyển khoản</strong> để hệ thống
-                tự động xác nhận. Nếu nhập sai, admin sẽ xác nhận thủ công.
+                ⚠️{" "}
+                {tF.rich("qrMemoWarningLong", {
+                  b: (chunks) => <strong>{chunks}</strong>,
+                })}
               </p>
             </div>
           </div>
@@ -294,6 +324,7 @@ function StatusBanner({
   paymentMatched: boolean;
   disablePolling: boolean;
 }) {
+  const tF = useTranslations("finance");
   if (paymentReceived) {
     return (
       <motion.div
@@ -306,9 +337,7 @@ function StatusBanner({
         }`}
       >
         <CheckCircle2 className="h-4 w-4" />
-        {paymentMatched
-          ? "Đã nhận thanh toán — tự động xác nhận"
-          : "Đã nhận chuyển khoản — chờ admin xác nhận"}
+        {paymentMatched ? tF("qrReceivedMatched") : tF("qrReceivedUnmatched")}
       </motion.div>
     );
   }
@@ -316,7 +345,7 @@ function StatusBanner({
   return (
     <div className="text-muted-foreground flex items-center justify-center gap-1.5 text-sm">
       <Loader2 className="h-3 w-3 animate-spin" />
-      <span>Đang chờ chuyển khoản…</span>
+      <span>{tF("qrWaiting")}</span>
     </div>
   );
 }
@@ -328,6 +357,7 @@ function CopyRow({
   display,
   copied,
   onCopy,
+  ariaLabel,
 }: {
   label: string;
   value: string;
@@ -335,13 +365,14 @@ function CopyRow({
   display?: string;
   copied: string | null;
   onCopy: (value: string, label: string) => void;
+  ariaLabel: string;
 }) {
   return (
     <button
       type="button"
       onClick={() => onCopy(value, label)}
       className="hover:bg-accent/50 flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left transition-colors"
-      aria-label={`Sao chép ${label}: ${display ?? value}`}
+      aria-label={ariaLabel}
     >
       <span className="flex items-center gap-1.5 text-xs">
         <Icon className="text-muted-foreground h-3.5 w-3.5" />

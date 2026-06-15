@@ -219,7 +219,22 @@
     "bankTransfer": "转账",
     "payDebtTitle": "支付欠款",
     "payDebtSession": "活动 {date}",
-    "qrMemoDebt": "FWBB S{id}"
+    "qrMemoDebt": "FWBB S{id}",
+    "qrAmount": "金额",
+    "qrContent": "转账内容",
+    "qrAccountTimo": "Timo 账号",
+    "qrAccountShort": "账号",
+    "qrBank": "银行",
+    "qrAccountHolder": "账户名",
+    "qrScanHint": "用任意银行 App 扫描二维码",
+    "qrMemoWarning": "请输入<b>正确的转账内容</b>，系统才能自动确认。",
+    "qrMemoWarningLong": "请输入<b>正确的转账内容</b>，系统才能自动确认。如填错，管理员会手动确认。",
+    "qrWaiting": "等待转账中…",
+    "qrReceivedMatched": "已收到付款 — 自动确认",
+    "qrReceivedUnmatched": "已收到转账 — 等待管理员确认",
+    "qrToastMatched": "已收到付款 {amount}",
+    "qrToastReceived": "已收到转账 — 等待确认",
+    "qrCopyAria": "复制{label}：{value}"
   },
   "inventory": {
     "inventory": "库存",
@@ -808,7 +823,14 @@
     "lowFund": "余额不足",
     "hasFund": "充足",
     "bannerLowFundTitle": "余额即将不足",
-    "bannerLowFundDesc": "您的余额为 {amount}。请充值以参加后续活动。"
+    "bannerLowFundDesc": "您的余额为 {amount}。请充值以参加后续活动。",
+    "bannerOwing": "你还欠基金哦，记得尽快缴纳！",
+    "bannerLowFund": "基金快用完了 — 还剩 {amount}，多充一点以备下次！",
+    "bannerDepleted": "基金用完啦，快充值吧！",
+    "tapToClose": "再点一次关闭二维码",
+    "tapToOpen": "点击在此处打开二维码",
+    "tapToOpenPage": "点击打开基金页面去缴费",
+    "viewDetail": "查看详情"
   },
   "myFundClient": {
     "myFund": "我的资金",

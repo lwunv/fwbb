@@ -219,7 +219,22 @@
     "bankTransfer": "Bank transfer",
     "payDebtTitle": "Pay debt",
     "payDebtSession": "Session {date}",
-    "qrMemoDebt": "FWBB S{id}"
+    "qrMemoDebt": "FWBB S{id}",
+    "qrAmount": "Amount",
+    "qrContent": "Memo",
+    "qrAccountTimo": "Timo acct.",
+    "qrAccountShort": "Account",
+    "qrBank": "Bank",
+    "qrAccountHolder": "Account name",
+    "qrScanHint": "Scan the QR with any banking app",
+    "qrMemoWarning": "Enter the <b>exact transfer memo</b> so the system can auto-confirm.",
+    "qrMemoWarningLong": "Enter the <b>exact transfer memo</b> so the system can auto-confirm. If it's wrong, the admin will confirm manually.",
+    "qrWaiting": "Waiting for transfer…",
+    "qrReceivedMatched": "Payment received — auto-confirmed",
+    "qrReceivedUnmatched": "Transfer received — awaiting admin confirmation",
+    "qrToastMatched": "Payment received {amount}",
+    "qrToastReceived": "Transfer received — awaiting confirmation",
+    "qrCopyAria": "Copy {label}: {value}"
   },
   "inventory": {
     "inventory": "Inventory",
@@ -808,7 +823,14 @@
     "lowFund": "Low fund",
     "hasFund": "Funded",
     "bannerLowFundTitle": "Fund running low",
-    "bannerLowFundDesc": "Your fund balance is {amount}. Top up to cover upcoming sessions."
+    "bannerLowFundDesc": "Your fund balance is {amount}. Top up to cover upcoming sessions.",
+    "bannerOwing": "Hey, you still owe the fund — please pay soon!",
+    "bannerLowFund": "Fund is running low — {amount} left, top up to be safe for next time!",
+    "bannerDepleted": "Your fund is empty — please top up!",
+    "tapToClose": "Tap again to close the QR",
+    "tapToOpen": "Tap to open the QR right here",
+    "tapToOpenPage": "Tap to open the Fund page and pay",
+    "viewDetail": "View details"
   },
   "myFundClient": {
     "myFund": "My fund",

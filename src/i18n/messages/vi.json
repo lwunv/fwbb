@@ -219,7 +219,22 @@
     "bankTransfer": "Chuyển khoản",
     "payDebtTitle": "Thanh toán nợ",
     "payDebtSession": "Buổi {date}",
-    "qrMemoDebt": "FWBB S{id}"
+    "qrMemoDebt": "FWBB S{id}",
+    "qrAmount": "Số tiền",
+    "qrContent": "Nội dung",
+    "qrAccountTimo": "STK Timo",
+    "qrAccountShort": "STK",
+    "qrBank": "Ngân hàng",
+    "qrAccountHolder": "Chủ TK",
+    "qrScanHint": "Quét mã QR bằng app ngân hàng bất kỳ",
+    "qrMemoWarning": "Nhập <b>đúng nội dung chuyển khoản</b> để hệ thống tự động xác nhận.",
+    "qrMemoWarningLong": "Nhập <b>đúng nội dung chuyển khoản</b> để hệ thống tự động xác nhận. Nếu nhập sai, admin sẽ xác nhận thủ công.",
+    "qrWaiting": "Đang chờ chuyển khoản…",
+    "qrReceivedMatched": "Đã nhận thanh toán — tự động xác nhận",
+    "qrReceivedUnmatched": "Đã nhận chuyển khoản — chờ admin xác nhận",
+    "qrToastMatched": "Đã nhận thanh toán {amount}",
+    "qrToastReceived": "Đã nhận chuyển khoản — chờ xác nhận",
+    "qrCopyAria": "Sao chép {label}: {value}"
   },
   "inventory": {
     "inventory": "Tồn kho",
@@ -808,7 +823,14 @@
     "lowFund": "Gần hết quỹ",
     "hasFund": "Còn quỹ",
     "bannerLowFundTitle": "Quỹ sắp hết",
-    "bannerLowFundDesc": "Quỹ của bạn còn {amount}. Nạp thêm để đảm bảo các buổi sau."
+    "bannerLowFundDesc": "Quỹ của bạn còn {amount}. Nạp thêm để đảm bảo các buổi sau.",
+    "bannerOwing": "Bạn ơi, vẫn còn nợ quỹ đấy nhé, nhớ thanh toán sớm!",
+    "bannerLowFund": "Quỹ sắp hết — còn {amount}, nạp thêm để chắc cho buổi sau nhé!",
+    "bannerDepleted": "Hết quỹ rồi bạn ơi, nộp thêm đi nhé!",
+    "tapToClose": "Bấm lại để đóng QR",
+    "tapToOpen": "Bấm để mở QR ngay tại đây",
+    "tapToOpenPage": "Bấm để mở trang Quỹ và nộp tiền",
+    "viewDetail": "Xem chi tiết"
   },
   "myFundClient": {
     "myFund": "Quỹ của tôi",
