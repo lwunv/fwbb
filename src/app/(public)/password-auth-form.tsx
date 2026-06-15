@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,7 @@ type Mode = "login" | "signup";
  */
 export function PasswordAuthForm() {
   const t = useTranslations("passwordAuth");
+  const router = useRouter();
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -53,8 +55,14 @@ export function PasswordAuthForm() {
             });
       if (result && "error" in result && result.error) {
         setError(result.error);
+        return;
       }
-      // Success → revalidatePath triggers layout re-render.
+      // Success → cookie đã set server-side. revalidatePath chỉ xoá cache
+      // server, KHÔNG tự re-render (public) layout phía client → user kẹt
+      // ở form login, không thấy màn "chờ duyệt". router.refresh() ép full
+      // route re-render với cookie mới: pending → PendingApprovalGate,
+      // approved → app. (Cùng pattern usePolling trong pending gate.)
+      router.refresh();
     });
   }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ export function FacebookLoginGate({ appName = "FWBB" }: { appName?: string }) {
   const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
   const [isPending, startTransition] = useTransition();
   const t = useTranslations("fbLogin");
+  const router = useRouter();
   const locale = useLocale();
   const isIAB = typeof navigator !== "undefined" && isInFacebookBrowser();
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
@@ -50,6 +52,7 @@ export function FacebookLoginGate({ appName = "FWBB" }: { appName?: string }) {
                 status.authResponse!.accessToken,
               );
               if (result.error) setError(result.error);
+              else router.refresh();
             });
           }
         }
@@ -101,6 +104,7 @@ export function FacebookLoginGate({ appName = "FWBB" }: { appName?: string }) {
           startTransition(async () => {
             const result = await googleLogin(idToken);
             if (result.error) setError(result.error);
+            else router.refresh();
           });
         },
         { width: 280, locale },
@@ -117,6 +121,7 @@ export function FacebookLoginGate({ appName = "FWBB" }: { appName?: string }) {
         const auth = await loginWithFacebook();
         const result = await facebookLogin(auth.accessToken);
         if (result.error) setError(result.error);
+        else router.refresh();
       } catch {
         setError(t("loginCancelled"));
       }
