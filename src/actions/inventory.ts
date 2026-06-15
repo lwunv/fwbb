@@ -263,6 +263,11 @@ export interface StockByBrand {
 }
 
 export async function getStockByBrand(): Promise<StockByBrand[]> {
+  // Admin-only: exposes per-brand prices + stock (business data). Gating the
+  // source also covers checkLowStock (which calls this). Matches the gated
+  // pattern in shuttlecock-finance.ts.
+  const auth = await requireAdmin();
+  if ("error" in auth) return [];
   // Get all brands
   const brands = await db.query.shuttlecockBrands.findMany({
     orderBy: (b, { asc }) => [asc(b.name)],
@@ -328,6 +333,8 @@ export async function getStockByBrand(): Promise<StockByBrand[]> {
 }
 
 export async function getPurchaseHistory() {
+  const auth = await requireAdmin();
+  if ("error" in auth) return [];
   return db.query.inventoryPurchases.findMany({
     orderBy: [desc(inventoryPurchases.purchasedAt)],
     with: { brand: true },
@@ -335,6 +342,8 @@ export async function getPurchaseHistory() {
 }
 
 export async function getUsageHistory() {
+  const auth = await requireAdmin();
+  if ("error" in auth) return [];
   return db.query.sessionShuttlecocks.findMany({
     orderBy: [desc(sessionShuttlecocks.id)],
     with: {

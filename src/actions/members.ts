@@ -14,6 +14,7 @@ import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { getUserFromCookie } from "@/lib/user-identity";
 import { requireAdmin } from "@/lib/auth";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { memberSchema } from "@/lib/validators";
 import { AVATAR_BRAND_KEYS } from "@/lib/member-avatar-presets";
 import { AVATAR_EMOJI_COUNT } from "@/lib/member-avatar-emoji";
@@ -135,6 +136,13 @@ export async function updateMyAvatar(
   if (!user) {
     return { error: t("profileNotSignedIn") };
   }
+  // Rate limit: each call purges up to 9 cache paths → throttle cache-stampede
+  // spam (key on the HMAC-signed, non-spoofable cookie memberId).
+  const rl = await checkRateLimit(`profile:${user.memberId}`, 20, 60_000);
+  if (!rl.ok) {
+    const tErr = await getTranslations("serverErrors");
+    return { error: tErr("tooManyActions", { seconds: rl.retryAfter ?? 60 }) };
+  }
 
   let next: string | null = null;
   if (avatarKey !== null && avatarKey !== "") {
@@ -170,6 +178,11 @@ export async function updateMyProfile(
   const user = await getUserFromCookie();
   if (!user) {
     return { error: t("profileNotSignedIn") };
+  }
+  const rl = await checkRateLimit(`profile:${user.memberId}`, 20, 60_000);
+  if (!rl.ok) {
+    const tErr = await getTranslations("serverErrors");
+    return { error: tErr("tooManyActions", { seconds: rl.retryAfter ?? 60 }) };
   }
 
   const nicknameRaw = String(formData.get("nickname") ?? "").trim();

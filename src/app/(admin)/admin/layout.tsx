@@ -13,8 +13,10 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   // Auth-gate cho mọi /admin/* (trừ /admin/login) đã thực thi ở
-  // `src/middleware.ts` — request không có cookie hợp lệ bị redirect 302 về
-  // /admin/login TRƯỚC khi tới layout/page. Layout này chỉ chạy cho
+  // `src/proxy.ts` (Next 16 middleware) — verify JWT HS256 + role==='admin',
+  // fail-closed (thiếu JWT_SECRET → throw lúc load), cover cả RSC data path
+  // (/_next/data/.../admin...). Request không có cookie hợp lệ bị redirect 302
+  // về /admin/login TRƯỚC khi tới layout/page. Layout này chỉ chạy cho
   // authenticated admin; login page render riêng (children) không sidebar.
   const admin = await getAdminFromCookie();
 

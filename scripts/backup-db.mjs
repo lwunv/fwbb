@@ -8,6 +8,11 @@
  *       node scripts/backup-db.mjs <path>     → ghi vào path chỉ định
  *
  * KHÔNG đụng gì tới DB (chỉ SELECT). An toàn chạy bất cứ lúc nào.
+ *
+ * ⚠️ BẢO MẬT: file dump là PLAINTEXT chứa PII (tên/email/SĐT/STK), số dư quỹ,
+ * password hash + OAuth id của member. KHÔNG commit, KHÔNG để trong thư mục
+ * cloud-sync. Default `d:/tmp` nằm NGOÀI repo → .gitignore không che được; sau
+ * khi dùng xong hãy XÓA hoặc mã hoá (gzip + age/gpg).
  */
 
 import { config } from "dotenv";

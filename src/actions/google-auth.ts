@@ -96,18 +96,26 @@ export async function googleLogin(idToken: string) {
   });
 
   if (existing) {
-    if (!existing.isActive) {
+    // Block deactivated OR rejected — parity with the password path.
+    if (!existing.isActive || existing.approvalStatus === "rejected") {
       return { error: "Account deactivated. Contact admin." };
     }
 
-    // Refresh name/avatar/email from Google if changed
+    // Refresh name/avatar/email from Google if changed. Guard the email update
+    // with a uniqueness check so a colliding email doesn't throw an unhandled
+    // 500 (UNIQUE violation); skip the email field on collision.
     const updates: Partial<typeof members.$inferInsert> = {};
     if (claims.name && existing.name !== claims.name)
       updates.name = claims.name;
     if (claims.picture && existing.avatarUrl !== claims.picture)
       updates.avatarUrl = claims.picture;
-    if (claims.email && existing.email !== claims.email)
-      updates.email = claims.email;
+    if (claims.email && existing.email !== claims.email) {
+      const emailTaken = await db.query.members.findFirst({
+        where: eq(members.email, claims.email),
+        columns: { id: true },
+      });
+      if (!emailTaken) updates.email = claims.email;
+    }
     if (Object.keys(updates).length > 0) {
       await db.update(members).set(updates).where(eq(members.id, existing.id));
     }

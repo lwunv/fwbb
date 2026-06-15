@@ -9,12 +9,16 @@ import { requireAdmin } from "@/lib/auth";
 import { getTranslations } from "next-intl/server";
 
 export async function getCourts() {
+  const auth = await requireAdmin();
+  if ("error" in auth) return [];
   return db.query.courts.findMany({
     orderBy: (c, { asc }) => [asc(c.name)],
   });
 }
 
 export async function getActiveCourts() {
+  const auth = await requireAdmin();
+  if ("error" in auth) return [];
   return db.query.courts.findMany({
     where: eq(courts.isActive, true),
     orderBy: (c, { asc }) => [asc(c.name)],

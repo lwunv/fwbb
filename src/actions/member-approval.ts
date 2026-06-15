@@ -6,6 +6,7 @@ import { eq, and, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { getUserFromCookie, clearUserCookie } from "@/lib/user-identity";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { getTranslations } from "next-intl/server";
 import { mergeMember } from "@/actions/members";
 
@@ -167,6 +168,14 @@ export async function updatePendingProfile(input: {
 }) {
   const user = await getUserFromCookie();
   if (!user) return { error: "Chưa đăng nhập" };
+
+  // Rate limit (pending users get this unthrottled write+cache-purge otherwise).
+  const rl = await checkRateLimit(
+    `pending-profile:${user.memberId}`,
+    20,
+    60_000,
+  );
+  if (!rl.ok) return { error: "Thao tác quá nhanh, thử lại sau." };
 
   const member = await db.query.members.findFirst({
     where: eq(members.id, user.memberId),

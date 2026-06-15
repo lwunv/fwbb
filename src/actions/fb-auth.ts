@@ -82,8 +82,10 @@ export async function facebookLogin(accessToken: string) {
   });
 
   if (existing) {
-    // Check if deactivated
-    if (!existing.isActive) {
+    // Check if deactivated OR rejected — match the password path
+    // (loginWithPassword blocks both). rejectMember sets approvalStatus
+    // without clearing isActive, so OAuth must also block rejected.
+    if (!existing.isActive || existing.approvalStatus === "rejected") {
       return { error: "Account deactivated. Contact admin." };
     }
 

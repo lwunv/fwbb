@@ -18,7 +18,15 @@ const moneyVnd = z
 export const courtSchema = z.object({
   name: z.string().min(1, "Ten san khong duoc de trong").max(100),
   address: z.string().max(500).optional(),
-  mapLink: z.string().url().optional().or(z.literal("")),
+  // http/https only — z.url() alone also accepts javascript:/data: which would
+  // be a stored-XSS sink (mapLink renders into <a href> on the public session
+  // card + window.open on admin).
+  mapLink: z
+    .string()
+    .url()
+    .refine((u) => /^https?:\/\//i.test(u), "Link phải bắt đầu bằng http(s)://")
+    .optional()
+    .or(z.literal("")),
   pricePerSession: moneyVnd,
   pricePerSessionRetail: moneyVnd.optional(),
 });

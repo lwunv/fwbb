@@ -13,12 +13,16 @@ import { requireAdmin } from "@/lib/auth";
 import { getTranslations } from "next-intl/server";
 
 export async function getBrands() {
+  const auth = await requireAdmin();
+  if ("error" in auth) return [];
   return db.query.shuttlecockBrands.findMany({
     orderBy: (b, { asc }) => [asc(b.name)],
   });
 }
 
 export async function getActiveBrands() {
+  const auth = await requireAdmin();
+  if ("error" in auth) return [];
   return db.query.shuttlecockBrands.findMany({
     where: eq(shuttlecockBrands.isActive, true),
     orderBy: (b, { asc }) => [asc(b.name)],

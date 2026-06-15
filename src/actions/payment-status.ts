@@ -5,6 +5,7 @@ import { paymentNotifications, sessionDebts } from "@/db/schema";
 import { and, gte, like, eq, desc } from "drizzle-orm";
 import { getUserFromCookie } from "@/lib/user-identity";
 import { getAdminFromCookie } from "@/lib/auth";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export interface PaymentStatusResult {
   received: boolean;
@@ -33,6 +34,11 @@ export async function checkPaymentForMemo(
 ): Promise<PaymentStatusResult> {
   const user = await getUserFromCookie();
   if (!user) return { received: false, matched: false };
+
+  // Polling action (client polls every ~4s) — cap per member so it can't be
+  // looped into an unbounded LIKE-scan cost amplifier. Degrade silently.
+  const rl = await checkRateLimit(`pay-status:${user.memberId}`, 20, 60_000);
+  if (!rl.ok) return { received: false, matched: false };
 
   if (!memo || memo.trim().length < 3) {
     return { received: false, matched: false };
@@ -105,6 +111,11 @@ export async function checkPaymentForDebt(
   ]);
   const isAdmin = admin?.role === "admin";
   if (!user && !isAdmin) return { received: false, matched: false };
+
+  if (user) {
+    const rl = await checkRateLimit(`pay-status:${user.memberId}`, 20, 60_000);
+    if (!rl.ok) return { received: false, matched: false };
+  }
 
   // Verify ownership before exposing payment metadata.
   if (!isAdmin) {
