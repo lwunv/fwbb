@@ -8,7 +8,7 @@ import {
   sessionMinDeductionExemptions,
   financialTransactions,
 } from "@/db/schema";
-import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { computeBalancesForMembers } from "@/lib/fund-core";
 import { ymdInVN } from "@/lib/date-format";
 import { getDefaultCourt, getSessionDaysOfWeek } from "@/actions/settings";
@@ -114,9 +114,15 @@ export default async function SessionsPage({
   const safePage = Math.min(pageNum, totalPages);
   const offset = (safePage - 1) * PAGE_SIZE;
 
+  // Filter "voting" = buổi sắp tới (date >= today) → sort TĂNG DẦN để buổi gần
+  // nhất (hôm nay/tuần này) lên ĐẦU, buổi xa nhất xuống cuối. Các filter khác
+  // (all/needsConfirm/completed/cancelled) là lịch sử → giảm dần (mới nhất trước).
+  const sessionOrderBy =
+    statusFilter === "voting" ? [asc(sessions.date)] : [desc(sessions.date)];
+
   const allSessions = await db.query.sessions.findMany({
     where: whereClause,
-    orderBy: [desc(sessions.date)],
+    orderBy: sessionOrderBy,
     limit: PAGE_SIZE,
     offset,
     with: {
