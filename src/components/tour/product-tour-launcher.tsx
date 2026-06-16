@@ -21,6 +21,9 @@ export function ProductTourLauncher() {
   useEffect(() => {
     if (autoRan.current) return;
     autoRan.current = true;
+    // Không auto-chạy dưới automation (Playwright đặt navigator.webdriver=true) —
+    // overlay tour sẽ chặn click trong e2e. User thật không bao giờ có cờ này.
+    if (typeof navigator !== "undefined" && navigator.webdriver) return;
     if (!hasSeen()) {
       // Đợi DOM (vote panel, banner) mount xong rồi mới chạy.
       const id = setTimeout(() => run(), 800);
