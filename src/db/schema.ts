@@ -57,6 +57,11 @@ export const members = sqliteTable("members", {
    *  này tồn tại). */
   approvedBy: integer("approved_by"),
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  /** "Đi 2 người": acc này mặc định mỗi buổi đi 1 hay 2 người (vợ/chồng/bạn
+   *  đi cùng). Snapshot vào votes.with_partner lúc vote; đổi đây KHÔNG hồi tố. */
+  defaultWithPartner: integer("default_with_partner", { mode: "boolean" })
+    .notNull()
+    .default(false),
   createdAt: text("created_at").default(sql`(current_timestamp)`),
 });
 
@@ -166,6 +171,12 @@ export const votes = sqliteTable(
     willDine: integer("will_dine", { mode: "boolean" }).default(false),
     guestPlayCount: integer("guest_play_count").default(0),
     guestDineCount: integer("guest_dine_count").default(0),
+    /** Snapshot "đi 2 người" của phiếu này. true → member + người đi cùng = 2
+     *  đầu (cả chơi lẫn nhậu, theo những mục member tham gia). Default theo
+     *  members.default_with_partner lúc UI mở; ghi giá trị thật khi submit. */
+    withPartner: integer("with_partner", { mode: "boolean" })
+      .notNull()
+      .default(false),
     createdAt: text("created_at").default(sql`(current_timestamp)`),
     updatedAt: text("updated_at").default(sql`(current_timestamp)`),
   },
@@ -187,6 +198,11 @@ export const sessionAttendees = sqliteTable("session_attendees", {
     onDelete: "set null",
   }),
   isGuest: integer("is_guest", { mode: "boolean" }).default(false),
+  /** Số đầu người attendee này đại diện ở phần CHƠI/NHẬU của CHÍNH họ. Member
+   *  "đi 2 người" → 2. Guest luôn 1. Bất biến headcount ∈ {1,2} giữ ở app layer
+   *  (zod) — KHÔNG thêm CHECK ở DB để migration là ADD COLUMN thuần (tránh
+   *  recreate-table làm rớt index trên Turso; cùng cách courtPrice giữ invariant ở app). */
+  headcount: integer("headcount").notNull().default(1),
   attendsPlay: integer("attends_play", { mode: "boolean" }).default(false),
   attendsDine: integer("attends_dine", { mode: "boolean" }).default(false),
 });

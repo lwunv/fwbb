@@ -36,6 +36,7 @@ export type VoteTotalsPatch = {
   willDine: boolean;
   guestPlayCount: number;
   guestDineCount: number;
+  withPartner?: boolean;
 };
 
 /** Cập nhật / thêm một dòng vote cục bộ (optimistic), giữ nguyên object các dòng khác khi có thể */
@@ -65,6 +66,7 @@ export function applyMemberVotePatch(
       willDine: patch.willDine,
       guestPlayCount: patch.guestPlayCount,
       guestDineCount: patch.guestDineCount,
+      withPartner: patch.withPartner ?? false,
       createdAt: now,
       updatedAt: now,
       // Only the public-safe fields (matches getSessionVotes' whitelist) — never

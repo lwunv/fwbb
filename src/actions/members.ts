@@ -54,6 +54,7 @@ export async function getActiveMembers() {
       avatarKey: true,
       avatarUrl: true,
       isActive: true,
+      defaultWithPartner: true,
       createdAt: true,
     },
   });
