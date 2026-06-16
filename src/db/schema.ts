@@ -65,6 +65,29 @@ export const members = sqliteTable("members", {
   createdAt: text("created_at").default(sql`(current_timestamp)`),
 });
 
+/**
+ * Single-use password-reset tokens. Stores sha256(rawToken) — never the raw
+ * token (DB leak ≠ usable link). 60-min expiry; usedAt set atomically (CAS)
+ * on consume. FK cascade so deleting a member purges their tokens.
+ */
+export const passwordResetTokens = sqliteTable(
+  "password_reset_tokens",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    memberId: integer("member_id")
+      .notNull()
+      .references(() => members.id, { onDelete: "cascade" }),
+    // sha256(rawToken) hex — never store the raw token.
+    tokenHash: text("token_hash").notNull().unique(),
+    // ISO-8601 UTC (new Date(...).toISOString()) — lexically comparable.
+    expiresAt: text("expires_at").notNull(),
+    // null = unused (single-use). Set atomically on consume.
+    usedAt: text("used_at"),
+    createdAt: text("created_at").default(sql`(current_timestamp)`),
+  },
+  (t) => [index("prt_member_idx").on(t.memberId)],
+);
+
 export const courts = sqliteTable("courts", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
