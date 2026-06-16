@@ -519,6 +519,8 @@ export async function finalizeSessionAuto(sessionId: number) {
         isGuest: false,
         attendsPlay: v.willPlay ?? false,
         attendsDine: v.willDine ?? false,
+        // "Đi 2 người": member gánh 2 suất cho phần chơi/nhậu của họ.
+        headcount: v.withPartner ? 2 : 1,
       });
     }
     const memberName = v.member?.name ?? `M${v.memberId}`;
