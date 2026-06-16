@@ -1,14 +1,26 @@
 "use server";
 
 import { db } from "@/db";
-import { members } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { members, passwordResetTokens } from "@/db/schema";
+import { eq, and, isNull, gt } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { setUserCookie, getUserFromCookie } from "@/lib/user-identity";
+import {
+  setUserCookie,
+  getUserFromCookie,
+  clearUserCookie,
+} from "@/lib/user-identity";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getTrustedClientIp } from "@/lib/client-ip";
 import { getTranslations } from "next-intl/server";
+import {
+  generateResetToken,
+  hashResetToken,
+  resetTokenExpiryIso,
+  isResetTokenExpired,
+} from "@/lib/password-reset-token";
+import { sendPasswordResetEmail } from "@/lib/mailer";
 
 // Parity with the admin path (auth.ts): cost 12 + reject >72 UTF-8 bytes.
 const BCRYPT_ROUNDS = 12;
@@ -240,5 +252,197 @@ export async function setPassword(input: {
     .where(eq(members.id, member.id));
 
   revalidatePath("/me");
+  return { success: true };
+}
+
+// Canonical https origin used to build the reset link. NOT derived from the
+// Host header (host-header injection would poison the link). Set APP_BASE_URL.
+const RESET_BASE_URL = process.env.APP_BASE_URL ?? "http://localhost:3000";
+
+/**
+ * Step 1 of forgot-password. ALWAYS returns the same neutral success shape
+ * (anti-enumeration). Sends the email off the request path via after() so the
+ * branch that sends isn't measurably slower than the branch that doesn't.
+ */
+export async function requestPasswordReset(input: { email: string }) {
+  const t = await getTranslations("serverErrors");
+  // Normalize BEFORE building any rate-limit key so casing variants share a
+  // bucket (Foo@x == foo@x), matching loginWithPassword's normalization.
+  const email =
+    typeof input.email === "string"
+      ? normalizeEmail(input.email).slice(0, 200)
+      : "";
+
+  const ip = await getTrustedClientIp();
+  const ipRl = await checkRateLimit(`pw-reset-req:${ip}`, 5, 10 * 60_000);
+  if (!ipRl.ok) {
+    return {
+      error: t("tooManyResetRequests", { seconds: ipRl.retryAfter ?? 60 }),
+    };
+  }
+  if (isEmail(email)) {
+    const emailRl = await checkRateLimit(
+      `pw-reset-req-email:${email}`,
+      3,
+      15 * 60_000,
+    );
+    if (!emailRl.ok) {
+      return {
+        error: t("tooManyResetRequests", { seconds: emailRl.retryAfter ?? 60 }),
+      };
+    }
+  }
+
+  // Neutral path: do the work only for a valid, contactable member; always
+  // return the same success object regardless.
+  if (isEmail(email)) {
+    const member = await db.query.members.findFirst({
+      where: eq(members.email, email),
+    });
+    if (
+      member &&
+      member.email &&
+      member.isActive &&
+      member.approvalStatus !== "rejected"
+    ) {
+      try {
+        const { rawToken, tokenHash } = generateResetToken();
+        const expiresAt = resetTokenExpiryIso();
+        await db.transaction(async (tx) => {
+          // Invalidate previous unused tokens for this member.
+          await tx
+            .update(passwordResetTokens)
+            .set({ usedAt: new Date().toISOString() })
+            .where(
+              and(
+                eq(passwordResetTokens.memberId, member.id),
+                isNull(passwordResetTokens.usedAt),
+              ),
+            );
+          await tx
+            .insert(passwordResetTokens)
+            .values({ memberId: member.id, tokenHash, expiresAt });
+        });
+        const resetUrl = `${RESET_BASE_URL}/reset-password/${rawToken}`;
+        console.warn(
+          `[PasswordReset] requested memberId=${member.id} ip=${ip}`,
+        );
+        // Send off the request path (kills timing oracle + serverless-safe).
+        const memberEmail = member.email;
+        const send = () => void sendPasswordResetEmail(memberEmail, resetUrl);
+        try {
+          after(send);
+        } catch {
+          // Outside a request scope (e.g. unit tests) — send directly.
+          send();
+        }
+      } catch (err) {
+        // DB error must NOT change the response shape (enumeration defense).
+        console.error(
+          "[PasswordReset] request failed:",
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+  }
+
+  return { success: true };
+}
+
+/**
+ * GET-time check for the reset page. Binary status to the unauthenticated
+ * caller (used/expired/malformed all collapse to "invalid" — don't leak that a
+ * token once existed). Rate-limited per IP.
+ */
+export async function validateResetToken(input: {
+  token: string;
+}): Promise<{ status: "valid" | "invalid" }> {
+  const ip = await getTrustedClientIp();
+  const rl = await checkRateLimit(`pw-reset-validate:${ip}`, 30, 10 * 60_000);
+  if (!rl.ok) return { status: "invalid" };
+
+  const token = typeof input.token === "string" ? input.token : "";
+  if (!token) return { status: "invalid" };
+  const row = await db.query.passwordResetTokens.findFirst({
+    where: eq(passwordResetTokens.tokenHash, hashResetToken(token)),
+  });
+  if (!row || row.usedAt || isResetTokenExpired(row.expiresAt)) {
+    return { status: "invalid" };
+  }
+  return { status: "valid" };
+}
+
+/**
+ * Step 2 of forgot-password. Atomic compare-and-swap on usedAt guarantees
+ * single-use even under concurrent submits. Does NOT create a session — it
+ * clears the existing cookie so the user re-logs in with the new password.
+ */
+export async function resetPasswordWithToken(input: {
+  token: string;
+  newPassword: string;
+}): Promise<
+  { success: true } | { tokenError: string } | { passwordError: string }
+> {
+  const t = await getTranslations("serverErrors");
+  const ip = await getTrustedClientIp();
+  const rl = await checkRateLimit(`pw-reset:${ip}`, 10, 10 * 60_000);
+  if (!rl.ok) {
+    return {
+      tokenError: t("tooManyResetRequests", { seconds: rl.retryAfter ?? 60 }),
+    };
+  }
+
+  if (!isValidPassword(input.newPassword)) {
+    return { passwordError: "Mật khẩu mới phải từ 8 đến 128 ký tự" };
+  }
+  const token = typeof input.token === "string" ? input.token : "";
+  if (!token) return { tokenError: "Liên kết không hợp lệ hoặc đã hết hạn" };
+
+  const tokenHash = hashResetToken(token);
+  const nowIso = new Date().toISOString();
+  const hash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
+
+  let consumedMemberId: number | null = null;
+  await db.transaction(async (tx) => {
+    // Atomic CAS: only succeeds if the token is unused AND not expired.
+    const res = await tx
+      .update(passwordResetTokens)
+      .set({ usedAt: nowIso })
+      .where(
+        and(
+          eq(passwordResetTokens.tokenHash, tokenHash),
+          isNull(passwordResetTokens.usedAt),
+          gt(passwordResetTokens.expiresAt, nowIso),
+        ),
+      );
+    if (res.rowsAffected !== 1) return; // already used / expired / not found
+
+    const row = await tx.query.passwordResetTokens.findFirst({
+      where: eq(passwordResetTokens.tokenHash, tokenHash),
+    });
+    if (!row) return;
+    await tx
+      .update(members)
+      .set({ passwordHash: hash })
+      .where(eq(members.id, row.memberId));
+    // Invalidate any other live tokens for this member.
+    await tx
+      .update(passwordResetTokens)
+      .set({ usedAt: nowIso })
+      .where(
+        and(
+          eq(passwordResetTokens.memberId, row.memberId),
+          isNull(passwordResetTokens.usedAt),
+        ),
+      );
+    consumedMemberId = row.memberId;
+  });
+
+  if (consumedMemberId === null) {
+    return { tokenError: "Liên kết không hợp lệ hoặc đã hết hạn" };
+  }
+  await clearUserCookie();
+  console.warn(`[PasswordReset] completed memberId=${consumedMemberId}`);
+  revalidatePath("/");
   return { success: true };
 }
