@@ -1075,5 +1075,23 @@
     "removeTitle": "Xóa {name}?",
     "removeDesc": "Xóa khỏi danh sách buổi chơi này?",
     "min60k": "Min 60K: {from} → {to}"
+  },
+  "tour": {
+    "open": "Hướng dẫn",
+    "next": "Tiếp",
+    "prev": "Trước",
+    "done": "Xong",
+    "votePlayTitle": "Báo đi chơi / nhậu",
+    "votePlayDesc": "Tick vào đây để báo bạn đi chơi cầu hoặc đi nhậu buổi này.",
+    "votePartnerTitle": "Đi 2 người",
+    "votePartnerDesc": "Đi cùng vợ/chồng/bạn? Bật để tính 2 suất cho bạn.",
+    "voteGuestTitle": "Rủ thêm khách",
+    "voteGuestDesc": "Bấm +/− để thêm khách. Bạn sẽ trả hộ phần của khách.",
+    "fundBannerTitle": "Quỹ của bạn",
+    "fundBannerDesc": "Số dư quỹ: âm là đang nợ, dương là còn dư.",
+    "fundTopupTitle": "Nộp quỹ",
+    "fundTopupDesc": "Hết / sắp hết quỹ thì bấm đây quét QR nộp — hệ thống tự xác nhận.",
+    "navTitle": "Nợ & lịch sử",
+    "navDesc": "Xem chi tiết nợ/quỹ và lịch sử các buổi ở đây."
   }
 }

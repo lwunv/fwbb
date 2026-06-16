@@ -1075,5 +1075,23 @@
     "removeTitle": "Remove {name}?",
     "removeDesc": "Remove from this session's list?",
     "min60k": "Min 60K: {from} → {to}"
+  },
+  "tour": {
+    "open": "Guide",
+    "next": "Next",
+    "prev": "Back",
+    "done": "Done",
+    "votePlayTitle": "Mark play / dine",
+    "votePlayDesc": "Tick here to say you'll play badminton or join dinner.",
+    "votePartnerTitle": "Two people",
+    "votePartnerDesc": "Coming with your partner? Turn on to count 2 shares.",
+    "voteGuestTitle": "Bring guests",
+    "voteGuestDesc": "Tap +/− to add guests. You cover their share.",
+    "fundBannerTitle": "Your fund",
+    "fundBannerDesc": "Fund balance: negative = you owe, positive = credit left.",
+    "fundTopupTitle": "Top up",
+    "fundTopupDesc": "Low/empty fund? Tap here to scan the QR — the system auto-confirms.",
+    "navTitle": "Debts & history",
+    "navDesc": "See your debt/fund details and session history here."
   }
 }

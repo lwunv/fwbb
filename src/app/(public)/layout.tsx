@@ -7,6 +7,7 @@ import { Header } from "@/components/layout/header";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { FacebookLoginGate } from "./facebook-login-gate";
 import { PendingApprovalGate } from "./pending-approval-gate";
+import { ProductTourLauncher } from "@/components/tour/product-tour-launcher";
 import { getAppName } from "@/actions/settings";
 
 export default async function PublicLayout({
@@ -92,6 +93,7 @@ export default async function PublicLayout({
       <Header appName={appName} />
       <main className="flex-1 px-4 py-4 pb-20">{children}</main>
       <BottomNav />
+      <ProductTourLauncher />
     </div>
   );
 }
