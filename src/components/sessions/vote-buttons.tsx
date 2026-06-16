@@ -197,10 +197,17 @@ export function VoteButtons({
         setGuestPlayCount(prevGuestPlay);
       });
     } else {
-      fireVote(true, willDine, guestPlayCount, guestDineCount, withPartner, () => {
-        setWillPlay(prevPlay);
-        setGuestPlayCount(prevGuestPlay);
-      });
+      fireVote(
+        true,
+        willDine,
+        guestPlayCount,
+        guestDineCount,
+        withPartner,
+        () => {
+          setWillPlay(prevPlay);
+          setGuestPlayCount(prevGuestPlay);
+        },
+      );
     }
   }
 
@@ -217,10 +224,17 @@ export function VoteButtons({
         setGuestDineCount(prevGuestDine);
       });
     } else {
-      fireVote(willPlay, true, guestPlayCount, guestDineCount, withPartner, () => {
-        setWillDine(prevDine);
-        setGuestDineCount(prevGuestDine);
-      });
+      fireVote(
+        willPlay,
+        true,
+        guestPlayCount,
+        guestDineCount,
+        withPartner,
+        () => {
+          setWillDine(prevDine);
+          setGuestDineCount(prevGuestDine);
+        },
+      );
     }
   }
 
