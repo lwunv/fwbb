@@ -1,3 +1,5 @@
+import { votePlayHeads, voteDineHeads } from "./partner-core";
+
 /** Số người đã vote tham gia ít nhất một hoạt động (cầu hoặc nhậu) — khớp danh sách hiển thị công khai */
 export function attendingVotesCount(
   votes: { willPlay?: boolean | null; willDine?: boolean | null }[],
@@ -11,13 +13,16 @@ export interface ParticipationVote {
   willDine?: boolean | null;
   guestPlayCount?: number | null;
   guestDineCount?: number | null;
+  withPartner?: boolean | null;
 }
 
 export interface VoteParticipation {
-  /** Số MEMBER vote chơi. */
+  /** Số ĐẦU member chơi (gồm người đi cùng) — head count, KHỚP divisor. */
   memberPlay: number;
-  /** Số MEMBER vote nhậu. */
   memberDine: number;
+  /** Số người-đi-cùng chơi (Σ withPartner && willPlay). */
+  partnerPlay: number;
+  partnerDine: number;
   /** Tổng khách chơi. */
   guestPlay: number;
   /** Tổng khách nhậu. */
@@ -44,17 +49,23 @@ export function countVoteParticipation(
 ): VoteParticipation {
   let memberPlay = 0;
   let memberDine = 0;
+  let partnerPlay = 0;
+  let partnerDine = 0;
   let guestPlay = 0;
   let guestDine = 0;
   for (const v of votes) {
-    if (v.willPlay) memberPlay++;
-    if (v.willDine) memberDine++;
+    memberPlay += votePlayHeads(v); // 0|1|2 (gồm partner)
+    memberDine += voteDineHeads(v);
+    if (v.willPlay && v.withPartner) partnerPlay++;
+    if (v.willDine && v.withPartner) partnerDine++;
     guestPlay += v.guestPlayCount ?? 0;
     guestDine += v.guestDineCount ?? 0;
   }
   return {
     memberPlay,
     memberDine,
+    partnerPlay,
+    partnerDine,
     guestPlay,
     guestDine,
     totalPlayers: memberPlay + guestPlay,

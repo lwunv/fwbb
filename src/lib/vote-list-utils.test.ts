@@ -23,6 +23,8 @@ describe("countVoteParticipation", () => {
     expect(countVoteParticipation([])).toEqual({
       memberPlay: 0,
       memberDine: 0,
+      partnerPlay: 0,
+      partnerDine: 0,
       guestPlay: 0,
       guestDine: 0,
       totalPlayers: 0,
@@ -39,6 +41,8 @@ describe("countVoteParticipation", () => {
     expect(result).toEqual({
       memberPlay: 2,
       memberDine: 2,
+      partnerPlay: 0,
+      partnerDine: 0,
       guestPlay: 3,
       guestDine: 4,
       totalPlayers: 5, // 2 members + 3 guests
@@ -128,5 +132,34 @@ describe("floorableGuestPlayCount", () => {
         },
       ),
     ).toBe(0);
+  });
+});
+
+describe("countVoteParticipation — partner", () => {
+  it("member chơi + withPartner → totalPlayers tính 2", () => {
+    const r = countVoteParticipation([
+      { willPlay: true, willDine: false, withPartner: true },
+    ]);
+    expect(r.memberPlay).toBe(2);
+    expect(r.partnerPlay).toBe(1);
+    expect(r.totalPlayers).toBe(2);
+  });
+
+  it("partner + khách: totalPlayers = 2 + guestPlay", () => {
+    const r = countVoteParticipation([
+      { willPlay: true, willDine: true, withPartner: true, guestPlayCount: 1 },
+    ]);
+    expect(r.totalPlayers).toBe(3);
+    expect(r.totalDiners).toBe(2);
+    expect(r.partnerDine).toBe(1);
+  });
+
+  it("không partner → như cũ", () => {
+    const r = countVoteParticipation([
+      { willPlay: true, willDine: false, withPartner: false },
+    ]);
+    expect(r.memberPlay).toBe(1);
+    expect(r.partnerPlay).toBe(0);
+    expect(r.totalPlayers).toBe(1);
   });
 });
