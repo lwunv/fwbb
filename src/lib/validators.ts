@@ -88,6 +88,8 @@ export const finalizeAttendeeSchema = z.object({
   isGuest: z.boolean(),
   attendsPlay: z.boolean(),
   attendsDine: z.boolean(),
+  /** Member "đi 2 người" → 2. Guest = 1. App-layer invariant (không có DB CHECK). */
+  headcount: z.number().int().min(1).max(2).default(1),
 });
 
 export const finalizeSessionSchema = z.object({

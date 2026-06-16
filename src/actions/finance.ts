@@ -39,6 +39,7 @@ export interface FinalizeAttendee {
   isGuest: boolean;
   attendsPlay: boolean;
   attendsDine: boolean;
+  headcount?: number;
 }
 
 export async function finalizeSession(
@@ -135,6 +136,7 @@ export async function finalizeSession(
     isGuest: a.isGuest,
     attendsPlay: a.attendsPlay,
     attendsDine: a.attendsDine,
+    headcount: a.headcount ?? 1,
   }));
   const shuttlecockInputs = session.shuttlecocks.map((s) => ({
     quantityUsed: s.quantityUsed,
@@ -269,6 +271,7 @@ export async function finalizeSession(
           isGuest: a.isGuest,
           attendsPlay: a.attendsPlay,
           attendsDine: a.attendsDine,
+          headcount: a.headcount ?? 1,
         });
       }
 
