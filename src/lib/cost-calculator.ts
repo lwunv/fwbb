@@ -49,6 +49,9 @@ export interface AttendeeInput {
   isGuest: boolean;
   attendsPlay: boolean;
   attendsDine: boolean;
+  /** Số đầu người attendee đại diện ở phần của CHÍNH họ (member "đi 2 người" → 2).
+   *  Guest = 1. Mặc định 1 nếu không truyền (backward-compat). */
+  headcount?: number;
 }
 
 export interface ShuttlecockInput {
@@ -187,6 +190,8 @@ export function computePredictedMinDeductionSurplus(input: {
    *  balance → +(floor − perHead) mỗi khách. Khớp guest-floor ở
    *  `applyMinDeductionFloor` để forecast không lệch debt thật. */
   guestPlayCount?: number;
+  /** headcount của từng member chơi (memberId → 1|2). Thiếu → coi như 1. */
+  playingMemberHeadcounts?: Readonly<Record<number, number>>;
   floor?: number;
 }): number {
   const floor = input.floor ?? MIN_DEDUCTION_PER_HEAD;
@@ -197,8 +202,10 @@ export function computePredictedMinDeductionSurplus(input: {
   for (const memberId of input.playingMemberIds) {
     if (exemptSet.has(memberId)) continue;
     const balance = input.memberBalances[memberId] ?? 0;
-    if (balance < input.playCostPerHead) {
-      surplus += floor - input.playCostPerHead;
+    const headcount = input.playingMemberHeadcounts?.[memberId] ?? 1;
+    const playAmount = input.playCostPerHead * headcount;
+    if (balance < playAmount && playAmount < floor) {
+      surplus += floor - playAmount;
     }
   }
   // Khách floor lên `floor` luôn (không có quỹ riêng) → surplus mỗi khách.
@@ -284,8 +291,8 @@ export function calculateSessionCosts(
   const allPlayers = attendees.filter((a) => a.attendsPlay);
   const allDiners = attendees.filter((a) => a.attendsDine);
 
-  const totalPlayers = allPlayers.length;
-  const totalDiners = allDiners.length;
+  const totalPlayers = allPlayers.reduce((s, a) => s + (a.headcount ?? 1), 0);
+  const totalDiners = allDiners.reduce((s, a) => s + (a.headcount ?? 1), 0);
 
   // 2. Calculate shuttlecock cost: each qua costs price_per_tube / 12
   const totalShuttlecockCostExact = shuttlecocks.reduce((sum, s) => {
@@ -338,8 +345,13 @@ export function calculateSessionCosts(
       (a) => a.isGuest && a.invitedById === memberId && a.attendsDine,
     ).length;
 
-    const playAmount = memberPlays ? playCostPerHead : 0;
-    const dineAmount = memberDines ? dineCostPerHead : 0;
+    // headcount của row member (không phải guest). Người đi cùng = +1 đầu do
+    // member tự trả → gộp vào playAmount/dineAmount của member, KHÔNG vào guest.
+    const memberHeadcount =
+      attendees.find((a) => a.memberId === memberId && !a.isGuest)?.headcount ??
+      1;
+    const playAmount = memberPlays ? playCostPerHead * memberHeadcount : 0;
+    const dineAmount = memberDines ? dineCostPerHead * memberHeadcount : 0;
     const guestPlayAmount = guestsPlay * playCostPerHead;
     const guestDineAmount = guestsDine * dineCostPerHead;
     const totalAmount =

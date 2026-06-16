@@ -921,3 +921,99 @@ describe("computePredictedMinDeductionSurplus", () => {
     expect(r).toBe(0);
   });
 });
+
+function member(id: number, opts: Partial<AttendeeInput> = {}): AttendeeInput {
+  return {
+    memberId: id,
+    invitedById: null,
+    isGuest: false,
+    attendsPlay: true,
+    attendsDine: false,
+    ...opts,
+  };
+}
+
+describe("calculateSessionCosts — partner headcount", () => {
+  it("member đi 2 người chơi → tính 2 đầu, member trả 2 suất", () => {
+    const r = calculateSessionCosts(
+      { courtPrice: 200_000, diningBill: 0 },
+      [member(1, { headcount: 2 })],
+      [],
+    );
+    expect(r.totalPlayers).toBe(2);
+    expect(r.playCostPerHead).toBe(100_000);
+    const d = r.memberDebts.find((x) => x.memberId === 1)!;
+    expect(d.playAmount).toBe(200_000);
+    expect(d.guestPlayAmount).toBe(0);
+    expect(d.totalAmount).toBe(200_000);
+  });
+
+  it("partner + guest cùng lúc: divisor = 2 (member) + 1 (guest) = 3", () => {
+    const r = calculateSessionCosts(
+      { courtPrice: 300_000, diningBill: 0 },
+      [
+        member(1, { headcount: 2 }),
+        {
+          memberId: null,
+          invitedById: 1,
+          isGuest: true,
+          attendsPlay: true,
+          attendsDine: false,
+        },
+      ],
+      [],
+    );
+    expect(r.totalPlayers).toBe(3);
+    expect(r.playCostPerHead).toBe(100_000);
+    const d = r.memberDebts.find((x) => x.memberId === 1)!;
+    expect(d.playAmount).toBe(200_000);
+    expect(d.guestPlayAmount).toBe(100_000);
+    expect(d.guestPlayCount).toBe(1);
+    expect(d.totalAmount).toBe(300_000);
+  });
+
+  it("headcount mặc định 1 khi không truyền (backward-compat)", () => {
+    const r = calculateSessionCosts(
+      { courtPrice: 200_000, diningBill: 0 },
+      [member(1), member(2)],
+      [],
+    );
+    expect(r.totalPlayers).toBe(2);
+    expect(r.playCostPerHead).toBe(100_000);
+  });
+
+  it("member đi 2 người nhậu → dine 2 suất", () => {
+    const r = calculateSessionCosts(
+      { courtPrice: 0, diningBill: 200_000 },
+      [member(1, { attendsPlay: false, attendsDine: true, headcount: 2 })],
+      [],
+    );
+    expect(r.totalDiners).toBe(2);
+    expect(r.dineCostPerHead).toBe(100_000);
+    const d = r.memberDebts.find((x) => x.memberId === 1)!;
+    expect(d.dineAmount).toBe(200_000);
+  });
+});
+
+describe("forecast surplus — partner", () => {
+  it("member headcount=2, perHead 25k, broke → playAmount 50k < 60k → surplus 10k", () => {
+    const s = computePredictedMinDeductionSurplus({
+      playingMemberIds: [1],
+      memberBalances: { 1: 0 },
+      exemptMemberIds: [],
+      playCostPerHead: 25_000,
+      playingMemberHeadcounts: { 1: 2 },
+    });
+    expect(s).toBe(10_000);
+  });
+  it("member headcount=2, playAmount 2×40k=80k ≥ 60k → không phạt", () => {
+    const s = computePredictedMinDeductionSurplus({
+      playingMemberIds: [1],
+      memberBalances: { 1: 0 },
+      exemptMemberIds: [],
+      playCostPerHead: 40_000,
+      playingMemberHeadcounts: { 1: 2 },
+    });
+    expect(s).toBe(0);
+  });
+});
