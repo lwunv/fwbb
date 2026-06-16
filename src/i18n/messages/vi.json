@@ -490,7 +490,26 @@
     "showPassword": "Hiện mật khẩu",
     "hidePassword": "Ẩn mật khẩu",
     "errMissingFields": "Vui lòng nhập email và mật khẩu",
-    "errMissingName": "Vui lòng nhập họ tên"
+    "errMissingName": "Vui lòng nhập họ tên",
+    "forgotPassword": "Quên mật khẩu?"
+  },
+  "passwordReset": {
+    "forgotTitle": "Quên mật khẩu",
+    "forgotIntro": "Nhập email của bạn — nếu tồn tại, chúng tôi sẽ gửi liên kết đặt lại mật khẩu.",
+    "emailPlaceholder": "Email",
+    "btnSend": "Gửi liên kết",
+    "neutralSent": "Nếu email tồn tại, chúng tôi đã gửi liên kết đặt lại. Hãy kiểm tra hộp thư.",
+    "noEmailHint": "Đăng nhập bằng Facebook/Google chưa có email? Hãy đăng nhập rồi thêm email & đặt mật khẩu trong trang cá nhân.",
+    "backToLogin": "Quay lại đăng nhập",
+    "resetTitle": "Đặt mật khẩu mới",
+    "newPassword": "Mật khẩu mới (≥ 8 ký tự)",
+    "confirmPassword": "Nhập lại mật khẩu mới",
+    "btnReset": "Đặt lại mật khẩu",
+    "errMismatch": "Hai mật khẩu không khớp",
+    "successReset": "Đã đổi mật khẩu. Mời đăng nhập lại.",
+    "expiredTitle": "Liên kết không hợp lệ hoặc đã hết hạn",
+    "expiredBody": "Liên kết đặt lại đã hết hạn hoặc đã được dùng.",
+    "btnRequestAgain": "Gửi lại liên kết"
   },
   "history": {
     "completed": "Đã hoàn thành",
@@ -913,6 +932,7 @@
     "tooManyLoginAttempts": "Quá nhiều lần đăng nhập, thử lại sau {seconds}s",
     "tooManyChangePassword": "Quá nhiều lần đổi mật khẩu, thử lại sau {seconds}s",
     "tooManyActions": "Quá nhiều thao tác, thử lại sau {seconds}s",
+    "tooManyResetRequests": "Quá nhiều yêu cầu đặt lại, thử lại sau {seconds}s",
     "invalidCredentials": "Sai tên đăng nhập hoặc mật khẩu",
     "newPasswordTooShort": "Mật khẩu mới phải từ 8 đến 72 ký tự",
     "newPasswordMismatch": "Mật khẩu mới không khớp",

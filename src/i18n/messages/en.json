@@ -490,7 +490,26 @@
     "showPassword": "Show password",
     "hidePassword": "Hide password",
     "errMissingFields": "Please enter email and password",
-    "errMissingName": "Please enter your name"
+    "errMissingName": "Please enter your name",
+    "forgotPassword": "Forgot password?"
+  },
+  "passwordReset": {
+    "forgotTitle": "Forgot password",
+    "forgotIntro": "Enter your email — if it exists, we'll send a reset link.",
+    "emailPlaceholder": "Email",
+    "btnSend": "Send link",
+    "neutralSent": "If that email exists, we've sent a reset link. Please check your inbox.",
+    "noEmailHint": "Signed in with Facebook/Google and have no email? Sign in, then add an email & set a password in your profile.",
+    "backToLogin": "Back to sign in",
+    "resetTitle": "Set a new password",
+    "newPassword": "New password (≥ 8 chars)",
+    "confirmPassword": "Confirm new password",
+    "btnReset": "Reset password",
+    "errMismatch": "Passwords don't match",
+    "successReset": "Password changed. Please sign in again.",
+    "expiredTitle": "Invalid or expired link",
+    "expiredBody": "This reset link has expired or was already used.",
+    "btnRequestAgain": "Send a new link"
   },
   "history": {
     "completed": "Done",
@@ -913,6 +932,7 @@
     "tooManyLoginAttempts": "Too many login attempts, try again in {seconds}s",
     "tooManyChangePassword": "Too many password change attempts, try again in {seconds}s",
     "tooManyActions": "Too many actions, try again in {seconds}s",
+    "tooManyResetRequests": "Too many reset requests, try again in {seconds}s",
     "invalidCredentials": "Invalid username or password",
     "newPasswordTooShort": "New password must be 8 to 72 characters",
     "newPasswordMismatch": "New passwords do not match",

@@ -490,7 +490,26 @@
     "showPassword": "显示密码",
     "hidePassword": "隐藏密码",
     "errMissingFields": "请输入邮箱和密码",
-    "errMissingName": "请输入姓名"
+    "errMissingName": "请输入姓名",
+    "forgotPassword": "忘记密码？"
+  },
+  "passwordReset": {
+    "forgotTitle": "忘记密码",
+    "forgotIntro": "输入您的邮箱 — 如果存在，我们将发送重置链接。",
+    "emailPlaceholder": "邮箱",
+    "btnSend": "发送链接",
+    "neutralSent": "如果该邮箱存在，我们已发送重置链接，请查看收件箱。",
+    "noEmailHint": "用 Facebook/Google 登录且没有邮箱？请先登录，然后在个人资料中添加邮箱并设置密码。",
+    "backToLogin": "返回登录",
+    "resetTitle": "设置新密码",
+    "newPassword": "新密码 (≥8 字符)",
+    "confirmPassword": "确认新密码",
+    "btnReset": "重置密码",
+    "errMismatch": "两次密码不一致",
+    "successReset": "密码已修改，请重新登录。",
+    "expiredTitle": "链接无效或已过期",
+    "expiredBody": "此重置链接已过期或已被使用。",
+    "btnRequestAgain": "重新发送链接"
   },
   "history": {
     "completed": "已完成",
@@ -913,6 +932,7 @@
     "tooManyLoginAttempts": "登录尝试次数过多,{seconds} 秒后重试",
     "tooManyChangePassword": "修改密码次数过多,{seconds} 秒后重试",
     "tooManyActions": "操作过于频繁,{seconds} 秒后重试",
+    "tooManyResetRequests": "重置请求过于频繁，{seconds} 秒后重试",
     "invalidCredentials": "用户名或密码错误",
     "newPasswordTooShort": "新密码长度需 8 至 72 个字符",
     "newPasswordMismatch": "两次输入的新密码不一致",
