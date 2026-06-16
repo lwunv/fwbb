@@ -1092,6 +1092,22 @@
     "fundTopupTitle": "Top up",
     "fundTopupDesc": "Low/empty fund? Tap here to scan the QR — the system auto-confirms.",
     "navTitle": "Debts & history",
-    "navDesc": "See your debt/fund details and session history here."
+    "navDesc": "See your debt/fund details and session history here.",
+    "welcomeTitle": "Welcome to FWBB! 🏸",
+    "welcomeDesc": "A quick 30-second tour: how to vote for sessions, check & top up the fund, and see debts.",
+    "navHomeTitle": "Home",
+    "navHomeDesc": "Vote for upcoming sessions: play/dine, two people, guests — here.",
+    "navHistoryTitle": "History",
+    "navHistoryDesc": "Review past sessions and each session's costs.",
+    "navFundTitle": "Fund & Debts",
+    "navFundDesc": "Fund balance, debt details and top-up all live here.",
+    "navStatsTitle": "Stats",
+    "navStatsDesc": "See the group's participation and spending stats.",
+    "navMeTitle": "Profile",
+    "navMeDesc": "Change name, avatar, theme, language and your default 'two people' setting.",
+    "launcherTitle": "Reopen the guide",
+    "launcherDesc": "Tap this compass button anytime to replay the guide.",
+    "doneTitle": "All set! 🎉",
+    "doneDesc": "Have fun playing. To replay, tap the compass button at the bottom-right."
   }
 }

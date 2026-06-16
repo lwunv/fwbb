@@ -1092,6 +1092,22 @@
     "fundTopupTitle": "充值",
     "fundTopupDesc": "基金快用完？点这里扫码充值，系统自动确认。",
     "navTitle": "欠款与历史",
-    "navDesc": "在这里查看欠款/基金明细和各场历史。"
+    "navDesc": "在这里查看欠款/基金明细和各场历史。",
+    "welcomeTitle": "欢迎来到 FWBB！🏸",
+    "welcomeDesc": "30 秒快速引导：如何报名打球、查看与充值基金、查看欠款。",
+    "navHomeTitle": "首页",
+    "navHomeDesc": "在这里为即将到来的场次投票：打球/聚餐、两人同行、带客人。",
+    "navHistoryTitle": "历史",
+    "navHistoryDesc": "回顾已打过的场次及每场费用。",
+    "navFundTitle": "基金与欠款",
+    "navFundDesc": "基金余额、欠款明细和充值都在这里。",
+    "navStatsTitle": "统计",
+    "navStatsDesc": "查看群组的参与和支出统计。",
+    "navMeTitle": "个人页",
+    "navMeDesc": "修改昵称、头像、主题、语言，并设置默认“两人同行”。",
+    "launcherTitle": "重新打开引导",
+    "launcherDesc": "随时点这个指南针按钮即可重看引导。",
+    "doneTitle": "完成！🎉",
+    "doneDesc": "祝你玩得开心。想重看，点右下角的指南针按钮即可。"
   }
 }

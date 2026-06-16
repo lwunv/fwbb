@@ -1092,6 +1092,22 @@
     "fundTopupTitle": "Nộp quỹ",
     "fundTopupDesc": "Hết / sắp hết quỹ thì bấm đây quét QR nộp — hệ thống tự xác nhận.",
     "navTitle": "Nợ & lịch sử",
-    "navDesc": "Xem chi tiết nợ/quỹ và lịch sử các buổi ở đây."
+    "navDesc": "Xem chi tiết nợ/quỹ và lịch sử các buổi ở đây.",
+    "welcomeTitle": "Chào mừng đến FWBB! 🏸",
+    "welcomeDesc": "Hướng dẫn nhanh 30 giây: cách vote buổi chơi, xem & nộp quỹ, xem nợ.",
+    "navHomeTitle": "Trang chủ",
+    "navHomeDesc": "Vote buổi sắp tới: chơi/nhậu, đi 2 người, rủ khách — ngay đây.",
+    "navHistoryTitle": "Lịch sử",
+    "navHistoryDesc": "Xem lại các buổi đã chơi và chi phí từng buổi.",
+    "navFundTitle": "Quỹ & Nợ",
+    "navFundDesc": "Số dư quỹ, nợ chi tiết và nộp quỹ đều ở đây.",
+    "navStatsTitle": "Thống kê",
+    "navStatsDesc": "Thống kê tham gia và chi tiêu của nhóm.",
+    "navMeTitle": "Trang cá nhân",
+    "navMeDesc": "Đổi tên, ảnh, giao diện, ngôn ngữ và đặt mặc định 'đi 2 người'.",
+    "launcherTitle": "Mở lại hướng dẫn",
+    "launcherDesc": "Bấm nút la bàn này bất cứ lúc nào để xem lại hướng dẫn.",
+    "doneTitle": "Xong rồi! 🎉",
+    "doneDesc": "Chúc bạn chơi cầu vui vẻ. Cần xem lại, bấm nút la bàn góc dưới phải nhé."
   }
 }

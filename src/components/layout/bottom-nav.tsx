@@ -7,11 +7,26 @@ import { cn } from "@/lib/utils";
 import { Home, Clock, Wallet, BarChart3, User } from "lucide-react";
 
 const navItems = [
-  { href: "/", labelKey: "home" as const, icon: Home },
-  { href: "/history", labelKey: "history" as const, icon: Clock },
-  { href: "/my-fund", labelKey: "fund" as const, icon: Wallet },
-  { href: "/stats", labelKey: "stats" as const, icon: BarChart3 },
-  { href: "/me", labelKey: "me" as const, icon: User },
+  { href: "/", labelKey: "home" as const, icon: Home, tour: "nav-home" },
+  {
+    href: "/history",
+    labelKey: "history" as const,
+    icon: Clock,
+    tour: "nav-history",
+  },
+  {
+    href: "/my-fund",
+    labelKey: "fund" as const,
+    icon: Wallet,
+    tour: "nav-fund",
+  },
+  {
+    href: "/stats",
+    labelKey: "stats" as const,
+    icon: BarChart3,
+    tour: "nav-stats",
+  },
+  { href: "/me", labelKey: "me" as const, icon: User, tour: "nav-me" },
 ];
 
 export function BottomNav() {
@@ -31,13 +46,7 @@ export function BottomNav() {
             <Link
               key={item.href}
               href={item.href}
-              data-tour={
-                item.href === "/my-fund"
-                  ? "nav-fund"
-                  : item.href === "/history"
-                    ? "nav-history"
-                    : undefined
-              }
+              data-tour={item.tour}
               className={cn(
                 "flex flex-col items-center gap-1 px-3 py-2 text-sm font-medium transition-colors",
                 isActive

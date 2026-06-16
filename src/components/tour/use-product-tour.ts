@@ -13,15 +13,23 @@ export function useProductTour() {
 
   const run = useCallback(() => {
     const all = buildTourSteps((k) => t(k));
-    // Chỉ giữ step có element tồn tại trên trang hiện tại.
+    // Giữ step canh giữa (không có element) + step có element tồn tại trên
+    // trang. Bỏ step neo vào element vắng mặt (vd chưa có buổi vote / quỹ ẩn).
     const steps = all.filter(
       (s) =>
-        typeof s.element === "string" &&
-        document.querySelector(s.element) !== null,
+        !s.element ||
+        (typeof s.element === "string" &&
+          document.querySelector(s.element) !== null),
     );
     if (steps.length === 0) return;
     const d = driver({
       showProgress: true,
+      smoothScroll: true,
+      allowClose: true,
+      stagePadding: 6,
+      stageRadius: 10,
+      overlayOpacity: 0.6,
+      popoverClass: "fwbb-tour",
       nextBtnText: t("next"),
       prevBtnText: t("prev"),
       doneBtnText: t("done"),
