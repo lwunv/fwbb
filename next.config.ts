@@ -49,6 +49,12 @@ const nextConfig: NextConfig = {
           // (connect.facebook.net) + Next inline script trước khi enforce.
         ],
       },
+      {
+        // Reset token sits in the URL path — keep it out of even same-origin
+        // Referer (overrides the global strict-origin-when-cross-origin).
+        source: "/reset-password/:path*",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      },
     ];
   },
 };

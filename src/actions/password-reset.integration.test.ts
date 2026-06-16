@@ -12,7 +12,9 @@ vi.mock("next/headers", () => ({
 vi.mock("next/server", () => ({ after: (cb: () => unknown) => cb() }));
 
 const mailMock = vi.hoisted(() => ({
-  sendPasswordResetEmail: vi.fn(async () => ({ success: true })),
+  sendPasswordResetEmail: vi.fn<
+    (to: string, url: string) => Promise<{ success: boolean }>
+  >(async () => ({ success: true })),
 }));
 vi.mock("@/lib/mailer", () => mailMock);
 
@@ -58,7 +60,7 @@ function tokensFor(memberId: number) {
 }
 
 function lastResetUrl(): string {
-  return mailMock.sendPasswordResetEmail.mock.calls.at(-1)![1] as string;
+  return mailMock.sendPasswordResetEmail.mock.calls.at(-1)![1];
 }
 
 describe("requestPasswordReset", () => {
