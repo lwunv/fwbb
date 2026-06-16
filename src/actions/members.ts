@@ -108,9 +108,14 @@ export async function createMember(formData: FormData) {
     };
   }
   const nickname = (formData.get("nickname") as string)?.trim() || null;
-  // Admin-created members get a placeholder facebookId (will be replaced on first FB login)
-  const facebookId = `admin_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await db.insert(members).values({ ...parsed.data, nickname, facebookId });
+  // KHÔNG set facebookId placeholder. Member admin tạo phải để facebookId +
+  // googleId = NULL thì merge flow mới nhận diện được: getNameMatches lọc
+  // `!facebookId && !googleId` (chỉ gợi ý row chưa link OAuth), và
+  // approveAndMergeMember chỉ graft OAuth vào placeholder rỗng-credential.
+  // Fake id `admin_<ts>_<rand>` cũ khiến row admin-tạo KHÔNG bao giờ được gợi ý
+  // merge khi chính chủ signup (FB login tra theo id thật, không replace fake).
+  // Member email+password cũng đã insert với facebookId NULL — đồng nhất.
+  await db.insert(members).values({ ...parsed.data, nickname });
   revalidatePath("/admin/members");
   return { success: true };
 }
