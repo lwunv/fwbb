@@ -74,7 +74,7 @@ describe("submitVote — upsert + validation + gate", () => {
     const id = await seedMember();
     const s = await seedSession("voting");
 
-    const r = await submitVote(s, true, true, 2, 1);
+    const r = await submitVote(s, true, true, 2, 1, false);
     expect("error" in r).toBe(false);
 
     const v = await voteOf(s, id);
@@ -88,8 +88,8 @@ describe("submitVote — upsert + validation + gate", () => {
     const id = await seedMember();
     const s = await seedSession("voting");
 
-    await submitVote(s, true, false, 0, 0);
-    await submitVote(s, false, true, 3, 0);
+    await submitVote(s, true, false, 0, 0, false);
+    await submitVote(s, false, true, 3, 0, false);
 
     const rows = await testDb.query.votes.findMany({
       where: and(eq(votes.sessionId, s), eq(votes.memberId, id)),
@@ -103,35 +103,35 @@ describe("submitVote — upsert + validation + gate", () => {
   it("chặn vote khi session đã completed", async () => {
     await seedMember();
     const s = await seedSession("completed");
-    const r = await submitVote(s, true, false, 0, 0);
+    const r = await submitVote(s, true, false, 0, 0, false);
     expect("error" in r).toBe(true);
   });
 
   it("chặn vote khi session đã cancelled", async () => {
     await seedMember();
     const s = await seedSession("cancelled");
-    const r = await submitVote(s, true, false, 0, 0);
+    const r = await submitVote(s, true, false, 0, 0, false);
     expect("error" in r).toBe(true);
   });
 
   it("từ chối guest count âm (zod)", async () => {
     await seedMember();
     const s = await seedSession("voting");
-    const r = await submitVote(s, true, false, -1, 0);
+    const r = await submitVote(s, true, false, -1, 0, false);
     expect("error" in r).toBe(true);
   });
 
   it("chặn member đã khóa (isActive=false) vote", async () => {
     await seedMember({ isActive: false });
     const s = await seedSession("voting");
-    const r = await submitVote(s, true, false, 0, 0);
+    const r = await submitVote(s, true, false, 0, 0, false);
     expect("error" in r).toBe(true);
   });
 
   it("chặn member chưa duyệt (pending) vote", async () => {
     await seedMember({ approvalStatus: "pending" });
     const s = await seedSession("voting");
-    const r = await submitVote(s, true, false, 0, 0);
+    const r = await submitVote(s, true, false, 0, 0, false);
     expect("error" in r).toBe(true);
   });
 });

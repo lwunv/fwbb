@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   applyMemberVotePatch,
   type VoteWithMember,
+  type VoteTotalsPatch,
 } from "@/lib/optimistic-votes";
 import {
   attendingVotesCount,
@@ -109,15 +110,17 @@ export function SessionVoteOptimisticPanel({
     ? optimisticVotes.find((v) => v.memberId === currentMemberId)
     : undefined;
 
+  const me = currentMemberId
+    ? members.find((m) => m.id === currentMemberId)
+    : undefined;
+  const currentWithPartner = myVote
+    ? (myVote.withPartner ?? false)
+    : (me?.defaultWithPartner ?? false);
+
   const optimisticListSync =
     currentMemberId != null
       ? {
-          apply: (patch: {
-            willPlay: boolean;
-            willDine: boolean;
-            guestPlayCount: number;
-            guestDineCount: number;
-          }) => {
+          apply: (patch: VoteTotalsPatch) => {
             setOptimisticVotes((prev) =>
               applyMemberVotePatch(
                 prev,
@@ -159,6 +162,7 @@ export function SessionVoteOptimisticPanel({
               currentWillDine={myVote?.willDine ?? false}
               currentGuestPlayCount={myVote?.guestPlayCount ?? 0}
               currentGuestDineCount={myVote?.guestDineCount ?? 0}
+              currentWithPartner={currentWithPartner}
               optimisticListSync={optimisticListSync}
             />
           </CardContent>

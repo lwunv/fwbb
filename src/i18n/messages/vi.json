@@ -160,7 +160,8 @@
     "voteDeadlineSet": "Đặt deadline",
     "voteDeadlineClear": "Bỏ deadline",
     "voteDeadlineExtend2h": "+2 giờ",
-    "voteDeadlineExtend24h": "+24 giờ"
+    "voteDeadlineExtend24h": "+24 giờ",
+    "withPartner": "Đi 2 người"
   },
   "finance": {
     "debts": "Công nợ",

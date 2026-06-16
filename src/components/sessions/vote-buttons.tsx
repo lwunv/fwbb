@@ -116,6 +116,7 @@ interface VoteButtonsProps {
   currentWillDine: boolean;
   currentGuestPlayCount: number;
   currentGuestDineCount: number;
+  currentWithPartner: boolean;
   disabled?: boolean;
   /** Đồng bộ danh sách/số liệu UI ngay lập tức; revert khi API lỗi */
   optimisticListSync?: {
@@ -130,6 +131,7 @@ export function VoteButtons({
   currentWillDine,
   currentGuestPlayCount,
   currentGuestDineCount,
+  currentWithPartner,
   disabled = false,
   optimisticListSync,
 }: VoteButtonsProps) {
@@ -137,6 +139,7 @@ export function VoteButtons({
   const [willDine, setWillDine] = useState(currentWillDine);
   const [guestPlayCount, setGuestPlayCount] = useState(currentGuestPlayCount);
   const [guestDineCount, setGuestDineCount] = useState(currentGuestDineCount);
+  const [withPartner, setWithPartner] = useState(currentWithPartner);
   const t = useTranslations("voting");
 
   useEffect(() => {
@@ -145,11 +148,13 @@ export function VoteButtons({
     setWillDine(currentWillDine);
     setGuestPlayCount(currentGuestPlayCount);
     setGuestDineCount(currentGuestDineCount);
+    setWithPartner(currentWithPartner);
   }, [
     currentWillPlay,
     currentWillDine,
     currentGuestPlayCount,
     currentGuestDineCount,
+    currentWithPartner,
   ]);
 
   function fireVote(
@@ -157,6 +162,7 @@ export function VoteButtons({
     dine: boolean,
     guestPlay: number,
     guestDine: number,
+    partner: boolean,
     rollback: () => void,
   ) {
     optimisticListSync?.apply({
@@ -164,12 +170,13 @@ export function VoteButtons({
       willDine: dine,
       guestPlayCount: guestPlay,
       guestDineCount: guestDine,
+      withPartner: partner,
     });
     // Canonical optimistic helper: auto-retry once, then roll back BOTH the
     // local controls and the mirrored list + toast.error (project rule). The
     // server's localized error message is surfaced via the toast.
     fireAction(
-      () => submitVote(sessionId, play, dine, guestPlay, guestDine),
+      () => submitVote(sessionId, play, dine, guestPlay, guestDine, partner),
       () => {
         rollback();
         optimisticListSync?.revert();
@@ -185,12 +192,12 @@ export function VoteButtons({
     setWillPlay(newPlay);
     if (!newPlay) {
       setGuestPlayCount(0);
-      fireVote(false, willDine, 0, guestDineCount, () => {
+      fireVote(false, willDine, 0, guestDineCount, withPartner, () => {
         setWillPlay(prevPlay);
         setGuestPlayCount(prevGuestPlay);
       });
     } else {
-      fireVote(true, willDine, guestPlayCount, guestDineCount, () => {
+      fireVote(true, willDine, guestPlayCount, guestDineCount, withPartner, () => {
         setWillPlay(prevPlay);
         setGuestPlayCount(prevGuestPlay);
       });
@@ -205,24 +212,74 @@ export function VoteButtons({
     setWillDine(newDine);
     if (!newDine) {
       setGuestDineCount(0);
-      fireVote(willPlay, false, guestPlayCount, 0, () => {
+      fireVote(willPlay, false, guestPlayCount, 0, withPartner, () => {
         setWillDine(prevDine);
         setGuestDineCount(prevGuestDine);
       });
     } else {
-      fireVote(willPlay, true, guestPlayCount, guestDineCount, () => {
+      fireVote(willPlay, true, guestPlayCount, guestDineCount, withPartner, () => {
         setWillDine(prevDine);
         setGuestDineCount(prevGuestDine);
       });
     }
   }
 
+  function togglePartner() {
+    const next = !withPartner;
+    const prev = withPartner;
+    setWithPartner(next);
+    fireVote(willPlay, willDine, guestPlayCount, guestDineCount, next, () =>
+      setWithPartner(prev),
+    );
+  }
+
   return (
     // Bỏ wrapper card-in-card (trước đây bao thêm 1 lớp border + bg-muted)
     // → giảm visual clutter (3 lớp border xuống còn 2: Card ngoài + viền item).
     <div className="space-y-3">
+      <button
+        type="button"
+        data-tour="vote-partner"
+        onClick={togglePartner}
+        aria-pressed={withPartner}
+        className={cn(
+          "flex min-h-12 w-full items-center justify-between gap-2 rounded-xl border-2 px-3.5 py-3 text-left transition-colors",
+          withPartner
+            ? "border-primary bg-primary/[0.07]"
+            : "border-border/90 bg-background/80 hover:border-primary/45",
+        )}
+      >
+        <span className="flex items-center gap-2">
+          <span className="text-xl leading-none" aria-hidden>
+            👫
+          </span>
+          <span
+            className={cn(
+              "text-sm font-medium",
+              withPartner ? "text-primary" : "text-muted-foreground",
+            )}
+          >
+            {t("withPartner")}
+          </span>
+        </span>
+        <span
+          className={cn(
+            "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
+            withPartner ? "bg-primary" : "bg-muted-foreground/30",
+          )}
+        >
+          <span
+            className={cn(
+              "inline-block h-5 w-5 transform rounded-full bg-white transition-transform",
+              withPartner ? "translate-x-5" : "translate-x-0.5",
+            )}
+          />
+        </span>
+      </button>
+
       {/* Card: Play */}
       <div
+        data-tour="vote-play"
         className={cn(
           "overflow-hidden rounded-xl border-2 transition-[border-color,box-shadow,background-color] duration-150",
           willPlay
@@ -286,6 +343,7 @@ export function VoteButtons({
           <div
             className="flex shrink-0 items-center py-3.5 pr-3.5 pl-1"
             data-guest-stepper
+            data-tour="vote-guest"
             onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
           >
@@ -299,7 +357,7 @@ export function VoteButtons({
                 if (!willPlay) return;
                 const prev = guestPlayCount;
                 setGuestPlayCount(v);
-                fireVote(true, willDine, v, guestDineCount, () =>
+                fireVote(true, willDine, v, guestDineCount, withPartner, () =>
                   setGuestPlayCount(prev),
                 );
               }}
@@ -388,7 +446,7 @@ export function VoteButtons({
                 if (!willDine) return;
                 const prev = guestDineCount;
                 setGuestDineCount(v);
-                fireVote(willPlay, true, guestPlayCount, v, () =>
+                fireVote(willPlay, true, guestPlayCount, v, withPartner, () =>
                   setGuestDineCount(prev),
                 );
               }}

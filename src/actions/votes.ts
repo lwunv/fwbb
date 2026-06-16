@@ -25,6 +25,7 @@ export async function submitVote(
   willDine: boolean,
   guestPlayCount: number,
   guestDineCount: number,
+  withPartner: boolean,
 ) {
   const t = await getTranslations("serverErrors");
   const auth = await requireApprovedMember();
@@ -37,6 +38,7 @@ export async function submitVote(
     willDine,
     guestPlayCount,
     guestDineCount,
+    withPartner,
   });
   if (!parsed.success) {
     return {
@@ -80,6 +82,7 @@ export async function submitVote(
       willDine: data.willDine,
       guestPlayCount: data.guestPlayCount,
       guestDineCount: data.guestDineCount,
+      withPartner: data.withPartner,
     })
     .onConflictDoUpdate({
       target: [votes.sessionId, votes.memberId],
@@ -88,6 +91,7 @@ export async function submitVote(
         willDine: data.willDine,
         guestPlayCount: data.guestPlayCount,
         guestDineCount: data.guestDineCount,
+        withPartner: data.withPartner,
         updatedAt: new Date().toISOString(),
       },
     });

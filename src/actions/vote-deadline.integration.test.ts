@@ -83,7 +83,7 @@ describe("submitVote — vote deadline gate", () => {
       externalId: "fb-a",
     });
 
-    const r = await submitVote(sessionId, true, false, 0, 0);
+    const r = await submitVote(sessionId, true, false, 0, 0, false);
     expect("error" in r).toBe(false);
   });
 
@@ -95,7 +95,7 @@ describe("submitVote — vote deadline gate", () => {
       externalId: "fb-a",
     });
 
-    const r = await submitVote(sessionId, true, false, 0, 0);
+    const r = await submitVote(sessionId, true, false, 0, 0, false);
     expect("error" in r).toBe(false);
   });
 
@@ -107,7 +107,7 @@ describe("submitVote — vote deadline gate", () => {
       externalId: "fb-a",
     });
 
-    const r = await submitVote(sessionId, true, false, 0, 0);
+    const r = await submitVote(sessionId, true, false, 0, 0, false);
     expect("error" in r).toBe(true);
   });
 
@@ -119,7 +119,7 @@ describe("submitVote — vote deadline gate", () => {
       externalId: "fb-a",
     });
 
-    const r1 = await submitVote(sessionId, true, false, 0, 0);
+    const r1 = await submitVote(sessionId, true, false, 0, 0, false);
     expect("error" in r1).toBe(false);
 
     await testDb
@@ -127,7 +127,7 @@ describe("submitVote — vote deadline gate", () => {
       .set({ voteDeadline: pastIso() })
       .where(eq(sessions.id, sessionId));
 
-    const r2 = await submitVote(sessionId, true, true, 1, 0);
+    const r2 = await submitVote(sessionId, true, true, 1, 0, false);
     expect("error" in r2).toBe(true);
   });
 });

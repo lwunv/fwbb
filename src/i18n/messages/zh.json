@@ -160,7 +160,8 @@
     "voteDeadlineSet": "设置截止",
     "voteDeadlineClear": "清除截止",
     "voteDeadlineExtend2h": "+2 小时",
-    "voteDeadlineExtend24h": "+24 小时"
+    "voteDeadlineExtend24h": "+24 小时",
+    "withPartner": "两人同行"
   },
   "finance": {
     "debts": "债务",

@@ -160,7 +160,8 @@
     "voteDeadlineSet": "Set deadline",
     "voteDeadlineClear": "Clear deadline",
     "voteDeadlineExtend2h": "+2 hours",
-    "voteDeadlineExtend24h": "+24 hours"
+    "voteDeadlineExtend24h": "+24 hours",
+    "withPartner": "Two people"
   },
   "finance": {
     "debts": "Debts",

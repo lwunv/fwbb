@@ -42,6 +42,7 @@ export const voteSchema = z.object({
   willDine: z.boolean(),
   guestPlayCount: z.number().int().min(0).max(20).default(0),
   guestDineCount: z.number().int().min(0).max(20).default(0),
+  withPartner: z.boolean().default(false),
 });
 
 export const purchaseSchema = z.object({
