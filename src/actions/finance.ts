@@ -146,6 +146,9 @@ export async function finalizeSession(
     { courtPrice: session.courtPrice, diningBill: data.diningBill },
     attendeeInputs,
     shuttlecockInputs,
+    // Guest-60K redistribute: khách trả sàn 60K, phần dư giảm cho member (không
+    // vào quỹ). Chỉ bật khi session opt-in min-deduction (giống member-floor).
+    { applyGuestFloor: session.useMinDeduction ?? false },
   );
 
   const now = new Date().toISOString();
@@ -516,6 +519,8 @@ export async function finalizeSessionAuto(sessionId: number) {
         isGuest: false,
         attendsPlay: v.willPlay ?? false,
         attendsDine: v.willDine ?? false,
+        // "Đi 2 người": member gánh 2 suất cho phần chơi/nhậu của họ.
+        headcount: v.withPartner ? 2 : 1,
       });
     }
     const memberName = v.member?.name ?? `M${v.memberId}`;

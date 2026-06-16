@@ -46,7 +46,7 @@ export function FundTopUpCard({ memberId, debtAmount, bare = false }: Props) {
     mode === "payDebt" ? `FWBB NO ${memberId}` : `FWBB QUY ${memberId}`;
 
   const body = (
-    <div className="space-y-3">
+    <div className="space-y-3" data-tour="fund-topup">
       <h3 className="text-base font-semibold">{t("topUp")}</h3>
 
       <div className="grid grid-cols-2 gap-2">

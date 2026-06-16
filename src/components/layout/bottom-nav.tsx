@@ -31,6 +31,13 @@ export function BottomNav() {
             <Link
               key={item.href}
               href={item.href}
+              data-tour={
+                item.href === "/my-fund"
+                  ? "nav-fund"
+                  : item.href === "/history"
+                    ? "nav-history"
+                    : undefined
+              }
               className={cn(
                 "flex flex-col items-center gap-1 px-3 py-2 text-sm font-medium transition-colors",
                 isActive

@@ -49,6 +49,7 @@ interface AttendeeEntry {
   isGuest: boolean;
   attendsPlay: boolean;
   attendsDine: boolean;
+  headcount: number;
 }
 
 interface GuestEntry {
@@ -199,6 +200,9 @@ export function FinalizeSession({
     const allMemberIds = new Set([...playerIds, ...dinerIds]);
     for (const memberId of allMemberIds) {
       const member = members.find((m) => m.id === memberId);
+      const withPartner = votes.find(
+        (v) => v.memberId === memberId,
+      )?.withPartner;
       list.push({
         memberId,
         memberName: member?.name ?? `ID ${memberId}`,
@@ -207,6 +211,7 @@ export function FinalizeSession({
         isGuest: false,
         attendsPlay: playerIds.has(memberId),
         attendsDine: dinerIds.has(memberId),
+        headcount: withPartner ? 2 : 1,
       });
     }
 
@@ -220,11 +225,12 @@ export function FinalizeSession({
         isGuest: true,
         attendsPlay: g.attendsPlay,
         attendsDine: g.attendsDine,
+        headcount: 1,
       });
     }
 
     return list;
-  }, [playerIds, dinerIds, guests, members]);
+  }, [playerIds, dinerIds, guests, members, votes]);
 
   // Calculate cost preview
   const preview: CostBreakdown | null = useMemo(() => {
@@ -237,6 +243,7 @@ export function FinalizeSession({
       isGuest: a.isGuest,
       attendsPlay: a.attendsPlay,
       attendsDine: a.attendsDine,
+      headcount: a.headcount,
     }));
 
     const shuttlecockInputs: ShuttlecockInput[] = shuttlecocks.map((s) => ({
@@ -248,6 +255,9 @@ export function FinalizeSession({
       { courtPrice, diningBill },
       attendeeInputs,
       shuttlecockInputs,
+      // Optimistic preview mirror finalize: khách bị sàn 60K thì chia lại cho
+      // member, KHÔNG dư vào quỹ. Session mặc định bật min-deduction.
+      { applyGuestFloor: true },
     );
   }, [step, attendeeList, shuttlecocks, courtPrice, diningBill]);
 
@@ -263,6 +273,7 @@ export function FinalizeSession({
       isGuest: a.isGuest,
       attendsPlay: a.attendsPlay,
       attendsDine: a.attendsDine,
+      headcount: a.headcount,
     }));
 
     fireAction(

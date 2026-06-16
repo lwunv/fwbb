@@ -124,6 +124,7 @@ export function FundBalanceBanner({
     return (
       <Link
         href="/my-fund"
+        data-tour="fund-banner"
         className={cn(wrapperClass, "block hover:opacity-90")}
       >
         {headerInner}
@@ -132,7 +133,7 @@ export function FundBalanceBanner({
   }
 
   return (
-    <div className={wrapperClass}>
+    <div className={wrapperClass} data-tour="fund-banner">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

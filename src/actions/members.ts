@@ -117,7 +117,10 @@ export async function createMember(formData: FormData) {
   // Fake id `admin_<ts>_<rand>` cũ khiến row admin-tạo KHÔNG bao giờ được gợi ý
   // merge khi chính chủ signup (FB login tra theo id thật, không replace fake).
   // Member email+password cũng đã insert với facebookId NULL — đồng nhất.
-  await db.insert(members).values({ ...parsed.data, nickname });
+  const defaultWithPartner = formData.get("withPartner") === "1";
+  await db
+    .insert(members)
+    .values({ ...parsed.data, nickname, defaultWithPartner });
   revalidatePath("/admin/members");
   return { success: true };
 }
@@ -198,10 +201,11 @@ export async function updateMyProfile(
     return { error: t("nicknameTooLong") };
   }
   const nickname = nicknameRaw.length === 0 ? null : nicknameRaw;
+  const defaultWithPartner = formData.get("withPartner") === "1";
 
   await db
     .update(members)
-    .set({ nickname })
+    .set({ nickname, defaultWithPartner })
     .where(eq(members.id, user.memberId));
 
   revalidatePath("/me");
@@ -229,10 +233,16 @@ export async function updateMember(id: number, formData: FormData) {
     };
   }
   const nickname = (formData.get("nickname") as string)?.trim() || null;
-  await db
-    .update(members)
-    .set({ ...parsed.data, nickname })
-    .where(eq(members.id, id));
+  // Chỉ đổi defaultWithPartner khi form CÓ gửi field (tránh nuke về false khi
+  // sửa nhanh nickname không kèm field này).
+  const setValues: Partial<typeof members.$inferInsert> = {
+    ...parsed.data,
+    nickname,
+  };
+  if (formData.has("withPartner")) {
+    setValues.defaultWithPartner = formData.get("withPartner") === "1";
+  }
+  await db.update(members).set(setValues).where(eq(members.id, id));
   revalidatePath("/admin/members");
   return { success: true };
 }

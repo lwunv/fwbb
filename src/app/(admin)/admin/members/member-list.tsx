@@ -287,6 +287,25 @@ export function MemberList({
     setPage(1);
   };
 
+  const [partnerOverrides, setPartnerOverrides] = useState<
+    Record<number, boolean>
+  >({});
+
+  // Optimistic toggle "đi 2 người" cho member. updateMember chỉ đổi
+  // defaultWithPartner khi form CÓ field withPartner → an toàn với sửa nickname.
+  function handleTogglePartner(m: Member) {
+    const current = partnerOverrides[m.id] ?? m.defaultWithPartner;
+    const next = !current;
+    setPartnerOverrides((prev) => ({ ...prev, [m.id]: next }));
+    const fd = new FormData();
+    fd.set("name", m.name);
+    fd.set("withPartner", next ? "1" : "0");
+    fireAction(
+      () => updateMember(m.id, fd),
+      () => setPartnerOverrides((prev) => ({ ...prev, [m.id]: current })),
+    );
+  }
+
   function handleCreate(formData: FormData) {
     setDialogOpen(false);
     fireAction(
@@ -336,6 +355,15 @@ export function MemberList({
               <Label htmlFor="nickname">{t("nickname")}</Label>
               <Input id="nickname" name="nickname" />
             </div>
+            <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="withPartner"
+                value="1"
+                className="accent-primary h-5 w-5 rounded"
+              />
+              👫 {t("memberWithPartner")}
+            </label>
             <Button type="submit" className="w-full">
               {tCommon("add")}
             </Button>
@@ -457,6 +485,27 @@ export function MemberList({
                           ? t("inFund")
                           : t("notInFund")}
                       </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTogglePartner(member);
+                        }}
+                        className={cn(
+                          "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors",
+                          (partnerOverrides[member.id] ??
+                            member.defaultWithPartner)
+                            ? "bg-primary/15 text-primary"
+                            : "bg-muted text-muted-foreground hover:bg-muted/70",
+                        )}
+                        title={t("memberWithPartner")}
+                      >
+                        👫{" "}
+                        {(partnerOverrides[member.id] ??
+                        member.defaultWithPartner)
+                          ? t("partnerOn")
+                          : t("partnerOff")}
+                      </button>
                       <button
                         type="button"
                         onClick={(e) => {

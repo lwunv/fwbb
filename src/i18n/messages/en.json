@@ -379,7 +379,8 @@
       "mismatch": "Password confirmation does not match",
       "successSet": "Password set. Next time you can log in with email + password.",
       "successChange": "Password changed"
-    }
+    },
+    "withPartnerLabel": "Two people (default)"
   },
   "dashboard": {
     "overview": "Overview",
@@ -491,7 +492,8 @@
     "hidePassword": "Hide password",
     "errMissingFields": "Please enter email and password",
     "errMissingName": "Please enter your name",
-    "forgotPassword": "Forgot password?"
+    "forgotPassword": "Forgot password?",
+    "signupWithPartner": "Two-person account (partner comes along)"
   },
   "passwordReset": {
     "forgotTitle": "Forgot password",
@@ -639,7 +641,10 @@
     "confirmMerge": "Merge into \"{name}\"? OAuth credentials will link to the existing member and the pending row will be deleted.",
     "toastApproved": "Approved",
     "toastRejected": "Rejected",
-    "toastMerged": "Merged into {name}"
+    "toastMerged": "Merged into {name}",
+    "memberWithPartner": "Two people",
+    "partnerOn": "2 people",
+    "partnerOff": "1 person"
   },
   "pendingApproval": {
     "title": "Awaiting admin approval",
@@ -1090,5 +1095,23 @@
     "removeTitle": "Remove {name}?",
     "removeDesc": "Remove from this session's list?",
     "min60k": "Min 60K: {from} → {to}"
+  },
+  "tour": {
+    "open": "Guide",
+    "next": "Next",
+    "prev": "Back",
+    "done": "Done",
+    "votePlayTitle": "Mark play / dine",
+    "votePlayDesc": "Tick here to say you'll play badminton or join dinner.",
+    "votePartnerTitle": "Two people",
+    "votePartnerDesc": "Coming with your partner? Turn on to count 2 shares.",
+    "voteGuestTitle": "Bring guests",
+    "voteGuestDesc": "Tap +/− to add guests. You cover their share.",
+    "fundBannerTitle": "Your fund",
+    "fundBannerDesc": "Fund balance: negative = you owe, positive = credit left.",
+    "fundTopupTitle": "Top up",
+    "fundTopupDesc": "Low/empty fund? Tap here to scan the QR — the system auto-confirms.",
+    "navTitle": "Debts & history",
+    "navDesc": "See your debt/fund details and session history here."
   }
 }

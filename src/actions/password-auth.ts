@@ -56,6 +56,7 @@ export async function signupWithPassword(input: {
   nickname?: string;
   phoneNumber?: string;
   bankAccountNo?: string;
+  defaultWithPartner?: boolean;
 }) {
   // Rate limit: 5 signup attempts per IP per 10 minutes
   const ip = await getTrustedClientIp();
@@ -111,6 +112,7 @@ export async function signupWithPassword(input: {
       nickname,
       phoneNumber,
       bankAccountNo,
+      defaultWithPartner: input.defaultWithPartner === true,
       approvalStatus: "pending",
     })
     .returning();

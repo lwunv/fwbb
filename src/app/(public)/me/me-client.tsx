@@ -72,6 +72,7 @@ interface MeClientProps {
   avatarUrl: string | null;
   memberName: string;
   memberNickname: string | null;
+  defaultWithPartner: boolean;
   totalSpentThisMonth: number;
   outstandingDebt: number;
   fundBalance: number | null;
@@ -83,6 +84,7 @@ export function MeClient({
   avatarUrl,
   memberName,
   memberNickname,
+  defaultWithPartner,
   totalSpentThisMonth,
   outstandingDebt,
   fundBalance,
@@ -124,10 +126,19 @@ export function MeClient({
     setNicknameDraft(memberNickname ?? "");
   }
 
+  // "Đi 2 người" mặc định của acc — sync theo prop sau revalidate (cùng pattern).
+  const [withPartner, setWithPartner] = useState(defaultWithPartner);
+  const [prevWithPartner, setPrevWithPartner] = useState(defaultWithPartner);
+  if (defaultWithPartner !== prevWithPartner) {
+    setPrevWithPartner(defaultWithPartner);
+    setWithPartner(defaultWithPartner);
+  }
+
   function handleProfileSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData();
     fd.set("nickname", nicknameDraft);
+    fd.set("withPartner", withPartner ? "1" : "0");
     fireAction(
       async () => {
         const r: UpdateMyProfileState = await updateMyProfile(null, fd);
@@ -196,6 +207,37 @@ export function MeClient({
                 maxLength={40}
               />
             </div>
+            <button
+              type="button"
+              onClick={() => setWithPartner((v) => !v)}
+              aria-pressed={withPartner}
+              className={cn(
+                "flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5 text-left transition-colors",
+                withPartner
+                  ? "border-primary bg-primary/[0.06]"
+                  : "border-border bg-background hover:border-primary/40",
+              )}
+            >
+              <span className="flex items-center gap-2 text-sm">
+                <span className="text-lg leading-none" aria-hidden>
+                  👫
+                </span>
+                {tMe("withPartnerLabel")}
+              </span>
+              <span
+                className={cn(
+                  "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
+                  withPartner ? "bg-primary" : "bg-muted-foreground/30",
+                )}
+              >
+                <span
+                  className={cn(
+                    "inline-block h-5 w-5 transform rounded-full bg-white transition-transform",
+                    withPartner ? "translate-x-5" : "translate-x-0.5",
+                  )}
+                />
+              </span>
+            </button>
             <Button type="submit" className="w-full">
               {tMe("saveProfile")}
             </Button>

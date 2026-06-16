@@ -379,7 +379,8 @@
       "mismatch": "Mật khẩu xác nhận không khớp",
       "successSet": "Đã đặt mật khẩu. Lần sau có thể login bằng email + mật khẩu.",
       "successChange": "Đã đổi mật khẩu"
-    }
+    },
+    "withPartnerLabel": "Đi 2 người (mặc định)"
   },
   "dashboard": {
     "overview": "Tổng quan",
@@ -491,7 +492,8 @@
     "hidePassword": "Ẩn mật khẩu",
     "errMissingFields": "Vui lòng nhập email và mật khẩu",
     "errMissingName": "Vui lòng nhập họ tên",
-    "forgotPassword": "Quên mật khẩu?"
+    "forgotPassword": "Quên mật khẩu?",
+    "signupWithPartner": "Tài khoản đi 2 người (vợ/chồng/bạn đi cùng)"
   },
   "passwordReset": {
     "forgotTitle": "Quên mật khẩu",
@@ -639,7 +641,10 @@
     "confirmMerge": "Gộp vào \"{name}\"? Tài khoản OAuth sẽ liên kết với member sẵn có và xoá row pending.",
     "toastApproved": "Đã duyệt",
     "toastRejected": "Đã từ chối",
-    "toastMerged": "Đã gộp vào {name}"
+    "toastMerged": "Đã gộp vào {name}",
+    "memberWithPartner": "Đi 2 người",
+    "partnerOn": "2 người",
+    "partnerOff": "1 người"
   },
   "pendingApproval": {
     "title": "Đang chờ admin duyệt",
@@ -1090,5 +1095,23 @@
     "removeTitle": "Xóa {name}?",
     "removeDesc": "Xóa khỏi danh sách buổi chơi này?",
     "min60k": "Min 60K: {from} → {to}"
+  },
+  "tour": {
+    "open": "Hướng dẫn",
+    "next": "Tiếp",
+    "prev": "Trước",
+    "done": "Xong",
+    "votePlayTitle": "Báo đi chơi / nhậu",
+    "votePlayDesc": "Tick vào đây để báo bạn đi chơi cầu hoặc đi nhậu buổi này.",
+    "votePartnerTitle": "Đi 2 người",
+    "votePartnerDesc": "Đi cùng vợ/chồng/bạn? Bật để tính 2 suất cho bạn.",
+    "voteGuestTitle": "Rủ thêm khách",
+    "voteGuestDesc": "Bấm +/− để thêm khách. Bạn sẽ trả hộ phần của khách.",
+    "fundBannerTitle": "Quỹ của bạn",
+    "fundBannerDesc": "Số dư quỹ: âm là đang nợ, dương là còn dư.",
+    "fundTopupTitle": "Nộp quỹ",
+    "fundTopupDesc": "Hết / sắp hết quỹ thì bấm đây quét QR nộp — hệ thống tự xác nhận.",
+    "navTitle": "Nợ & lịch sử",
+    "navDesc": "Xem chi tiết nợ/quỹ và lịch sử các buổi ở đây."
   }
 }
