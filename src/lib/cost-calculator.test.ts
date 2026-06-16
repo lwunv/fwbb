@@ -875,9 +875,10 @@ describe("computePredictedMinDeductionSurplus", () => {
     expect(r).toBe(0);
   });
 
-  it("cộng surplus từ khách — mỗi khách floor lên 60K, độc lập balance", () => {
-    // perHead 34K, 2 khách chơi → mỗi khách surplus (60−34)=26K → +52K.
-    // Không member nào chơi → chỉ surplus khách.
+  it("khách KHÔNG còn tạo surplus quỹ (đã chia lại cho member qua guest-floor)", () => {
+    // Sau guest-60K redistribute: khách trả sàn 60K nhưng phần dư giảm cho
+    // member, KHÔNG vào quỹ → forecast surplus quỹ từ khách = 0. guestPlayCount
+    // giữ làm no-op cho caller cũ.
     const r = computePredictedMinDeductionSurplus({
       playingMemberIds: [],
       memberBalances: {},
@@ -885,7 +886,7 @@ describe("computePredictedMinDeductionSurplus", () => {
       playCostPerHead: 34_000,
       guestPlayCount: 2,
     });
-    expect(r).toBe(52_000);
+    expect(r).toBe(0);
   });
 
   it("guest surplus = 0 khi perHead ≥ floor", () => {
@@ -1015,5 +1016,78 @@ describe("forecast surplus — partner", () => {
       playingMemberHeadcounts: { 1: 2 },
     });
     expect(s).toBe(0);
+  });
+});
+
+describe("calculateSessionCosts — guest 60K redistribution (applyGuestFloor)", () => {
+  function guest(invitedById: number): AttendeeInput {
+    return {
+      memberId: null,
+      invitedById,
+      isGuest: true,
+      attendsPlay: true,
+      attendsDine: false,
+    };
+  }
+  function mem(id: number): AttendeeInput {
+    return {
+      memberId: id,
+      invitedById: null,
+      isGuest: false,
+      attendsPlay: true,
+      attendsDine: false,
+    };
+  }
+
+  it("VD user: sân 200K, 2 member + 2 khách → khách 60K, member 40K, KHÔNG dư quỹ", () => {
+    const r = calculateSessionCosts(
+      { courtPrice: 200_000, diningBill: 0 },
+      [mem(1), mem(2), guest(1), guest(1)],
+      [],
+      { applyGuestFloor: true },
+    );
+    expect(r.totalPlayers).toBe(4);
+    expect(r.guestPlayCostPerHead).toBe(60_000);
+    expect(r.playCostPerHead).toBe(40_000); // (200 − 60×2) / 2
+    const m1 = r.memberDebts.find((d) => d.memberId === 1)!;
+    expect(m1.playAmount).toBe(40_000);
+    expect(m1.guestPlayAmount).toBe(120_000); // 2 × 60K
+    expect(m1.totalAmount).toBe(160_000);
+    const m2 = r.memberDebts.find((d) => d.memberId === 2)!;
+    expect(m2.playAmount).toBe(40_000);
+    const total = r.memberDebts.reduce((s, d) => s + d.totalAmount, 0);
+    expect(total).toBe(200_000); // = đúng tiền sân, không dư vào quỹ
+  });
+
+  it("perHead ≥ 60K → KHÔNG redistribute (khách = member = perHead)", () => {
+    const r = calculateSessionCosts(
+      { courtPrice: 300_000, diningBill: 0 },
+      [mem(1), guest(1)],
+      [],
+      { applyGuestFloor: true },
+    );
+    expect(r.playCostPerHead).toBe(150_000);
+    expect(r.guestPlayCostPerHead).toBe(150_000);
+  });
+
+  it("applyGuestFloor mặc định false → giữ hành vi cũ (khách = member rate)", () => {
+    const r = calculateSessionCosts(
+      { courtPrice: 200_000, diningBill: 0 },
+      [mem(1), mem(2), guest(1), guest(1)],
+      [],
+    );
+    expect(r.playCostPerHead).toBe(50_000);
+    expect(r.guestPlayCostPerHead).toBe(50_000);
+  });
+
+  it("khách trả ≥ tiền sân (hiếm) → member = 0, không âm", () => {
+    const r = calculateSessionCosts(
+      { courtPrice: 100_000, diningBill: 0 },
+      [mem(1), guest(1), guest(1), guest(1)],
+      [],
+      { applyGuestFloor: true },
+    );
+    expect(r.playCostPerHead).toBe(0);
+    expect(r.guestPlayCostPerHead).toBe(60_000);
   });
 });

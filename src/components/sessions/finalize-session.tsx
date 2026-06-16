@@ -248,6 +248,9 @@ export function FinalizeSession({
       { courtPrice, diningBill },
       attendeeInputs,
       shuttlecockInputs,
+      // Optimistic preview mirror finalize: khách bị sàn 60K thì chia lại cho
+      // member, KHÔNG dư vào quỹ. Session mặc định bật min-deduction.
+      { applyGuestFloor: true },
     );
   }, [step, attendeeList, shuttlecocks, courtPrice, diningBill]);
 
