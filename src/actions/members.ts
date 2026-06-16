@@ -8,6 +8,7 @@ import {
   sessionDebts,
   financialTransactions,
   admins,
+  passwordResetTokens,
 } from "@/db/schema";
 import { eq, sql, or, ne, and, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -669,6 +670,19 @@ export async function mergeMember(sourceId: number, targetId: number) {
       .update(admins)
       .set({ memberId: targetId })
       .where(eq(admins.memberId, sourceId));
+
+    // 6b. Vô hiệu reset-token đang chờ của source — không mang link đặt lại
+    //     mật khẩu qua merge. Explicit dù FK đã cascade: vẫn an toàn nếu
+    //     foreign_keys enforcement bị tắt trên một connection nào đó.
+    await tx
+      .update(passwordResetTokens)
+      .set({ usedAt: new Date().toISOString() })
+      .where(
+        and(
+          eq(passwordResetTokens.memberId, sourceId),
+          isNull(passwordResetTokens.usedAt),
+        ),
+      );
 
     // 7. Xóa member nguồn.
     await tx.delete(members).where(eq(members.id, sourceId));

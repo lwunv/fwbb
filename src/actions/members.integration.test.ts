@@ -15,7 +15,12 @@
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
-import { admins, members, financialTransactions } from "@/db/schema";
+import {
+  admins,
+  members,
+  financialTransactions,
+  passwordResetTokens,
+} from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -26,10 +31,12 @@ vi.mock("@/lib/auth", () => ({
 const { db: testDb, client } = await createTestDb();
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { toggleMemberActive, findDuplicateMembers } = await import("./members");
+const { toggleMemberActive, findDuplicateMembers, mergeMember } =
+  await import("./members");
 const { getFundBalance } = await import("@/lib/fund-calculator");
 
 async function reset() {
+  await client.execute("DELETE FROM password_reset_tokens");
   await client.execute("DELETE FROM financial_transactions");
   await client.execute("DELETE FROM admins");
   await client.execute("DELETE FROM members");
@@ -289,5 +296,32 @@ describe("findDuplicateMembers (integration)", () => {
     const byId = new Map(dups[0].members.map((m) => [m.id, m]));
     expect(byId.get(a1)?.ledgerCount).toBe(3);
     expect(byId.get(a2)?.ledgerCount).toBe(1);
+  });
+});
+
+describe("mergeMember (integration)", () => {
+  beforeEach(async () => {
+    await reset();
+    await seedAdmin();
+  });
+
+  it("invalidates the source member's pending reset tokens on merge", async () => {
+    const src = await seedMember("MergeSrc", "fb-msrc");
+    const dst = await seedMember("MergeDst", "fb-mdst");
+    await testDb.insert(passwordResetTokens).values({
+      memberId: src,
+      tokenHash: "a".repeat(64),
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+
+    const r = await mergeMember(src, dst);
+    expect("error" in r).toBe(false);
+
+    // No LIVE token survives the merge (source row invalidated and/or cascade-
+    // deleted; nothing re-pointed to the target).
+    const live = (await testDb.query.passwordResetTokens.findMany()).filter(
+      (tok) => tok.usedAt === null,
+    );
+    expect(live).toHaveLength(0);
   });
 });
