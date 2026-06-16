@@ -379,7 +379,8 @@
       "mismatch": "Mật khẩu xác nhận không khớp",
       "successSet": "Đã đặt mật khẩu. Lần sau có thể login bằng email + mật khẩu.",
       "successChange": "Đã đổi mật khẩu"
-    }
+    },
+    "withPartnerLabel": "Đi 2 người (mặc định)"
   },
   "dashboard": {
     "overview": "Tổng quan",
@@ -490,7 +491,8 @@
     "showPassword": "Hiện mật khẩu",
     "hidePassword": "Ẩn mật khẩu",
     "errMissingFields": "Vui lòng nhập email và mật khẩu",
-    "errMissingName": "Vui lòng nhập họ tên"
+    "errMissingName": "Vui lòng nhập họ tên",
+    "signupWithPartner": "Tài khoản đi 2 người (vợ/chồng/bạn đi cùng)"
   },
   "history": {
     "completed": "Đã hoàn thành",
@@ -620,7 +622,10 @@
     "confirmMerge": "Gộp vào \"{name}\"? Tài khoản OAuth sẽ liên kết với member sẵn có và xoá row pending.",
     "toastApproved": "Đã duyệt",
     "toastRejected": "Đã từ chối",
-    "toastMerged": "Đã gộp vào {name}"
+    "toastMerged": "Đã gộp vào {name}",
+    "memberWithPartner": "Đi 2 người",
+    "partnerOn": "2 người",
+    "partnerOff": "1 người"
   },
   "pendingApproval": {
     "title": "Đang chờ admin duyệt",

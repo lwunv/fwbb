@@ -379,7 +379,8 @@
       "mismatch": "Password confirmation does not match",
       "successSet": "Password set. Next time you can log in with email + password.",
       "successChange": "Password changed"
-    }
+    },
+    "withPartnerLabel": "Two people (default)"
   },
   "dashboard": {
     "overview": "Overview",
@@ -490,7 +491,8 @@
     "showPassword": "Show password",
     "hidePassword": "Hide password",
     "errMissingFields": "Please enter email and password",
-    "errMissingName": "Please enter your name"
+    "errMissingName": "Please enter your name",
+    "signupWithPartner": "Two-person account (partner comes along)"
   },
   "history": {
     "completed": "Done",
@@ -620,7 +622,10 @@
     "confirmMerge": "Merge into \"{name}\"? OAuth credentials will link to the existing member and the pending row will be deleted.",
     "toastApproved": "Approved",
     "toastRejected": "Rejected",
-    "toastMerged": "Merged into {name}"
+    "toastMerged": "Merged into {name}",
+    "memberWithPartner": "Two people",
+    "partnerOn": "2 people",
+    "partnerOff": "1 person"
   },
   "pendingApproval": {
     "title": "Awaiting admin approval",

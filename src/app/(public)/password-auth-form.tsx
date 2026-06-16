@@ -25,6 +25,7 @@ export function PasswordAuthForm() {
   const [nickname, setNickname] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [bankAccountNo, setBankAccountNo] = useState("");
+  const [withPartner, setWithPartner] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -52,6 +53,7 @@ export function PasswordAuthForm() {
               nickname: nickname.trim() || undefined,
               phoneNumber: phoneNumber.trim() || undefined,
               bankAccountNo: bankAccountNo.trim() || undefined,
+              defaultWithPartner: withPartner,
             });
       if (result && "error" in result && result.error) {
         setError(result.error);
@@ -187,6 +189,16 @@ export function PasswordAuthForm() {
               maxLength={32}
               disabled={isPending}
             />
+            <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={withPartner}
+                onChange={(e) => setWithPartner(e.target.checked)}
+                disabled={isPending}
+                className="accent-primary h-5 w-5 rounded"
+              />
+              {t("signupWithPartner")}
+            </label>
           </>
         )}
 

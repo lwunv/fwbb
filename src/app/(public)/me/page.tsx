@@ -47,6 +47,7 @@ export default async function MePage() {
         avatarUrl={member.avatarUrl ?? null}
         memberName={member.name}
         memberNickname={member.nickname ?? null}
+        defaultWithPartner={member.defaultWithPartner}
         totalSpentThisMonth={totalSpentThisMonth}
         outstandingDebt={outstandingDebt}
         fundBalance={fundBalance}

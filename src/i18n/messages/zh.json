@@ -379,7 +379,8 @@
       "mismatch": "确认密码不一致",
       "successSet": "密码已设置。下次可使用邮箱 + 密码登录。",
       "successChange": "密码已修改"
-    }
+    },
+    "withPartnerLabel": "默认两人同行"
   },
   "dashboard": {
     "overview": "概览",
@@ -490,7 +491,8 @@
     "showPassword": "显示密码",
     "hidePassword": "隐藏密码",
     "errMissingFields": "请输入邮箱和密码",
-    "errMissingName": "请输入姓名"
+    "errMissingName": "请输入姓名",
+    "signupWithPartner": "两人账户（配偶/朋友同行）"
   },
   "history": {
     "completed": "已完成",
@@ -620,7 +622,10 @@
     "confirmMerge": "合并到\"{name}\"? OAuth 凭据将链接到现有成员,待审核行将被删除。",
     "toastApproved": "已批准",
     "toastRejected": "已拒绝",
-    "toastMerged": "已合并到 {name}"
+    "toastMerged": "已合并到 {name}",
+    "memberWithPartner": "两人同行",
+    "partnerOn": "两人",
+    "partnerOff": "一人"
   },
   "pendingApproval": {
     "title": "等待管理员批准",
