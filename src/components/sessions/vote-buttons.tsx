@@ -118,6 +118,8 @@ interface VoteButtonsProps {
   currentGuestDineCount: number;
   currentWithPartner: boolean;
   disabled?: boolean;
+  /** Tiêu đề render cùng hàng với toggle "Đi 2 mình" (góc phải). */
+  title?: string;
   /** Đồng bộ danh sách/số liệu UI ngay lập tức; revert khi API lỗi */
   optimisticListSync?: {
     apply: (patch: VoteTotalsPatch) => void;
@@ -133,6 +135,7 @@ export function VoteButtons({
   currentGuestDineCount,
   currentWithPartner,
   disabled = false,
+  title,
   optimisticListSync,
 }: VoteButtonsProps) {
   const [willPlay, setWillPlay] = useState(currentWillPlay);
@@ -251,45 +254,42 @@ export function VoteButtons({
     // Bỏ wrapper card-in-card (trước đây bao thêm 1 lớp border + bg-muted)
     // → giảm visual clutter (3 lớp border xuống còn 2: Card ngoài + viền item).
     <div className="space-y-3">
-      <button
-        type="button"
-        data-tour="vote-partner"
-        onClick={togglePartner}
-        aria-pressed={withPartner}
-        className={cn(
-          "flex min-h-12 w-full items-center justify-between gap-2 rounded-xl border-2 px-3.5 py-3 text-left transition-colors",
-          withPartner
-            ? "border-primary bg-primary/[0.07]"
-            : "border-border/90 bg-background/80 hover:border-primary/45",
-        )}
-      >
-        <span className="flex items-center gap-2">
-          <span className="text-xl leading-none" aria-hidden>
-            👫
-          </span>
-          <span
-            className={cn(
-              "text-sm font-medium",
-              withPartner ? "text-primary" : "text-muted-foreground",
-            )}
-          >
-            {t("withPartner")}
-          </span>
-        </span>
-        <span
+      {/* Header: tiêu đề trái + toggle "Đi 2 mình" gọn ở góc phải (1 hàng). */}
+      <div className="flex items-center gap-3">
+        {title && <h2 className="font-semibold">{title}</h2>}
+        <button
+          type="button"
+          data-tour="vote-partner"
+          onClick={togglePartner}
+          aria-pressed={withPartner}
+          aria-label={t("withPartner")}
+          disabled={disabled}
           className={cn(
-            "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
-            withPartner ? "bg-primary" : "bg-muted-foreground/30",
+            "ml-auto flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-50",
+            withPartner
+              ? "border-primary bg-primary/10 text-primary"
+              : "border-border text-muted-foreground hover:border-primary/45",
           )}
         >
+          <span className="leading-none" aria-hidden>
+            👫
+          </span>
+          <span className="whitespace-nowrap">{t("withPartner")}</span>
           <span
             className={cn(
-              "inline-block h-5 w-5 transform rounded-full bg-white transition-transform",
-              withPartner ? "translate-x-5" : "translate-x-0.5",
+              "relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors",
+              withPartner ? "bg-primary" : "bg-muted-foreground/30",
             )}
-          />
-        </span>
-      </button>
+          >
+            <span
+              className={cn(
+                "inline-block h-3 w-3 transform rounded-full bg-white transition-transform",
+                withPartner ? "translate-x-3.5" : "translate-x-0.5",
+              )}
+            />
+          </span>
+        </button>
+      </div>
 
       {/* Card: Play */}
       <div

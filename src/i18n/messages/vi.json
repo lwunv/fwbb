@@ -161,7 +161,7 @@
     "voteDeadlineClear": "Bỏ deadline",
     "voteDeadlineExtend2h": "+2 giờ",
     "voteDeadlineExtend24h": "+24 giờ",
-    "withPartner": "Đi 2 người"
+    "withPartner": "Đi 2 mình"
   },
   "finance": {
     "debts": "Công nợ",
@@ -380,7 +380,7 @@
       "successSet": "Đã đặt mật khẩu. Lần sau có thể login bằng email + mật khẩu.",
       "successChange": "Đã đổi mật khẩu"
     },
-    "withPartnerLabel": "Đi 2 người (mặc định)",
+    "withPartnerLabel": "Đi 2 mình (mặc định)",
     "profileSaved": "Đã lưu",
     "saving": "Đang lưu…"
   },
@@ -625,7 +625,7 @@
     "toastApproved": "Đã duyệt",
     "toastRejected": "Đã từ chối",
     "toastMerged": "Đã gộp vào {name}",
-    "memberWithPartner": "Đi 2 người",
+    "memberWithPartner": "Đi 2 mình",
     "partnerOn": "2 người",
     "partnerOff": "1 người",
     "toastSaved": "Đã lưu",
@@ -1087,7 +1087,7 @@
     "done": "Xong",
     "votePlayTitle": "Báo đi chơi / nhậu",
     "votePlayDesc": "Tick vào đây để báo bạn đi chơi cầu hoặc đi nhậu buổi này.",
-    "votePartnerTitle": "Đi 2 người",
+    "votePartnerTitle": "Đi 2 mình",
     "votePartnerDesc": "Đi cùng vợ/chồng/bạn? Bật để tính 2 suất cho bạn.",
     "voteGuestTitle": "Rủ thêm khách",
     "voteGuestDesc": "Bấm +/− để thêm khách. Bạn sẽ trả hộ phần của khách.",

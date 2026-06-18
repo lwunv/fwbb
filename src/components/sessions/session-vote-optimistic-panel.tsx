@@ -155,9 +155,9 @@ export function SessionVoteOptimisticPanel({
       {effectiveIsVotingOpen && (
         <Card className="border-primary/20 bg-card/95 supports-[backdrop-filter]:bg-card/85 sticky bottom-20 z-30 shadow-lg backdrop-blur sm:static sm:shadow-sm">
           <CardContent className="p-4">
-            <h2 className="mb-3 font-semibold">{t("yourVote")}</h2>
             <VoteButtons
               sessionId={sessionId}
+              title={t("yourVote")}
               currentWillPlay={myVote?.willPlay ?? false}
               currentWillDine={myVote?.willDine ?? false}
               currentGuestPlayCount={myVote?.guestPlayCount ?? 0}
