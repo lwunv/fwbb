@@ -19,6 +19,7 @@ import {
 import { logout } from "@/actions/auth";
 import { LanguageSelector } from "@/components/shared/language-selector";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { NavPendingIcon } from "./nav-pending-icon";
 
 const navItems = [
   {
@@ -90,7 +91,7 @@ export function AdminSidebar({
                   : "hover:bg-accent",
               )}
             >
-              <item.icon className="h-4 w-4" />
+              <NavPendingIcon Icon={item.icon} className="h-4 w-4" />
               <span className="flex-1">{t(item.labelKey)}</span>
               {item.labelKey === "members" && pendingMemberCount > 0 && (
                 <span

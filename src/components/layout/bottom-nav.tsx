@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { Home, Clock, Wallet, BarChart3, User } from "lucide-react";
+import { NavPendingIcon } from "./nav-pending-icon";
 
 const navItems = [
   { href: "/", labelKey: "home" as const, icon: Home, tour: "nav-home" },
@@ -54,9 +55,7 @@ export function BottomNav() {
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <item.icon
-                className={cn("h-5 w-5", isActive && "text-primary")}
-              />
+              <NavPendingIcon Icon={item.icon} isActive={isActive} />
               <span>{t(item.labelKey)}</span>
             </Link>
           );
