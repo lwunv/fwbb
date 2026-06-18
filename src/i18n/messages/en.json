@@ -380,7 +380,9 @@
       "successSet": "Password set. Next time you can log in with email + password.",
       "successChange": "Password changed"
     },
-    "withPartnerLabel": "Two people (default)"
+    "withPartnerLabel": "Two people (default)",
+    "profileSaved": "Saved",
+    "saving": "Saving…"
   },
   "dashboard": {
     "overview": "Overview",
@@ -625,7 +627,9 @@
     "toastMerged": "Merged into {name}",
     "memberWithPartner": "Two people",
     "partnerOn": "2 people",
-    "partnerOff": "1 person"
+    "partnerOff": "1 person",
+    "toastSaved": "Saved",
+    "toastMemberAdded": "Member added"
   },
   "pendingApproval": {
     "title": "Awaiting admin approval",

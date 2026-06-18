@@ -313,6 +313,7 @@ export function MemberList({
       () => {
         setDialogOpen(true);
       },
+      { successMsg: t("toastMemberAdded") },
     );
   }
 
@@ -321,7 +322,9 @@ export function MemberList({
     formData.set("name", memberName);
     formData.set("nickname", nicknameValue);
     setEditingNicknameId(null);
-    fireAction(() => updateMember(memberId, formData));
+    fireAction(() => updateMember(memberId, formData), undefined, {
+      successMsg: t("toastSaved"),
+    });
   }
 
   const filterButtons: { key: StatusFilter; label: string }[] = [
@@ -494,7 +497,7 @@ export function MemberList({
                         className={cn(
                           "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors",
                           (partnerOverrides[member.id] ??
-                          member.defaultWithPartner)
+                            member.defaultWithPartner)
                             ? "bg-primary/15 text-primary"
                             : "bg-muted text-muted-foreground hover:bg-muted/70",
                         )}

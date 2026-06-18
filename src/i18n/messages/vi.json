@@ -380,7 +380,9 @@
       "successSet": "Đã đặt mật khẩu. Lần sau có thể login bằng email + mật khẩu.",
       "successChange": "Đã đổi mật khẩu"
     },
-    "withPartnerLabel": "Đi 2 người (mặc định)"
+    "withPartnerLabel": "Đi 2 người (mặc định)",
+    "profileSaved": "Đã lưu",
+    "saving": "Đang lưu…"
   },
   "dashboard": {
     "overview": "Tổng quan",
@@ -625,7 +627,9 @@
     "toastMerged": "Đã gộp vào {name}",
     "memberWithPartner": "Đi 2 người",
     "partnerOn": "2 người",
-    "partnerOff": "1 người"
+    "partnerOff": "1 người",
+    "toastSaved": "Đã lưu",
+    "toastMemberAdded": "Đã thêm thành viên"
   },
   "pendingApproval": {
     "title": "Đang chờ admin duyệt",

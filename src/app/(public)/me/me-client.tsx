@@ -30,6 +30,8 @@ import {
   Banknote,
   PiggyBank,
   ChevronRight,
+  Loader2,
+  Check,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -134,8 +136,16 @@ export function MeClient({
     setWithPartner(defaultWithPartner);
   }
 
+  // Pending + "đã lưu" feedback cho nút Lưu: trước đây bấm xong im lặng (không
+  // spinner, không toast) → user không biết đã lưu chưa.
+  const [saving, setSaving] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
+
   function handleProfileSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    setJustSaved(false);
     const fd = new FormData();
     fd.set("nickname", nicknameDraft);
     fd.set("withPartner", withPartner ? "1" : "0");
@@ -146,7 +156,16 @@ export function MeClient({
         return { success: true as const };
       },
       () => setNicknameDraft(memberNickname ?? ""),
-      { onSuccess: () => router.refresh() },
+      {
+        successMsg: tMe("profileSaved"),
+        onSuccess: () => {
+          setSaving(false);
+          setJustSaved(true);
+          setTimeout(() => setJustSaved(false), 2000);
+          router.refresh();
+        },
+        onError: () => setSaving(false),
+      },
     );
   }
 
@@ -238,8 +257,22 @@ export function MeClient({
                 />
               </span>
             </button>
-            <Button type="submit" className="w-full">
-              {tMe("saveProfile")}
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={saving}
+              aria-live="polite"
+            >
+              {saving ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : justSaved ? (
+                <Check className="mr-2 h-4 w-4" />
+              ) : null}
+              {saving
+                ? tMe("saving")
+                : justSaved
+                  ? tMe("profileSaved")
+                  : tMe("saveProfile")}
             </Button>
           </form>
         </CardContent>

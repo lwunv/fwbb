@@ -380,7 +380,9 @@
       "successSet": "密码已设置。下次可使用邮箱 + 密码登录。",
       "successChange": "密码已修改"
     },
-    "withPartnerLabel": "默认两人同行"
+    "withPartnerLabel": "默认两人同行",
+    "profileSaved": "已保存",
+    "saving": "保存中…"
   },
   "dashboard": {
     "overview": "概览",
@@ -625,7 +627,9 @@
     "toastMerged": "已合并到 {name}",
     "memberWithPartner": "两人同行",
     "partnerOn": "两人",
-    "partnerOff": "一人"
+    "partnerOff": "一人",
+    "toastSaved": "已保存",
+    "toastMemberAdded": "已添加成员"
   },
   "pendingApproval": {
     "title": "等待管理员批准",
