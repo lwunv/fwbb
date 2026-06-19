@@ -88,6 +88,39 @@ describe("parseTimoEmail", () => {
     expect(result!.memo).toBe("THANH TOAN BUOI 20/04");
   });
 
+  // REAL Timo (BVBank) format — nhãn "Mô tả:" + STK sau "tu" (không "TK").
+  // Regression cho bug: email thật rơi về pending vì parser cũ chỉ hiểu "ND:".
+  it("parses real Timo BVBank email: 'Mô tả:' label + 'tu <acct>' sender", () => {
+    const body = `Nguyen Van Luu thân mến,
+
+Tài khoản Spend Account vừa tăng 300.000 VND vào 15/06/2026 21:29. Số dư hiện tại: 356.014 VND.
+
+Mô tả: FWBB QUY 50 FT26167604501015.CT tu 999999090920 DO DUC MANH tai TCB.
+
+Cảm ơn Quý khách đã sử dụng dịch vụ Timo Digital Bank by BVBank!`;
+    const result = parseTimoEmail(body, "msg-real-bvbank");
+    expect(result).not.toBeNull();
+    expect(result!.amount).toBe(300000);
+    expect(result!.transId).toBe("FT26167604501015");
+    expect(result!.memo).toContain("FWBB QUY 50");
+    expect(result!.senderAccountNo).toBe("999999090920");
+  });
+
+  it("real BVBank memo resolves to fund_contribution for member 50", () => {
+    const intent = parseMemoIntent(
+      "FWBB QUY 50 FT26167604501015.CT tu 999999090920 DO DUC MANH tai TCB.",
+    );
+    expect(intent.type).toBe("fund_contribution");
+    expect(intent.memberId).toBe(50);
+  });
+
+  it("parses 'Mo ta' label without diacritics", () => {
+    const body = `tang 50.000 VND\nMo ta: FWBB NO 7 tu 123456789 tai ACB`;
+    const result = parseTimoEmail(body, "msg-mota-plain");
+    expect(result!.memo).toContain("FWBB NO 7");
+    expect(result!.senderAccountNo).toBe("123456789");
+  });
+
   // CRITICAL: amounts must be integers
   it("rejects malformed amount with too-long final group (1.000.0001)", () => {
     const body = `tang 1.000.0001 VND\nMa GD: FT26042400999`;

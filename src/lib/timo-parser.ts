@@ -62,16 +62,25 @@ export function parseTimoEmail(
     ? transIdMatch[1].toUpperCase()
     : `PUSH-${messageId}`;
 
-  // 3. Transfer memo / content: "ND: ..." line
+  // 3. Transfer memo / content. Timo (BVBank) thực tế dùng nhãn "Mô tả:" —
+  //    format giả định ban đầu ("ND:" / "Noi dung:") KHÔNG khớp email thật →
+  //    memo rỗng → intent "unknown" → mọi CK rơi về pending, không tự khớp.
+  //    Bắt cả 3 nhãn, có/không dấu.
   const memoMatch =
     body.match(/(?:\n|\r|^)\s*ND[:\s]+(.+?)(?:\n|\r|Ma\s*GD|$)/i) ||
-    body.match(/(?:\n|\r|^)\s*Noi\s*dung[:\s]+(.+?)(?:\n|\r|$)/i);
+    body.match(
+      /(?:\n|\r|^)\s*(?:Noi\s*dung|N[ôo]i\s*dung)[:\s]+(.+?)(?:\n|\r|$)/i,
+    ) ||
+    body.match(/(?:\n|\r|^)\s*M[ôo]\s*t[ảa][:\s]+(.+?)(?:\n|\r|$)/i);
   const memo = memoMatch ? memoMatch[1].trim() : "";
 
-  // 4. Sender account number: "TK 9021813730236" or "tu TK 123..."
+  // 4. Sender account number. Format thật: "...CT tu 999999090920 DO DUC MANH
+  //    tai TCB" — STK đứng sau "tu " và KHÔNG có chữ "TK". Giữ pattern "TK" cũ,
+  //    fallback "tu/từ <digits>".
   const accountMatch =
     body.match(/(?:tu\s+)?TK\s+(\d{8,20})/i) ||
-    body.match(/(?:from\s+)?(?:account|acc)[:\s]*(\d{8,20})/i);
+    body.match(/(?:from\s+)?(?:account|acc)[:\s]*(\d{8,20})/i) ||
+    body.match(/\bt[uừ]\s+(\d{8,20})\b/i);
   const senderAccountNo = accountMatch ? accountMatch[1] : null;
 
   return { amount, memo, transId, senderAccountNo };

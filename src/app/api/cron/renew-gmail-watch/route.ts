@@ -1,10 +1,12 @@
 /**
  * Vercel Cron: Renew Gmail Watch
  *
- * Gmail watch expires every 7 days. This cron runs every 6 days to renew.
- * Configured in vercel.json.
+ * Gmail watch expires every 7 days. This cron runs DAILY to renew, leaving a
+ * 6-day safety margin so a single failed/delayed run never lets the watch
+ * lapse. A lapsed watch = Pub/Sub stops pushing = real bank transfers silently
+ * stop being recorded. Configured in vercel.json.
  *
- * Schedule: every 6 days (0 0 *\/6 * *)
+ * Schedule: daily (0 0 * * *)
  */
 
 import { NextRequest, NextResponse } from "next/server";

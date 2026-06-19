@@ -67,25 +67,48 @@ export async function gmailHistoryList(
   accessToken: string,
   startHistoryId: string,
 ): Promise<{ history: GmailHistoryRecord[]; historyId: string }> {
-  const url = `https://gmail.googleapis.com/gmail/v1/users/me/history?startHistoryId=${startHistoryId}&historyTypes=messageAdded`;
+  const baseUrl = `https://gmail.googleapis.com/gmail/v1/users/me/history?startHistoryId=${startHistoryId}&historyTypes=messageAdded`;
 
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  // Paginate: a burst of emails can span multiple history pages. Reading only
+  // the first page would silently drop the rest — i.e. miss real bank
+  // transfers. Follow nextPageToken until exhausted, accumulating every record.
+  const history: GmailHistoryRecord[] = [];
+  let latestHistoryId = startHistoryId;
+  let pageToken: string | undefined;
 
-  if (res.status === 404) {
-    const err = new Error("historyId expired") as Error & { status: number };
-    err.status = 404;
-    throw err;
-  }
+  do {
+    const url = pageToken
+      ? `${baseUrl}&pageToken=${encodeURIComponent(pageToken)}`
+      : baseUrl;
 
-  if (!res.ok) {
-    throw new Error(
-      `Gmail history.list failed (${res.status}): ${await res.text()}`,
-    );
-  }
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
 
-  return res.json();
+    if (res.status === 404) {
+      const err = new Error("historyId expired") as Error & { status: number };
+      err.status = 404;
+      throw err;
+    }
+
+    if (!res.ok) {
+      throw new Error(
+        `Gmail history.list failed (${res.status}): ${await res.text()}`,
+      );
+    }
+
+    const page: {
+      history?: GmailHistoryRecord[];
+      historyId?: string;
+      nextPageToken?: string;
+    } = await res.json();
+
+    if (page.history) history.push(...page.history);
+    if (page.historyId) latestHistoryId = page.historyId;
+    pageToken = page.nextPageToken;
+  } while (pageToken);
+
+  return { history, historyId: latestHistoryId };
 }
 
 /**
