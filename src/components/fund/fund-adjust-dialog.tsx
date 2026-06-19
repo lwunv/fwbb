@@ -198,6 +198,7 @@ export function FundAdjustDialog({
                       min={0}
                       max={MAX_AMOUNT}
                       disabled={submitting}
+                      displayFormat="vnd"
                       className="flex-1"
                     />
                     <button
@@ -280,6 +281,7 @@ export function FundAdjustDialog({
                 min={0}
                 max={MAX_AMOUNT}
                 disabled={submitting || editingBalance}
+                displayFormat="vnd"
                 className="w-full"
               />
             </div>

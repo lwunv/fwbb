@@ -127,6 +127,7 @@ export function BrandList({ brands }: { brands: Brand[] }) {
                 name="pricePerTube"
                 min={0}
                 step={5000}
+                displayFormat="vnd"
                 className="flex w-full"
               />
             </div>

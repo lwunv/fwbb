@@ -544,6 +544,7 @@ export function FinalizeSession({
                 onChange={setDiningBill}
                 min={0}
                 step={50000}
+                displayFormat="vnd"
               />
               {diningBill > 0 && (
                 <p className="text-muted-foreground mt-1 text-sm">

@@ -124,6 +124,7 @@ export function PurchaseForm({ brands }: PurchaseFormProps) {
                 onChange={setPricePerTube}
                 min={0}
                 step={5000}
+                displayFormat="vnd"
               />
             </div>
           </div>

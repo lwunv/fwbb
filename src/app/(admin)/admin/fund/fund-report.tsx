@@ -404,6 +404,7 @@ export function FundReport({ fundMembers, transactions }: Props) {
                           min={0}
                           max={100_000_000}
                           disabled={adjusting}
+                          displayFormat="vnd"
                           className="w-44"
                         />
                         <button

@@ -155,6 +155,7 @@ export function CourtList({ courts }: { courts: Court[] }) {
                 name="pricePerSession"
                 min={0}
                 step={10000}
+                displayFormat="vnd"
                 className="flex w-full"
               />
               <p className="text-muted-foreground text-xs">
@@ -171,6 +172,7 @@ export function CourtList({ courts }: { courts: Court[] }) {
                 name="pricePerSessionRetail"
                 min={0}
                 step={10000}
+                displayFormat="vnd"
                 className="flex w-full"
               />
               <p className="text-muted-foreground text-xs">
