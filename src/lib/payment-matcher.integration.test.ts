@@ -113,6 +113,31 @@ async function memberBalance(memberId: number) {
   return computeBalanceFromTransactions(memberId, txs).balance;
 }
 
+// Count LIVE (un-reversed) fund_deduction rows for a debt — used to prove the
+// re-charge does not double-charge (must stay 1 after a bank pay).
+async function liveDeductions(debtId: number) {
+  const all = await testDb.query.financialTransactions.findMany({
+    where: eq(financialTransactions.debtId, debtId),
+  });
+  const reversed = new Set(
+    all.filter((t) => t.reversalOfId != null).map((t) => t.reversalOfId),
+  );
+  return all.filter(
+    (t) =>
+      t.type === "fund_deduction" &&
+      t.reversalOfId == null &&
+      !reversed.has(t.id),
+  ).length;
+}
+
+async function countTx(type: string) {
+  return (
+    await testDb.query.financialTransactions.findMany({
+      where: eq(financialTransactions.type, type as never),
+    })
+  ).length;
+}
+
 describe("processPayment (integration)", () => {
   beforeEach(async () => {
     await reset();
@@ -635,5 +660,445 @@ describe("processPayment (integration)", () => {
     // Live deduction (-80k) cancelled by balance-fix (+80k) → 0. Must NOT
     // re-insert a second deduction (that would be -80k → over-charge).
     expect(await memberBalance(m)).toBe(0);
+  });
+
+  // ─── Single-debt bank paths (confirmDebtFromBankTransfer restore) ───
+  // The undo→bank test above routes via NO{id}→matchAllDebts (a SEPARATE restore
+  // call site). These exercise the confirmDebtFromBankTransfer restore directly.
+
+  it("re-charges the deduction when paying an UNDONE debt via S{id} (no free session)", async () => {
+    const m = await seedMember({ bankAccountNo: "7779" });
+    const s = await seedSession("2026-04-22");
+    const debtId = await seedDebt(s, m, 100_000);
+    const ded = await insertTx({
+      type: "fund_deduction",
+      direction: "out",
+      amount: 100_000,
+      memberId: m,
+      sessionId: s,
+      debtId,
+      idempotencyKey: `ded-s-${debtId}`,
+    });
+    await insertTx({
+      type: "fund_contribution",
+      direction: "in",
+      amount: 100_000,
+      memberId: m,
+      sessionId: s,
+      debtId,
+      reversalOfId: ded,
+      idempotencyKey: `undo-s-${ded}`,
+    });
+    expect(await memberBalance(m)).toBe(0);
+
+    const r = await processPayment(
+      basePayment({
+        amount: 100_000,
+        memo: `S${s}`,
+        senderAccountNo: "7779",
+      }) as never,
+      "msg-undo-s",
+    );
+    expect(r.status).toBe("matched_debt");
+    expect(await memberBalance(m)).toBe(0);
+    expect(await liveDeductions(debtId)).toBe(1);
+  });
+
+  it("re-charges the deduction when paying an UNDONE debt via oldest-debt fallback", async () => {
+    const m = await seedMember({ bankAccountNo: "7780" });
+    const s = await seedSession("2026-04-23");
+    const debtId = await seedDebt(s, m, 100_000);
+    const ded = await insertTx({
+      type: "fund_deduction",
+      direction: "out",
+      amount: 100_000,
+      memberId: m,
+      sessionId: s,
+      debtId,
+      idempotencyKey: `ded-old-${debtId}`,
+    });
+    await insertTx({
+      type: "fund_contribution",
+      direction: "in",
+      amount: 100_000,
+      memberId: m,
+      sessionId: s,
+      debtId,
+      reversalOfId: ded,
+      idempotencyKey: `undo-old-${ded}`,
+    });
+    expect(await memberBalance(m)).toBe(0);
+
+    const r = await processPayment(
+      basePayment({
+        amount: 100_000,
+        memo: "chuyen khoan",
+        senderAccountNo: "7780",
+      }) as never,
+      "msg-undo-oldest",
+    );
+    expect(r.status).toBe("matched_debt");
+    expect(await memberBalance(m)).toBe(0);
+    expect(await liveDeductions(debtId)).toBe(1);
+  });
+
+  it("balance is 0 after bank-paying a normally-finalized debt via S{id} (no double-charge)", async () => {
+    const m = await seedMember({ bankAccountNo: "7781" });
+    const s = await seedSession("2026-04-24");
+    const debtId = await seedDebt(s, m, 80_000);
+    await insertTx({
+      type: "fund_deduction",
+      direction: "out",
+      amount: 80_000,
+      memberId: m,
+      sessionId: s,
+      debtId,
+      idempotencyKey: `ded-live-s-${debtId}`,
+    });
+    expect(await memberBalance(m)).toBe(-80_000);
+
+    const r = await processPayment(
+      basePayment({
+        amount: 80_000,
+        memo: `S${s}`,
+        senderAccountNo: "7781",
+      }) as never,
+      "msg-live-s",
+    );
+    expect(r.status).toBe("matched_debt");
+    expect(await memberBalance(m)).toBe(0);
+    expect(await liveDeductions(debtId)).toBe(1);
+  });
+
+  it("overpaying an UNDONE single debt nets to the overpay amount", async () => {
+    const m = await seedMember({ bankAccountNo: "7783" });
+    const s = await seedSession("2026-05-07");
+    const debtId = await seedDebt(s, m, 100_000);
+    const ded = await insertTx({
+      type: "fund_deduction",
+      direction: "out",
+      amount: 100_000,
+      memberId: m,
+      sessionId: s,
+      debtId,
+      idempotencyKey: `ded-ov-${debtId}`,
+    });
+    await insertTx({
+      type: "fund_contribution",
+      direction: "in",
+      amount: 100_000,
+      memberId: m,
+      sessionId: s,
+      debtId,
+      reversalOfId: ded,
+      idempotencyKey: `undo-ov-${ded}`,
+    });
+    expect(await memberBalance(m)).toBe(0);
+
+    const r = await processPayment(
+      basePayment({
+        amount: 105_000,
+        memo: `S${s}`,
+        senderAccountNo: "7783",
+      }) as never,
+      "msg-undo-overpay",
+    );
+    expect(r.status).toBe("matched_debt");
+    expect(r.message.toLowerCase()).toContain("dư");
+    // restore −100k + balance-fix +100k cancel; overpay credit +5k remains.
+    expect(await memberBalance(m)).toBe(5_000);
+  });
+
+  it("restores the admin min-deduction penalty when bank-paying an UNDONE penalty debt", async () => {
+    const admin = await seedMember({ name: "Admin" });
+    const m = await seedMember({ bankAccountNo: "7782" });
+    const s = await seedSession("2026-04-25");
+    const debtId = await seedDebt(s, m, 60_000);
+    // Finalize: member floored deduction 60k + admin penalty contribution 26k.
+    const ded = await insertTx({
+      type: "fund_deduction",
+      direction: "out",
+      amount: 60_000,
+      memberId: m,
+      sessionId: s,
+      debtId,
+      idempotencyKey: `ded-pen-${debtId}`,
+    });
+    const pen = await insertTx({
+      type: "fund_contribution",
+      direction: "in",
+      amount: 26_000,
+      memberId: admin,
+      sessionId: s,
+      debtId,
+      idempotencyKey: `pen-${debtId}`,
+    });
+    // Undo: reverse both.
+    await insertTx({
+      type: "fund_contribution",
+      direction: "in",
+      amount: 60_000,
+      memberId: m,
+      sessionId: s,
+      debtId,
+      reversalOfId: ded,
+      idempotencyKey: `undo-ded-pen-${ded}`,
+    });
+    await insertTx({
+      type: "fund_refund",
+      direction: "out",
+      amount: 26_000,
+      memberId: admin,
+      sessionId: s,
+      debtId,
+      reversalOfId: pen,
+      idempotencyKey: `undo-pen-${pen}`,
+    });
+    expect(await memberBalance(m)).toBe(0);
+    expect(await memberBalance(admin)).toBe(0);
+
+    const r = await processPayment(
+      basePayment({
+        amount: 60_000,
+        memo: `FWBB NO ${m}`,
+        senderAccountNo: "7782",
+      }) as never,
+      "msg-undo-pen",
+    );
+    expect(r.status).toBe("matched_debt");
+    expect(await memberBalance(m)).toBe(0); // restore −60k + balance-fix +60k
+    expect(await memberBalance(admin)).toBe(26_000); // admin penalty surplus restored
+  });
+
+  it("re-charges each UNDONE debt in a bulk NO {id} bank payment (no free sessions)", async () => {
+    const m = await seedMember({ bankAccountNo: "7790" });
+    const s1 = await seedSession("2026-04-26");
+    const s2 = await seedSession("2026-04-27");
+    const d1 = await seedDebt(s1, m, 60_000);
+    const d2 = await seedDebt(s2, m, 40_000);
+    for (const [s, d, amt] of [
+      [s1, d1, 60_000],
+      [s2, d2, 40_000],
+    ] as const) {
+      const ded = await insertTx({
+        type: "fund_deduction",
+        direction: "out",
+        amount: amt,
+        memberId: m,
+        sessionId: s,
+        debtId: d,
+        idempotencyKey: `ded-bulk-${d}`,
+      });
+      await insertTx({
+        type: "fund_contribution",
+        direction: "in",
+        amount: amt,
+        memberId: m,
+        sessionId: s,
+        debtId: d,
+        reversalOfId: ded,
+        idempotencyKey: `undo-bulk-${ded}`,
+      });
+    }
+    expect(await memberBalance(m)).toBe(0);
+
+    const r = await processPayment(
+      basePayment({
+        amount: 100_000,
+        memo: `FWBB NO ${m}`,
+        senderAccountNo: "7790",
+      }) as never,
+      "msg-bulk-undo",
+    );
+    expect(r.status).toBe("matched_debt");
+    expect(await memberBalance(m)).toBe(0);
+    expect(await liveDeductions(d1)).toBe(1);
+    expect(await liveDeductions(d2)).toBe(1);
+  });
+
+  it("bulk NO {id} bank payment does NOT double-charge debts with a live deduction", async () => {
+    const m = await seedMember({ bankAccountNo: "7791" });
+    const s1 = await seedSession("2026-04-28");
+    const s2 = await seedSession("2026-04-29");
+    const d1 = await seedDebt(s1, m, 50_000);
+    const d2 = await seedDebt(s2, m, 30_000);
+    await insertTx({
+      type: "fund_deduction",
+      direction: "out",
+      amount: 50_000,
+      memberId: m,
+      sessionId: s1,
+      debtId: d1,
+      idempotencyKey: `ded-live-b1-${d1}`,
+    });
+    await insertTx({
+      type: "fund_deduction",
+      direction: "out",
+      amount: 30_000,
+      memberId: m,
+      sessionId: s2,
+      debtId: d2,
+      idempotencyKey: `ded-live-b2-${d2}`,
+    });
+    expect(await memberBalance(m)).toBe(-80_000);
+
+    const r = await processPayment(
+      basePayment({
+        amount: 80_000,
+        memo: `FWBB NO ${m}`,
+        senderAccountNo: "7791",
+      }) as never,
+      "msg-bulk-live",
+    );
+    expect(r.status).toBe("matched_debt");
+    expect(await memberBalance(m)).toBe(0);
+    expect(await liveDeductions(d1)).toBe(1);
+    expect(await liveDeductions(d2)).toBe(1);
+  });
+
+  it("bank pay on a debt admin-confirmed in-app (memberConfirmed false) nets to 0, no over-credit", async () => {
+    const m = await seedMember({ bankAccountNo: "7785" });
+    const s = await seedSession("2026-05-09");
+    const debtId = await seedDebt(s, m, 100_000);
+    await insertTx({
+      type: "fund_deduction",
+      direction: "out",
+      amount: 100_000,
+      memberId: m,
+      sessionId: s,
+      debtId,
+      idempotencyKey: `ded-ac-${debtId}`,
+    });
+    await testDb
+      .update(sessionDebts)
+      .set({ adminConfirmed: true })
+      .where(eq(sessionDebts.id, debtId));
+    expect(await memberBalance(m)).toBe(-100_000);
+
+    const r = await processPayment(
+      basePayment({
+        amount: 100_000,
+        memo: `S${s}`,
+        senderAccountNo: "7785",
+      }) as never,
+      "msg-ac-bank",
+    );
+    expect(r.status).toBe("matched_debt");
+    // Live deduction cancelled by the balance-fix → no net over-charge.
+    expect(await memberBalance(m)).toBe(0);
+  });
+
+  it("bank single-debt confirm does not double-credit on a redelivery (same transId)", async () => {
+    const m = await seedMember({ bankAccountNo: "7784" });
+    const s = await seedSession("2026-05-08");
+    const debtId = await seedDebt(s, m, 100_000);
+    await insertTx({
+      type: "fund_deduction",
+      direction: "out",
+      amount: 100_000,
+      memberId: m,
+      sessionId: s,
+      debtId,
+      idempotencyKey: `ded-rep-${debtId}`,
+    });
+    const p = basePayment({
+      amount: 100_000,
+      memo: `S${s}`,
+      senderAccountNo: "7784",
+      transId: "FT-REPLAY",
+    });
+    const r1 = await processPayment(p as never, "msg-rep-A");
+    expect(r1.status).toBe("matched_debt");
+    expect(await memberBalance(m)).toBe(0);
+
+    // Same transId arrives under a NEW gmailMessageId (slips past gmail dedup).
+    await processPayment(p as never, "msg-rep-B");
+    expect(await memberBalance(m)).toBe(0);
+    expect(await countTx("bank_payment_received")).toBe(1);
+  });
+
+  // ─── session_debt sender-binding (S{id} / DD-MM) — implicit, now locked ───
+
+  it("rejects S{id} when the sender account does not belong to the debt owner", async () => {
+    const victim = await seedMember({ name: "Victim", bankAccountNo: "1000" });
+    await seedMember({ name: "Attacker", bankAccountNo: "2000" });
+    const s = await seedSession("2026-05-03");
+    const d = await seedDebt(s, victim, 100_000);
+
+    const r = await processPayment(
+      basePayment({
+        amount: 100_000,
+        memo: `S${s}`,
+        senderAccountNo: "2000",
+      }) as never,
+      "msg-spoof-s",
+    );
+    expect(r.status).toBe("pending");
+    const debt = await testDb.query.sessionDebts.findFirst({
+      where: eq(sessionDebts.id, d),
+    });
+    expect(debt?.memberConfirmed).toBe(false);
+    expect((await testDb.query.financialTransactions.findMany({})).length).toBe(
+      0,
+    );
+  });
+
+  it("rejects S{id} with no sender account", async () => {
+    const m = await seedMember({ bankAccountNo: "3000" });
+    const s = await seedSession("2026-05-04");
+    const d = await seedDebt(s, m, 100_000);
+
+    const r = await processPayment(
+      basePayment({
+        amount: 100_000,
+        memo: `S${s}`,
+        senderAccountNo: null,
+      }) as never,
+      "msg-s-nosender",
+    );
+    expect(r.status).toBe("pending");
+    const debt = await testDb.query.sessionDebts.findFirst({
+      where: eq(sessionDebts.id, d),
+    });
+    expect(debt?.memberConfirmed).toBe(false);
+  });
+
+  it("rejects DD/MM date memo when the sender does not own the dated session's debt", async () => {
+    const victim = await seedMember({ name: "Victim", bankAccountNo: "1000" });
+    await seedMember({ name: "Attacker", bankAccountNo: "2000" });
+    const s = await seedSession("2026-05-15");
+    const d = await seedDebt(s, victim, 100_000);
+
+    const r = await processPayment(
+      basePayment({
+        amount: 100_000,
+        memo: "BUOI 15/05",
+        senderAccountNo: "2000",
+      }) as never,
+      "msg-spoof-date",
+    );
+    expect(r.status).toBe("pending");
+    const debt = await testDb.query.sessionDebts.findFirst({
+      where: eq(sessionDebts.id, d),
+    });
+    expect(debt?.memberConfirmed).toBe(false);
+  });
+
+  it("session_debt with unknown sender does NOT fall back to a fund contribution", async () => {
+    await seedMember({ inFund: true, bankAccountNo: "8888" });
+    const s = await seedSession("2026-05-06");
+    // sender is a fund member but has NO debt for this session
+    const r = await processPayment(
+      basePayment({
+        amount: 200_000,
+        memo: `S${s}`,
+        senderAccountNo: "8888",
+      }) as never,
+      "msg-s-nofund",
+    );
+    expect(r.status).toBe("pending");
+    expect((await testDb.query.financialTransactions.findMany({})).length).toBe(
+      0,
+    );
   });
 });
