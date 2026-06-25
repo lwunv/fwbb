@@ -265,7 +265,7 @@ export function VoteButtons({
           aria-label={t("withPartner")}
           disabled={disabled}
           className={cn(
-            "ml-auto flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-50",
+            "ml-auto flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50",
             withPartner
               ? "border-primary bg-primary/10 text-primary"
               : "border-border text-muted-foreground hover:border-primary/45",
