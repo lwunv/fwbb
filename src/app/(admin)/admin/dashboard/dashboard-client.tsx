@@ -26,7 +26,6 @@ import {
   computePerHeadCharges,
   computePredictedMinDeductionSurplus,
 } from "@/lib/cost-calculator";
-import { floorableGuestPlayCount } from "@/lib/vote-list-utils";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { updateAppName } from "@/actions/settings";
 import { setAdminGuestCount } from "@/actions/sessions";
@@ -260,7 +259,6 @@ export function DashboardClient({
   editorBrands,
   editorMembers,
   memberBalances,
-  adminMemberId,
   defaultCourtId,
   defaultBrandId,
   sessionDays,
@@ -281,6 +279,22 @@ export function DashboardClient({
   // Optimistic clear-debt: ẩn row debtor ngay khi click "Đã trả nợ", revert
   // nếu server fail. Dùng Set để track multiple members concurrent.
   const clearingDebt = useOptimisticSet<number>();
+
+  // Drop the optimistic "clearing" dim once the server returns fresh owing data
+  // (the contribution converged). addOptimistically only rolls back on failure;
+  // on success it relies on the row leaving the list. That self-heals on a full
+  // pay, but a partial pay leaves the member in the list stuck at opacity-50
+  // with a disabled button. Keying on an id:amount snapshot lifts the dim when
+  // the member's debt drops (or they leave). During render to avoid
+  // set-state-in-effect.
+  const owingSnapshot = topOwingMembers
+    .map((m) => `${m.memberId}:${m.amount}`)
+    .join(",");
+  const [prevOwingSnapshot, setPrevOwingSnapshot] = useState(owingSnapshot);
+  if (owingSnapshot !== prevOwingSnapshot) {
+    setPrevOwingSnapshot(owingSnapshot);
+    clearingDebt.setSet((prev) => (prev.size ? new Set<number>() : prev));
+  }
 
   function handleClearDebt(memberId: number, amount: number) {
     if (amount <= 0) return;
@@ -631,13 +645,6 @@ export function DashboardClient({
               memberBalances,
               exemptMemberIds: upcomingSession.exemptMemberIds,
               playCostPerHead,
-              // Khách member (host không-miễn) cũng bị floor 60K khi finalize →
-              // phải cộng surplus, nếu không "Tổng thu dự kiến" thiếu tiền và
-              // lệch /admin/sessions. Helper chung loại admin + exempt.
-              guestPlayCount: floorableGuestPlayCount(upcomingSession.votes, {
-                adminMemberId,
-                exemptMemberIds: upcomingSession.exemptMemberIds,
-              }),
             })
           : 0;
         const predictedRevenue =

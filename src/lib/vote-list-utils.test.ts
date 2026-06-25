@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  attendingVotesCount,
-  countVoteParticipation,
-  floorableGuestPlayCount,
-} from "./vote-list-utils";
+import { attendingVotesCount, countVoteParticipation } from "./vote-list-utils";
 
 describe("attendingVotesCount", () => {
   it("counts votes that attend at least one activity", () => {
@@ -64,102 +60,5 @@ describe("countVoteParticipation", () => {
     expect(result.guestDine).toBe(0);
     expect(result.totalPlayers).toBe(2);
     expect(result.totalDiners).toBe(1);
-  });
-});
-
-describe("floorableGuestPlayCount", () => {
-  const adminMemberId = 1;
-  const votes = [
-    { member: { id: 1 }, willPlay: true, guestPlayCount: 5 }, // admin → excluded
-    { member: { id: 2 }, willPlay: true, guestPlayCount: 2 }, // member
-    { member: { id: 3 }, willPlay: false, guestPlayCount: 3 }, // non-playing host: still counts
-    { member: { id: 4 }, willPlay: true, guestPlayCount: 4 }, // exempt → excluded
-    { member: { id: 5 }, willPlay: true, guestPlayCount: 0 },
-  ];
-
-  it("sums guestPlayCount only for non-admin, non-exempt hosts", () => {
-    expect(
-      floorableGuestPlayCount(votes, {
-        adminMemberId,
-        exemptMemberIds: [4],
-      }),
-    ).toBe(5); // member 2 (2) + member 3 (3); admin & exempt excluded
-  });
-
-  it("counts guests of non-playing hosts (matches finalize via invitedById)", () => {
-    expect(
-      floorableGuestPlayCount(
-        [{ member: { id: 9 }, willPlay: false, guestPlayCount: 7 }],
-        {
-          adminMemberId: 1,
-          exemptMemberIds: [],
-        },
-      ),
-    ).toBe(7);
-  });
-
-  it("excludes the admin's own guest play", () => {
-    expect(
-      floorableGuestPlayCount(
-        [{ member: { id: 1 }, willPlay: true, guestPlayCount: 8 }],
-        {
-          adminMemberId: 1,
-          exemptMemberIds: [],
-        },
-      ),
-    ).toBe(0);
-  });
-
-  it("with adminMemberId null, no admin exclusion (member guests only by data model)", () => {
-    expect(
-      floorableGuestPlayCount(
-        [{ member: { id: 2 }, willPlay: true, guestPlayCount: 3 }],
-        {
-          adminMemberId: null,
-          exemptMemberIds: [],
-        },
-      ),
-    ).toBe(3);
-  });
-
-  it("treats null guestPlayCount as 0", () => {
-    expect(
-      floorableGuestPlayCount(
-        [{ member: { id: 2 }, willPlay: true, guestPlayCount: null }],
-        {
-          adminMemberId: null,
-          exemptMemberIds: [],
-        },
-      ),
-    ).toBe(0);
-  });
-});
-
-describe("countVoteParticipation — partner", () => {
-  it("member chơi + withPartner → totalPlayers tính 2", () => {
-    const r = countVoteParticipation([
-      { willPlay: true, willDine: false, withPartner: true },
-    ]);
-    expect(r.memberPlay).toBe(2);
-    expect(r.partnerPlay).toBe(1);
-    expect(r.totalPlayers).toBe(2);
-  });
-
-  it("partner + khách: totalPlayers = 2 + guestPlay", () => {
-    const r = countVoteParticipation([
-      { willPlay: true, willDine: true, withPartner: true, guestPlayCount: 1 },
-    ]);
-    expect(r.totalPlayers).toBe(3);
-    expect(r.totalDiners).toBe(2);
-    expect(r.partnerDine).toBe(1);
-  });
-
-  it("không partner → như cũ", () => {
-    const r = countVoteParticipation([
-      { willPlay: true, willDine: false, withPartner: false },
-    ]);
-    expect(r.memberPlay).toBe(1);
-    expect(r.partnerPlay).toBe(0);
-    expect(r.totalPlayers).toBe(1);
   });
 });

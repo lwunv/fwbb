@@ -884,7 +884,6 @@ describe("computePredictedMinDeductionSurplus", () => {
       memberBalances: {},
       exemptMemberIds: [],
       playCostPerHead: 34_000,
-      guestPlayCount: 2,
     });
     expect(r).toBe(0);
   });
@@ -895,7 +894,6 @@ describe("computePredictedMinDeductionSurplus", () => {
       memberBalances: {},
       exemptMemberIds: [],
       playCostPerHead: 70_000,
-      guestPlayCount: 3,
     });
     expect(r).toBe(0);
   });

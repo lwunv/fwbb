@@ -66,6 +66,19 @@ export function PaymentQR({
   const router = useRouter();
   const firedRef = useRef(false);
 
+  // Clear the stale "received" banner when the (memo, amount) target changes
+  // (e.g. the user switches top-up amount in the same mounted card). Done during
+  // render, not an effect, to satisfy the no-set-state-in-effect rule and reset
+  // before paint. The one-shot `firedRef` guard is reset in the polling effect
+  // below, which re-runs on the same dependency change.
+  const subKey = `${memo}|${amount}`;
+  const [prevSubKey, setPrevSubKey] = useState(subKey);
+  if (subKey !== prevSubKey) {
+    setPrevSubKey(subKey);
+    setPaymentReceived(false);
+    setPaymentMatched(false);
+  }
+
   const qrUrl = useMemo(
     () =>
       getVietQRUrl({
@@ -86,6 +99,10 @@ export function PaymentQR({
   // email arrives; checkPaymentForMemo (server action) reads that table.
   useEffect(() => {
     if (disablePolling || amount <= 0 || !memo) return;
+
+    // New (memo, amount) subscription → clear the one-shot guard so a real
+    // payment for the new memo isn't swallowed by a previous fire.
+    firedRef.current = false;
 
     const unsubscribe = subscribePayment(memo, (status) => {
       if (firedRef.current) return;

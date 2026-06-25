@@ -193,10 +193,6 @@ export function computePredictedMinDeductionSurplus(input: {
   memberBalances: Readonly<Record<number, number>>;
   exemptMemberIds: ReadonlyArray<number>;
   playCostPerHead: number;
-  /** @deprecated KHÔNG còn cộng vào surplus quỹ. Từ khi guest-60K redistribute
-   *  (khách trả sàn 60K, phần dư CHIA LẠI cho member chứ không vào quỹ), khách
-   *  không tạo surplus quỹ nữa. Giữ field cho caller cũ khỏi vỡ — bị bỏ qua. */
-  guestPlayCount?: number;
   /** headcount của từng member chơi (memberId → 1|2). Thiếu → coi như 1. */
   playingMemberHeadcounts?: Readonly<Record<number, number>>;
   floor?: number;
