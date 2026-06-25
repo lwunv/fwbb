@@ -125,25 +125,37 @@ export function AdminVoteManager({
   const [fundAdjustTarget, setFundAdjustTarget] =
     useState<FundAdjustDialogTarget | null>(null);
 
-  // Resync: when the server snapshot actually changes (a poll returning new
-  // data, another admin editing the same session, or the bank webhook flipping
-  // adminConfirmed), drop local optimistic overrides so the server view is
-  // authoritative. Done during render (React's "adjust state on prop change"
-  // pattern) instead of useEffect, so it resets before paint with no cascading
-  // render. fireAction converges via revalidatePath; without this reset a local
-  // override would mask fresh props forever (e.g. stale paid/unpaid here, the
-  // money surface). The signature only changes when the data does, so identical
-  // 5s polls are a no-op. Mirrors CourtSelector's resync intent.
-  const serverSnapshot = JSON.stringify([votes, debtMap, exemptMemberIds]);
-  const [prevSnapshot, setPrevSnapshot] = useState(serverSnapshot);
-  if (serverSnapshot !== prevSnapshot) {
-    setPrevSnapshot(serverSnapshot);
+  // Resync: drop local optimistic overrides when the MATCHING server data
+  // actually changes, so the server view stays authoritative. Done during render
+  // (React's "adjust state on prop change" pattern) instead of useEffect, so it
+  // resets before paint with no cascading render. fireAction converges via
+  // revalidatePath; without this reset a local override would mask fresh props
+  // forever (e.g. stale paid/unpaid on this money surface).
+  //
+  // Keyed PER CONCERN, not one combined snapshot: a 5s poll bringing another
+  // admin's vote change must NOT wipe an in-flight payment-confirm override
+  // (localDebts), and vice-versa. Each map only resets when its own server
+  // source changes.
+  const voteSnapshot = JSON.stringify(votes);
+  const [prevVoteSnapshot, setPrevVoteSnapshot] = useState(voteSnapshot);
+  if (voteSnapshot !== prevVoteSnapshot) {
+    setPrevVoteSnapshot(voteSnapshot);
     setLocalVotes({});
-    setLocalDebts({});
     setLocalGuests({});
-    setLocalExempt({});
     setRemovedMembers(new Set());
     setAddedMembers(new Set());
+  }
+  const debtSnapshot = JSON.stringify(debtMap);
+  const [prevDebtSnapshot, setPrevDebtSnapshot] = useState(debtSnapshot);
+  if (debtSnapshot !== prevDebtSnapshot) {
+    setPrevDebtSnapshot(debtSnapshot);
+    setLocalDebts({});
+  }
+  const exemptSnapshot = JSON.stringify(exemptMemberIds);
+  const [prevExemptSnapshot, setPrevExemptSnapshot] = useState(exemptSnapshot);
+  if (exemptSnapshot !== prevExemptSnapshot) {
+    setPrevExemptSnapshot(exemptSnapshot);
+    setLocalExempt({});
   }
 
   function getExempt(memberId: number): boolean {
