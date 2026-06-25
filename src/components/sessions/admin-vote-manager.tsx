@@ -125,6 +125,27 @@ export function AdminVoteManager({
   const [fundAdjustTarget, setFundAdjustTarget] =
     useState<FundAdjustDialogTarget | null>(null);
 
+  // Resync: when the server snapshot actually changes (a poll returning new
+  // data, another admin editing the same session, or the bank webhook flipping
+  // adminConfirmed), drop local optimistic overrides so the server view is
+  // authoritative. Done during render (React's "adjust state on prop change"
+  // pattern) instead of useEffect, so it resets before paint with no cascading
+  // render. fireAction converges via revalidatePath; without this reset a local
+  // override would mask fresh props forever (e.g. stale paid/unpaid here, the
+  // money surface). The signature only changes when the data does, so identical
+  // 5s polls are a no-op. Mirrors CourtSelector's resync intent.
+  const serverSnapshot = JSON.stringify([votes, debtMap, exemptMemberIds]);
+  const [prevSnapshot, setPrevSnapshot] = useState(serverSnapshot);
+  if (serverSnapshot !== prevSnapshot) {
+    setPrevSnapshot(serverSnapshot);
+    setLocalVotes({});
+    setLocalDebts({});
+    setLocalGuests({});
+    setLocalExempt({});
+    setRemovedMembers(new Set());
+    setAddedMembers(new Set());
+  }
+
   function getExempt(memberId: number): boolean {
     const local = localExempt[memberId];
     if (local !== undefined) return local;

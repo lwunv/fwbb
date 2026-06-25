@@ -23,6 +23,7 @@ import { revalidatePath } from "next/cache";
 import { parseMemoIntent, type ParsedTimoPayment } from "./timo-parser";
 import { isFundMember } from "./fund-calculator";
 import { recordFinancialTransaction } from "./financial-ledger";
+import { restoreVoidedLedgerForDebt } from "./ledger-restore";
 import { formatVND, roundToThousand } from "./utils";
 
 export interface MatchResult {
@@ -78,24 +79,41 @@ export async function processPayment(
   // failed mid-flight.
   let result: MatchResult;
   if (intent.type === "all_debts" && intent.memberId !== null) {
-    // Memo nói rõ memberId qua "NO {id}" — không cần senderAccountNo
-    result = await matchAllDebts(payment, intent.memberId, notificationId);
+    // SECURITY: the memo ("NO {id}") is attacker-controlled — anyone can write
+    // any member id. Only auto-clear debts when the SENDER's bank account
+    // resolves to that SAME member. A mismatch (or no sender account) drops to
+    // pending for admin review; we never auto-attribute money to a member the
+    // payer can't be proven to be.
+    if (matchedMember && matchedMember.id === intent.memberId) {
+      result = await matchAllDebts(payment, intent.memberId, notificationId);
+    } else {
+      result = {
+        status: "pending",
+        memberId: intent.memberId,
+        message:
+          "Memo ghi NO nhưng tài khoản người gửi không khớp — chờ admin duyệt",
+      };
+    }
   } else if (intent.type === "fund_contribution") {
-    // Ưu tiên memberId từ memo "QUY {id}", fallback senderAccountNo
-    let target = matchedMember;
+    // Plain "QUY" → attribute by sender account (the sender lookup IS the
+    // binding). "QUY {id}" names a member, which is attacker-controlled, so
+    // require the sender account to resolve to that same member.
+    let target: { id: number; name: string } | null = null;
     if (intent.memberId !== null) {
-      const m = await db.query.members.findFirst({
-        where: eq(members.id, intent.memberId),
-        columns: { id: true, name: true },
-      });
-      if (m) target = m;
+      if (matchedMember && matchedMember.id === intent.memberId) {
+        target = matchedMember;
+      }
+    } else {
+      target = matchedMember;
     }
     if (target) {
       result = await matchFundContribution(payment, target, notificationId);
     } else {
       result = {
         status: "pending",
-        message: "Không xác định được người đóng quỹ",
+        memberId: intent.memberId ?? matchedMember?.id,
+        message:
+          "Không xác định được người đóng quỹ (tài khoản gửi không khớp)",
       };
     }
   } else if (intent.type === "session_debt") {
@@ -327,7 +345,7 @@ async function matchAllDebts(
       eq(sessionDebts.memberId, memberId),
       eq(sessionDebts.memberConfirmed, false),
     ),
-    with: { session: { columns: { status: true } } },
+    with: { session: { columns: { status: true, date: true } } },
     orderBy: [asc(sessionDebts.id)],
     columns: { id: true, totalAmount: true, sessionId: true },
   });
@@ -337,6 +355,7 @@ async function matchAllDebts(
       id: d.id,
       totalAmount: d.totalAmount,
       sessionId: d.sessionId,
+      sessionDate: d.session?.date ?? "",
     }));
 
   if (unpaid.length === 0) {
@@ -427,6 +446,19 @@ async function matchAllDebts(
           tx,
         );
         if ("error" in audit) throw new Error(audit.error);
+
+        // Re-charge the deduction if this debt came back from an undo (else the
+        // balance-fix below gifts a free session). No-op for live deductions.
+        await restoreVoidedLedgerForDebt(
+          tx,
+          debt.id,
+          {
+            memberId,
+            sessionId: debt.sessionId,
+            totalAmount: debt.totalAmount,
+          },
+          debt.sessionDate,
+        );
 
         // sessionId set để deleteSession reverse được — trước đây sessionId
         // null làm balance-fix tồn tại sau khi session bị xóa → member's
@@ -575,6 +607,14 @@ async function confirmDebtFromBankTransfer(
   // credit. Giờ ghi vào fund_contribution không gắn debt/session.
   const overpay = Math.max(0, payment.amount - debt.totalAmount);
 
+  // Session date for the re-charge audit description (used only when we need
+  // to restore a deduction an undo had reversed).
+  const sess = await db.query.sessions.findFirst({
+    where: eq(sessions.id, debt.sessionId),
+    columns: { date: true },
+  });
+  const sessionDate = sess?.date ?? "";
+
   try {
     await db.transaction(async (tx) => {
       // Bank money has actually arrived in admin's account — flip both flags.
@@ -636,6 +676,22 @@ async function confirmDebtFromBankTransfer(
         tx,
       );
       if ("error" in audit) throw new Error(audit.error);
+
+      // If this debt came back from an admin undo, its original fund_deduction
+      // was reversed (balance back to 0). The balance-fix below would then gift
+      // the member a free session. Re-charge the deduction first so the
+      // +balance-fix has a matching −deduction (mirrors confirmPaymentByAdmin).
+      // No-op when a live deduction already exists.
+      await restoreVoidedLedgerForDebt(
+        tx,
+        debt.id,
+        {
+          memberId: debt.memberId,
+          sessionId: debt.sessionId,
+          totalAmount: debt.totalAmount,
+        },
+        sessionDate,
+      );
 
       // Balance fix — sessionId được set để deleteSession() reverse được
       // (BLOCKER fix: trước đây sessionId null → deleteSession bỏ sót →

@@ -20,6 +20,7 @@ import {
   paymentNotifications,
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import { computeBalanceFromTransactions } from "@/lib/fund-core";
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
@@ -97,6 +98,21 @@ const basePayment = (overrides: Partial<Record<string, unknown>> = {}) => ({
   ...overrides,
 });
 
+async function insertTx(vals: Record<string, unknown>) {
+  const [r] = await testDb
+    .insert(financialTransactions)
+    .values(vals as never)
+    .returning({ id: financialTransactions.id });
+  return r.id;
+}
+
+async function memberBalance(memberId: number) {
+  const txs = await testDb.query.financialTransactions.findMany({
+    where: eq(financialTransactions.memberId, memberId),
+  });
+  return computeBalanceFromTransactions(memberId, txs).balance;
+}
+
 describe("processPayment (integration)", () => {
   beforeEach(async () => {
     await reset();
@@ -110,6 +126,7 @@ describe("processPayment (integration)", () => {
       amount: 200_000,
       memo: `FWBB QUY ${memberId}`,
       transId: "FT-DUP",
+      senderAccountNo: "9021",
     });
 
     const r1 = await processPayment(payment as never, "msg-dup");
@@ -129,7 +146,7 @@ describe("processPayment (integration)", () => {
 
   // ─── Fund contribution ───
 
-  it("matches QUY {id} memo even without senderAccountNo", async () => {
+  it("rejects QUY {id} without a sender account (memo alone is not proof)", async () => {
     const m = await seedMember();
     const r = await processPayment(
       basePayment({
@@ -139,14 +156,10 @@ describe("processPayment (integration)", () => {
       }) as never,
       "msg-quy-id",
     );
-    expect(r.status).toBe("matched_fund");
-    expect(r.memberId).toBe(m);
+    expect(r.status).toBe("pending");
 
-    const txs = await testDb.query.financialTransactions.findMany({
-      where: eq(financialTransactions.type, "fund_contribution"),
-    });
-    expect(txs[0].amount).toBe(500_000);
-    expect(txs[0].memberId).toBe(m);
+    const txs = await testDb.query.financialTransactions.findMany({});
+    expect(txs).toHaveLength(0);
   });
 
   it("matches plain QUY keyword via senderAccountNo lookup", async () => {
@@ -197,7 +210,7 @@ describe("processPayment (integration)", () => {
   // ─── All-debts (NO memberId) ───
 
   it("clears all unpaid debts on memo NO {id} when amount >= total", async () => {
-    const m = await seedMember();
+    const m = await seedMember({ bankAccountNo: "6001" });
     const s1 = await seedSession("2026-04-01");
     const s2 = await seedSession("2026-04-08");
     const s3 = await seedSession("2026-04-15");
@@ -209,6 +222,7 @@ describe("processPayment (integration)", () => {
       basePayment({
         amount: 350_000,
         memo: `FWBB NO ${m}`,
+        senderAccountNo: "6001",
       }) as never,
       "msg-no-all",
     );
@@ -234,7 +248,7 @@ describe("processPayment (integration)", () => {
   });
 
   it("rejects underpayment for NO {id} bulk", async () => {
-    const m = await seedMember();
+    const m = await seedMember({ bankAccountNo: "6002" });
     const s1 = await seedSession("2026-04-01");
     const s2 = await seedSession("2026-04-08");
     await seedDebt(s1, m, 100_000);
@@ -244,6 +258,7 @@ describe("processPayment (integration)", () => {
       basePayment({
         amount: 100_000, // short
         memo: `FWBB NO ${m}`,
+        senderAccountNo: "6002",
       }) as never,
       "msg-no-short",
     );
@@ -262,11 +277,12 @@ describe("processPayment (integration)", () => {
   });
 
   it("treats NO {id} as fund contribution when no debts and member is fund member", async () => {
-    const m = await seedMember();
+    const m = await seedMember({ bankAccountNo: "6003" });
     const r = await processPayment(
       basePayment({
         amount: 200_000,
         memo: `FWBB NO ${m}`,
+        senderAccountNo: "6003",
       }) as never,
       "msg-no-empty",
     );
@@ -275,11 +291,12 @@ describe("processPayment (integration)", () => {
   });
 
   it("returns pending when NO {id} has no debts and member is NOT fund member", async () => {
-    const m = await seedMember({ inFund: false });
+    const m = await seedMember({ inFund: false, bankAccountNo: "6004" });
     const r = await processPayment(
       basePayment({
         amount: 200_000,
         memo: `FWBB NO ${m}`,
+        senderAccountNo: "6004",
       }) as never,
       "msg-no-empty-2",
     );
@@ -456,5 +473,167 @@ describe("processPayment (integration)", () => {
     expect(notif?.matchedDebtId).toBe(debtId);
     expect(notif?.matchedTransactionId).toBe(r.transactionId!);
     expect(notif?.status).toBe("matched");
+  });
+
+  // ─── Memo sender-binding (anti-spoofing) ───
+  // The memo is attacker-controlled. A memo naming a memberId ("NO {id}" /
+  // "QUY {id}") must NOT auto-act unless the SENDER's bank account resolves to
+  // that same member. Otherwise anyone could clear another member's debt / top
+  // up their fund by writing a victim id in the memo.
+
+  it("rejects NO {id} when the sender account does not belong to the memo member", async () => {
+    const victim = await seedMember({ name: "Victim", bankAccountNo: "1000" });
+    await seedMember({ name: "Attacker", bankAccountNo: "2000" });
+    const s = await seedSession("2026-05-01");
+    const d = await seedDebt(s, victim, 100_000);
+
+    // Attacker transfers from THEIR account but writes the victim's id in memo.
+    const r = await processPayment(
+      basePayment({
+        amount: 100_000,
+        memo: `FWBB NO ${victim}`,
+        senderAccountNo: "2000",
+      }) as never,
+      "msg-spoof-no",
+    );
+    expect(r.status).toBe("pending");
+
+    const debt = await testDb.query.sessionDebts.findFirst({
+      where: eq(sessionDebts.id, d),
+    });
+    expect(debt?.memberConfirmed).toBe(false);
+    const txs = await testDb.query.financialTransactions.findMany({});
+    expect(txs).toHaveLength(0);
+  });
+
+  it("rejects NO {id} with no sender account (memo alone is not proof of payer)", async () => {
+    const m = await seedMember({ bankAccountNo: "3000" });
+    const s = await seedSession("2026-05-02");
+    const d = await seedDebt(s, m, 100_000);
+
+    const r = await processPayment(
+      basePayment({
+        amount: 100_000,
+        memo: `FWBB NO ${m}`,
+        senderAccountNo: null,
+      }) as never,
+      "msg-no-sender",
+    );
+    expect(r.status).toBe("pending");
+
+    const debt = await testDb.query.sessionDebts.findFirst({
+      where: eq(sessionDebts.id, d),
+    });
+    expect(debt?.memberConfirmed).toBe(false);
+  });
+
+  it("rejects QUY {id} when the sender account does not belong to the memo member", async () => {
+    const victim = await seedMember({ name: "V", bankAccountNo: "1111" });
+    await seedMember({ name: "A", bankAccountNo: "2222" });
+
+    const r = await processPayment(
+      basePayment({
+        amount: 200_000,
+        memo: `FWBB QUY ${victim}`,
+        senderAccountNo: "2222",
+      }) as never,
+      "msg-spoof-quy",
+    );
+    expect(r.status).toBe("pending");
+
+    const txs = await testDb.query.financialTransactions.findMany({});
+    expect(txs).toHaveLength(0);
+  });
+
+  it("matches QUY {id} when the sender account belongs to that member", async () => {
+    const m = await seedMember({ bankAccountNo: "4444" });
+    const r = await processPayment(
+      basePayment({
+        amount: 500_000,
+        memo: `FWBB QUY ${m}`,
+        senderAccountNo: "4444",
+      }) as never,
+      "msg-quy-bound",
+    );
+    expect(r.status).toBe("matched_fund");
+    expect(r.memberId).toBe(m);
+  });
+
+  // ─── Undo → bank re-pay must NOT gift a free session ───
+
+  it("re-charges the deduction when paying an UNDONE debt by bank (no free session)", async () => {
+    const m = await seedMember({ bankAccountNo: "7777" });
+    const s = await seedSession("2026-04-20");
+    const debtId = await seedDebt(s, m, 100_000);
+
+    // Simulate finalize → fund_deduction, then admin undo → reversal contribution.
+    const dedId = await insertTx({
+      type: "fund_deduction",
+      direction: "out",
+      amount: 100_000,
+      memberId: m,
+      sessionId: s,
+      debtId,
+      idempotencyKey: `ded-${debtId}`,
+    });
+    await insertTx({
+      type: "fund_contribution",
+      direction: "in",
+      amount: 100_000,
+      memberId: m,
+      sessionId: s,
+      debtId,
+      reversalOfId: dedId,
+      idempotencyKey: `undo-rev-${dedId}`,
+    });
+    // Post-undo balance is 0 (deduction voided by its reversal).
+    expect(await memberBalance(m)).toBe(0);
+
+    // Member now pays the debt by bank transfer (sender account matches member).
+    const r = await processPayment(
+      basePayment({
+        amount: 100_000,
+        memo: `FWBB NO ${m}`,
+        senderAccountNo: "7777",
+      }) as never,
+      "msg-undo-bank",
+    );
+    expect(r.status).toBe("matched_debt");
+
+    // Correct end state: member paid exactly their cost → balance 0.
+    // BUG (before fix): balance-fix +100k with no live deduction → +100_000 (gifted).
+    expect(await memberBalance(m)).toBe(0);
+  });
+
+  it("balance is 0 after bank-paying a normally-finalized debt (live deduction, no double-charge)", async () => {
+    const m = await seedMember({ bankAccountNo: "7778" });
+    const s = await seedSession("2026-04-21");
+    const debtId = await seedDebt(s, m, 80_000);
+
+    // Live fund_deduction from finalize (NOT undone).
+    await insertTx({
+      type: "fund_deduction",
+      direction: "out",
+      amount: 80_000,
+      memberId: m,
+      sessionId: s,
+      debtId,
+      idempotencyKey: `ded-live-${debtId}`,
+    });
+    expect(await memberBalance(m)).toBe(-80_000);
+
+    const r = await processPayment(
+      basePayment({
+        amount: 80_000,
+        memo: `FWBB NO ${m}`,
+        senderAccountNo: "7778",
+      }) as never,
+      "msg-live-bank",
+    );
+    expect(r.status).toBe("matched_debt");
+
+    // Live deduction (-80k) cancelled by balance-fix (+80k) → 0. Must NOT
+    // re-insert a second deduction (that would be -80k → over-charge).
+    expect(await memberBalance(m)).toBe(0);
   });
 });

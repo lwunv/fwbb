@@ -33,7 +33,10 @@ vi.mock("@/db", () => {
     update: updateImpl,
     query: {
       sessionDebts: { findFirst: vi.fn(), findMany: vi.fn() },
-      financialTransactions: { findFirst: vi.fn(), findMany: vi.fn() },
+      financialTransactions: {
+        findFirst: vi.fn(),
+        findMany: vi.fn(() => Promise.resolve([])),
+      },
       paymentNotifications: { findFirst: vi.fn() },
       members: { findFirst: vi.fn() },
       sessions: { findFirst: vi.fn(), findMany: vi.fn() },
@@ -48,7 +51,10 @@ vi.mock("@/db", () => {
         sessionDebts: { findFirst: vi.fn(), findMany: vi.fn() },
         sessions: { findMany: vi.fn(), findFirst: vi.fn() },
         fundMembers: { findFirst: vi.fn() },
-        financialTransactions: { findFirst: vi.fn(), findMany: vi.fn() },
+        financialTransactions: {
+          findFirst: vi.fn(),
+          findMany: vi.fn(() => Promise.resolve([])),
+        },
       },
       insert: insertImpl,
       update: updateImpl,
