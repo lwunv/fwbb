@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "fwbb-local-db": {
+      "command": "tursodb",
+      "args": ["D:/Lwcifer/LW/FWBB/e2e/local.db", "--mcp"]
+    }
+  }
+}
