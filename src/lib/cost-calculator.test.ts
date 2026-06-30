@@ -4,6 +4,8 @@ import {
   calculateShuttlecockCost,
   calculateExactShuttlecockCost,
   computePerHeadCharges,
+  computeGuestAwarePlayRates,
+  computePredictedPlayRevenue,
   computeCourtTotal,
   computeShuttlecockTotal,
   applyMinDeductionFloor,
@@ -83,6 +85,164 @@ describe("computePerHeadCharges", () => {
 
     expect(helper.playCostPerHead).toBe(breakdown.playCostPerHead);
     expect(helper.dineCostPerHead).toBe(breakdown.dineCostPerHead);
+  });
+
+  it("admin-guest aware: floors admin guests to 60K, splits remainder", () => {
+    // court 200K, 4 heads, 2 admin-guests. naive 50K < 60K.
+    const r = computePerHeadCharges({
+      courtPrice: 200_000,
+      shuttlecockCost: 0,
+      diningBill: 0,
+      playerCount: 4,
+      dinerCount: 0,
+      adminGuestPlayHeads: 2,
+    });
+    expect(r.adminGuestPlayCostPerHead).toBe(60_000);
+    expect(r.playCostPerHead).toBe(40_000); // (200 − 60×2) / 2 split heads
+  });
+
+  it("no adminGuestPlayHeads → naive equal split (backward compat)", () => {
+    const r = computePerHeadCharges({
+      courtPrice: 200_000,
+      shuttlecockCost: 0,
+      diningBill: 0,
+      playerCount: 4,
+      dinerCount: 0,
+    });
+    expect(r.playCostPerHead).toBe(50_000);
+    expect(r.adminGuestPlayCostPerHead).toBe(50_000);
+  });
+
+  it("computePerHeadCharges matches calculateSessionCosts with admin guests", () => {
+    const attendees: AttendeeInput[] = [
+      {
+        memberId: 1,
+        invitedById: null,
+        isGuest: false,
+        attendsPlay: true,
+        attendsDine: false,
+      },
+      {
+        memberId: 2,
+        invitedById: null,
+        isGuest: false,
+        attendsPlay: true,
+        attendsDine: false,
+      },
+      {
+        memberId: 3,
+        invitedById: null,
+        isGuest: false,
+        attendsPlay: true,
+        attendsDine: false,
+      },
+      {
+        memberId: null,
+        invitedById: 2,
+        isGuest: true,
+        attendsPlay: true,
+        attendsDine: false,
+      },
+      {
+        memberId: null,
+        invitedById: 1,
+        isGuest: true,
+        attendsPlay: true,
+        attendsDine: false,
+      },
+    ];
+    const breakdown = calculateSessionCosts(
+      { courtPrice: 290_000, diningBill: 0 },
+      attendees,
+      [],
+      { adminMemberId: 1 },
+    );
+    const helper = computePerHeadCharges({
+      courtPrice: 290_000,
+      shuttlecockCost: 0,
+      diningBill: 0,
+      playerCount: breakdown.totalPlayers,
+      dinerCount: breakdown.totalDiners,
+      adminGuestPlayHeads: 1, // 1 admin-guest (host=1)
+    });
+    expect(helper.playCostPerHead).toBe(breakdown.playCostPerHead);
+    expect(helper.adminGuestPlayCostPerHead).toBe(
+      breakdown.adminGuestPlayCostPerHead,
+    );
+  });
+});
+
+describe("computeGuestAwarePlayRates", () => {
+  it("no admin-guest → naive equal split for everyone", () => {
+    const r = computeGuestAwarePlayRates({
+      totalPlayCost: 200_000,
+      totalPlayHeads: 4,
+      adminGuestPlayHeads: 0,
+    });
+    expect(r.playCostPerHead).toBe(50_000);
+    expect(r.adminGuestPlayCostPerHead).toBe(50_000);
+  });
+
+  it("admin-guest + naive < 60K → admin 60K, split = remainder", () => {
+    const r = computeGuestAwarePlayRates({
+      totalPlayCost: 200_000,
+      totalPlayHeads: 4,
+      adminGuestPlayHeads: 2,
+    });
+    expect(r.adminGuestPlayCostPerHead).toBe(60_000);
+    expect(r.playCostPerHead).toBe(40_000); // (200 − 120)/2
+  });
+
+  it("naive ≥ 60K → no floor (admin-guest = split = naive)", () => {
+    const r = computeGuestAwarePlayRates({
+      totalPlayCost: 300_000,
+      totalPlayHeads: 2,
+      adminGuestPlayHeads: 1,
+    });
+    expect(r.playCostPerHead).toBe(150_000);
+    expect(r.adminGuestPlayCostPerHead).toBe(150_000);
+  });
+
+  it("admin-guest pays ≥ court (split = 0, not negative)", () => {
+    const r = computeGuestAwarePlayRates({
+      totalPlayCost: 100_000,
+      totalPlayHeads: 4,
+      adminGuestPlayHeads: 3,
+    });
+    expect(r.playCostPerHead).toBe(0);
+    expect(r.adminGuestPlayCostPerHead).toBe(60_000);
+  });
+
+  it("0 heads → 0", () => {
+    const r = computeGuestAwarePlayRates({
+      totalPlayCost: 100_000,
+      totalPlayHeads: 0,
+      adminGuestPlayHeads: 0,
+    });
+    expect(r.playCostPerHead).toBe(0);
+    expect(r.adminGuestPlayCostPerHead).toBe(0);
+  });
+});
+
+describe("computePredictedPlayRevenue", () => {
+  it("split heads × splitRate + admin-guest heads × floor rate", () => {
+    const r = computePredictedPlayRevenue({
+      totalPlayHeads: 19,
+      adminGuestPlayHeads: 1,
+      playCostPerHead: 50_000,
+      adminGuestPlayCostPerHead: 60_000,
+    });
+    expect(r).toBe(18 * 50_000 + 1 * 60_000); // 960_000
+  });
+
+  it("no admin guests → totalHeads × rate", () => {
+    const r = computePredictedPlayRevenue({
+      totalPlayHeads: 10,
+      adminGuestPlayHeads: 0,
+      playCostPerHead: 40_000,
+      adminGuestPlayCostPerHead: 40_000,
+    });
+    expect(r).toBe(400_000);
   });
 });
 

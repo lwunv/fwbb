@@ -381,6 +381,9 @@ export function AdminVoteManager({
   // with finalize-session.tsx, session-list.tsx, dashboard-client.tsx and the
   // server-side cost-calculator. Previously inlined the same Math.ceil
   // formula and would drift if the rounding rule changed.
+  // adminGuestPlayHeads: khách-của-admin trả sàn 60K, phần dư chia cho nhóm
+  // chia đều → playPerHead ở đây là SPLIT rate (members + khách-member), khớp
+  // finalize. Khách-member dùng đúng playPerHead này.
   const { playCostPerHead: playPerHead, dineCostPerHead: dinePerHead } = sc
     ? computePerHeadCharges({
         courtPrice: sc.courtPrice,
@@ -388,6 +391,7 @@ export function AdminVoteManager({
         diningBill: sc.diningBill,
         playerCount,
         dinerCount,
+        adminGuestPlayHeads: adminGuestPlayCount,
       })
     : { playCostPerHead: 0, dineCostPerHead: 0 };
   const totalExpense = sc ? playCost + sc.diningBill : 0;

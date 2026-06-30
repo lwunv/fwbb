@@ -17,6 +17,7 @@ import { formatK, cn } from "@/lib/utils";
 import {
   computeShuttlecockTotal,
   computePerHeadCharges,
+  computePredictedPlayRevenue,
   computePredictedMinDeductionSurplus,
 } from "@/lib/cost-calculator";
 import { deriveSessionBadge } from "@/lib/session-status";
@@ -619,12 +620,18 @@ export function SessionList({
             );
             const totalPlayers = session.playerCount + totalGuestPlay;
             const totalDiners = session.dinerCount + totalGuestDine;
-            const { playCostPerHead, dineCostPerHead } = computePerHeadCharges({
+            const {
+              playCostPerHead,
+              adminGuestPlayCostPerHead,
+              dineCostPerHead,
+            } = computePerHeadCharges({
               courtPrice: courtPriceVal,
               shuttlecockCost,
               diningBill: session.diningBill,
               playerCount: totalPlayers,
               dinerCount: totalDiners,
+              // Khách-của-admin trả sàn 60K → preview khớp finalize.
+              adminGuestPlayHeads: ag.play,
             });
             const totalExpense =
               courtPriceVal + shuttlecockCost + session.diningBill;
@@ -794,8 +801,15 @@ export function SessionList({
                                   playCostPerHead,
                                 })
                               : 0;
+                          // Nhóm chia đều trả splitRate; khách-của-admin trả sàn
+                          // 60K riêng (qua helper chung để không drift).
                           const predictedRevenue =
-                            totalPlayers * playCostPerHead +
+                            computePredictedPlayRevenue({
+                              totalPlayHeads: totalPlayers,
+                              adminGuestPlayHeads: ag.play,
+                              playCostPerHead,
+                              adminGuestPlayCostPerHead,
+                            }) +
                             totalDiners * dineCostPerHead +
                             predictedPenaltySurplus;
                           const revenue =

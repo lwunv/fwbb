@@ -238,24 +238,86 @@ export function computeShuttlecockTotal(
  * Returns `0` when the divisor is 0 to avoid `Infinity` / `NaN` propagating
  * into UI.
  */
+/**
+ * Pure: tách rate CHƠI khi có khách-của-admin. Khách-admin trả sàn `floor`
+ * (mặc định 60K) khi naive perHead < floor VÀ có nhóm chia đều; phần còn lại
+ * chia cho nhóm chia đều (members + khách-của-member). Không có khách-admin
+ * hoặc naive ≥ floor → mọi người = naive. SINGLE SOURCE: dùng chung bởi
+ * `calculateSessionCosts` (finalize) và `computePerHeadCharges` (preview) để
+ * preview KHÔNG bao giờ drift so với debt thực ghi vào DB.
+ */
+export function computeGuestAwarePlayRates(input: {
+  totalPlayCost: number;
+  totalPlayHeads: number;
+  adminGuestPlayHeads: number;
+  floor?: number;
+}): { playCostPerHead: number; adminGuestPlayCostPerHead: number } {
+  const floor = input.floor ?? MIN_DEDUCTION_PER_HEAD;
+  const raw =
+    input.totalPlayHeads > 0 ? input.totalPlayCost / input.totalPlayHeads : 0;
+  const splitHeads = input.totalPlayHeads - input.adminGuestPlayHeads;
+  if (
+    input.adminGuestPlayHeads > 0 &&
+    splitHeads > 0 &&
+    raw > 0 &&
+    raw < floor
+  ) {
+    const splitCost = input.totalPlayCost - floor * input.adminGuestPlayHeads;
+    // Khách-admin trả > tiền sân (hiếm) → split = 0, Math.max chặn âm.
+    return {
+      playCostPerHead: roundToThousand(Math.max(0, splitCost / splitHeads)),
+      adminGuestPlayCostPerHead: floor,
+    };
+  }
+  const rate = roundToThousand(raw);
+  return { playCostPerHead: rate, adminGuestPlayCostPerHead: rate };
+}
+
 export function computePerHeadCharges(input: {
   courtPrice: number;
   shuttlecockCost: number;
   diningBill: number;
   playerCount: number;
   dinerCount: number;
-}): { playCostPerHead: number; dineCostPerHead: number } {
-  const playCostPerHead =
-    input.playerCount > 0
-      ? roundToThousand(
-          (input.courtPrice + input.shuttlecockCost) / input.playerCount,
-        )
-      : 0;
+  /** Số đầu khách-của-admin (host = admin). Mặc định 0 → naive equal split.
+   *  Truyền vào để preview phản ánh sàn 60K khách-admin + chia lại cho member. */
+  adminGuestPlayHeads?: number;
+  floor?: number;
+}): {
+  playCostPerHead: number;
+  adminGuestPlayCostPerHead: number;
+  dineCostPerHead: number;
+} {
+  const { playCostPerHead, adminGuestPlayCostPerHead } =
+    computeGuestAwarePlayRates({
+      totalPlayCost: input.courtPrice + input.shuttlecockCost,
+      totalPlayHeads: input.playerCount,
+      adminGuestPlayHeads: input.adminGuestPlayHeads ?? 0,
+      floor: input.floor,
+    });
   const dineCostPerHead =
     input.dinerCount > 0
       ? roundToThousand(input.diningBill / input.dinerCount)
       : 0;
-  return { playCostPerHead, dineCostPerHead };
+  return { playCostPerHead, adminGuestPlayCostPerHead, dineCostPerHead };
+}
+
+/**
+ * Predicted PLAY revenue cho preview: nhóm chia đều × splitRate + khách-của-admin
+ * × sàn. KHÔNG gồm nhậu / penalty surplus (caller cộng riêng). Tách helper để
+ * session-list + dashboard không hand-roll công thức (tránh drift khi đổi rule).
+ */
+export function computePredictedPlayRevenue(input: {
+  totalPlayHeads: number;
+  adminGuestPlayHeads: number;
+  playCostPerHead: number;
+  adminGuestPlayCostPerHead: number;
+}): number {
+  const splitHeads = input.totalPlayHeads - input.adminGuestPlayHeads;
+  return (
+    splitHeads * input.playCostPerHead +
+    input.adminGuestPlayHeads * input.adminGuestPlayCostPerHead
+  );
 }
 
 /**
@@ -291,8 +353,6 @@ export function calculateSessionCosts(
 
   // 3. Calculate per-head costs
   const totalPlayCost = session.courtPrice + totalShuttlecockCost;
-  const rawPlayCostPerHead =
-    totalPlayers > 0 ? totalPlayCost / totalPlayers : 0;
   const rawDineCostPerHead =
     totalDiners > 0 ? session.diningBill / totalDiners : 0;
 
@@ -300,36 +360,21 @@ export function calculateSessionCosts(
   const dineCostPerHead = roundToThousand(rawDineCostPerHead);
 
   // KHÁCH-CỦA-ADMIN trả sàn 60K; KHÁCH-CỦA-MEMBER chia đều như member.
-  // Khi naive perHead < 60K và có khách-admin: khách-admin trả sàn 60K, phần
-  // còn lại chia cho NHÓM CHIA ĐỀU (members + khách-của-member) → họ trả ít đi.
-  // Tổng KHÔNG dư vào quỹ. Khi naive ≥ 60K / không có khách-admin → mọi người =
-  // naive perHead. Member-poverty floor vẫn xử lý riêng ở `applyMinDeductionFloor`.
+  // Rate tính qua helper dùng chung `computeGuestAwarePlayRates` (cũng dùng cho
+  // preview ở computePerHeadCharges) → finalize và preview không bao giờ drift.
+  // Member-poverty floor vẫn xử lý riêng ở `applyMinDeductionFloor`.
   const floor = opts?.floor ?? MIN_DEDUCTION_PER_HEAD;
   const adminMemberId = opts?.adminMemberId ?? null;
   const adminGuestPlayHeads = allPlayers
     .filter((a) => a.isGuest && a.invitedById === adminMemberId)
     .reduce((s, a) => s + (a.headcount ?? 1), 0);
-  // Nhóm chia đều = mọi người chơi TRỪ khách-của-admin (members + khách-member).
-  const splitPlayHeads = totalPlayers - adminGuestPlayHeads;
-  let playCostPerHead: number;
-  let adminGuestPlayCostPerHead: number;
-  if (
-    adminGuestPlayHeads > 0 &&
-    splitPlayHeads > 0 &&
-    rawPlayCostPerHead > 0 &&
-    rawPlayCostPerHead < floor
-  ) {
-    adminGuestPlayCostPerHead = floor;
-    const splitPlayCost = totalPlayCost - floor * adminGuestPlayHeads;
-    // Khách-admin trả nhiều hơn cả tiền sân (hiếm) → split = 0, phần dư không
-    // tránh được (giữ sàn để admin không lỗ). Math.max chặn âm.
-    playCostPerHead = roundToThousand(
-      Math.max(0, splitPlayCost / splitPlayHeads),
-    );
-  } else {
-    playCostPerHead = roundToThousand(rawPlayCostPerHead);
-    adminGuestPlayCostPerHead = playCostPerHead;
-  }
+  const { playCostPerHead, adminGuestPlayCostPerHead } =
+    computeGuestAwarePlayRates({
+      totalPlayCost,
+      totalPlayHeads: totalPlayers,
+      adminGuestPlayHeads,
+      floor,
+    });
 
   // 5. Calculate per-member debts
   // Include both: members attending directly, AND hosts who invited guests

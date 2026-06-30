@@ -24,6 +24,7 @@ import { getMonthLabels } from "@/lib/i18n-labels";
 import {
   computeShuttlecockTotal,
   computePerHeadCharges,
+  computePredictedPlayRevenue,
   computePredictedMinDeductionSurplus,
 } from "@/lib/cost-calculator";
 import { MemberAvatar } from "@/components/shared/member-avatar";
@@ -620,13 +621,17 @@ export function DashboardClient({
         const totalDiners = upcomingSession
           ? upcomingSession.dinerCount + upcomingSession.guestDineCount
           : 0;
-        const { playCostPerHead, dineCostPerHead } = computePerHeadCharges({
-          courtPrice: courtPriceVal,
-          shuttlecockCost,
-          diningBill: diningBillVal,
-          playerCount: totalPlayers,
-          dinerCount: totalDiners,
-        });
+        const adminGuestPlayHeads = upcomingSession?.adminGuestPlayCount ?? 0;
+        const { playCostPerHead, adminGuestPlayCostPerHead, dineCostPerHead } =
+          computePerHeadCharges({
+            courtPrice: courtPriceVal,
+            shuttlecockCost,
+            diningBill: diningBillVal,
+            playerCount: totalPlayers,
+            dinerCount: totalDiners,
+            // Khách-của-admin trả sàn 60K → preview khớp finalize.
+            adminGuestPlayHeads,
+          });
         const showCostSummary =
           !!upcomingSession &&
           (totalExpense > 0 ||
@@ -647,8 +652,15 @@ export function DashboardClient({
               playCostPerHead,
             })
           : 0;
+        // Nhóm chia đều trả splitRate; khách-của-admin trả sàn 60K riêng (helper
+        // chung với session-list để không drift).
         const predictedRevenue =
-          totalPlayers * playCostPerHead +
+          computePredictedPlayRevenue({
+            totalPlayHeads: totalPlayers,
+            adminGuestPlayHeads,
+            playCostPerHead,
+            adminGuestPlayCostPerHead,
+          }) +
           totalDiners * dineCostPerHead +
           predictedPenaltySurplus;
         return (
