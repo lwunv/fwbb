@@ -347,9 +347,9 @@ describe("F1 — undo → re-confirm cycle (confirmPaymentByAdmin)", () => {
 
   it("re-confirm debt CỦA admin có khách → re-charge play, KHÔNG cộng phần khách", async () => {
     const { adminMemberId } = await seedActors();
-    // Admin chơi + 1 khách của admin chơi → 2 players, court 100K → 50K/head.
-    // Admin debt: play 50K (own) + guestPlay 50K (khách) = total 100K, nhưng
-    // deduction admin = play+dine = 50K (khách do quỹ gánh).
+    // Admin chơi + 1 khách-của-admin chơi → 2 players, court 100K. Khách-admin
+    // bị sàn 60K (luôn áp, không phụ thuộc cờ); nhóm chia đều = admin (1 đầu) →
+    // admin play = (100−60)/1 = 40K. Deduction admin = play = 40K (khách quỹ gánh).
     const [s] = await testDb
       .insert(sessions)
       .values({
@@ -389,8 +389,8 @@ describe("F1 — undo → re-confirm cycle (confirmPaymentByAdmin)", () => {
     const conf = await confirmPaymentByAdmin(debtId, "readmin-guest");
     expect("error" in conf).toBe(false);
 
-    // Restore phải dùng amount của deduction GỐC (50K play), KHÔNG
-    // debt.totalAmount (100K incl khách). Bug cũ over-charge admin 50K.
+    // Restore phải dùng amount của deduction GỐC (40K play), KHÔNG
+    // debt.totalAmount (100K incl khách). Bug cũ over-charge admin.
     const allRows = await testDb.query.financialTransactions.findMany({
       where: eq(financialTransactions.debtId, debtId),
     });
@@ -406,7 +406,7 @@ describe("F1 — undo → re-confirm cycle (confirmPaymentByAdmin)", () => {
         !voided.has(r.id),
     );
     expect(liveDed.length).toBe(1);
-    expect(liveDed[0].amount).toBe(50_000);
+    expect(liveDed[0].amount).toBe(40_000);
   });
 });
 

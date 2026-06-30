@@ -69,8 +69,7 @@ export interface MemberDebt {
   playAmount: number;
   dineAmount: number;
   guestPlayAmount: number;
-  /** Số khách CHƠI của member này — cần để `applyMinDeductionFloor` floor mỗi
-   *  khách lên mức tối thiểu (mặc định 60K) độc lập với balance của host. */
+  /** Số khách CHƠI của member này (thông tin; khách không còn bị floor riêng). */
   guestPlayCount: number;
   guestDineAmount: number;
   totalAmount: number;
@@ -83,14 +82,14 @@ export interface CostBreakdown {
   diningBill: number;
   totalPlayers: number;
   totalDiners: number;
-  /** Đơn giá CHƠI mỗi đầu cho MEMBER. Khi guest-floor redistribute (xem
-   *  `calculateSessionCosts` opts.applyGuestFloor), số này thấp hơn naive vì
-   *  member gánh phần còn lại sau khi khách trả sàn 60K. */
+  /** Đơn giá CHƠI mỗi đầu cho NHÓM CHIA ĐỀU = members + khách-của-member.
+   *  Khi có khách-của-admin và naive < 60K, số này thấp hơn naive vì nhóm chia
+   *  đều gánh phần còn lại sau khi khách-admin trả sàn 60K. */
   playCostPerHead: number;
-  /** Đơn giá CHƠI mỗi đầu cho KHÁCH = 60K khi bị floor (perHead < 60K), bằng
-   *  `playCostPerHead` khi không floor. Tách riêng để khách trả sàn còn member
-   *  trả phần chia lại — KHÔNG cho dư vào quỹ. */
-  guestPlayCostPerHead: number;
+  /** Đơn giá CHƠI mỗi đầu cho KHÁCH-CỦA-ADMIN = 60K khi bị floor (naive < 60K),
+   *  bằng `playCostPerHead` khi không floor. Khách-của-member KHÔNG dùng số này
+   *  — họ chia đều theo `playCostPerHead`. */
+  adminGuestPlayCostPerHead: number;
   dineCostPerHead: number;
   memberDebts: MemberDebt[];
 }
@@ -117,20 +116,16 @@ export function calculateExactShuttlecockCost(
 }
 
 /**
- * Min-deduction floor cho 1 buổi. Áp khi `sessions.use_min_deduction = true`
+ * Member-poverty floor cho 1 buổi. Áp khi `sessions.use_min_deduction = true`
  * (member có thể miễn qua `session_min_deduction_exemptions`). Floor mặc định
  * 60K — hardcode trước (nếu cần admin đổi sẽ thêm app_setting sau).
  *
- * Hai vế ĐỘC LẬP:
- * - **Member (play của chính mình):** chỉ floor khi member CHƠI + thiếu quỹ
- *   trả play share + share < floor → nâng `playAmount` lên `floor`. Member đủ
- *   quỹ trả per-head thật → không phạt.
- * - **Khách (play):** khách KHÔNG có quỹ riêng → mỗi khách MẶC ĐỊNH tối thiểu
- *   `floor` (60K), KHÔNG phụ thuộc balance của host. perGuest < floor → nâng
- *   từng khách lên floor; perGuest ≥ floor → giữ per-head (admin không lỗ).
+ * CHỈ floor PLAY của CHÍNH member: member CHƠI + thiếu quỹ trả play share +
+ * share < floor → nâng `playAmount` lên `floor`. Member đủ quỹ → không phạt.
  *
- * Scope: chỉ floor PLAY (sân). KHÔNG floor `dineAmount` / `guestDineAmount`
- * (nhậu tự nguyện). Round-up rule giữ nguyên — admin không bao giờ lỗ.
+ * KHÔNG floor khách: khách-của-admin đã được sàn 60K trong `calculateSessionCosts`;
+ * khách-của-member chia đều (không có sàn). KHÔNG floor `dineAmount` /
+ * `guestDineAmount` (nhậu tự nguyện). Round-up rule giữ nguyên — admin không lỗ.
  */
 export const MIN_DEDUCTION_PER_HEAD = 60_000;
 
@@ -139,34 +134,25 @@ export function applyMinDeductionFloor(
   balance: number,
   floor: number = MIN_DEDUCTION_PER_HEAD,
 ): MemberDebt {
-  // Vế member: chỉ phạt người chơi, thiếu quỹ, và share < floor.
+  // Chỉ floor PLAY của CHÍNH member: người chơi, thiếu quỹ, và share < floor.
+  // KHÔNG floor khách (khách-admin đã sàn 60K ở calculateSessionCosts; khách-member
+  // chia đều, không sàn).
   const playAmount =
     debt.playAmount > 0 && balance < debt.playAmount && debt.playAmount < floor
       ? floor
       : debt.playAmount;
 
-  // Vế khách: mỗi khách tối thiểu `floor`. perGuest = guestPlayAmount /
-  // guestPlayCount; < floor → nâng cả nhóm lên `guestPlayCount × floor`.
-  let guestPlayAmount = debt.guestPlayAmount;
-  if (debt.guestPlayCount > 0) {
-    const perGuest = debt.guestPlayAmount / debt.guestPlayCount;
-    if (perGuest < floor) {
-      guestPlayAmount = debt.guestPlayCount * floor;
-    }
-  }
-
-  if (
-    playAmount === debt.playAmount &&
-    guestPlayAmount === debt.guestPlayAmount
-  ) {
+  if (playAmount === debt.playAmount) {
     return debt; // không đổi gì
   }
   return {
     ...debt,
     playAmount,
-    guestPlayAmount,
     totalAmount:
-      playAmount + debt.dineAmount + guestPlayAmount + debt.guestDineAmount,
+      playAmount +
+      debt.dineAmount +
+      debt.guestPlayAmount +
+      debt.guestDineAmount,
   };
 }
 
@@ -211,9 +197,9 @@ export function computePredictedMinDeductionSurplus(input: {
       surplus += floor - playAmount;
     }
   }
-  // Khách KHÔNG còn tạo surplus quỹ: guest-60K redistribute → phần dư của khách
-  // giảm cho member (xem calculateSessionCosts.applyGuestFloor), không vào quỹ.
-  // Chỉ member nghèo (member-floor) mới tạo surplus vào quỹ admin.
+  // Khách KHÔNG tạo surplus quỹ: khách-admin trả sàn 60K nhưng phần dư giảm cho
+  // nhóm chia đều (xem calculateSessionCosts), khách-member chia đều. Chỉ member
+  // nghèo (member-poverty floor) mới tạo surplus vào quỹ admin.
   return surplus;
 }
 
@@ -288,7 +274,7 @@ export function calculateSessionCosts(
   session: SessionInput,
   attendees: AttendeeInput[],
   shuttlecocks: ShuttlecockInput[],
-  opts?: { applyGuestFloor?: boolean; floor?: number },
+  opts?: { floor?: number; adminMemberId?: number | null },
 ): CostBreakdown {
   // 1. Separate players and diners (all, including guests)
   const allPlayers = attendees.filter((a) => a.attendsPlay);
@@ -313,36 +299,36 @@ export function calculateSessionCosts(
   // 4. Round up to the next 1000 VND so the admin is not underpaid.
   const dineCostPerHead = roundToThousand(rawDineCostPerHead);
 
-  // Guest-60K REDISTRIBUTION (opts.applyGuestFloor): khi naive perHead < 60K và
-  // có khách, khách trả sàn 60K nhưng phần dư KHÔNG cho vào quỹ — chia lại để
-  // MEMBER trả ít đi (member gánh `totalPlayCost − 60K×guestHeads`). Tổng thu =
-  // đúng tiền sân, không dư quỹ. Khi không bật / perHead ≥ 60K / không có khách
-  // → giữ nguyên (member = guest = naive perHead). Member-floor (member nghèo)
-  // vẫn xử lý riêng ở `applyMinDeductionFloor` lúc finalize.
+  // KHÁCH-CỦA-ADMIN trả sàn 60K; KHÁCH-CỦA-MEMBER chia đều như member.
+  // Khi naive perHead < 60K và có khách-admin: khách-admin trả sàn 60K, phần
+  // còn lại chia cho NHÓM CHIA ĐỀU (members + khách-của-member) → họ trả ít đi.
+  // Tổng KHÔNG dư vào quỹ. Khi naive ≥ 60K / không có khách-admin → mọi người =
+  // naive perHead. Member-poverty floor vẫn xử lý riêng ở `applyMinDeductionFloor`.
   const floor = opts?.floor ?? MIN_DEDUCTION_PER_HEAD;
-  const guestPlayHeads = allPlayers
-    .filter((a) => a.isGuest)
+  const adminMemberId = opts?.adminMemberId ?? null;
+  const adminGuestPlayHeads = allPlayers
+    .filter((a) => a.isGuest && a.invitedById === adminMemberId)
     .reduce((s, a) => s + (a.headcount ?? 1), 0);
-  const memberPlayHeads = totalPlayers - guestPlayHeads;
+  // Nhóm chia đều = mọi người chơi TRỪ khách-của-admin (members + khách-member).
+  const splitPlayHeads = totalPlayers - adminGuestPlayHeads;
   let playCostPerHead: number;
-  let guestPlayCostPerHead: number;
+  let adminGuestPlayCostPerHead: number;
   if (
-    opts?.applyGuestFloor &&
-    guestPlayHeads > 0 &&
-    memberPlayHeads > 0 &&
+    adminGuestPlayHeads > 0 &&
+    splitPlayHeads > 0 &&
     rawPlayCostPerHead > 0 &&
     rawPlayCostPerHead < floor
   ) {
-    guestPlayCostPerHead = floor;
-    const memberPlayCost = totalPlayCost - floor * guestPlayHeads;
-    // Khách trả nhiều hơn cả tiền sân (hiếm) → member = 0, phần dư của khách
-    // không tránh được (giữ sàn để admin không lỗ). Math.max chặn âm.
+    adminGuestPlayCostPerHead = floor;
+    const splitPlayCost = totalPlayCost - floor * adminGuestPlayHeads;
+    // Khách-admin trả nhiều hơn cả tiền sân (hiếm) → split = 0, phần dư không
+    // tránh được (giữ sàn để admin không lỗ). Math.max chặn âm.
     playCostPerHead = roundToThousand(
-      Math.max(0, memberPlayCost / memberPlayHeads),
+      Math.max(0, splitPlayCost / splitPlayHeads),
     );
   } else {
     playCostPerHead = roundToThousand(rawPlayCostPerHead);
-    guestPlayCostPerHead = playCostPerHead;
+    adminGuestPlayCostPerHead = playCostPerHead;
   }
 
   // 5. Calculate per-member debts
@@ -386,9 +372,12 @@ export function calculateSessionCosts(
       1;
     const playAmount = memberPlays ? playCostPerHead * memberHeadcount : 0;
     const dineAmount = memberDines ? dineCostPerHead * memberHeadcount : 0;
-    // Khách dùng guestPlayCostPerHead (= 60K khi floor, host trả thay) — tách
-    // khỏi member rate để guest-floor không cho dư vào quỹ mà giảm cho member.
-    const guestPlayAmount = guestsPlay * guestPlayCostPerHead;
+    // Khách-của-admin trả sàn (adminGuestPlayCostPerHead); khách-của-member chia
+    // đều theo playCostPerHead. Mỗi host chỉ có 1 loại khách (admin → khách-admin,
+    // member khác → khách-member) nên phân loại theo host là đủ.
+    const guestPlayRate =
+      memberId === adminMemberId ? adminGuestPlayCostPerHead : playCostPerHead;
+    const guestPlayAmount = guestsPlay * guestPlayRate;
     const guestDineAmount = guestsDine * dineCostPerHead;
     const totalAmount =
       playAmount + dineAmount + guestPlayAmount + guestDineAmount;
@@ -414,7 +403,7 @@ export function calculateSessionCosts(
     totalPlayers,
     totalDiners,
     playCostPerHead,
-    guestPlayCostPerHead,
+    adminGuestPlayCostPerHead,
     dineCostPerHead,
     memberDebts,
   };

@@ -147,9 +147,10 @@ export async function finalizeSession(
     { courtPrice: session.courtPrice, diningBill: data.diningBill },
     attendeeInputs,
     shuttlecockInputs,
-    // Guest-60K redistribute: khách trả sàn 60K, phần dư giảm cho member (không
-    // vào quỹ). Chỉ bật khi session opt-in min-deduction (giống member-floor).
-    { applyGuestFloor: session.useMinDeduction ?? false },
+    // Khách-của-admin trả sàn 60K (phần dư giảm cho nhóm chia đều, không vào quỹ);
+    // khách-của-member chia đều như member. Luôn áp, độc lập với cờ min-deduction
+    // (cờ chỉ còn quản member-poverty floor bên dưới).
+    { adminMemberId },
   );
 
   const now = new Date().toISOString();
