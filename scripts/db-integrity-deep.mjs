@@ -112,7 +112,7 @@ if (nullSessionDebts.length)
 
 // 10. Sessions in "completed" status without any session_debts
 const completedNoDebts = await q(`
-  SELECT s.id, s.session_date, s.status
+  SELECT s.id, s.date, s.status
   FROM sessions s
   WHERE s.status = 'completed'
     AND NOT EXISTS (SELECT 1 FROM session_debts WHERE session_id = s.id)
@@ -126,7 +126,7 @@ if (completedNoDebts.length)
 
 // 11. Sessions with status='completed' but no fund_deductions
 const completedNoDeductions = await q(`
-  SELECT s.id, s.session_date, s.status
+  SELECT s.id, s.date, s.status
   FROM sessions s
   WHERE s.status = 'completed'
     AND NOT EXISTS (
@@ -184,11 +184,15 @@ const badShuttles = await q(`
 if (badShuttles.length)
   push("ERROR", "session_shuttlecocks invalid quantity/price", badShuttles);
 
-// 16. Sessions with admin_guest_play_count > 0 but no Châu debt row
+// 16. COMPLETED sessions with admin_guest_play_count > 0 but no admin (member_id=1)
+// debt row. Only completed sessions have debts — voting/confirmed sessions with
+// pre-set admin guests legitimately have none, so filter by status to avoid
+// false positives.
 const adminGuestNoChauDebt = await q(`
-  SELECT s.id, s.session_date, s.admin_guest_play_count
+  SELECT s.id, s.date, s.admin_guest_play_count
   FROM sessions s
   WHERE COALESCE(s.admin_guest_play_count, 0) > 0
+    AND s.status = 'completed'
     AND NOT EXISTS (
       SELECT 1 FROM session_debts WHERE session_id = s.id AND member_id = 1
     )
@@ -216,29 +220,30 @@ for (const r of totalRows) {
 
 // 18. Sessions with no court_id (should be allowed only for legacy)
 const sessionsNoCourt = await q(`
-  SELECT id, session_date FROM sessions WHERE court_id IS NULL
+  SELECT id, date FROM sessions WHERE court_id IS NULL
 `);
 if (sessionsNoCourt.length)
   push("NOTE", "sessions with no court_id", sessionsNoCourt.slice(0, 5));
 
-// 19. court_rent_payments with negative amount or zero
-const badRentPayments = await q(`
-  SELECT id, amount, month, year, metadata FROM court_rent_payments WHERE amount <= 0
-`);
-if (badRentPayments.length)
-  push("ERROR", "court_rent_payments with non-positive amount", badRentPayments);
-
-// 20. court_rent_payments missing bucket metadata (legacy)
-const noBucketRent = await q(`
-  SELECT id, amount, month, year, metadata FROM court_rent_payments
-  WHERE metadata IS NULL OR metadata NOT LIKE '%bucket%'
-`);
-if (noBucketRent.length)
-  push(
-    "NOTE",
-    "court_rent_payments with no bucket meta (legacy → treated as 'fixed')",
-    noBucketRent.slice(0, 5),
+// 19/20. court rent now lives in financial_transactions (type='court_rent_payment'),
+// not a standalone `court_rent_payments` table. Guard so the script doesn't crash
+// on schemas without that legacy table; check non-positive amounts on the ledger.
+const hasRentTable = await q(
+  `SELECT name FROM sqlite_master WHERE type='table' AND name='court_rent_payments'`,
+);
+if (hasRentTable.length) {
+  const badRentPayments = await q(
+    `SELECT id, amount, month, year, metadata FROM court_rent_payments WHERE amount <= 0`,
   );
+  if (badRentPayments.length)
+    push("ERROR", "court_rent_payments with non-positive amount", badRentPayments);
+} else {
+  const badRentTx = await q(
+    `SELECT id, amount FROM financial_transactions WHERE type='court_rent_payment' AND amount <= 0 AND reversal_of_id IS NULL`,
+  );
+  if (badRentTx.length)
+    push("ERROR", "court_rent_payment ledger rows with non-positive amount", badRentTx);
+}
 
 // Print
 console.log("\n=== DB Integrity Findings ===");
