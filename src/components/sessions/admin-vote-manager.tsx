@@ -721,7 +721,7 @@ export function AdminVoteManager({
                             <span
                               className={`text-sm tabular-nums ${balColor}`}
                             >
-                              {formatK(bal)}
+                              💰 {formatK(bal)}
                             </span>
                           );
                         }
@@ -738,7 +738,9 @@ export function AdminVoteManager({
 
                         return (
                           <span className="flex items-baseline gap-1 text-sm tabular-nums">
-                            <span className={balColor}>{formatK(bal)}</span>
+                            {/* 💰 = quỹ hiện tại; số sau dấu trừ = chi buổi này.
+                                Tách rõ để admin không nhìn nhầm thành trừ 2 lần. */}
+                            <span className={balColor}>💰 {formatK(bal)}</span>
                             <span className="font-medium text-rose-500 dark:text-rose-400">
                               − {formatK(ded)}
                             </span>
