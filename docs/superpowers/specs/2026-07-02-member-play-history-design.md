@@ -4,7 +4,7 @@ Ngày: 2026-07-02. Trạng thái: đã duyệt thiết kế (chọn phương án
 
 ## Mục tiêu
 
-Admin đang ở trang `/admin/members` bấm 1 nút trên hàng member để xem lịch sử chơi của người đó: chơi ngày giờ nào, buổi đó bị tính bao nhiêu tiền, và đã trả tiền buổi đó chưa. Hai chế độ xem: dạng lịch (mặc định) và dạng danh sách có phân trang.
+Admin đang ở trang `/admin/members` hoặc `/admin/fund` bấm 1 nút trên hàng member để xem lịch sử chơi của người đó: chơi ngày giờ nào, buổi đó bị tính bao nhiêu tiền, và đã trả tiền buổi đó chưa. Hai chế độ xem: dạng lịch (mặc định) và dạng danh sách có phân trang. Cả 2 trang dùng CHUNG 1 component (yêu cầu bổ sung của user 2026-07-02).
 
 ## Phạm vi
 
@@ -42,7 +42,10 @@ Server action mới `getMemberPlayHistory(memberId: number)` trong file mới `s
 Vỏ: overlay ngay trong trang members (phương án A đã duyệt).
 
 - `member-list.tsx`: thêm nút icon (History/CalendarDays, vùng chạm ≥ 44px) trên mỗi hàng member.
-- Bấm nút mở **bottom sheet** (mobile, framer-motion trượt lên) / **dialog** (từ `md:` trở lên). Component client mới `member-play-history-sheet.tsx` đặt cạnh member-list trong `src/app/(admin)/admin/members/` (mới dùng 1 chỗ; khi nào trang user cần thì mới nhấc ra `src/components/`).
+- Bấm nút mở **bottom sheet** (mobile) / **dialog** (desktop), cùng pattern `useIsMobile` + `Sheet side="bottom"` / `Dialog` mà `/history` (history-client.tsx) đang dùng. Component client mới `member-play-history-sheet.tsx` đặt ở `src/components/members/` vì dùng chung 2 chỗ:
+  - `/admin/members` (member-list.tsx): nút icon trên mỗi hàng member.
+  - `/admin/fund` (fund-dashboard.tsx): nút icon tương tự trên mỗi hàng member trong quỹ.
+    Component tự lo data (nhận `memberId` + tên, tự fetch), nên 2 trang chỉ cần render nút + mount component.
 - Data load khi mở bằng TanStack Query gọi server action (KHÔNG useEffect + fetch), có skeleton đúng layout khi loading, empty state khi member chưa có buổi nào.
 - Header sheet: tên member + dòng tổng ("đang nợ 109K" đỏ / "còn quỹ 50K" xanh / "0đ").
 - Toggle 2 chế độ: **Lịch** (mặc định) | **Danh sách**. State cục bộ trong sheet, không cần nuqs (overlay không có URL).
