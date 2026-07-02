@@ -442,10 +442,10 @@ export function FundReport({ fundMembers, transactions }: Props) {
                         </button>
                       </div>
                     ) : (
-                      <>
+                      <div className="flex shrink-0 items-center gap-2">
                         <span
                           className={cn(
-                            "min-w-24 shrink-0 text-right text-base font-bold tabular-nums",
+                            "min-w-24 text-right text-base font-bold tabular-nums",
                             balanceColor,
                           )}
                         >
@@ -463,6 +463,21 @@ export function FundReport({ fundMembers, transactions }: Props) {
                         >
                           <Pencil className="h-4 w-4" />
                         </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setHistoryTarget({
+                              id: fm.memberId,
+                              name: fm.member.nickname || fm.member.name,
+                            });
+                          }}
+                          aria-label={tHistory("openHistory")}
+                          title={tHistory("openHistory")}
+                          className="border-border text-muted-foreground hover:bg-muted/50 inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border transition-colors"
+                        >
+                          <History className="h-4 w-4" />
+                        </button>
                         <StatusBadge
                           variant={status.variant}
                           className="w-[110px] shrink-0 justify-center"
@@ -475,7 +490,7 @@ export function FundReport({ fundMembers, transactions }: Props) {
                             isOpen && "rotate-180",
                           )}
                         />
-                      </>
+                      </div>
                     )}
                   </div>
 
@@ -505,22 +520,6 @@ export function FundReport({ fundMembers, transactions }: Props) {
                             value={fm.balance.totalRefunds}
                             color="text-rose-600 dark:text-rose-400"
                           />
-                        </div>
-                        <div className={cn("px-3 pb-3", tones.divider)}>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setHistoryTarget({
-                                id: fm.memberId,
-                                name: fm.member.nickname || fm.member.name,
-                              });
-                            }}
-                            className="border-border text-muted-foreground hover:bg-muted/50 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border transition-colors"
-                          >
-                            <History className="h-4 w-4" />
-                            {tHistory("openHistory")}
-                          </button>
                         </div>
 
                         {/* Inline adjust quỹ — sign toggle + amount + Lưu button.

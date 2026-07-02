@@ -582,10 +582,13 @@ export function MemberList({
                     <button
                       type="button"
                       onClick={() => setHistoryTarget(member)}
-                      className="border-muted-foreground/30 text-muted-foreground hover:text-foreground hover:border-primary/50 flex min-h-11 w-full items-center gap-2 rounded-xl border border-dashed px-4 text-sm transition-colors"
+                      className="text-muted-foreground hover:bg-muted/50 hover:text-foreground flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-sm transition-colors"
                     >
                       <History className="h-4 w-4 shrink-0" />
-                      {tHistory("openHistory")}
+                      <span className="flex-1 text-left">
+                        {tHistory("openHistory")}
+                      </span>
+                      <ChevronRight className="h-4 w-4 shrink-0 opacity-40" />
                     </button>
                     {/* Nickname edit row */}
                     {editingNicknameId === member.id ? (
