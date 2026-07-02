@@ -14,7 +14,9 @@ import {
   Check,
   Pencil,
   X,
+  History,
 } from "lucide-react";
+import { MemberPlayHistorySheet } from "@/components/members/member-play-history-sheet";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { useTranslations } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
@@ -79,9 +81,14 @@ function statusFor(
 
 export function FundReport({ fundMembers, transactions }: Props) {
   const t = useTranslations("fundAdmin");
+  const tHistory = useTranslations("memberHistory");
   const [filter, setFilter] = useState<FilterKey | null>(null);
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [historyTarget, setHistoryTarget] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
   const [adjustAmount, setAdjustAmount] = useState<string>("");
   const [adjustDesc, setAdjustDesc] = useState<string>("");
   const [adjustSign, setAdjustSign] = useState<1 | -1>(1);
@@ -456,6 +463,21 @@ export function FundReport({ fundMembers, transactions }: Props) {
                         >
                           <Pencil className="h-4 w-4" />
                         </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setHistoryTarget({
+                              id: fm.memberId,
+                              name: fm.member.nickname || fm.member.name,
+                            });
+                          }}
+                          aria-label={tHistory("openHistory")}
+                          title={tHistory("openHistory")}
+                          className="border-border text-muted-foreground hover:bg-muted/50 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border transition-colors"
+                        >
+                          <History className="h-4 w-4" />
+                        </button>
                         <StatusBadge
                           variant={status.variant}
                           className="w-[110px] shrink-0 justify-center"
@@ -650,6 +672,11 @@ export function FundReport({ fundMembers, transactions }: Props) {
             })}
           </div>
         )}
+        <MemberPlayHistorySheet
+          memberId={historyTarget?.id ?? null}
+          memberName={historyTarget?.name ?? ""}
+          onClose={() => setHistoryTarget(null)}
+        />
       </CardContent>
     </Card>
   );
