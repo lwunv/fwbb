@@ -38,7 +38,7 @@ describe("getMemberPlayHistory", () => {
       .insert(courts)
       .values({ name: "THCS Tây Mỗ 3", pricePerSession: 420000 })
       .returning({ id: courts.id });
-    const mkSession = async (date: string, status: string) => {
+    const mkSession = async (date: string, status: "voting" | "completed") => {
       const [s] = await testDb
         .insert(sessions)
         .values({ date, status, courtId: court.id })

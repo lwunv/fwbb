@@ -37,7 +37,9 @@ import {
   X,
   Trash2,
   Crown,
+  History,
 } from "lucide-react";
+import { MemberPlayHistorySheet } from "@/components/members/member-play-history-sheet";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import {
   FundAdjustDialog,
@@ -106,6 +108,7 @@ export function MemberList({
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
   const [fundAdjustTarget, setFundAdjustTarget] =
     useState<FundAdjustDialogTarget | null>(null);
+  const [historyTarget, setHistoryTarget] = useState<Member | null>(null);
   const [adminMemberId, setAdminMemberId] = useState<number | null>(
     currentAdminMemberId,
   );
@@ -121,6 +124,7 @@ export function MemberList({
   const fundMemberSet = useMemo(() => new Set(fundMemberIds), [fundMemberIds]);
 
   const t = useTranslations("adminMembers");
+  const tHistory = useTranslations("memberHistory");
   function handleLinkAdmin(memberId: number) {
     const prev = adminMemberId;
     setAdminMemberId(memberId);
@@ -531,6 +535,16 @@ export function MemberList({
                       <Button
                         variant="ghost"
                         size="sm"
+                        onClick={() => setHistoryTarget(member)}
+                        className="text-muted-foreground hover:text-foreground"
+                        title={tHistory("openHistory")}
+                        aria-label={tHistory("openHistory")}
+                      >
+                        <History className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => handleLinkAdmin(member.id)}
                         disabled={adminMemberId === member.id}
                         className={
@@ -766,6 +780,13 @@ export function MemberList({
         onOpenChange={(open) => {
           if (!open) setFundAdjustTarget(null);
         }}
+      />
+      <MemberPlayHistorySheet
+        memberId={historyTarget?.id ?? null}
+        memberName={
+          historyTarget ? historyTarget.nickname || historyTarget.name : ""
+        }
+        onClose={() => setHistoryTarget(null)}
       />
     </div>
   );
