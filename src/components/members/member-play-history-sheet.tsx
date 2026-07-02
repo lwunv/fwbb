@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "framer-motion";
 import { useLocale, useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
@@ -99,7 +100,11 @@ export function MemberPlayHistorySheet({
         onChange={setView}
       />
       {isPending ? (
-        <HistorySkeleton />
+        view === "calendar" ? (
+          <CalendarSkeleton />
+        ) : (
+          <ListSkeleton />
+        )
       ) : isError || (data && "error" in data) ? (
         <p className="text-destructive py-8 text-center text-sm">
           {t("loadError")}
@@ -175,12 +180,29 @@ function BalanceLine({
   );
 }
 
-function HistorySkeleton() {
+function ListSkeleton() {
   return (
     <div className="space-y-2">
       {Array.from({ length: 5 }).map((_, i) => (
         <div key={i} className="bg-muted h-14 animate-pulse rounded-xl" />
       ))}
+    </div>
+  );
+}
+
+function CalendarSkeleton() {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="bg-muted h-11 w-11 animate-pulse rounded-lg" />
+        <div className="bg-muted h-5 w-28 animate-pulse rounded" />
+        <div className="bg-muted h-11 w-11 animate-pulse rounded-lg" />
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {Array.from({ length: 35 }).map((_, i) => (
+          <div key={i} className="bg-muted min-h-11 animate-pulse rounded-lg" />
+        ))}
+      </div>
     </div>
   );
 }
@@ -335,14 +357,25 @@ function HistoryCalendar({
           ? t("sessionsInMonth", { count: monthCount })
           : t("noSessionsInMonth")}
       </p>
-      {selected && (
-        <div className="bg-card/80 rounded-xl border p-3">
-          <div className="flex items-center justify-between">
-            <StatusBadgeFor status={selected.paidStatus} />
-          </div>
-          <EntryDetail entry={selected} locale={locale} />
-        </div>
-      )}
+      <AnimatePresence initial={false}>
+        {selected && (
+          <motion.div
+            key={selected.sessionId}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="bg-card/80 rounded-xl border p-3">
+              <div className="flex items-center justify-between">
+                <StatusBadgeFor status={selected.paidStatus} />
+              </div>
+              <EntryDetail entry={selected} locale={locale} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -384,9 +417,19 @@ function HistoryList({
             </div>
             <StatusBadgeFor status={e.paidStatus} />
           </div>
-          {expandedId === e.sessionId && (
-            <EntryDetail entry={e} locale={locale} />
-          )}
+          <AnimatePresence initial={false}>
+            {expandedId === e.sessionId && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <EntryDetail entry={e} locale={locale} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </button>
       ))}
       {totalPages > 1 && (

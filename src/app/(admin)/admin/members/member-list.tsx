@@ -535,16 +535,6 @@ export function MemberList({
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => setHistoryTarget(member)}
-                        className="text-muted-foreground hover:text-foreground"
-                        title={tHistory("openHistory")}
-                        aria-label={tHistory("openHistory")}
-                      >
-                        <History className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
                         onClick={() => handleLinkAdmin(member.id)}
                         disabled={adminMemberId === member.id}
                         className={
@@ -589,6 +579,14 @@ export function MemberList({
                         )}
                       </Button>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => setHistoryTarget(member)}
+                      className="border-muted-foreground/30 text-muted-foreground hover:text-foreground hover:border-primary/50 flex min-h-11 w-full items-center gap-2 rounded-xl border border-dashed px-4 text-sm transition-colors"
+                    >
+                      <History className="h-4 w-4 shrink-0" />
+                      {tHistory("openHistory")}
+                    </button>
                     {/* Nickname edit row */}
                     {editingNicknameId === member.id ? (
                       <div className="flex items-center gap-2">
