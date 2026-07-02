@@ -5,6 +5,18 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
+  addMonths,
+  eachDayOfInterval,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isSameMonth,
+  parseISO,
+  startOfMonth,
+  startOfWeek,
+} from "date-fns";
+import { getDateFnsLocale } from "@/lib/date-fns-locale";
+import {
   getMemberPlayHistory,
   type MemberPlayHistoryEntry,
 } from "@/actions/member-history";
@@ -38,6 +50,12 @@ const STATUS_CLASS: Record<PaidStatus, string> = {
   unpaid: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
 };
 
+const DOT_CLASS: Record<PaidStatus, string> = {
+  paid: "bg-emerald-500",
+  partial: "bg-amber-500",
+  unpaid: "bg-rose-500",
+};
+
 /**
  * Overlay lịch sử chơi của 1 member (admin xem). Tự fetch theo memberId nên
  * dùng chung được ở /admin/members và /admin/fund — trang chỉ cần giữ state
@@ -56,7 +74,7 @@ export function MemberPlayHistorySheet({
   const t = useTranslations("memberHistory");
   const locale = useLocale() as AppLocale;
   const isMobile = useIsMobile();
-  const [view, setView] = useState<ViewMode>("list");
+  const [view, setView] = useState<ViewMode>("calendar");
 
   const open = memberId !== null;
   const { data, isPending, isError } = useQuery({
@@ -92,7 +110,11 @@ export function MemberPlayHistorySheet({
           <p className="text-muted-foreground text-sm">{t("empty")}</p>
         </div>
       ) : history ? (
-        <HistoryList entries={history.entries} locale={locale} />
+        view === "calendar" ? (
+          <HistoryCalendar entries={history.entries} locale={locale} />
+        ) : (
+          <HistoryList entries={history.entries} locale={locale} />
+        )
       ) : null}
     </div>
   );
@@ -206,6 +228,121 @@ function EntryDetail({
           <span className="text-foreground font-medium">{v}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+function HistoryCalendar({
+  entries,
+  locale,
+}: {
+  entries: MemberPlayHistoryEntry[];
+  locale: AppLocale;
+}) {
+  const t = useTranslations("memberHistory");
+  const dfLocale = getDateFnsLocale(locale);
+  const [month, setMonth] = useState(() => startOfMonth(new Date()));
+  const [selected, setSelected] = useState<MemberPlayHistoryEntry | null>(null);
+
+  const byDay = useMemo(() => {
+    // 1 buổi/ngày (mỗi ngày tối đa 1 session, mỗi session tối đa 1 debt/member)
+    const m = new Map<string, MemberPlayHistoryEntry>();
+    for (const e of entries) m.set(e.date, e);
+    return m;
+  }, [entries]);
+
+  const days = eachDayOfInterval({
+    start: startOfWeek(startOfMonth(month), { weekStartsOn: 1 }),
+    end: endOfWeek(endOfMonth(month), { weekStartsOn: 1 }),
+  });
+  const monthCount = entries.filter((e) =>
+    isSameMonth(parseISO(e.date), month),
+  ).length;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <Button
+          variant="outline"
+          size="sm"
+          className="min-h-11 min-w-11"
+          onClick={() => {
+            setMonth((m) => addMonths(m, -1));
+            setSelected(null);
+          }}
+          aria-label={t("prevPage")}
+        >
+          <ChevronLeft className="size-4" />
+        </Button>
+        <p className="text-sm font-semibold capitalize">
+          {format(month, "MMMM yyyy", { locale: dfLocale })}
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          className="min-h-11 min-w-11"
+          onClick={() => {
+            setMonth((m) => addMonths(m, 1));
+            setSelected(null);
+          }}
+          aria-label={t("nextPage")}
+        >
+          <ChevronRight className="size-4" />
+        </Button>
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {days.slice(0, 7).map((d) => (
+          <div
+            key={`h-${d.toISOString()}`}
+            className="text-muted-foreground py-1 text-center text-xs font-medium"
+          >
+            {format(d, "EEEEEE", { locale: dfLocale })}
+          </div>
+        ))}
+        {days.map((d) => {
+          const ymd = format(d, "yyyy-MM-dd");
+          const entry = byDay.get(ymd);
+          const inMonth = isSameMonth(d, month);
+          return (
+            <button
+              key={ymd}
+              type="button"
+              disabled={!entry}
+              onClick={() => entry && setSelected(entry)}
+              onMouseEnter={() => entry && setSelected(entry)}
+              className={cn(
+                "relative flex min-h-11 flex-col items-center justify-center rounded-lg text-sm",
+                !inMonth && "text-muted-foreground/40",
+                entry && "bg-card/80 border font-semibold",
+                selected?.date === ymd && "ring-primary ring-2",
+              )}
+            >
+              {format(d, "d")}
+              {entry && (
+                <span
+                  className={cn(
+                    "absolute bottom-1 size-1.5 rounded-full",
+                    DOT_CLASS[entry.paidStatus],
+                  )}
+                />
+              )}
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-muted-foreground text-center text-sm">
+        {monthCount > 0
+          ? t("sessionsInMonth", { count: monthCount })
+          : t("noSessionsInMonth")}
+      </p>
+      {selected && (
+        <div className="bg-card/80 rounded-xl border p-3">
+          <div className="flex items-center justify-between">
+            <StatusBadgeFor status={selected.paidStatus} />
+          </div>
+          <EntryDetail entry={selected} locale={locale} />
+        </div>
+      )}
     </div>
   );
 }
