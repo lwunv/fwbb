@@ -44,12 +44,15 @@ export default async function SessionsPage({
   // - "cancelled"     → status = cancelled
   // - "all"           → undefined (no filter)
   const today = ymdInVN();
+  // Dùng chung cho whereClause (tab "voting") lẫn activeVotingFirst (sort ưu
+  // tiên ở tab "all") — tránh 2 nơi định nghĩa "đang mở vote" lệch nhau.
+  const isActiveVoting = and(
+    inArray(sessions.status, ["voting", "confirmed"]),
+    gte(sessions.date, today),
+  );
   const whereClause =
     statusFilter === "voting"
-      ? and(
-          inArray(sessions.status, ["voting", "confirmed"]),
-          gte(sessions.date, today),
-        )
+      ? isActiveVoting
       : statusFilter === "needsConfirm"
         ? and(
             inArray(sessions.status, ["voting", "confirmed"]),
@@ -114,11 +117,19 @@ export default async function SessionsPage({
   const safePage = Math.min(pageNum, totalPages);
   const offset = (safePage - 1) * PAGE_SIZE;
 
-  // Filter "voting" = buổi sắp tới (date >= today) → sort TĂNG DẦN để buổi gần
-  // nhất (hôm nay/tuần này) lên ĐẦU, buổi xa nhất xuống cuối. Các filter khác
-  // (all/needsConfirm/completed/cancelled) là lịch sử → giảm dần (mới nhất trước).
+  // Buổi ĐANG THỰC SỰ mở vote (status voting/confirmed + date >= today, khớp
+  // định nghĩa bucket "voting" ở whereClause trên) luôn lên ĐẦU trang "all" —
+  // đó là buổi admin cần chú ý nhất. Cố tình KHÔNG dùng status='voting' đơn
+  // thuần: buổi quá hạn chưa chốt sổ (needsConfirm) vẫn mang status 'voting'
+  // nhưng không phải buổi "đang mở vote", không nên tranh vị trí đầu với buổi
+  // thật sự đang active. Trong tab "voting"/"needsConfirm"/"completed"/
+  // "cancelled", whereClause đã lọc đồng nhất 1 bucket nên CASE này là no-op
+  // (không đổi hành vi sẵn có của các tab đó).
+  const activeVotingFirst = sql`CASE WHEN ${isActiveVoting} THEN 0 ELSE 1 END`;
   const sessionOrderBy =
-    statusFilter === "voting" ? [asc(sessions.date)] : [desc(sessions.date)];
+    statusFilter === "voting"
+      ? [activeVotingFirst, asc(sessions.date)]
+      : [activeVotingFirst, desc(sessions.date)];
 
   const allSessions = await db.query.sessions.findMany({
     where: whereClause,
