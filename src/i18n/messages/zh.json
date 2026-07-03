@@ -306,6 +306,7 @@
     "all": "全部"
   },
   "common": {
+    "more": "更多选项",
     "add": "添加",
     "edit": "编辑",
     "delete": "删除",
@@ -604,6 +605,12 @@
     "noSessionsInMonth": "本月没有场次"
   },
   "adminMembers": {
+    "pageEyebrow": "群组资金管理",
+    "pageTitle": "成员",
+    "subtitleCount": "{active} / {total} 名成员",
+    "menuEditNickname": "编辑昵称",
+    "menuSetAdmin": "设为管理员",
+    "menuDelete": "删除成员",
     "count": "{count} 个成员",
     "addMember": "添加成员",
     "editMember": "编辑成员",
@@ -789,6 +796,11 @@
     "logSourceAdmin": "管理员/系统",
     "logEmptyAll": "暂无交易",
     "logEmptyFiltered": "未找到",
+    "txSortLabel": "排序",
+    "txSortNewest": "最新",
+    "txSortOldest": "最早",
+    "txSortAmountDesc": "金额从高到低",
+    "txSortAmountAsc": "金额从低到高",
     "logSystem": "系统",
     "logSession": "{date} 场次",
     "reconcileBalanced": "资金平衡 — 未发现偏差。",

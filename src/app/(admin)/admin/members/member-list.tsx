@@ -38,6 +38,7 @@ import {
   Trash2,
   Crown,
   History,
+  MoreVertical,
 } from "lucide-react";
 import { MemberPlayHistorySheet } from "@/components/members/member-play-history-sheet";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -46,6 +47,15 @@ import {
   type FundAdjustDialogTarget,
 } from "@/components/fund/fund-adjust-dialog";
 import { MemberAvatar } from "@/components/shared/member-avatar";
+import { CustomSelect } from "@/components/ui/custom-select";
+import { Switch } from "@/components/ui/switch";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { confirmPaymentByAdmin } from "@/actions/finance";
 import { fireAction } from "@/lib/optimistic-action";
 import { getFundStatus } from "@/lib/fund-core";
@@ -139,36 +149,41 @@ export function MemberList({
   const tFs = useTranslations("fundStatus");
   usePolling();
 
+  function balanceColorFor(balance: number): string {
+    const status = getFundStatus(balance);
+    return status === "owing"
+      ? "text-rose-600 dark:text-rose-400"
+      : status === "depleted"
+        ? "text-yellow-600 dark:text-yellow-400"
+        : status === "lowFund"
+          ? "text-orange-600 dark:text-orange-400"
+          : "text-blue-600 dark:text-blue-400";
+  }
+
+  // Viền trái card báo trạng thái ngay từ xa — khóa (isActive=false) ưu tiên
+  // hiển thị màu xám trung tính bất kể quỹ, vì "tài khoản đang khóa" là tín
+  // hiệu quan trọng hơn số dư của họ lúc đang khóa.
+  function cardAccentClass(memberIsActive: boolean, balance: number): string {
+    if (!memberIsActive) return "border-l-4 border-l-muted-foreground/40";
+    const status = getFundStatus(balance);
+    if (status === "owing")
+      return "border-l-4 border-l-rose-500 dark:border-l-rose-400";
+    if (status === "depleted")
+      return "border-l-4 border-l-yellow-500 dark:border-l-yellow-400";
+    if (status === "lowFund")
+      return "border-l-4 border-l-orange-500 dark:border-l-orange-400";
+    return "border-l-4 border-l-transparent";
+  }
+
   function fundStatusInfoFor(balance: number) {
     const status = getFundStatus(balance);
-    const balanceColor =
-      status === "owing"
-        ? "text-rose-600 dark:text-rose-400"
-        : status === "depleted"
-          ? "text-yellow-600 dark:text-yellow-400"
-          : status === "lowFund"
-            ? "text-orange-600 dark:text-orange-400"
-            : "text-blue-600 dark:text-blue-400";
-
+    const balanceColor = balanceColorFor(balance);
     return (
-      <div className="flex shrink-0 items-center gap-1.5">
-        <span className={`text-sm font-semibold tabular-nums ${balanceColor}`}>
+      <div className="text-right">
+        <p className={cn("text-base font-bold tabular-nums", balanceColor)}>
           {formatK(balance)}
-        </span>
-        {status !== "hasFund" && (
-          <StatusBadge
-            variant={
-              status === "owing"
-                ? "unpaid"
-                : status === "depleted"
-                  ? "depleted"
-                  : "lowFund"
-            }
-            className="shrink-0"
-          >
-            {tFs(status)}
-          </StatusBadge>
-        )}
+        </p>
+        <p className={cn("text-sm", balanceColor)}>{tFs(status)}</p>
       </div>
     );
   }
@@ -331,6 +346,26 @@ export function MemberList({
     });
   }
 
+  // Bucket đếm sẵn cho mỗi chip filter — hiện luôn kể cả khi chip không active
+  // (khớp mockup "Tất cả 12 / Hoạt động 10 / ..."). Đếm trên toàn bộ list
+  // trước filter (chỉ trừ optimistic-deleted), không phải trên `filtered`.
+  const liveMembers = useMemo(
+    () => members.filter((m) => !deletedIds.has(m.id)),
+    [members, deletedIds],
+  );
+  const statusCounts = useMemo(
+    () => ({
+      all: liveMembers.length,
+      active: liveMembers.filter((m) => m.isActive).length,
+      locked: liveMembers.filter((m) => !m.isActive).length,
+      hasDebt: liveMembers.filter((m) => debtsByMember[m.id]?.length).length,
+      lowFund: liveMembers.filter(
+        (m) => getFundStatus(memberBalances[m.id] ?? 0) === "lowFund",
+      ).length,
+    }),
+    [liveMembers, debtsByMember, memberBalances],
+  );
+
   const filterButtons: { key: StatusFilter; label: string }[] = [
     { key: "all", label: t("all") },
     { key: "active", label: t("filterActive") },
@@ -339,12 +374,41 @@ export function MemberList({
     { key: "lowFund", label: t("filterLowFund") },
   ];
 
+  const SORT_OPTIONS: { value: SortMode; label: string }[] = [
+    { value: "smart", label: t("sortSmart") },
+    { value: "balanceDesc", label: t("sortBalanceDesc") },
+    { value: "balanceAsc", label: t("sortBalanceAsc") },
+    { value: "newest", label: t("sortNewest") },
+    { value: "oldest", label: t("sortOldest") },
+    { value: "nameAsc", label: t("sortNameAsc") },
+  ];
+
   return (
     <div className="">
-      {/* count moved to filter row */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        {/* Sticky bottom add button */}
-        <div className="bg-background/95 fixed right-0 bottom-0 left-0 z-30 border-t p-3 backdrop-blur lg:left-60">
+        {/* Header: eyebrow + title lớn + "X / Y thành viên" + nút thêm (desktop) */}
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-primary text-xs font-semibold tracking-widest uppercase">
+              {t("pageEyebrow")}
+            </p>
+            <h1 className="text-3xl font-bold sm:text-4xl">{t("pageTitle")}</h1>
+            <p className="text-muted-foreground mt-1 text-sm">
+              {t("subtitleCount", {
+                active: statusCounts.active,
+                total: statusCounts.all,
+              })}
+            </p>
+          </div>
+          <DialogTrigger
+            render={<Button size="lg" className="hidden md:inline-flex" />}
+          >
+            <Plus className="mr-2 h-4 w-4" /> {t("addMember")}
+          </DialogTrigger>
+        </div>
+
+        {/* Sticky bottom add button — mobile only (desktop dùng nút ở header) */}
+        <div className="bg-background/95 fixed right-0 bottom-0 left-0 z-30 border-t p-3 backdrop-blur md:hidden lg:left-60">
           <DialogTrigger render={<Button className="w-full" size="lg" />}>
             <Plus className="mr-2 h-4 w-4" /> {t("addMember")}
           </DialogTrigger>
@@ -386,8 +450,8 @@ export function MemberList({
         containerClassName="mb-3"
       />
 
-      {/* Status filter + count */}
-      <div className="mb-4 flex items-center gap-2">
+      {/* Status filter (kèm số lượng mỗi bucket) + sort — cùng 1 row từ sm: */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1">
           <TabSegment<StatusFilter>
             variant="pills"
@@ -396,35 +460,28 @@ export function MemberList({
             options={filterButtons.map(({ key, label }) => ({
               value: key,
               label,
+              badge: statusCounts[key],
             }))}
           />
         </div>
-        <span className="text-muted-foreground shrink-0 text-sm whitespace-nowrap">
-          {t("count", { count: filtered.length })}
-        </span>
-      </div>
-
-      {/* Sort */}
-      <div className="mb-4 flex items-center justify-end gap-2">
-        <label htmlFor="member-sort" className="text-muted-foreground text-sm">
-          {t("sortLabel")}
-        </label>
-        <select
-          id="member-sort"
-          value={sortMode}
-          onChange={(e) => {
-            setSortMode(e.target.value as SortMode);
-            setPage(1);
-          }}
-          className="bg-card text-foreground h-9 rounded-lg border px-2 text-sm"
-        >
-          <option value="smart">{t("sortSmart")}</option>
-          <option value="balanceDesc">{t("sortBalanceDesc")}</option>
-          <option value="balanceAsc">{t("sortBalanceAsc")}</option>
-          <option value="newest">{t("sortNewest")}</option>
-          <option value="oldest">{t("sortOldest")}</option>
-          <option value="nameAsc">{t("sortNameAsc")}</option>
-        </select>
+        <div className="flex shrink-0 items-center gap-2">
+          <label
+            htmlFor="member-sort"
+            className="text-muted-foreground text-sm whitespace-nowrap"
+          >
+            {t("sortLabel")}
+          </label>
+          <CustomSelect
+            name="member-sort"
+            value={sortMode}
+            onChange={(v) => {
+              setSortMode(v as SortMode);
+              setPage(1);
+            }}
+            options={SORT_OPTIONS}
+            className="w-56"
+          />
+        </div>
       </div>
 
       {/* Member cards */}
@@ -451,147 +508,177 @@ export function MemberList({
                 exit={{ opacity: 0, x: -16 }}
                 transition={{ type: "spring", stiffness: 320, damping: 28 }}
               >
-                <Card>
+                <Card
+                  className={cardAccentClass(
+                    memberIsActive,
+                    memberBalances[member.id] ?? 0,
+                  )}
+                >
                   <CardContent className="space-y-3 p-4">
-                    {/* Info row */}
-                    <div className="flex items-center gap-3">
-                      <MemberAvatar
-                        memberId={member.id}
-                        avatarKey={member.avatarKey}
-                        avatarUrl={member.avatarUrl}
-                        size={40}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="flex items-center gap-1.5 text-base font-semibold">
-                          {member.name}
-                          {member.nickname && (
-                            <span className="text-muted-foreground text-sm font-normal">
-                              ({member.nickname})
+                    {/* Info row: avatar+tên+trạng thái bên trái, số dư+action bên
+                        phải. flex-wrap để cụm bên phải rớt xuống dòng riêng khi
+                        màn hẹp thay vì bị cắt (thay cho hàng dồn 9 phần tử cũ). */}
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="flex min-w-0 flex-1 items-start gap-3">
+                        <MemberAvatar
+                          memberId={member.id}
+                          avatarKey={member.avatarKey}
+                          avatarUrl={member.avatarUrl}
+                          size={44}
+                        />
+                        <div className="min-w-0 flex-1 space-y-1.5">
+                          <p className="flex flex-wrap items-center gap-1.5 text-base font-semibold">
+                            {member.name}
+                            {member.nickname && (
+                              <span className="text-muted-foreground text-sm font-normal">
+                                ({member.nickname})
+                              </span>
+                            )}
+                            {adminMemberId === member.id && (
+                              <span
+                                className="bg-primary/15 text-primary inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+                                title={t("thisIsAdminBadge")}
+                              >
+                                <Crown className="h-3 w-3" />
+                                {t("adminBadge")}
+                              </span>
+                            )}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-3 text-sm">
+                            <span className="text-muted-foreground inline-flex items-center gap-1.5">
+                              <span
+                                className={cn(
+                                  "size-1.5 shrink-0 rounded-full",
+                                  fundMemberSet.has(member.id)
+                                    ? "bg-blue-500"
+                                    : "bg-muted-foreground/50",
+                                )}
+                              />
+                              {fundMemberSet.has(member.id)
+                                ? t("inFund")
+                                : t("notInFund")}
                             </span>
-                          )}
-                          {adminMemberId === member.id && (
-                            <span
-                              className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400"
-                              title={t("thisIsAdminBadge")}
+                            <label
+                              className="text-muted-foreground inline-flex items-center gap-2"
+                              title={t("memberWithPartner")}
                             >
-                              <Crown className="h-3 w-3" />
-                              {t("adminBadge")}
-                            </span>
-                          )}
-                        </p>
+                              {(partnerOverrides[member.id] ??
+                              member.defaultWithPartner)
+                                ? t("partnerOn")
+                                : t("partnerOff")}
+                              <Switch
+                                checked={
+                                  partnerOverrides[member.id] ??
+                                  member.defaultWithPartner
+                                }
+                                onCheckedChange={() =>
+                                  handleTogglePartner(member)
+                                }
+                              />
+                            </label>
+                          </div>
+                        </div>
                       </div>
-                      <span
-                        className={cn(
-                          "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
-                          fundMemberSet.has(member.id)
-                            ? "bg-blue-500/15 text-blue-600 dark:text-blue-400"
-                            : "bg-muted text-muted-foreground",
-                        )}
-                      >
-                        {fundMemberSet.has(member.id)
-                          ? t("inFund")
-                          : t("notInFund")}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleTogglePartner(member);
-                        }}
-                        className={cn(
-                          "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors",
-                          (partnerOverrides[member.id] ??
-                            member.defaultWithPartner)
-                            ? "bg-primary/15 text-primary"
-                            : "bg-muted text-muted-foreground hover:bg-muted/70",
-                        )}
-                        title={t("memberWithPartner")}
-                      >
-                        👫{" "}
-                        {(partnerOverrides[member.id] ??
-                        member.defaultWithPartner)
-                          ? t("partnerOn")
-                          : t("partnerOff")}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const bal = memberBalances[member.id] ?? 0;
-                          setFundAdjustTarget({
-                            memberId: member.id,
-                            memberName: member.name,
-                            memberNickname: member.nickname,
-                            memberAvatarKey: member.avatarKey ?? null,
-                            memberAvatarUrl: member.avatarUrl ?? null,
-                            currentBalance: bal,
-                          });
-                        }}
-                        className="hover:bg-muted/50 -m-1 rounded-md p-1 transition-colors"
-                        title="Click để cộng/trừ/sửa quỹ"
-                      >
-                        {fundStatusInfoFor(memberBalances[member.id] ?? 0)}
-                      </button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleLinkAdmin(member.id)}
-                        disabled={adminMemberId === member.id}
-                        className={
-                          adminMemberId === member.id
-                            ? "text-amber-600 dark:text-amber-400"
-                            : "text-muted-foreground hover:text-amber-600"
-                        }
-                        title={
-                          adminMemberId === member.id
-                            ? t("linkAdminTooltipLinked")
-                            : t("linkAdminTooltipSet")
-                        }
-                        aria-label={t("linkAdminAria")}
-                      >
-                        <Crown className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setDeleteTarget(member)}
-                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                        title={tCommon("delete")}
-                        aria-label={tCommon("delete")}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant={memberIsActive ? "destructive" : "default"}
-                        size="sm"
-                        onClick={() => handleToggle(member.id, memberIsActive)}
-                      >
-                        {memberIsActive ? (
-                          <>
-                            <Lock className="mr-1.5 h-4 w-4" />
-                            {t("lock")}
-                          </>
-                        ) : (
-                          <>
-                            <LockOpen className="mr-1.5 h-4 w-4" />
-                            {t("unlock")}
-                          </>
-                        )}
-                      </Button>
+
+                      {/* flex-1/min-w-0 ở cụm avatar+tên có flex-basis 0 nên
+                          KHÔNG tự tràn dòng theo flex-wrap của cha (spec
+                          flexbox tính wrap theo hypothetical size, bằng 0 ở
+                          đây) — ép cụm action xuống hàng riêng bằng basis-full
+                          tường minh trên mobile, chỉ chung hàng từ sm: trở lên. */}
+                      <div className="flex w-full shrink-0 items-center justify-between gap-2 sm:w-auto sm:justify-normal">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const bal = memberBalances[member.id] ?? 0;
+                            setFundAdjustTarget({
+                              memberId: member.id,
+                              memberName: member.name,
+                              memberNickname: member.nickname,
+                              memberAvatarKey: member.avatarKey ?? null,
+                              memberAvatarUrl: member.avatarUrl ?? null,
+                              currentBalance: bal,
+                            });
+                          }}
+                          className="hover:bg-muted/50 -m-1 rounded-md p-1 transition-colors"
+                          title="Click để cộng/trừ/sửa quỹ"
+                        >
+                          {fundStatusInfoFor(memberBalances[member.id] ?? 0)}
+                        </button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="min-h-11 min-w-11"
+                          onClick={() => setHistoryTarget(member)}
+                          title={tHistory("openHistory")}
+                          aria-label={tHistory("openHistory")}
+                        >
+                          <History className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant={memberIsActive ? "destructive" : "default"}
+                          size="sm"
+                          className="min-h-11"
+                          onClick={() =>
+                            handleToggle(member.id, memberIsActive)
+                          }
+                        >
+                          {memberIsActive ? (
+                            <>
+                              <Lock className="mr-1.5 h-4 w-4" />
+                              {t("lock")}
+                            </>
+                          ) : (
+                            <>
+                              <LockOpen className="mr-1.5 h-4 w-4" />
+                              {t("unlock")}
+                            </>
+                          )}
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="min-h-11 min-w-11"
+                                aria-label={tCommon("more")}
+                              />
+                            }
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setEditingNicknameId(member.id);
+                                setNicknameValue(member.nickname ?? "");
+                              }}
+                            >
+                              <Edit className="h-4 w-4" />
+                              {t("menuEditNickname")}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleLinkAdmin(member.id)}
+                              disabled={adminMemberId === member.id}
+                            >
+                              <Crown className="h-4 w-4" />
+                              {t("menuSetAdmin")}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onClick={() => setDeleteTarget(member)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              {t("menuDelete")}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setHistoryTarget(member)}
-                      className="text-muted-foreground hover:bg-muted/50 hover:text-foreground flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-sm transition-colors"
-                    >
-                      <History className="h-4 w-4 shrink-0" />
-                      <span className="flex-1 text-left">
-                        {tHistory("openHistory")}
-                      </span>
-                      <ChevronRight className="h-4 w-4 shrink-0 opacity-40" />
-                    </button>
-                    {/* Nickname edit row */}
-                    {editingNicknameId === member.id ? (
+
+                    {/* Nickname inline edit — mở từ menu "Sửa biệt danh" */}
+                    {editingNicknameId === member.id && (
                       <div className="flex items-center gap-2">
                         <Input
                           value={nicknameValue}
@@ -624,24 +711,6 @@ export function MemberList({
                           <X className="h-4 w-4" />
                         </Button>
                       </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingNicknameId(member.id);
-                          setNicknameValue(member.nickname ?? "");
-                        }}
-                        className="border-muted-foreground/30 text-muted-foreground hover:text-foreground hover:border-primary/50 flex w-full items-center gap-3 rounded-xl border border-dashed px-4 py-3 text-sm transition-colors"
-                      >
-                        <Edit className="h-5 w-5 shrink-0" />
-                        <span>
-                          {member.nickname
-                            ? t("nicknameDisplay", {
-                                nickname: member.nickname,
-                              })
-                            : t("addNickname")}
-                        </span>
-                      </button>
                     )}
 
                     {totalDebt > 0 && (

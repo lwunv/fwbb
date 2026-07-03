@@ -306,6 +306,7 @@
     "all": "Tất cả"
   },
   "common": {
+    "more": "Thêm tùy chọn",
     "add": "Thêm",
     "edit": "Sửa",
     "delete": "Xóa",
@@ -604,6 +605,12 @@
     "noSessionsInMonth": "Tháng này không có buổi nào"
   },
   "adminMembers": {
+    "pageEyebrow": "Quản lý quỹ nhóm",
+    "pageTitle": "Thành viên",
+    "subtitleCount": "{active} / {total} thành viên",
+    "menuEditNickname": "Sửa biệt danh",
+    "menuSetAdmin": "Đặt làm admin",
+    "menuDelete": "Xóa thành viên",
     "count": "{count} thành viên",
     "addMember": "Thêm thành viên",
     "editMember": "Sửa thành viên",
@@ -789,6 +796,11 @@
     "logSourceAdmin": "Admin / Hệ thống",
     "logEmptyAll": "Chưa có giao dịch nào",
     "logEmptyFiltered": "Không tìm thấy",
+    "txSortLabel": "Sắp xếp",
+    "txSortNewest": "Mới nhất",
+    "txSortOldest": "Cũ nhất",
+    "txSortAmountDesc": "Số tiền nhiều → ít",
+    "txSortAmountAsc": "Số tiền ít → nhiều",
     "logSystem": "Hệ thống",
     "logSession": "Buổi {date}",
     "reconcileBalanced": "Quỹ cân — không phát hiện sai lệch.",

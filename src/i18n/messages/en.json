@@ -306,6 +306,7 @@
     "all": "All"
   },
   "common": {
+    "more": "More options",
     "add": "Add",
     "edit": "Edit",
     "delete": "Delete",
@@ -604,6 +605,12 @@
     "noSessionsInMonth": "No sessions this month"
   },
   "adminMembers": {
+    "pageEyebrow": "Group fund management",
+    "pageTitle": "Members",
+    "subtitleCount": "{active} / {total} members",
+    "menuEditNickname": "Edit nickname",
+    "menuSetAdmin": "Set as admin",
+    "menuDelete": "Delete member",
     "count": "{count} members",
     "addMember": "Add member",
     "editMember": "Edit member",
@@ -789,6 +796,11 @@
     "logSourceAdmin": "Admin / System",
     "logEmptyAll": "No transactions yet",
     "logEmptyFiltered": "Nothing found",
+    "txSortLabel": "Sort",
+    "txSortNewest": "Newest",
+    "txSortOldest": "Oldest",
+    "txSortAmountDesc": "Amount: high to low",
+    "txSortAmountAsc": "Amount: low to high",
     "logSystem": "System",
     "logSession": "Session {date}",
     "reconcileBalanced": "Fund balanced — no drift detected.",
