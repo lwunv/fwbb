@@ -8,6 +8,8 @@ import {
   ArrowDownCircle,
   RotateCcw,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Wallet,
   Plus,
   Minus,
@@ -21,6 +23,8 @@ import { NumberStepper } from "@/components/ui/number-stepper";
 import { useTranslations } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { SearchInput } from "@/components/shared/search-input";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -655,15 +659,7 @@ export function FundReport({ fundMembers, transactions }: Props) {
                           </AnimatePresence>
                         </div>
 
-                        <div className="divide-y">
-                          {memberTxs.length === 0 ? (
-                            <p className="text-muted-foreground p-4 text-center text-sm">
-                              Chưa có lịch sử quỹ
-                            </p>
-                          ) : (
-                            memberTxs.map((tx) => <TxRow key={tx.id} tx={tx} />)
-                          )}
-                        </div>
+                        <MemberTxList transactions={memberTxs} />
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -743,6 +739,146 @@ function TxRow({ tx }: { tx: FundTransaction }) {
         {sign}
         {formatK(tx.amount)}
       </p>
+    </div>
+  );
+}
+
+type TxFilterType = "all" | FundTransaction["type"];
+type TxSortMode = "newest" | "oldest" | "amountDesc" | "amountAsc";
+const TX_PAGE_SIZE = 5;
+
+/**
+ * Lịch sử giao dịch quỹ của 1 member trong panel expand. Có thể dài hàng
+ * chục dòng theo thời gian nên cần filter theo loại + sort + phân trang +
+ * giới hạn chiều cao, thay vì render phẳng toàn bộ (spec 2026-07-03).
+ */
+function MemberTxList({ transactions }: { transactions: FundTransaction[] }) {
+  const t = useTranslations("fundAdmin");
+  const tHistory = useTranslations("memberHistory");
+  const [filterType, setFilterType] = useState<TxFilterType>("all");
+  const [sortMode, setSortMode] = useState<TxSortMode>("newest");
+  const [page, setPage] = useState(1);
+
+  const filtered =
+    filterType === "all"
+      ? transactions
+      : transactions.filter((tx) => tx.type === filterType);
+
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    arr.sort((a, b) => {
+      if (sortMode === "amountDesc") return b.amount - a.amount;
+      if (sortMode === "amountAsc") return a.amount - b.amount;
+      const cmp = (a.createdAt ?? "").localeCompare(b.createdAt ?? "");
+      return sortMode === "oldest" ? cmp : -cmp;
+    });
+    return arr;
+  }, [filtered, sortMode]);
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / TX_PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageItems = sorted.slice(
+    (safePage - 1) * TX_PAGE_SIZE,
+    safePage * TX_PAGE_SIZE,
+  );
+
+  const FILTER_CHIPS: Array<{ key: TxFilterType; label: string }> = [
+    { key: "all", label: t("logSourceAll") },
+    { key: "fund_contribution", label: t("txLabelContribution") },
+    { key: "fund_deduction", label: t("txLabelDeduction") },
+    { key: "fund_refund", label: t("txLabelRefund") },
+  ];
+  const SORT_OPTIONS = [
+    { value: "newest", label: t("txSortNewest") },
+    { value: "oldest", label: t("txSortOldest") },
+    { value: "amountDesc", label: t("txSortAmountDesc") },
+    { value: "amountAsc", label: t("txSortAmountAsc") },
+  ];
+
+  if (transactions.length === 0) {
+    return (
+      <p className="text-muted-foreground p-4 text-center text-sm">
+        Chưa có lịch sử quỹ
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2 p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-1 flex-wrap gap-1.5">
+          {FILTER_CHIPS.map((f) => {
+            const active = filterType === f.key;
+            return (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => {
+                  setFilterType(f.key);
+                  setPage(1);
+                }}
+                className={cn(
+                  "h-8 shrink-0 rounded-full border px-3 text-xs font-medium transition-colors",
+                  active
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-muted-foreground hover:bg-muted/80",
+                )}
+              >
+                {f.label}
+              </button>
+            );
+          })}
+        </div>
+        <CustomSelect
+          value={sortMode}
+          onChange={(v) => {
+            setSortMode(v as TxSortMode);
+            setPage(1);
+          }}
+          options={SORT_OPTIONS}
+          className="w-44 shrink-0"
+        />
+      </div>
+
+      {pageItems.length === 0 ? (
+        <p className="text-muted-foreground p-4 text-center text-sm">
+          {t("logEmptyFiltered")}
+        </p>
+      ) : (
+        <div className="max-h-72 divide-y overflow-y-auto rounded-lg border">
+          {pageItems.map((tx) => (
+            <TxRow key={tx.id} tx={tx} />
+          ))}
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-1">
+          <Button
+            variant="outline"
+            size="sm"
+            className="min-h-11 min-w-11"
+            disabled={safePage <= 1}
+            onClick={() => setPage(safePage - 1)}
+            aria-label={tHistory("prevPage")}
+          >
+            <ChevronLeft className="size-4" />
+          </Button>
+          <span className="text-muted-foreground text-sm">
+            {tHistory("pageOf", { page: safePage, total: totalPages })}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            className="min-h-11 min-w-11"
+            disabled={safePage >= totalPages}
+            onClick={() => setPage(safePage + 1)}
+            aria-label={tHistory("nextPage")}
+          >
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
