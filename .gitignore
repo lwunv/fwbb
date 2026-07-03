@@ -57,3 +57,5 @@ certificates
 # never commit member balances / transaction dumps to a remote repo.
 .claude/*.csv
 .claude/*.xlsx
+
+.vercel
