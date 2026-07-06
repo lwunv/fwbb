@@ -41,12 +41,15 @@ export default async function MePage() {
   return (
     <div className="mx-auto max-w-lg space-y-4">
       <MeClient
-        key={`${member.id}-${member.name}-${member.nickname ?? ""}-${member.avatarKey ?? ""}`}
+        key={`${member.id}-${member.name}-${member.nickname ?? ""}-${member.avatarKey ?? ""}-${member.username ?? ""}-${member.phoneNumber ?? ""}-${member.email ?? ""}`}
         memberId={member.id}
         avatarKey={member.avatarKey ?? null}
         avatarUrl={member.avatarUrl ?? null}
         memberName={member.name}
         memberNickname={member.nickname ?? null}
+        memberUsername={member.username ?? null}
+        memberPhone={member.phoneNumber ?? null}
+        memberEmail={member.email ?? null}
         defaultWithPartner={member.defaultWithPartner}
         totalSpentThisMonth={totalSpentThisMonth}
         outstandingDebt={outstandingDebt}

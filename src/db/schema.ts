@@ -24,46 +24,67 @@ export const admins = sqliteTable("admins", {
   createdAt: text("created_at").default(sql`(current_timestamp)`),
 });
 
-export const members = sqliteTable("members", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  name: text("name").notNull(),
-  nickname: text("nickname"),
-  avatarKey: text("avatar_key"),
-  /** Facebook user id. Nullable vì member có thể login bằng Google thay vì FB.
-   *  Member tối thiểu phải có 1 trong {facebookId, googleId}. */
-  facebookId: text("facebook_id").unique(),
-  /** Google `sub` (user id) — set khi login bằng Google. */
-  googleId: text("google_id").unique(),
-  avatarUrl: text("avatar_url"),
-  email: text("email").unique(),
-  /** bcrypt hash. Optional — OAuth-only users không cần. Khi set, user có
-   *  thể login bằng email + password (alternative cho SSO). */
-  passwordHash: text("password_hash"),
-  /** Số điện thoại (optional). User nhập khi đăng ký, dùng để liên hệ thanh
-   *  toán nếu không match member admin tạo trước. */
-  phoneNumber: text("phone_number"),
-  bankAccountNo: text("bank_account_no").unique(),
-  /** Trạng thái duyệt: "pending" = mới đăng ký, chưa được admin OK. "approved"
-   *  = vào nhóm. "rejected" = admin từ chối, login lần sau vẫn chặn. Default
-   *  "approved" để các row admin tạo trực tiếp đi qua mà không cần gì thêm —
-   *  chỉ OAuth signup mới set "pending". */
-  approvalStatus: text("approval_status", {
-    enum: ["pending", "approved", "rejected"],
-  })
-    .notNull()
-    .default("approved"),
-  approvedAt: text("approved_at"),
-  /** admin.id of approver. NULL cho row legacy (đã approved trước khi feature
-   *  này tồn tại). */
-  approvedBy: integer("approved_by"),
-  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
-  /** "Đi 2 người": acc này mặc định mỗi buổi đi 1 hay 2 người (vợ/chồng/bạn
-   *  đi cùng). Snapshot vào votes.with_partner lúc vote; đổi đây KHÔNG hồi tố. */
-  defaultWithPartner: integer("default_with_partner", { mode: "boolean" })
-    .notNull()
-    .default(false),
-  createdAt: text("created_at").default(sql`(current_timestamp)`),
-});
+export const members = sqliteTable(
+  "members",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    name: text("name").notNull(),
+    nickname: text("nickname"),
+    avatarKey: text("avatar_key"),
+    /** Facebook user id. Nullable vì member có thể login bằng Google thay vì FB.
+     *  Member tối thiểu phải có 1 trong {facebookId, googleId}. */
+    facebookId: text("facebook_id").unique(),
+    /** Google `sub` (user id) — set khi login bằng Google. */
+    googleId: text("google_id").unique(),
+    avatarUrl: text("avatar_url"),
+    email: text("email").unique(),
+    /** bcrypt hash. Optional — OAuth-only users không cần. Khi set, user có
+     *  thể login bằng email + password (alternative cho SSO). */
+    passwordHash: text("password_hash"),
+    /** Số điện thoại (optional). User nhập khi đăng ký, dùng để liên hệ thanh
+     *  toán nếu không match member admin tạo trước. KHÔNG unique (lịch sử có thể
+     *  có 2 member cùng sđt liên hệ); login-by-phone chỉ nhận khi khớp đúng 1. */
+    phoneNumber: text("phone_number"),
+    /** Username tùy chọn cho login đa kênh. Lưu lowercase, unique (index
+     *  `members_username_unique`). Nullable — member cũ chưa có; user tự đặt ở /me. */
+    username: text("username"),
+    /** Khi set + ở tương lai: `passwordHash` hiện tại là MẬT KHẨU TẠM do admin
+     *  reset, hết hạn lúc này. Login bằng temp sau thời điểm này bị từ chối. */
+    passwordResetExpiresAt: text("password_reset_expires_at"),
+    /** true sau khi admin reset password → member bị bắt đặt mật khẩu mới ở gate
+     *  trước khi dùng site. Clear khi đổi xong. */
+    mustChangePassword: integer("must_change_password", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    bankAccountNo: text("bank_account_no").unique(),
+    /** Trạng thái duyệt: "pending" = mới đăng ký, chưa được admin OK. "approved"
+     *  = vào nhóm. "rejected" = admin từ chối, login lần sau vẫn chặn. Default
+     *  "approved" để các row admin tạo trực tiếp đi qua mà không cần gì thêm —
+     *  chỉ OAuth signup mới set "pending". */
+    approvalStatus: text("approval_status", {
+      enum: ["pending", "approved", "rejected"],
+    })
+      .notNull()
+      .default("approved"),
+    approvedAt: text("approved_at"),
+    /** admin.id of approver. NULL cho row legacy (đã approved trước khi feature
+     *  này tồn tại). */
+    approvedBy: integer("approved_by"),
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    /** "Đi 2 người": acc này mặc định mỗi buổi đi 1 hay 2 người (vợ/chồng/bạn
+     *  đi cùng). Snapshot vào votes.with_partner lúc vote; đổi đây KHÔNG hồi tố. */
+    defaultWithPartner: integer("default_with_partner", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    createdAt: text("created_at").default(sql`(current_timestamp)`),
+  },
+  (table) => [
+    // Username unique (lowercase lưu ở app layer). Dùng uniqueIndex thay vì
+    // .unique() inline để drizzle sinh CREATE UNIQUE INDEX (ADD COLUMN an toàn,
+    // KHÔNG recreate-table — Turso rớt index khi recreate).
+    uniqueIndex("members_username_unique").on(table.username),
+  ],
+);
 
 export const courts = sqliteTable("courts", {
   id: integer("id").primaryKey({ autoIncrement: true }),

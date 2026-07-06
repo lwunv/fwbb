@@ -34,7 +34,9 @@ export function PasswordAuthForm() {
     e.preventDefault();
     setError("");
     if (!email.trim() || !password) {
-      setError(t("errMissingFields"));
+      setError(
+        mode === "login" ? t("errMissingIdentifier") : t("errMissingFields"),
+      );
       return;
     }
     if (mode === "signup" && !name.trim()) {
@@ -45,7 +47,7 @@ export function PasswordAuthForm() {
     startTransition(async () => {
       const result =
         mode === "login"
-          ? await loginWithPassword({ email, password })
+          ? await loginWithPassword({ identifier: email, password })
           : await signupWithPassword({
               email,
               password,
@@ -118,12 +120,17 @@ export function PasswordAuthForm() {
           />
         )}
 
+        {/* Login: 1 ô định danh đa kênh (username/sđt/email). Signup: email. */}
         <Input
-          type="email"
-          inputMode="email"
+          type={mode === "login" ? "text" : "email"}
+          inputMode={mode === "login" ? "text" : "email"}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder={t("placeholderEmail")}
+          placeholder={
+            mode === "login"
+              ? t("placeholderIdentifier")
+              : t("placeholderEmail")
+          }
           maxLength={200}
           autoComplete={mode === "login" ? "username" : "email"}
           disabled={isPending}

@@ -9,7 +9,9 @@ import {
   toggleMemberActive,
   deleteMember,
   linkAdminToMember,
+  resetMemberPassword,
 } from "@/actions/members";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +40,8 @@ import {
   Crown,
   History,
   MoreVertical,
+  KeyRound,
+  Copy,
 } from "lucide-react";
 import { MemberPlayHistorySheet } from "@/components/members/member-play-history-sheet";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -115,6 +119,11 @@ export function MemberList({
   const [fundAdjustTarget, setFundAdjustTarget] =
     useState<FundAdjustDialogTarget | null>(null);
   const [historyTarget, setHistoryTarget] = useState<Member | null>(null);
+  // Kết quả reset password để hiện dialog mật khẩu tạm (1 lần).
+  const [resetResult, setResetResult] = useState<{
+    memberName: string;
+    tempPassword: string;
+  } | null>(null);
   const [adminMemberId, setAdminMemberId] = useState<number | null>(
     currentAdminMemberId,
   );
@@ -191,6 +200,20 @@ export function MemberList({
       () =>
         setToggledMembers((prev) => ({ ...prev, [memberId]: currentActive })),
     );
+  }
+
+  async function handleResetPassword(member: Member) {
+    const ok = window.confirm(t("resetPwConfirm", { name: member.name }));
+    if (!ok) return;
+    const r = await resetMemberPassword(member.id);
+    if (r && "error" in r && r.error) {
+      toast.error(r.error);
+      return;
+    }
+    if (r && "tempPassword" in r) {
+      setResetResult({ memberName: member.name, tempPassword: r.tempPassword });
+      toast.success(t("toastResetPw", { name: member.name }));
+    }
   }
 
   function handleHardDelete() {
@@ -689,6 +712,12 @@ export function MemberList({
                               <Crown className="h-4 w-4" />
                               {t("menuSetAdmin")}
                             </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleResetPassword(member)}
+                            >
+                              <KeyRound className="h-4 w-4" />
+                              {t("menuResetPassword")}
+                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               variant="destructive"
@@ -852,6 +881,47 @@ export function MemberList({
         onClose={() => setInfoEditTarget(null)}
         onSave={handleSaveInfo}
       />
+
+      {/* Dialog hiện mật khẩu tạm sau reset — plaintext chỉ hiện 1 lần ở đây. */}
+      <Dialog
+        open={resetResult !== null}
+        onOpenChange={(o) => {
+          if (!o) setResetResult(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {t("resetPwDialogTitle", { name: resetResult?.memberName ?? "" })}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="bg-muted flex items-center justify-between gap-2 rounded-lg p-3">
+              <code className="text-lg font-bold tracking-wider break-all">
+                {resetResult?.tempPassword}
+              </code>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="min-h-11 shrink-0"
+                onClick={() => {
+                  if (resetResult) {
+                    navigator.clipboard?.writeText(resetResult.tempPassword);
+                    toast.success(t("resetPwCopied"));
+                  }
+                }}
+              >
+                <Copy className="mr-1.5 h-4 w-4" />
+                {t("resetPwCopy")}
+              </Button>
+            </div>
+            <p className="text-muted-foreground text-sm">
+              {t("resetPwDialogHint")}
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

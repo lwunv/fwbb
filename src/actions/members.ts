@@ -1,5 +1,6 @@
 "use server";
 
+import bcrypt from "bcryptjs";
 import { db } from "@/db";
 import {
   members,
@@ -66,6 +67,9 @@ export async function getActiveMembers() {
     passwordHash: null,
     bankAccountNo: null,
     phoneNumber: null,
+    username: null,
+    passwordResetExpiresAt: null,
+    mustChangePassword: false,
     approvalStatus: "approved" as const,
     approvedAt: null,
     approvedBy: null,
@@ -202,10 +206,62 @@ export async function updateMyProfile(
   const nickname = nicknameRaw.length === 0 ? null : nicknameRaw;
   const defaultWithPartner = formData.get("withPartner") === "1";
 
-  await db
-    .update(members)
-    .set({ nickname, defaultWithPartner })
-    .where(eq(members.id, user.memberId));
+  const setValues: Partial<typeof members.$inferInsert> = {
+    nickname,
+    defaultWithPartner,
+  };
+
+  // Username (login đa kênh): tùy chọn, lowercase, 3-32 ký tự [a-z0-9._],
+  // unique (trừ chính mình). Chỉ đụng khi form gửi field.
+  if (formData.has("username")) {
+    const raw = String(formData.get("username") ?? "")
+      .trim()
+      .toLowerCase();
+    if (raw) {
+      if (!/^[a-z0-9._]{3,32}$/.test(raw)) {
+        return { error: t("usernameInvalid") };
+      }
+      const dup = await db.query.members.findFirst({
+        where: and(eq(members.username, raw), ne(members.id, user.memberId)),
+        columns: { id: true },
+      });
+      if (dup) return { error: t("usernameTaken") };
+      setValues.username = raw;
+    } else {
+      setValues.username = null;
+    }
+  }
+
+  // Số điện thoại: tùy chọn, chỉ giữ chữ số.
+  if (formData.has("phoneNumber")) {
+    const digits = String(formData.get("phoneNumber") ?? "").replace(
+      /[^\d]/g,
+      "",
+    );
+    setValues.phoneNumber = digits || null;
+  }
+
+  // Email: tùy chọn, validate + unique (trừ chính mình).
+  if (formData.has("email")) {
+    const raw = String(formData.get("email") ?? "")
+      .trim()
+      .toLowerCase();
+    if (raw) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) {
+        return { error: t("emailInvalid") };
+      }
+      const dup = await db.query.members.findFirst({
+        where: and(eq(members.email, raw), ne(members.id, user.memberId)),
+        columns: { id: true },
+      });
+      if (dup) return { error: t("emailTaken") };
+      setValues.email = raw;
+    } else {
+      setValues.email = null;
+    }
+  }
+
+  await db.update(members).set(setValues).where(eq(members.id, user.memberId));
 
   revalidatePath("/me");
   revalidatePath("/");
@@ -269,6 +325,51 @@ export async function updateMember(id: number, formData: FormData) {
   await db.update(members).set(setValues).where(eq(members.id, id));
   revalidatePath("/admin/members");
   return { success: true };
+}
+
+/**
+ * Admin đặt lại mật khẩu cho member: sinh mật khẩu tạm ngẫu nhiên, hash lưu,
+ * đặt hạn 24h + cờ bắt-đổi. Trả PLAINTEXT 1 LẦN để admin copy gửi member
+ * (app không gửi mail). KHÔNG lưu/không log plaintext.
+ *
+ * Member login bằng mật khẩu tạm (còn hạn) sẽ bị gate bắt đặt mật khẩu mới
+ * (must_change_password) trước khi dùng site; quá 24h thì login bị từ chối.
+ */
+export async function resetMemberPassword(memberId: number) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
+
+  if (!Number.isInteger(memberId) || memberId <= 0) {
+    return { error: t("invalidId") };
+  }
+  const member = await db.query.members.findFirst({
+    where: eq(members.id, memberId),
+    columns: { id: true },
+  });
+  if (!member) return { error: t("memberNotFound") };
+
+  // Mật khẩu tạm: 10 ký tự từ bộ không dễ nhầm (bỏ 0/O/1/l/I). crypto ngẫu nhiên.
+  const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(10));
+  let tempPassword = "";
+  for (const b of bytes) tempPassword += ALPHABET[b % ALPHABET.length];
+
+  const passwordHash = await bcrypt.hash(tempPassword, 12);
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+  await db
+    .update(members)
+    .set({
+      passwordHash,
+      passwordResetExpiresAt: expiresAt,
+      mustChangePassword: true,
+    })
+    .where(eq(members.id, memberId));
+
+  revalidatePath("/admin/members");
+  // tempPassword chỉ trả về UI 1 lần — không lưu, không log.
+  return { success: true as const, tempPassword, expiresAt };
 }
 
 /**

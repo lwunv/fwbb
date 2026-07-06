@@ -74,6 +74,9 @@ interface MeClientProps {
   avatarUrl: string | null;
   memberName: string;
   memberNickname: string | null;
+  memberUsername: string | null;
+  memberPhone: string | null;
+  memberEmail: string | null;
   defaultWithPartner: boolean;
   totalSpentThisMonth: number;
   outstandingDebt: number;
@@ -86,6 +89,9 @@ export function MeClient({
   avatarUrl,
   memberName,
   memberNickname,
+  memberUsername,
+  memberPhone,
+  memberEmail,
   defaultWithPartner,
   totalSpentThisMonth,
   outstandingDebt,
@@ -128,6 +134,26 @@ export function MeClient({
     setNicknameDraft(memberNickname ?? "");
   }
 
+  // Username / SĐT / Email drafts — cùng pattern sync-on-prop-change.
+  const [usernameDraft, setUsernameDraft] = useState(memberUsername ?? "");
+  const [prevUsername, setPrevUsername] = useState(memberUsername);
+  if (memberUsername !== prevUsername) {
+    setPrevUsername(memberUsername);
+    setUsernameDraft(memberUsername ?? "");
+  }
+  const [phoneDraft, setPhoneDraft] = useState(memberPhone ?? "");
+  const [prevPhone, setPrevPhone] = useState(memberPhone);
+  if (memberPhone !== prevPhone) {
+    setPrevPhone(memberPhone);
+    setPhoneDraft(memberPhone ?? "");
+  }
+  const [emailDraft, setEmailDraft] = useState(memberEmail ?? "");
+  const [prevEmail, setPrevEmail] = useState(memberEmail);
+  if (memberEmail !== prevEmail) {
+    setPrevEmail(memberEmail);
+    setEmailDraft(memberEmail ?? "");
+  }
+
   // "Đi 2 người" mặc định của acc — sync theo prop sau revalidate (cùng pattern).
   const [withPartner, setWithPartner] = useState(defaultWithPartner);
   const [prevWithPartner, setPrevWithPartner] = useState(defaultWithPartner);
@@ -149,6 +175,9 @@ export function MeClient({
     const fd = new FormData();
     fd.set("nickname", nicknameDraft);
     fd.set("withPartner", withPartner ? "1" : "0");
+    fd.set("username", usernameDraft);
+    fd.set("phoneNumber", phoneDraft);
+    fd.set("email", emailDraft);
     fireAction(
       async () => {
         const r: UpdateMyProfileState = await updateMyProfile(null, fd);
@@ -224,6 +253,50 @@ export function MeClient({
                 autoComplete="nickname"
                 placeholder={tMe("nicknamePlaceholder")}
                 maxLength={40}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="me-username">{tMe("usernameLabel")}</Label>
+              <Input
+                id="me-username"
+                name="username"
+                type="text"
+                value={usernameDraft}
+                onChange={(e) => setUsernameDraft(e.target.value)}
+                autoComplete="username"
+                placeholder={tMe("usernamePlaceholder")}
+                maxLength={32}
+              />
+              <p className="text-muted-foreground text-xs">
+                {tMe("usernameHint")}
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="me-phone">{tMe("phoneLabel")}</Label>
+              <Input
+                id="me-phone"
+                name="phoneNumber"
+                type="tel"
+                inputMode="tel"
+                value={phoneDraft}
+                onChange={(e) => setPhoneDraft(e.target.value)}
+                autoComplete="tel"
+                placeholder={tMe("phonePlaceholder")}
+                maxLength={20}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="me-email">{tMe("emailLabel")}</Label>
+              <Input
+                id="me-email"
+                name="email"
+                type="email"
+                inputMode="email"
+                value={emailDraft}
+                onChange={(e) => setEmailDraft(e.target.value)}
+                autoComplete="email"
+                placeholder={tMe("emailPlaceholder")}
+                maxLength={200}
               />
             </div>
             <button

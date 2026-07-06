@@ -9,6 +9,10 @@ import { revalidatePath } from "next/cache";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getTrustedClientIp } from "@/lib/client-ip";
 import { getTranslations } from "next-intl/server";
+import {
+  findMemberByIdentifier,
+  normalizeIdentifier,
+} from "@/lib/member-lookup";
 
 // Parity with the admin path (auth.ts): cost 12 + reject >72 UTF-8 bytes.
 const BCRYPT_ROUNDS = 12;
@@ -115,36 +119,40 @@ export async function signupWithPassword(input: {
  * approvalStatus.
  */
 export async function loginWithPassword(input: {
-  email: string;
+  /** Username / số điện thoại / email — login đa kênh. */
+  identifier: string;
   password: string;
 }) {
-  // Rate limit: 10 login attempts per IP per 5 minutes
+  const identifierRaw =
+    typeof input.identifier === "string" ? input.identifier.slice(0, 200) : "";
+  const identifierNorm = normalizeIdentifier(identifierRaw);
+
+  // Rate limit: theo IP (chống enum) + theo identifier (chống guess 1 acc).
   const ip = await getTrustedClientIp();
-  const rl = await checkRateLimit(`pw-login:${ip}`, 10, 5 * 60_000);
-  if (!rl.ok) {
-    const t = await getTranslations("serverErrors");
-    return {
-      error: t("tooManyLoginAttempts", { seconds: rl.retryAfter ?? 60 }),
-    };
+  const t = await getTranslations("serverErrors");
+  for (const key of [
+    `pw-login:${ip}`,
+    identifierNorm ? `pw-login-user:${identifierNorm}` : null,
+  ]) {
+    if (!key) continue;
+    const rl = await checkRateLimit(key, 10, 5 * 60_000);
+    if (!rl.ok) {
+      return {
+        error: t("tooManyLoginAttempts", { seconds: rl.retryAfter ?? 60 }),
+      };
+    }
   }
 
-  const email =
-    typeof input.email === "string"
-      ? normalizeEmail(input.email).slice(0, 200)
-      : "";
-  if (!isEmail(email)) {
-    return { error: "Email hoặc mật khẩu không đúng" };
-  }
+  // Lỗi CHUNG cho mọi nhánh sai — không lộ định danh nào tồn tại.
+  const GENERIC = "Định danh hoặc mật khẩu không đúng";
+  if (!identifierNorm) return { error: GENERIC };
   if (typeof input.password !== "string" || input.password.length < 1) {
-    return { error: "Email hoặc mật khẩu không đúng" };
+    return { error: GENERIC };
   }
 
-  const member = await db.query.members.findFirst({
-    where: eq(members.email, email),
-  });
-  // Generic error message để không leak thông tin email có tồn tại không.
+  const member = await findMemberByIdentifier(identifierRaw);
   if (!member || !member.passwordHash) {
-    return { error: "Email hoặc mật khẩu không đúng" };
+    return { error: GENERIC };
   }
   if (member.approvalStatus === "rejected" || !member.isActive) {
     return { error: "Tài khoản đã bị khóa. Liên hệ admin." };
@@ -152,7 +160,18 @@ export async function loginWithPassword(input: {
 
   const ok = await bcrypt.compare(input.password, member.passwordHash);
   if (!ok) {
-    return { error: "Email hoặc mật khẩu không đúng" };
+    return { error: GENERIC };
+  }
+
+  // Mật khẩu tạm (admin reset) đã hết hạn → từ chối, bắt xin admin cấp lại.
+  // Còn hạn → cho vào, gate `must_change_password` sẽ bắt đổi trước khi dùng.
+  if (
+    member.passwordResetExpiresAt &&
+    new Date(member.passwordResetExpiresAt).getTime() < Date.now()
+  ) {
+    return {
+      error: "Mật khẩu tạm đã hết hạn. Liên hệ admin để cấp lại.",
+    };
   }
 
   await setUserCookie(member.id, `pw:${member.id}`);
@@ -200,7 +219,10 @@ export async function setPassword(input: {
   if (!member) return { error: "Không tìm thấy tài khoản" };
 
   // Nếu đã có password — yêu cầu current để bảo vệ chống hijack cookie.
-  if (member.passwordHash) {
+  // NGOẠI LỆ: đang ở chế độ bắt-đổi (admin vừa reset, mustChangePassword=true)
+  // → member login bằng mật khẩu tạm, không cần nhập lại "current" (họ chỉ có
+  // mật khẩu tạm, mục đích là đặt cái mới ngay).
+  if (member.passwordHash && !member.mustChangePassword) {
     if (
       typeof input.currentPassword !== "string" ||
       input.currentPassword.length < 1
@@ -238,9 +260,13 @@ export async function setPassword(input: {
     .set({
       passwordHash: hash,
       ...(emailToSave ? { email: emailToSave } : {}),
+      // Đổi xong → gỡ chế độ bắt-đổi + xoá hạn mật khẩu tạm (nếu có).
+      mustChangePassword: false,
+      passwordResetExpiresAt: null,
     })
     .where(eq(members.id, member.id));
 
   revalidatePath("/me");
+  revalidatePath("/");
   return { success: true };
 }

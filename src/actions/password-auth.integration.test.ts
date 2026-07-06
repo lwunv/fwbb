@@ -96,6 +96,10 @@ describe("loginWithPassword", () => {
     password: string;
     approvalStatus?: "pending" | "approved" | "rejected";
     isActive?: boolean;
+    username?: string;
+    phoneNumber?: string;
+    passwordResetExpiresAt?: string | null;
+    mustChangePassword?: boolean;
   }) {
     // Đăng ký để có hash thật, rồi chỉnh trạng thái.
     await signupWithPassword({
@@ -109,6 +113,10 @@ describe("loginWithPassword", () => {
       .set({
         approvalStatus: opts.approvalStatus ?? "approved",
         isActive: opts.isActive ?? true,
+        username: opts.username ?? null,
+        phoneNumber: opts.phoneNumber ?? null,
+        passwordResetExpiresAt: opts.passwordResetExpiresAt ?? null,
+        mustChangePassword: opts.mustChangePassword ?? false,
       })
       .where(eq(members.id, m!.id));
     userMock.setUserCookie.mockClear();
@@ -121,7 +129,7 @@ describe("loginWithPassword", () => {
       password: "supersecret123",
     });
     const r = await loginWithPassword({
-      email: "A@Example.com", // case-insensitive
+      identifier: "A@Example.com", // case-insensitive
       password: "supersecret123",
     });
     expect("error" in r).toBe(false);
@@ -131,7 +139,7 @@ describe("loginWithPassword", () => {
   it("sai mật khẩu → error chung (không leak)", async () => {
     await seedPwMember({ email: "a@example.com", password: "supersecret123" });
     const r = await loginWithPassword({
-      email: "a@example.com",
+      identifier: "a@example.com",
       password: "wrongpassword",
     });
     expect("error" in r).toBe(true);
@@ -140,7 +148,7 @@ describe("loginWithPassword", () => {
 
   it("email không tồn tại → error chung", async () => {
     const r = await loginWithPassword({
-      email: "ghost@example.com",
+      identifier: "ghost@example.com",
       password: "whatever123",
     });
     expect("error" in r).toBe(true);
@@ -153,7 +161,7 @@ describe("loginWithPassword", () => {
       isActive: false,
     });
     const r = await loginWithPassword({
-      email: "locked@example.com",
+      identifier: "locked@example.com",
       password: "supersecret123",
     });
     expect("error" in r).toBe(true);
@@ -167,10 +175,89 @@ describe("loginWithPassword", () => {
       approvalStatus: "rejected",
     });
     const r = await loginWithPassword({
-      email: "rej@example.com",
+      identifier: "rej@example.com",
       password: "supersecret123",
     });
     expect("error" in r).toBe(true);
+  });
+
+  it("đăng nhập bằng USERNAME (đa kênh)", async () => {
+    const id = await seedPwMember({
+      email: "u@example.com",
+      password: "supersecret123",
+      username: "cuncon",
+    });
+    const r = await loginWithPassword({
+      identifier: "CunCon", // case-insensitive
+      password: "supersecret123",
+    });
+    expect("error" in r).toBe(false);
+    expect(userMock.setUserCookie).toHaveBeenCalledWith(id, `pw:${id}`);
+  });
+
+  it("đăng nhập bằng SỐ ĐIỆN THOẠI (khớp đúng 1)", async () => {
+    const id = await seedPwMember({
+      email: "p@example.com",
+      password: "supersecret123",
+      phoneNumber: "0912345678",
+    });
+    const r = await loginWithPassword({
+      identifier: "0912 345 678", // có khoảng trắng
+      password: "supersecret123",
+    });
+    expect("error" in r).toBe(false);
+    expect(userMock.setUserCookie).toHaveBeenCalledWith(id, `pw:${id}`);
+  });
+
+  it("SĐT trùng 2 member → login-by-phone mơ hồ → từ chối", async () => {
+    await seedPwMember({
+      email: "p1@example.com",
+      password: "supersecret123",
+      phoneNumber: "0900000000",
+    });
+    await seedPwMember({
+      email: "p2@example.com",
+      password: "supersecret123",
+      phoneNumber: "0900000000",
+    });
+    const r = await loginWithPassword({
+      identifier: "0900000000",
+      password: "supersecret123",
+    });
+    expect("error" in r).toBe(true);
+    expect(userMock.setUserCookie).not.toHaveBeenCalled();
+  });
+
+  it("mật khẩu tạm CÒN hạn → cho vào (gate sẽ bắt đổi)", async () => {
+    const future = new Date(Date.now() + 3600_000).toISOString();
+    const id = await seedPwMember({
+      email: "temp@example.com",
+      password: "temppass123",
+      passwordResetExpiresAt: future,
+      mustChangePassword: true,
+    });
+    const r = await loginWithPassword({
+      identifier: "temp@example.com",
+      password: "temppass123",
+    });
+    expect("error" in r).toBe(false);
+    expect(userMock.setUserCookie).toHaveBeenCalledWith(id, `pw:${id}`);
+  });
+
+  it("mật khẩu tạm HẾT hạn → từ chối", async () => {
+    const past = new Date(Date.now() - 3600_000).toISOString();
+    await seedPwMember({
+      email: "expired@example.com",
+      password: "temppass123",
+      passwordResetExpiresAt: past,
+      mustChangePassword: true,
+    });
+    const r = await loginWithPassword({
+      identifier: "expired@example.com",
+      password: "temppass123",
+    });
+    expect("error" in r).toBe(true);
+    expect(userMock.setUserCookie).not.toHaveBeenCalled();
   });
 });
 
@@ -225,5 +312,35 @@ describe("setPassword", () => {
       newPassword: "newpass12345",
     });
     expect("error" in ok).toBe(false);
+  });
+
+  it("force-change (mustChangePassword): đổi KHÔNG cần current + clear cờ", async () => {
+    await signupWithPassword({
+      name: "Forced",
+      email: "forced@example.com",
+      password: "temppass123",
+    });
+    const m = await memberByEmail("forced@example.com");
+    await testDb
+      .update(members)
+      .set({
+        mustChangePassword: true,
+        passwordResetExpiresAt: new Date(Date.now() + 3600_000).toISOString(),
+      })
+      .where(eq(members.id, m!.id));
+    userMock.getUserFromCookie.mockResolvedValue({
+      memberId: m!.id,
+      externalId: `pw:${m!.id}`,
+    });
+
+    // Không truyền currentPassword — vẫn đổi được vì đang force-change.
+    const r = await setPassword({ newPassword: "freshpass12345" });
+    expect("error" in r).toBe(false);
+
+    const after = await testDb.query.members.findFirst({
+      where: eq(members.id, m!.id),
+    });
+    expect(after?.mustChangePassword).toBe(false);
+    expect(after?.passwordResetExpiresAt).toBeNull();
   });
 });

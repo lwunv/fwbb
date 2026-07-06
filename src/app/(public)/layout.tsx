@@ -6,6 +6,7 @@ import { getTranslations } from "next-intl/server";
 import { Header } from "@/components/layout/header";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { PendingApprovalGate } from "./pending-approval-gate";
+import { ForceChangePasswordGate } from "./force-change-password-gate";
 import { ProductTourLauncher } from "@/components/tour/product-tour-launcher";
 import { getAppName } from "@/actions/settings";
 
@@ -84,6 +85,18 @@ export default async function PublicLayout({
             phoneNumber={member.phoneNumber}
             bankAccountNo={member.bankAccountNo}
           />
+        </main>
+      </div>
+    );
+  }
+
+  // Admin vừa reset mật khẩu → bắt member đặt mật khẩu mới trước khi vào site.
+  if (member.mustChangePassword) {
+    return (
+      <div className="flex min-h-screen flex-col">
+        <Header appName={appName} />
+        <main className="flex flex-1 items-center justify-center p-4">
+          <ForceChangePasswordGate />
         </main>
       </div>
     );
