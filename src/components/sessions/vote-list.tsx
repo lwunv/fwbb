@@ -68,6 +68,11 @@ export function VoteList({
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-lg font-semibold">
                       {member.name}
+                      {member.nickname && (
+                        <span className="text-muted-foreground ml-1.5 text-sm font-normal">
+                          ({member.nickname})
+                        </span>
+                      )}
                     </p>
                     <div className="mt-1 flex flex-wrap gap-1.5">
                       {vote.willPlay && (
@@ -124,6 +129,11 @@ export function VoteList({
                   />
                   <p className="truncate text-base font-medium">
                     {member.name}
+                    {member.nickname && (
+                      <span className="text-muted-foreground ml-1.5 text-sm font-normal">
+                        ({member.nickname})
+                      </span>
+                    )}
                   </p>
                 </motion.div>
               ))}
