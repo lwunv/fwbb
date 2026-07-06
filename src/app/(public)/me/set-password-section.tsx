@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Lock, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { fireAction } from "@/lib/optimistic-action";
@@ -105,8 +106,7 @@ export function SetPasswordSection({ hasPassword, hasEmail }: Props) {
               />
             )}
             {hasPassword && (
-              <Input
-                type="password"
+              <PasswordInput
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder={t("currentPlaceholder")}
@@ -115,8 +115,7 @@ export function SetPasswordSection({ hasPassword, hasEmail }: Props) {
                 required
               />
             )}
-            <Input
-              type="password"
+            <PasswordInput
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder={
@@ -128,8 +127,7 @@ export function SetPasswordSection({ hasPassword, hasEmail }: Props) {
               disabled={saving}
               required
             />
-            <Input
-              type="password"
+            <PasswordInput
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder={t("confirmPlaceholder")}

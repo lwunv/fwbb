@@ -50,6 +50,7 @@ import {
   type FundAdjustDialogTarget,
 } from "@/components/fund/fund-adjust-dialog";
 import { MemberAvatar } from "@/components/shared/member-avatar";
+import { useConfirm } from "@/components/shared/confirm-provider";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -140,13 +141,36 @@ export function MemberList({
 
   const t = useTranslations("adminMembers");
   const tHistory = useTranslations("memberHistory");
-  function handleLinkAdmin(memberId: number) {
+  const confirm = useConfirm();
+  async function handleLinkAdmin(member: Member) {
+    const ok = await confirm({
+      title: t("setAdminConfirmTitle"),
+      description: t("setAdminConfirm", { name: member.name }),
+      confirmLabel: t("menuSetAdmin"),
+      variant: "default",
+    });
+    if (!ok) return;
     const prev = adminMemberId;
-    setAdminMemberId(memberId);
+    setAdminMemberId(member.id);
     fireAction(
-      () => linkAdminToMember(memberId),
+      () => linkAdminToMember(member.id),
       () => setAdminMemberId(prev),
       { successMsg: t("toastLinkedAdmin") },
+    );
+  }
+  async function handleUnlinkAdmin() {
+    const ok = await confirm({
+      title: t("unlinkAdminConfirmTitle"),
+      description: t("unlinkAdminConfirm"),
+      confirmLabel: t("menuUnlinkAdmin"),
+    });
+    if (!ok) return;
+    const prev = adminMemberId;
+    setAdminMemberId(null);
+    fireAction(
+      () => linkAdminToMember(null),
+      () => setAdminMemberId(prev),
+      { successMsg: t("toastUnlinkedAdmin") },
     );
   }
   const tF = useTranslations("finance");
@@ -203,7 +227,11 @@ export function MemberList({
   }
 
   async function handleResetPassword(member: Member) {
-    const ok = window.confirm(t("resetPwConfirm", { name: member.name }));
+    const ok = await confirm({
+      title: t("menuResetPassword"),
+      description: t("resetPwConfirm", { name: member.name }),
+      confirmLabel: t("menuResetPassword"),
+    });
     if (!ok) return;
     const r = await resetMemberPassword(member.id);
     if (r && "error" in r && r.error) {
@@ -705,13 +733,19 @@ export function MemberList({
                               <Edit className="h-4 w-4" />
                               {t("menuEditInfo")}
                             </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleLinkAdmin(member.id)}
-                              disabled={adminMemberId === member.id}
-                            >
-                              <Crown className="h-4 w-4" />
-                              {t("menuSetAdmin")}
-                            </DropdownMenuItem>
+                            {adminMemberId === member.id ? (
+                              <DropdownMenuItem onClick={handleUnlinkAdmin}>
+                                <Crown className="h-4 w-4" />
+                                {t("menuUnlinkAdmin")}
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                onClick={() => handleLinkAdmin(member)}
+                              >
+                                <Crown className="h-4 w-4" />
+                                {t("menuSetAdmin")}
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem
                               onClick={() => handleResetPassword(member)}
                             >
@@ -883,46 +917,78 @@ export function MemberList({
       />
 
       {/* Dialog hiện mật khẩu tạm sau reset — plaintext chỉ hiện 1 lần ở đây. */}
-      <Dialog
-        open={resetResult !== null}
-        onOpenChange={(o) => {
-          if (!o) setResetResult(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {t("resetPwDialogTitle", { name: resetResult?.memberName ?? "" })}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="bg-muted flex items-center justify-between gap-2 rounded-lg p-3">
-              <code className="text-lg font-bold tracking-wider break-all">
-                {resetResult?.tempPassword}
-              </code>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="min-h-11 shrink-0"
-                onClick={() => {
-                  if (resetResult) {
-                    navigator.clipboard?.writeText(resetResult.tempPassword);
-                    toast.success(t("resetPwCopied"));
-                  }
-                }}
-              >
-                <Copy className="mr-1.5 h-4 w-4" />
-                {t("resetPwCopy")}
-              </Button>
-            </div>
-            <p className="text-muted-foreground text-sm">
-              {t("resetPwDialogHint")}
-            </p>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <TempPasswordDialog
+        result={resetResult}
+        onClose={() => setResetResult(null)}
+      />
     </div>
+  );
+}
+
+/** Dialog mật khẩu tạm: nút Copy có phản hồi "Đã copy ✓" (bấm xong đổi trạng thái). */
+function TempPasswordDialog({
+  result,
+  onClose,
+}: {
+  result: { memberName: string; tempPassword: string } | null;
+  onClose: () => void;
+}) {
+  const t = useTranslations("adminMembers");
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    if (!result) return;
+    try {
+      await navigator.clipboard?.writeText(result.tempPassword);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard bị chặn (http/không có quyền) — im lặng, user copy tay được.
+    }
+  }
+
+  return (
+    <Dialog
+      open={result !== null}
+      onOpenChange={(o) => {
+        if (!o) {
+          setCopied(false);
+          onClose();
+        }
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {t("resetPwDialogTitle", { name: result?.memberName ?? "" })}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="bg-muted flex items-center justify-between gap-2 rounded-lg p-3">
+            <code className="text-lg font-bold tracking-wider break-all">
+              {result?.tempPassword}
+            </code>
+            <Button
+              type="button"
+              variant={copied ? "success" : "outline"}
+              size="sm"
+              className="min-h-11 shrink-0"
+              onClick={handleCopy}
+            >
+              {copied ? (
+                <Check className="mr-1.5 h-4 w-4" />
+              ) : (
+                <Copy className="mr-1.5 h-4 w-4" />
+              )}
+              {copied ? t("resetPwCopied") : t("resetPwCopy")}
+            </Button>
+          </div>
+          <p className="text-muted-foreground text-sm">
+            {t("resetPwDialogHint")}
+          </p>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

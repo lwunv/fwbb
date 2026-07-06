@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Lock, Loader2 } from "lucide-react";
 import { setPassword } from "@/actions/password-auth";
 
@@ -58,8 +58,7 @@ export function ForceChangePasswordGate() {
           <p className="text-muted-foreground text-sm">{t("body")}</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-2.5">
-          <Input
-            type="password"
+          <PasswordInput
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             placeholder={t("newPlaceholder")}
@@ -70,8 +69,7 @@ export function ForceChangePasswordGate() {
             required
             autoFocus
           />
-          <Input
-            type="password"
+          <PasswordInput
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             placeholder={t("confirmPlaceholder")}

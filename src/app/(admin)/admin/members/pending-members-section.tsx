@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { MemberAvatar } from "@/components/shared/member-avatar";
+import { useConfirm } from "@/components/shared/confirm-provider";
 import { fireAction } from "@/lib/optimistic-action";
 import { formatSessionDate } from "@/lib/date-format";
 import {
@@ -58,6 +59,7 @@ export function PendingMembersSection({
   mergeTargets?: MergeTarget[];
 }) {
   const t = useTranslations("adminMembers");
+  const confirm = useConfirm();
   const [busyId, setBusyId] = useState<number | null>(null);
   const [, startTransition] = useTransition();
   const [list, setList] = useState(pendingMembers);
@@ -83,8 +85,12 @@ export function PendingMembersSection({
     );
   }
 
-  function handleReject(memberId: number) {
-    const ok = window.confirm(t("confirmReject"));
+  async function handleReject(memberId: number) {
+    const ok = await confirm({
+      title: t("btnReject"),
+      description: t("confirmReject"),
+      confirmLabel: t("btnReject"),
+    });
     if (!ok) return;
     setBusyId(memberId);
     fireAction(
@@ -102,17 +108,19 @@ export function PendingMembersSection({
     );
   }
 
-  function handleMerge(
+  async function handleMerge(
     pendingId: number,
     targetId: number,
     targetName: string,
     targetHasPassword: boolean,
   ) {
-    const ok = window.confirm(
-      targetHasPassword
+    const ok = await confirm({
+      title: t("mergeManualButton"),
+      description: targetHasPassword
         ? t("confirmMergeResetPassword", { name: targetName })
         : t("confirmMerge", { name: targetName }),
-    );
+      confirmLabel: t("mergeManualButton"),
+    });
     if (!ok) return;
     setBusyId(pendingId);
     fireAction(
