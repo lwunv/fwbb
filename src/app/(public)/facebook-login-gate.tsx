@@ -18,6 +18,12 @@ import { googleLogin } from "@/actions/google-auth";
 import { PasswordAuthForm } from "./password-auth-form";
 
 /**
+ * Tạm ẩn nút đăng nhập Facebook (2026-07-06, theo yêu cầu user). Đặt lại
+ * `true` để bật lại — toàn bộ logic FB SDK/handler giữ nguyên, chỉ ẩn UI.
+ */
+const SHOW_FACEBOOK_LOGIN = false;
+
+/**
  * OAuth login gate — Facebook + Google. Gọi là `FacebookLoginGate` vì
  * legacy + import sites cũ, nhưng giờ render cả 2 button.
  */
@@ -31,6 +37,8 @@ export function FacebookLoginGate({ appName = "FWBB" }: { appName?: string }) {
   const router = useRouter();
   const locale = useLocale();
   const isIAB = typeof navigator !== "undefined" && isInFacebookBrowser();
+  // FB button visibility = SDK sẵn sàng VÀ chưa bị ẩn tạm (feature flag trên).
+  const fbVisible = SHOW_FACEBOOK_LOGIN && fbReady;
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
   // Initialize Facebook SDK and attempt auto-login in IAB
@@ -160,7 +168,7 @@ export function FacebookLoginGate({ appName = "FWBB" }: { appName?: string }) {
             <PasswordAuthForm />
 
             {/* Divider — chỉ hiện khi có ít nhất 1 OAuth provider khả dụng */}
-            {(fbReady || (!isIAB && googleReady)) && (
+            {(fbVisible || (!isIAB && googleReady)) && (
               <div className="relative py-2">
                 <div className="absolute inset-x-0 top-1/2 border-t" />
                 <div className="bg-card text-muted-foreground relative mx-auto w-fit px-3 text-xs tracking-wider uppercase">
@@ -169,7 +177,7 @@ export function FacebookLoginGate({ appName = "FWBB" }: { appName?: string }) {
               </div>
             )}
 
-            {fbReady && (
+            {fbVisible && (
               <Button
                 onClick={handleFbLogin}
                 disabled={isPending}
