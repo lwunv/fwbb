@@ -622,7 +622,7 @@
     "update": "更新",
     "active": "活跃",
     "inactive": "停用",
-    "searchPlaceholder": "搜索名称...",
+    "searchPlaceholder": "按姓名或昵称搜索...",
     "sortLabel": "排序:",
     "sortSmart": "默认(欠款优先)",
     "sortBalanceDesc": "资金 多 → 少",

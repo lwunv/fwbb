@@ -622,7 +622,7 @@
     "update": "Update",
     "active": "Active",
     "inactive": "Inactive",
-    "searchPlaceholder": "Search name...",
+    "searchPlaceholder": "Search by name or nickname...",
     "sortLabel": "Sort:",
     "sortSmart": "Default (debt first)",
     "sortBalanceDesc": "Fund high → low",

@@ -9,6 +9,9 @@ import { PaymentQR } from "@/components/payment/payment-qr";
 
 /** Bước ±50K cho ô nhập tiền nạp quỹ. */
 const TOPUP_STEP = 50_000;
+/** Số tiền nộp quỹ mặc định — cũng là ngưỡng so sánh với nợ để chọn mode
+ *  mặc định (xem defaultToDebt bên dưới). */
+const DEFAULT_CONTRIBUTE_AMOUNT = 500_000;
 
 interface Props {
   memberId: number;
@@ -30,15 +33,23 @@ interface Props {
 export function FundTopUpCard({ memberId, debtAmount, bare = false }: Props) {
   const t = useTranslations("myFundClient");
   const hasDebt = debtAmount > 0;
+  // Mặc định vẫn chọn "Nộp quỹ" kể cả đang nợ — chỉ mặc định "Thanh toán nợ"
+  // khi nợ VƯỢT mức nộp quỹ mặc định (nợ lớn hơn thì ưu tiên trả nợ trước).
+  // Quyết định 2026-07-06.
+  const defaultToDebt = hasDebt && debtAmount > DEFAULT_CONTRIBUTE_AMOUNT;
 
   const [mode, setMode] = useState<"contribute" | "payDebt">(
-    hasDebt ? "payDebt" : "contribute",
+    defaultToDebt ? "payDebt" : "contribute",
   );
-  const [amount, setAmount] = useState<number>(hasDebt ? debtAmount : 500000);
+  const [amount, setAmount] = useState<number>(
+    defaultToDebt ? debtAmount : DEFAULT_CONTRIBUTE_AMOUNT,
+  );
 
   function pickMode(next: "contribute" | "payDebt") {
     setMode(next);
-    setAmount(next === "contribute" ? 500000 : debtAmount || 0);
+    setAmount(
+      next === "contribute" ? DEFAULT_CONTRIBUTE_AMOUNT : debtAmount || 0,
+    );
   }
 
   const qrAmount = Math.max(0, amount);

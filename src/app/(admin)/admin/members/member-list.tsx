@@ -243,9 +243,13 @@ export function MemberList({
         getFundStatus(memberBalances[m.id] ?? 0) !== "lowFund"
       )
         return false;
-      // search filter
+      // search filter — theo tên hoặc biệt danh (chưa có cột username riêng
+      // trong schema; khi feature username được thêm thì search thêm ở đây).
       if (!q) return true;
-      return m.name.toLowerCase().includes(q);
+      return (
+        m.name.toLowerCase().includes(q) ||
+        (m.nickname ?? "").toLowerCase().includes(q)
+      );
     });
     const bal = (id: number) => memberBalances[id] ?? 0;
     const created = (m: Member) => m.createdAt ?? "";
