@@ -608,27 +608,32 @@ export function AdminVoteManager({
           Chỉ render khi caller cung cấp `onAdminGuestChange` (parent sở hữu state
           để cost summary cùng tham chiếu một nguồn). */}
       {!readOnly && onAdminGuestChange && (
-        <div className="flex flex-wrap items-center gap-3 px-1">
+        // Mobile: label 1 dòng riêng, 2 stepper (🏸/🍻) cùng 1 hàng dưới, canh
+        // đều. Trước đây để chung 1 flex-wrap → stepper 🍻 rớt xuống dòng lệch
+        // trái dưới label, nhìn lộn xộn.
+        <div className="space-y-2 px-1">
           <span className="text-muted-foreground text-sm font-medium">
             {tA("adminGuests")}
           </span>
-          <div className="flex items-center gap-2">
-            <span className="text-sm">🏸</span>
-            <NumberStepper
-              value={adminGuestPlayCount}
-              onChange={(v) => onAdminGuestChange(v, adminGuestDineCount)}
-              min={0}
-              max={10}
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm">🍻</span>
-            <NumberStepper
-              value={adminGuestDineCount}
-              onChange={(v) => onAdminGuestChange(adminGuestPlayCount, v)}
-              min={0}
-              max={10}
-            />
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🏸</span>
+              <NumberStepper
+                value={adminGuestPlayCount}
+                onChange={(v) => onAdminGuestChange(v, adminGuestDineCount)}
+                min={0}
+                max={10}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-base">🍻</span>
+              <NumberStepper
+                value={adminGuestDineCount}
+                onChange={(v) => onAdminGuestChange(adminGuestPlayCount, v)}
+                min={0}
+                max={10}
+              />
+            </div>
           </div>
         </div>
       )}

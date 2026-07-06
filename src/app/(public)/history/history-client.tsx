@@ -435,10 +435,12 @@ export function HistoryClient({
                 isIdentified && !!list?.some((s) => s.mySummary?.attendsDine);
               const isSelected =
                 !!selectedSession && selectedSession.date === key && hasSession;
-              const dow = day.getDay();
-              const isClubDayColumn = dow === 1 || dow === 5;
               const today = isToday(day);
 
+              // Ô ngày CHỈ được tô khi thật sự có buổi → dễ phân biệt ngày có
+              // chơi vs không. (Trước đây ô Thứ 2/Thứ 6 luôn bị phủ nền dù không
+              // có buổi → nhìn giống ô có buổi, gây rối. Gợi ý "ngày sinh hoạt"
+              // đã có ở hàng tiêu đề thứ.)
               return (
                 <button
                   key={key + String(day.getTime())}
@@ -448,7 +450,8 @@ export function HistoryClient({
                   className={cn(
                     "relative min-h-11 overflow-hidden rounded-md py-1 text-sm font-medium transition-colors sm:min-h-11",
                     !onMonth && "opacity-35",
-                    !hasSession && "cursor-default opacity-50",
+                    // Không có buổi: ô trơn, số mờ → tách bạch với ô có buổi.
+                    !hasSession && "text-muted-foreground cursor-default",
                     hasSession &&
                       hasUnpaidSession &&
                       "border-destructive/50 bg-destructive/20 text-destructive dark:bg-destructive/30 border dark:text-red-200",
@@ -460,9 +463,6 @@ export function HistoryClient({
                       !hasUnpaidSession &&
                       userPlayed &&
                       "border border-[var(--color-hist-play-border)] bg-[var(--color-hist-play-bg-strong)] text-[var(--color-hist-play-fg)]",
-                    isClubDayColumn &&
-                      !hasUnpaidSession &&
-                      "before:bg-primary/[0.11] dark:before:bg-primary/[0.14] before:pointer-events-none before:absolute before:inset-0 before:rounded-[inherit]",
                     today &&
                       !isSelected &&
                       "ring-offset-background font-semibold ring-2 ring-sky-500/70 ring-offset-1 dark:ring-sky-400/65",
