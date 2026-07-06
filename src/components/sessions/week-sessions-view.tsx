@@ -8,7 +8,6 @@ import { formatSessionDate } from "@/lib/date-format";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { SessionVoteOptimisticPanel } from "./session-vote-optimistic-panel";
-import { CopyLinkButton } from "@/components/shared/copy-link-button";
 import { countVoteParticipation } from "@/lib/vote-list-utils";
 import type { AppLocale } from "@/lib/date-fns-locale";
 import type { VoteWithMember } from "@/lib/optimistic-votes";
@@ -58,7 +57,6 @@ export function WeekSessionsView({
   currentMemberId: number | null;
 }) {
   const locale = useLocale() as AppLocale;
-  const t = useTranslations("dashboard");
   const tS = useTranslations("sessions");
 
   // selectedDate giữ lại qua các lần refresh (polling) vì state không re-init.
@@ -70,7 +68,7 @@ export function WeekSessionsView({
   // Hàng chip ĐỦ các thứ — render BÊN TRONG thẻ (topSlot/headerSlot). Divider
   // dưới để tách khỏi tiêu đề ngày của buổi (giữ focal point là ngày buổi chơi).
   const chipRow = (
-    <div className="border-border/50 flex flex-wrap gap-2 border-b pb-3">
+    <div className="border-border/50 flex gap-2 border-b pb-3">
       {days.map((d) => {
         const active = d.date === selected.date;
         const done =
@@ -91,7 +89,7 @@ export function WeekSessionsView({
             onClick={() => setSelectedDate(d.date)}
             aria-pressed={active}
             className={cn(
-              "inline-flex min-h-11 items-center gap-1.5 rounded-xl border px-3 py-2 text-sm font-medium capitalize transition-colors",
+              "flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-sm font-medium capitalize transition-colors",
               active
                 ? "border-primary bg-primary text-primary-foreground shadow-sm"
                 : noSession
@@ -101,11 +99,21 @@ export function WeekSessionsView({
                     : "bg-card hover:bg-accent",
             )}
           >
-            {formatSessionDate(d.date, "weekdayName", locale)}
+            <span className="truncate">
+              {formatSessionDate(d.date, "weekdayName", locale)}
+            </span>
             {d.session && (
               <span
                 title={tS("playCountTitle")}
-                className="inline-flex min-w-5 items-center justify-center rounded-full bg-orange-500 px-1 text-xs font-bold text-white tabular-nums"
+                className={cn(
+                  "text-lg font-extrabold tabular-nums",
+                  // Số người chơi: to, không nền, màu nổi. Trên chip active (nền
+                  // primary) dùng màu foreground cho tương phản; chip thường dùng
+                  // cam (accent đếm người của app).
+                  active
+                    ? "text-primary-foreground"
+                    : "text-orange-500 dark:text-orange-400",
+                )}
               >
                 {playCount}
               </span>
@@ -118,12 +126,6 @@ export function WeekSessionsView({
 
   return (
     <div className="space-y-4">
-      {/* Heading + "Sao chép link" trên CÙNG 1 hàng. */}
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-lg font-bold">{t("upcomingSession")}</h1>
-        {selected.session && <CopyLinkButton sessionId={selected.session.id} />}
-      </div>
-
       {selected.session ? (
         <SessionVoteOptimisticPanel
           key={selected.session.id}

@@ -11,7 +11,6 @@ import { getFundBalance } from "@/lib/fund-calculator";
 import { SessionCard } from "@/components/sessions/session-card";
 import { SessionVoteOptimisticPanel } from "@/components/sessions/session-vote-optimistic-panel";
 import { FundBalanceBanner } from "@/components/finance/fund-balance-banner";
-import { CopyLinkButton } from "@/components/shared/copy-link-button";
 import { getTranslations } from "next-intl/server";
 import { AutoRefresh } from "@/components/shared/auto-refresh";
 import { isVoteOpen, type SessionStatus } from "@/lib/session-status";
@@ -149,11 +148,6 @@ export default async function HomePage() {
             memberId={user.memberId}
           />
         )}
-
-        <div className="flex items-center justify-between">
-          <h1 className="text-lg font-bold">{tDashboard("upcomingSession")}</h1>
-          <CopyLinkButton sessionId={nextSession.id} />
-        </div>
 
         <SessionVoteOptimisticPanel
           sessionId={nextSession.id}
