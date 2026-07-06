@@ -8,7 +8,7 @@
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
-import { members } from "@/db/schema";
+import { members, memberOauthIdentities } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -21,8 +21,10 @@ vi.mock("@/db", () => ({ db: testDb }));
 
 const { approveAndMergeMember, getNameMatches } =
   await import("./member-approval");
+const { findMemberByOAuth } = await import("@/lib/oauth-identity");
 
 async function reset() {
+  await client.execute("DELETE FROM member_oauth_identities");
   await client.execute("DELETE FROM members");
 }
 
@@ -87,7 +89,10 @@ describe("approveAndMergeMember", () => {
     expect(merged?.facebookId).toBe("fb-456");
   });
 
-  it("cả 2 bên cùng có googleId (2 OAuth account thật khác nhau) → vẫn chặn, không liên quan password", async () => {
+  it("cả 2 bên cùng có googleId (multi-SSO): merge thành công, cả 2 Google trỏ về target", async () => {
+    // Trước 2026-07-06 guard chặn case này. Giờ multi-SSO: Google của pending
+    // gộp thành identity phụ của target → cả 2 tài khoản Google đăng nhập được
+    // vào target. Đúng kịch bản "Phiêu 2 tài khoản Google".
     const [target] = await testDb
       .insert(members)
       .values({
@@ -106,7 +111,21 @@ describe("approveAndMergeMember", () => {
       .returning({ id: members.id });
 
     const result = await approveAndMergeMember(pending.id, target.id);
-    expect(result).toHaveProperty("error");
+    expect(result).toEqual({ success: true });
+
+    // Pending bị xóa; cả 2 Google đều đăng nhập vào target (pending's Google
+    // qua identity row vừa tạo, target's Google qua fallback cột legacy).
+    expect(await memberById(pending.id)).toBeUndefined();
+    expect((await findMemberByOAuth("google", "google-pending"))?.id).toBe(
+      target.id,
+    );
+    expect((await findMemberByOAuth("google", "google-target"))?.id).toBe(
+      target.id,
+    );
+    const foldedId = await testDb.query.memberOauthIdentities.findFirst({
+      where: eq(memberOauthIdentities.providerUid, "google-pending"),
+    });
+    expect(foldedId?.memberId).toBe(target.id);
   });
 });
 

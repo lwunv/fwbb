@@ -9,6 +9,7 @@ import { getUserFromCookie, clearUserCookie } from "@/lib/user-identity";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getTranslations } from "next-intl/server";
 import { mergeMember } from "@/actions/members";
+import { foldOAuthIntoTarget } from "@/lib/oauth-identity";
 
 /** Helper: normalize Vietnamese name for fuzzy matching (lowercase + strip
  *  diacritics + collapse whitespace). Đủ cho UX gợi ý, không phải search engine. */
@@ -315,21 +316,11 @@ export async function approveAndMergeMember(
   if (target.approvalStatus === "rejected") {
     return { error: "Target đã bị reject, không thể merge" };
   }
-  // Target đã có mật khẩu riêng → CHO merge (quyết định 2026-07-06, admin chủ
-  // động xác nhận đây đúng là cùng 1 người), nhưng PHẢI reset mật khẩu cũ
-  // (set null ở updates dưới) — nếu không, người cũ vẫn đăng nhập được bằng
-  // password cũ VÀ pending user giờ cũng login được qua OAuth mới gán =
-  // 2 người cùng truy cập 1 tài khoản (chiếm tài khoản). Reset password buộc
-  // chỉ còn 1 đường vào: OAuth vừa merge.
-  if (
-    (pending.facebookId && target.facebookId) ||
-    (pending.googleId && target.googleId)
-  ) {
-    return {
-      error:
-        "Target đã có tài khoản OAuth riêng — không merge để tránh ghi đè/nhầm danh tính.",
-    };
-  }
+  // Multi-SSO: CHO PHÉP merge kể cả khi cả pending lẫn target đều đã có OAuth
+  // cùng loại (vd 2 tài khoản Google). Tài khoản OAuth của pending được gộp
+  // thành identity PHỤ của target (foldOAuthIntoTarget trong tx) → target đăng
+  // nhập được bằng cả 2. Trước đây guard chặn case này khiến nút gộp "không
+  // làm gì" khi cả 2 có Google. Admin tự xác nhận đây là cùng 1 người.
 
   const adminId = parseInt(String(auth.admin.sub), 10) || null;
 
@@ -354,8 +345,9 @@ export async function approveAndMergeMember(
       updates.bankAccountNo = pending.bankAccountNo;
     if (pending.nickname && !target.nickname)
       updates.nickname = pending.nickname;
-    // Reset mật khẩu cũ — xem giải thích ở guard phía trên. Từ giờ chỉ đăng
-    // nhập được qua OAuth vừa merge (hoặc set lại mật khẩu mới sau này).
+    // Reset mật khẩu cũ của target nếu có: sau merge chỉ nên còn đường đăng
+    // nhập qua OAuth (target + identity vừa gộp). Tránh trường hợp mật khẩu cũ
+    // do người khác đặt (claim email) vẫn dùng được song song với OAuth mới.
     if (target.passwordHash) updates.passwordHash = null;
 
     // Trước khi delete pending, clear UNIQUE fields để tránh collision với
@@ -371,6 +363,16 @@ export async function approveAndMergeMember(
       .where(eq(members.id, pendingMemberId));
 
     await tx.update(members).set(updates).where(eq(members.id, targetMemberId));
+
+    // Gộp tài khoản đăng nhập của pending vào target (re-point identity rows +
+    // tạo identity cho OAuth legacy của pending) TRƯỚC khi xóa pending — target
+    // đăng nhập được bằng cả OAuth của pending. Dùng giá trị legacy gốc của
+    // pending (object fetch trước tx, không bị ảnh hưởng bởi bước NULL ở trên).
+    await foldOAuthIntoTarget(tx, pendingMemberId, targetMemberId, {
+      googleId: pending.googleId,
+      facebookId: pending.facebookId,
+      email: pending.email,
+    });
 
     // Delete pending row. Pending chưa có debt/vote/attendee/etc nào (mới
     // signup) → hard delete safe. Phòng trường hợp họ đã vote ngay, dùng

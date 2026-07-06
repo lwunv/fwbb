@@ -21,6 +21,7 @@ import { AVATAR_BRAND_KEYS } from "@/lib/member-avatar-presets";
 import { AVATAR_EMOJI_COUNT } from "@/lib/member-avatar-emoji";
 import { computeBalanceFromTransactions } from "@/lib/fund-core";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
+import { foldOAuthIntoTarget } from "@/lib/oauth-identity";
 import { z } from "zod";
 
 export type UpdateMyProfileState = null | { success: true } | { error: string };
@@ -805,6 +806,15 @@ export async function mergeMember(sourceId: number, targetId: number) {
       .update(admins)
       .set({ memberId: targetId })
       .where(eq(admins.memberId, sourceId));
+
+    // 6b. OAuth identities — gộp mọi tài khoản đăng nhập của source vào target
+    //     TRƯỚC khi xóa source (FK cascade sẽ xóa identity còn trỏ về source).
+    //     Sau merge, target đăng nhập được bằng cả tài khoản OAuth của source.
+    await foldOAuthIntoTarget(tx, sourceId, targetId, {
+      googleId: source.googleId,
+      facebookId: source.facebookId,
+      email: source.email,
+    });
 
     // 7. Xóa member nguồn.
     await tx.delete(members).where(eq(members.id, sourceId));
