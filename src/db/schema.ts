@@ -86,6 +86,38 @@ export const members = sqliteTable(
   ],
 );
 
+/**
+ * Nhiều tài khoản đăng nhập ngoài (Google/Facebook) trỏ về CÙNG 1 member —
+ * cho phép 1 người dùng 2+ tài khoản Google (hoặc thêm Facebook) cùng vào 1
+ * hồ sơ. Cột legacy `members.googleId/facebookId` giữ lại làm identity CHÍNH
+ * (được backfill vào bảng này); identity phụ chỉ nằm ở bảng này. Mọi lookup
+ * đăng nhập SSO đi qua bảng này — xem `src/lib/oauth-identity.ts`.
+ */
+export const memberOauthIdentities = sqliteTable(
+  "member_oauth_identities",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    memberId: integer("member_id")
+      .notNull()
+      .references(() => members.id, { onDelete: "cascade" }),
+    provider: text("provider", { enum: ["google", "facebook"] }).notNull(),
+    /** `sub` (Google) hoặc user id (Facebook) — định danh ổn định của provider. */
+    providerUid: text("provider_uid").notNull(),
+    /** Email tại thời điểm liên kết (thông tin, KHÔNG dùng để auth). */
+    email: text("email"),
+    createdAt: text("created_at").default(sql`(current_timestamp)`),
+  },
+  (table) => [
+    // 1 tài khoản provider chỉ liên kết vào TỐI ĐA 1 member (chặn account
+    // takeover: không thể gắn 1 Google đang thuộc member khác).
+    uniqueIndex("oauth_provider_uid_unique").on(
+      table.provider,
+      table.providerUid,
+    ),
+    index("oauth_member_id_idx").on(table.memberId),
+  ],
+);
+
 export const courts = sqliteTable("courts", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
@@ -416,7 +448,18 @@ export const membersRelations = relations(members, ({ many }) => ({
   attendances: many(sessionAttendees, { relationName: "attendeeMember" }),
   guestsInvited: many(sessionAttendees, { relationName: "invitedByMember" }),
   financialTransactions: many(financialTransactions),
+  oauthIdentities: many(memberOauthIdentities),
 }));
+
+export const memberOauthIdentitiesRelations = relations(
+  memberOauthIdentities,
+  ({ one }) => ({
+    member: one(members, {
+      fields: [memberOauthIdentities.memberId],
+      references: [members.id],
+    }),
+  }),
+);
 
 export const appSettings = sqliteTable("app_settings", {
   key: text("key").primaryKey(),

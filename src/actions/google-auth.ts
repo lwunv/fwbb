@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getTrustedClientIp } from "@/lib/client-ip";
 import { getTranslations } from "next-intl/server";
+import { findMemberByOAuth, ensureOAuthIdentity } from "@/lib/oauth-identity";
 
 /**
  * Verify Google ID token bằng tokeninfo endpoint (Google sẽ check signature,
@@ -90,10 +91,8 @@ export async function googleLogin(idToken: string) {
   const claims = await verifyGoogleIdToken(idToken);
   if (!claims) return { error: "Google verification failed" };
 
-  // Find existing member by googleId
-  const existing = await db.query.members.findFirst({
-    where: eq(members.googleId, claims.sub),
-  });
+  // Find existing member qua bảng identity (multi-SSO), fallback cột legacy.
+  const existing = await findMemberByOAuth("google", claims.sub);
 
   if (existing) {
     // Block deactivated OR rejected — parity with the password path.
@@ -119,6 +118,14 @@ export async function googleLogin(idToken: string) {
     if (Object.keys(updates).length > 0) {
       await db.update(members).set(updates).where(eq(members.id, existing.id));
     }
+
+    // Lazy-link: row cũ (chỉ có cột legacy) được tạo identity row lần đầu login.
+    await ensureOAuthIdentity({
+      memberId: existing.id,
+      provider: "google",
+      uid: claims.sub,
+      email: claims.email ?? null,
+    });
 
     await setUserCookie(existing.id, `g:${claims.sub}`);
     revalidatePath("/");
@@ -155,6 +162,12 @@ export async function googleLogin(idToken: string) {
           avatarUrl: byEmail.avatarUrl ?? claims.picture ?? null,
         })
         .where(eq(members.id, byEmail.id));
+      await ensureOAuthIdentity({
+        memberId: byEmail.id,
+        provider: "google",
+        uid: claims.sub,
+        email: claims.email ?? null,
+      });
       await setUserCookie(byEmail.id, `g:${claims.sub}`);
       revalidatePath("/");
       return { success: true, memberName: byEmail.name };
@@ -189,6 +202,12 @@ export async function googleLogin(idToken: string) {
     })
     .returning();
 
+  await ensureOAuthIdentity({
+    memberId: newMember.id,
+    provider: "google",
+    uid: claims.sub,
+    email: claims.email ?? null,
+  });
   await setUserCookie(newMember.id, `g:${claims.sub}`);
   revalidatePath("/");
   return { success: true, memberName: newMember.name };

@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getTrustedClientIp } from "@/lib/client-ip";
 import { getTranslations } from "next-intl/server";
+import { findMemberByOAuth, ensureOAuthIdentity } from "@/lib/oauth-identity";
 
 interface FacebookUserInfo {
   id: string;
@@ -76,10 +77,8 @@ export async function facebookLogin(accessToken: string) {
     return { error: "Invalid Facebook response" };
   }
 
-  // 2. Find existing member by facebookId
-  const existing = await db.query.members.findFirst({
-    where: eq(members.facebookId, fbUser.id),
-  });
+  // 2. Find existing member qua bảng identity (multi-SSO), fallback cột legacy.
+  const existing = await findMemberByOAuth("facebook", fbUser.id);
 
   if (existing) {
     // Check if deactivated OR rejected — match the password path
@@ -101,6 +100,12 @@ export async function facebookLogin(accessToken: string) {
         .where(eq(members.id, existing.id));
     }
 
+    await ensureOAuthIdentity({
+      memberId: existing.id,
+      provider: "facebook",
+      uid: fbUser.id,
+      email: null,
+    });
     await setUserCookie(existing.id, existing.facebookId ?? `fb:${fbUser.id}`);
     revalidatePath("/");
     return { success: true, memberName: existing.name };
@@ -119,6 +124,12 @@ export async function facebookLogin(accessToken: string) {
     })
     .returning();
 
+  await ensureOAuthIdentity({
+    memberId: newMember.id,
+    provider: "facebook",
+    uid: fbUser.id,
+    email: null,
+  });
   await setUserCookie(newMember.id, newMember.facebookId ?? `fb:${fbUser.id}`);
   revalidatePath("/");
   return { success: true, memberName: newMember.name };
