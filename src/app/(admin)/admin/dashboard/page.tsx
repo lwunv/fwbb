@@ -218,6 +218,7 @@ export default async function DashboardPage() {
     adminGuestPlayCount: number;
     adminGuestDineCount: number;
     useMinDeduction: boolean;
+    voteDeadline: string | null;
     exemptMemberIds: number[];
     votedCount: number;
     totalEligibleVoters: number;
@@ -263,6 +264,7 @@ export default async function DashboardPage() {
       adminGuestPlayCount: nextSession.adminGuestPlayCount ?? 0,
       adminGuestDineCount: nextSession.adminGuestDineCount ?? 0,
       useMinDeduction: nextSession.useMinDeduction ?? false,
+      voteDeadline: nextSession.voteDeadline ?? null,
       exemptMemberIds: exemptions,
       votedCount,
       totalEligibleVoters: activeMembers.length,

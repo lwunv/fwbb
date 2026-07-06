@@ -76,6 +76,8 @@ export function VoteList({
                           className="h-7 px-3 py-1 text-sm font-semibold"
                         >
                           🏸 {t("badmintonShort")}
+                          {(vote.guestPlayCount ?? 0) > 0 &&
+                            ` ${t("plusGuest", { count: vote.guestPlayCount ?? 0 })}`}
                         </Badge>
                       )}
                       {vote.willDine && (
@@ -84,6 +86,8 @@ export function VoteList({
                           className="h-7 px-3 py-1 text-sm font-semibold"
                         >
                           🍻 {t("diningShort")}
+                          {(vote.guestDineCount ?? 0) > 0 &&
+                            ` ${t("plusGuest", { count: vote.guestDineCount ?? 0 })}`}
                         </Badge>
                       )}
                     </div>

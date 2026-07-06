@@ -17,6 +17,7 @@ import type { Locale as DateFnsLocale } from "date-fns";
 import { useLocale, useTranslations } from "next-intl";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { ChevronLeft, ChevronRight, Banknote, ChevronDown } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PaymentQR } from "@/components/payment/payment-qr";
@@ -528,6 +529,10 @@ function SessionDetailCard({
 }) {
   const t = useTranslations("history");
   const isCompleted = session.status === "completed";
+  // Danh sách người tham gia mặc định thu gọn (chỉ hiện số lượng), bấm để mở
+  // ra danh sách cuộn được — buổi đông (20+ người) không kéo dài card. Spec
+  // 2026-07-06.
+  const [participantsOpen, setParticipantsOpen] = useState(false);
   const my = session.mySummary;
   const myDebt = my ? mySummaryToDebt(my) : null;
   const sharePaid = !!(myDebt?.adminConfirmed || myDebt?.memberConfirmed);
@@ -746,49 +751,77 @@ function SessionDetailCard({
         </div>
 
         <div className="space-y-2">
-          <h4 className="text-muted-foreground text-xs font-semibold uppercase">
-            {t("participants")}
-          </h4>
-          <div className="space-y-2">
-            {session.attendees.map((a) => (
-              <div key={a.id} className="flex items-center gap-2 text-sm">
-                {a.memberId ? (
-                  <MemberAvatar
-                    memberId={a.memberId}
-                    avatarKey={a.memberAvatarKey}
-                    avatarUrl={a.memberAvatarUrl}
-                    size={24}
-                  />
-                ) : (
-                  <div className="bg-muted flex h-6 w-6 items-center justify-center rounded-full text-xs">
-                    K
-                  </div>
-                )}
-                <span
-                  className={cn(
-                    "min-w-0 flex-1 truncate",
-                    a.isGuest && "text-muted-foreground italic",
-                  )}
-                >
-                  {a.name}
-                  {a.isGuest && ` (${t("guest")})`}
-                </span>
-                <HistoryActivityIcons
-                  attendsPlay={a.attendsPlay}
-                  attendsDine={a.attendsDine}
-                  onIconClick={(kind) =>
-                    openActivityDetail(kind, {
-                      name: a.name,
-                      attendsPlay: a.attendsPlay,
-                      attendsDine: a.attendsDine,
-                      debt: a.debt,
-                      memberId: a.memberId,
-                    })
-                  }
-                />
-              </div>
-            ))}
-          </div>
+          <button
+            type="button"
+            onClick={() => setParticipantsOpen((v) => !v)}
+            aria-expanded={participantsOpen}
+            className="flex min-h-11 w-full items-center justify-between gap-2 text-left"
+          >
+            <span className="text-muted-foreground text-xs font-semibold uppercase">
+              {t("participants")}
+              <span className="text-foreground ml-2 normal-case">
+                {t("participantsCount", { count: session.attendees.length })}
+              </span>
+            </span>
+            <ChevronDown
+              className={cn(
+                "text-muted-foreground h-4 w-4 shrink-0 transition-transform",
+                participantsOpen && "rotate-180",
+              )}
+            />
+          </button>
+          <AnimatePresence initial={false}>
+            {participantsOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                  {session.attendees.map((a) => (
+                    <div key={a.id} className="flex items-center gap-2 text-sm">
+                      {a.memberId ? (
+                        <MemberAvatar
+                          memberId={a.memberId}
+                          avatarKey={a.memberAvatarKey}
+                          avatarUrl={a.memberAvatarUrl}
+                          size={24}
+                        />
+                      ) : (
+                        <div className="bg-muted flex h-6 w-6 items-center justify-center rounded-full text-xs">
+                          K
+                        </div>
+                      )}
+                      <span
+                        className={cn(
+                          "min-w-0 flex-1 truncate",
+                          a.isGuest && "text-muted-foreground italic",
+                        )}
+                      >
+                        {a.name}
+                        {a.isGuest && ` (${t("guest")})`}
+                      </span>
+                      <HistoryActivityIcons
+                        attendsPlay={a.attendsPlay}
+                        attendsDine={a.attendsDine}
+                        onIconClick={(kind) =>
+                          openActivityDetail(kind, {
+                            name: a.name,
+                            attendsPlay: a.attendsPlay,
+                            attendsDine: a.attendsDine,
+                            debt: a.debt,
+                            memberId: a.memberId,
+                          })
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {!isCompleted && (

@@ -39,6 +39,8 @@ import { CourtSelector } from "@/components/sessions/court-selector";
 import { ShuttlecockSelector } from "@/components/sessions/shuttlecock-selector";
 import { AdminVoteManager } from "@/components/sessions/admin-vote-manager";
 import { WeekStrip } from "@/components/sessions/week-strip";
+import { VoteCountdown } from "@/components/sessions/vote-countdown";
+import { VoteDeadlineEdit } from "@/components/sessions/vote-deadline-edit";
 import { SessionCostStats } from "@/components/sessions/session-cost-stats";
 import { RecordContributionDialog } from "@/components/fund/record-contribution-dialog";
 import type { InferSelectModel } from "drizzle-orm";
@@ -100,6 +102,7 @@ interface UpcomingSession {
   adminGuestPlayCount: number;
   adminGuestDineCount: number;
   useMinDeduction: boolean;
+  voteDeadline: string | null;
   exemptMemberIds: number[];
   votedCount: number;
   totalEligibleVoters: number;
@@ -755,6 +758,16 @@ export function DashboardClient({
                             }) as SessionShuttlecock,
                         )}
                       />
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <VoteCountdown
+                          deadline={upcomingSession.voteDeadline}
+                          variant="inline"
+                        />
+                        <VoteDeadlineEdit
+                          sessionId={upcomingSession.id}
+                          current={upcomingSession.voteDeadline}
+                        />
+                      </div>
                     </div>
                   )}
 
