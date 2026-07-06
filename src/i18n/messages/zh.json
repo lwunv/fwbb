@@ -142,9 +142,9 @@
     "playCountTitle": "投票打球人数"
   },
   "voting": {
-    "play": "队1 - 羽毛球",
+    "play": "羽毛球",
     "noPlay": "不参加",
-    "dine": "队2 - 聚餐",
+    "dine": "聚餐",
     "noDine": "不聚餐",
     "addGuest": "添加嘉宾",
     "willPlay": "将参加",

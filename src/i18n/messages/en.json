@@ -142,9 +142,9 @@
     "playCountTitle": "Members voting to play"
   },
   "voting": {
-    "play": "Team 1 - Badminton",
+    "play": "Badminton",
     "noPlay": "Not playing",
-    "dine": "Team 2 - Dining",
+    "dine": "Dining",
     "noDine": "Not dining",
     "addGuest": "Add guest",
     "willPlay": "Will play",

@@ -142,9 +142,9 @@
     "playCountTitle": "Số người vote đi chơi cầu"
   },
   "voting": {
-    "play": "Tăng 1 - Cầu lông",
+    "play": "Cầu lông",
     "noPlay": "Không chơi cầu",
-    "dine": "Tăng 2 - Nhậu",
+    "dine": "Nhậu",
     "noDine": "Không ăn nhậu",
     "addGuest": "Thêm khách giao lưu",
     "willPlay": "Sẽ chơi",
