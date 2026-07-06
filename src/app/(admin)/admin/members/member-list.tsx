@@ -232,7 +232,13 @@ export function MemberList({
       // status filter
       if (statusFilter === "active" && !m.isActive) return false;
       if (statusFilter === "locked" && m.isActive) return false;
-      if (statusFilter === "hasDebt" && !debtsByMember[m.id]?.length)
+      // "Còn nợ" = balance ÂM (mô hình Quỹ+Nợ gộp). KHÔNG dùng debtsByMember
+      // (các session_debts chưa được admin xác nhận) vì finalizeSession đánh
+      // dấu chúng đã-ghi-sổ ngay → bucket đó gần như luôn rỗng dù member đang nợ.
+      if (
+        statusFilter === "hasDebt" &&
+        getFundStatus(memberBalances[m.id] ?? 0) !== "owing"
+      )
         return false;
       if (
         statusFilter === "lowFund" &&
@@ -263,31 +269,19 @@ export function MemberList({
           return a.name.localeCompare(b.name);
         case "smart":
         default: {
-          // Mặc định: ai đang nợ lên trước (nợ nhiều nhất), rồi A-Z.
-          const debtA = (debtsByMember[a.id] ?? []).reduce(
-            (s, d) => s + d.totalAmount,
-            0,
-          );
-          const debtB = (debtsByMember[b.id] ?? []).reduce(
-            (s, d) => s + d.totalAmount,
-            0,
-          );
-          if (debtA > 0 && debtB === 0) return -1;
-          if (debtA === 0 && debtB > 0) return 1;
-          if (debtA > 0 && debtB > 0) return debtB - debtA;
+          // Mặc định: ai đang NỢ (balance âm) lên trước, nợ nhiều nhất trên
+          // cùng, rồi A-Z. Dùng balance (mô hình Quỹ+Nợ gộp) thay cho
+          // debtsByMember legacy (gần như luôn rỗng sau finalize).
+          const owingA = bal(a.id) < 0;
+          const owingB = bal(b.id) < 0;
+          if (owingA && !owingB) return -1;
+          if (!owingA && owingB) return 1;
+          if (owingA && owingB) return bal(a.id) - bal(b.id); // âm nhất trước
           return a.name.localeCompare(b.name);
         }
       }
     });
-  }, [
-    members,
-    search,
-    statusFilter,
-    sortMode,
-    debtsByMember,
-    deletedIds,
-    memberBalances,
-  ]);
+  }, [members, search, statusFilter, sortMode, deletedIds, memberBalances]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -302,7 +296,9 @@ export function MemberList({
     setPage(1);
   };
   const handleFilter = (val: StatusFilter) => {
-    setStatusFilter(val);
+    // Toggle: bấm lại chip đang chọn → bỏ chọn, về "Tất cả". "all" thì luôn
+    // giữ "all" (không tự toggle chính nó thành trạng thái rỗng vô nghĩa).
+    setStatusFilter((prev) => (prev === val && val !== "all" ? "all" : val));
     setPage(1);
   };
 
@@ -368,12 +364,14 @@ export function MemberList({
       all: liveMembers.length,
       active: liveMembers.filter((m) => m.isActive).length,
       locked: liveMembers.filter((m) => !m.isActive).length,
-      hasDebt: liveMembers.filter((m) => debtsByMember[m.id]?.length).length,
+      hasDebt: liveMembers.filter(
+        (m) => getFundStatus(memberBalances[m.id] ?? 0) === "owing",
+      ).length,
       lowFund: liveMembers.filter(
         (m) => getFundStatus(memberBalances[m.id] ?? 0) === "lowFund",
       ).length,
     }),
-    [liveMembers, debtsByMember, memberBalances],
+    [liveMembers, memberBalances],
   );
 
   const filterButtons: { key: StatusFilter; label: string }[] = [
