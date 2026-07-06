@@ -736,7 +736,11 @@
   "publicLayout": {
     "accountDisabledTitle": "Tài khoản bị vô hiệu hóa",
     "accountDisabledBody": "Tài khoản của bạn đã bị vô hiệu hóa. Liên hệ admin để được hỗ trợ.",
-    "loginAgainOther": "Đăng nhập lại với tài khoản khác"
+    "loginAgainOther": "Đăng nhập lại với tài khoản khác",
+    "loginButton": "Đăng nhập",
+    "guestVoteCtaTitle": "Đăng nhập để vote",
+    "guestVoteCtaBody": "Đăng nhập hoặc đăng ký tài khoản để chọn đi chơi / nhậu buổi này.",
+    "guestVoteCtaButton": "Đăng nhập / Đăng ký"
   },
   "myFundPage": {
     "identifyFirst": "Vui lòng xác định danh tính trước.",

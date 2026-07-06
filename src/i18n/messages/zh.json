@@ -736,7 +736,11 @@
   "publicLayout": {
     "accountDisabledTitle": "账号已停用",
     "accountDisabledBody": "您的账号已被停用。请联系管理员。",
-    "loginAgainOther": "使用其他账号登录"
+    "loginAgainOther": "使用其他账号登录",
+    "loginButton": "登录",
+    "guestVoteCtaTitle": "登录后投票",
+    "guestVoteCtaBody": "登录或注册账号即可为本场选择打球/聚餐。",
+    "guestVoteCtaButton": "登录 / 注册"
   },
   "myFundPage": {
     "identifyFirst": "请先完成身份验证。",

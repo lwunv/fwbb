@@ -5,7 +5,6 @@ import { eq } from "drizzle-orm";
 import { getTranslations } from "next-intl/server";
 import { Header } from "@/components/layout/header";
 import { BottomNav } from "@/components/layout/bottom-nav";
-import { FacebookLoginGate } from "./facebook-login-gate";
 import { PendingApprovalGate } from "./pending-approval-gate";
 import { ProductTourLauncher } from "@/components/tour/product-tour-launcher";
 import { getAppName } from "@/actions/settings";
@@ -21,14 +20,16 @@ export default async function PublicLayout({
     getTranslations("publicLayout"),
   ]);
 
-  // If user is not identified, show the Facebook login gate
+  // Khách chưa đăng nhập: KHÔNG chặn cứng nữa — render shell + children để
+  // trang chủ (lịch + số vote) xem được công khai. Các trang cá nhân
+  // (/history, /stats, /me, /my-fund) tự redirect("/login") khi thiếu user;
+  // form login nằm ở /login. Header hiện nút "Đăng nhập". Không bottom nav
+  // cho khách (chưa có gì cá nhân để điều hướng).
   if (!user) {
     return (
       <div className="flex min-h-screen flex-col">
-        <Header appName={appName} />
-        <main className="flex flex-1 items-center justify-center p-4">
-          <FacebookLoginGate appName={appName} />
-        </main>
+        <Header appName={appName} showLogin />
+        <main className="flex flex-1 flex-col px-4 py-4">{children}</main>
       </div>
     );
   }

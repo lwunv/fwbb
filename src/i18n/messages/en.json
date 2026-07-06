@@ -736,7 +736,11 @@
   "publicLayout": {
     "accountDisabledTitle": "Account disabled",
     "accountDisabledBody": "Your account has been disabled. Contact an admin for help.",
-    "loginAgainOther": "Sign in with another account"
+    "loginAgainOther": "Sign in with another account",
+    "loginButton": "Log in",
+    "guestVoteCtaTitle": "Log in to vote",
+    "guestVoteCtaBody": "Log in or sign up to choose play / dining for this session.",
+    "guestVoteCtaButton": "Log in / Sign up"
   },
   "myFundPage": {
     "identifyFirst": "Please identify yourself first.",

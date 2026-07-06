@@ -5,7 +5,7 @@ import { getUserFromCookie } from "@/lib/user-identity";
 import { SessionVoteOptimisticPanel } from "@/components/sessions/session-vote-optimistic-panel";
 import { CopyLinkButton } from "@/components/shared/copy-link-button";
 import { Card, CardContent } from "@/components/ui/card";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,10 @@ export default async function VoteSessionPage({
     getUserFromCookie(),
     getTranslations("sessions"),
   ]);
+
+  // Chỉ trang chủ mở public; link vote 1 buổi vẫn cần đăng nhập (scope "chỉ
+  // trang chủ"). Có thể mở public sau nếu muốn dùng cho link chia sẻ.
+  if (!user) redirect("/login");
 
   if (!session) notFound();
 

@@ -1,10 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
+import { LogIn } from "lucide-react";
 import { SessionCard } from "@/components/sessions/session-card";
 import { VoteButtons } from "@/components/sessions/vote-buttons";
 import { VoteList } from "@/components/sessions/vote-list";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   applyMemberVotePatch,
@@ -56,6 +59,7 @@ export function SessionVoteOptimisticPanel({
 }: SessionVoteOptimisticPanelProps) {
   const t = useTranslations("sessions");
   const tv = useTranslations("voting");
+  const tGuest = useTranslations("publicLayout");
   const [optimisticVotes, setOptimisticVotes] =
     useState<VoteWithMember[]>(serverVotes);
   const serverVotesRef = useRef<VoteWithMember[]>(serverVotes);
@@ -152,22 +156,43 @@ export function SessionVoteOptimisticPanel({
         topSlot={headerSlot}
       />
 
-      {effectiveIsVotingOpen && (
-        <Card className="border-primary/20 bg-card/95 supports-[backdrop-filter]:bg-card/85 sticky bottom-20 z-30 shadow-lg backdrop-blur sm:static sm:shadow-sm">
-          <CardContent className="p-4">
-            <VoteButtons
-              sessionId={sessionId}
-              title={t("yourVote")}
-              currentWillPlay={myVote?.willPlay ?? false}
-              currentWillDine={myVote?.willDine ?? false}
-              currentGuestPlayCount={myVote?.guestPlayCount ?? 0}
-              currentGuestDineCount={myVote?.guestDineCount ?? 0}
-              currentWithPartner={currentWithPartner}
-              optimisticListSync={optimisticListSync}
-            />
-          </CardContent>
-        </Card>
-      )}
+      {effectiveIsVotingOpen &&
+        (currentMemberId != null ? (
+          <Card className="border-primary/20 bg-card/95 supports-[backdrop-filter]:bg-card/85 sticky bottom-20 z-30 shadow-lg backdrop-blur sm:static sm:shadow-sm">
+            <CardContent className="p-4">
+              <VoteButtons
+                sessionId={sessionId}
+                title={t("yourVote")}
+                currentWillPlay={myVote?.willPlay ?? false}
+                currentWillDine={myVote?.willDine ?? false}
+                currentGuestPlayCount={myVote?.guestPlayCount ?? 0}
+                currentGuestDineCount={myVote?.guestDineCount ?? 0}
+                currentWithPartner={currentWithPartner}
+                optimisticListSync={optimisticListSync}
+              />
+            </CardContent>
+          </Card>
+        ) : (
+          // Khách chưa đăng nhập: thay panel vote bằng CTA đăng nhập/đăng ký.
+          <Card className="border-primary/30 bg-card/95">
+            <CardContent className="flex flex-col items-center gap-3 p-5 text-center">
+              <p className="text-base font-semibold">
+                {tGuest("guestVoteCtaTitle")}
+              </p>
+              <p className="text-muted-foreground text-sm">
+                {tGuest("guestVoteCtaBody")}
+              </p>
+              <Button
+                size="lg"
+                className="w-full sm:w-auto"
+                render={<Link href="/login" />}
+              >
+                <LogIn className="mr-2 h-4 w-4" />
+                {tGuest("guestVoteCtaButton")}
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
 
       <Card>
         <CardContent className="p-4">

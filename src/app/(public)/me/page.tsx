@@ -9,7 +9,7 @@ import { SetPasswordSection } from "./set-password-section";
 
 export default async function MePage() {
   const user = await getUserFromCookie();
-  if (!user) redirect("/");
+  if (!user) redirect("/login");
 
   const member = await db.query.members.findFirst({
     where: eq(members.id, user.memberId),
