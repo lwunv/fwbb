@@ -133,6 +133,13 @@ export function calculateFundDeduction(
  */
 export const LOW_FUND_THRESHOLD = 50_000;
 
+/**
+ * Ngưỡng nợ chặn vote ở trang chủ — member nợ DƯỚI mức này vẫn được vote bình
+ * thường (chỉ hiện banner nhắc trả nợ), chỉ khi nợ ≥ mức này mới ưu tiên màn
+ * "buổi gần đây + thanh toán" thay cho vote (xem HomePage).
+ */
+export const VOTE_BLOCK_DEBT_THRESHOLD = 100_000;
+
 export type FundStatus = "owing" | "depleted" | "lowFund" | "hasFund";
 
 /**

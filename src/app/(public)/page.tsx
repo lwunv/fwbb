@@ -16,6 +16,7 @@ import { getTranslations } from "next-intl/server";
 import { AutoRefresh } from "@/components/shared/auto-refresh";
 import { isVoteOpen, type SessionStatus } from "@/lib/session-status";
 import { ymdInVN } from "@/lib/date-format";
+import { VOTE_BLOCK_DEBT_THRESHOLD } from "@/lib/fund-core";
 
 export default async function HomePage() {
   const [nextSession, weekDays, user, tDashboard] = await Promise.all([
@@ -33,10 +34,12 @@ export default async function HomePage() {
   if (user) {
     userFundBalance = (await getFundBalance(user.memberId)).balance;
   }
-  const hasOutstandingDebt = userFundBalance < 0;
+  // Nợ dưới VOTE_BLOCK_DEBT_THRESHOLD (100K) vẫn cho vote bình thường — chỉ
+  // chặn vote, ưu tiên màn thanh toán khi nợ đã đủ lớn (quyết định 2026-07-06).
+  const hasBlockingDebt = userFundBalance <= -VOTE_BLOCK_DEBT_THRESHOLD;
 
-  // Trước 2 ngày: còn nợ → ưu tiên buổi đã chơi gần đây + thanh toán (không vote)
-  if (nextSession && user && hasOutstandingDebt) {
+  // Còn nợ đủ lớn → ưu tiên buổi đã chơi gần đây + thanh toán (không vote)
+  if (nextSession && user && hasBlockingDebt) {
     const latestSession = await getLatestCompletedSession();
 
     return (
@@ -71,7 +74,7 @@ export default async function HomePage() {
   // Selector ĐỦ các thứ cầu lông của tuần đích (T2/4/6 theo setting; T7/CN →
   // tuần sau) — kể cả ngày Admin chưa tạo buổi. Chỉ cho khách / member đã hết
   // nợ (member còn nợ đi nhánh trả tiền ở trên). Hiện khi tuần có ≥ 1 buổi.
-  if (weekDays.some((d) => d.session) && !(user && hasOutstandingDebt)) {
+  if (weekDays.some((d) => d.session) && !(user && hasBlockingDebt)) {
     const days = await Promise.all(
       weekDays.map(async (d) => {
         if (!d.session) return { date: d.date, session: null };
