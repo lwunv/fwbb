@@ -165,14 +165,17 @@ const statusStyles: Record<
   confirmed: { labelKey: "confirmed", cardBg: "" },
   completed: {
     labelKey: "completed",
-    cardBg: "ring-blue-300/50 dark:ring-blue-700/40",
+    // Buổi đã hoàn thành: viền xanh lơ (cyan) rõ ràng để phân biệt nhanh với
+    // buổi đang vote / cần chốt sổ.
+    cardBg:
+      "border-cyan-400 border-2 ring-2 ring-cyan-200/50 dark:border-cyan-500 dark:ring-cyan-900/30",
   },
   cancelled: {
     labelKey: "cancelled",
-    // Buổi hủy: nền xám-đỏ desaturated để dễ phân biệt với active card (pink/white)
-    // — không chỉ ring outline mỏng. Opacity giảm thêm cảm giác "không còn relevant".
+    // Buổi hủy: border ĐỎ rõ ràng + nền xám desaturated (opacity giảm cảm giác
+    // "không còn relevant").
     cardBg:
-      "bg-zinc-100 dark:bg-zinc-800/40 ring-red-300/60 dark:ring-red-700/40 opacity-85",
+      "border-red-400 border-2 ring-2 ring-red-200/50 bg-zinc-100 opacity-85 dark:border-red-500 dark:bg-zinc-800/40 dark:ring-red-900/30",
   },
 };
 
@@ -597,8 +600,9 @@ export function SessionList({
             // Future session vẫn block — chốt sớm thì lỗi thiếu attendees thật.
             const canFinalize = isActive && session.date <= todayYmd;
             const isFinalizing = finalizingSessions.has(session.id);
+            // Cần xác nhận (buổi quá hạn chưa chốt sổ): border VÀNG.
             const cardBgClass = isPastPending
-              ? "bg-card border-rose-400 border-2 ring-2 ring-rose-200/50 dark:ring-rose-900/30"
+              ? "bg-card border-amber-400 border-2 ring-2 ring-amber-200/50 dark:border-amber-500 dark:ring-amber-900/30"
               : status.cardBg;
             const badgeVariant = badge.variant;
             const badgeText = isPastPending
