@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslations } from "next-intl";
 import {
@@ -34,7 +34,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Check,
-  X,
   Trash2,
   Crown,
   History,
@@ -101,10 +100,7 @@ export function MemberList({
   fundMemberIds?: number[];
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingNicknameId, setEditingNicknameId] = useState<number | null>(
-    null,
-  );
-  const [nicknameValue, setNicknameValue] = useState("");
+  const [infoEditTarget, setInfoEditTarget] = useState<Member | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -340,13 +336,23 @@ export function MemberList({
     );
   }
 
-  function handleSaveNickname(memberId: number, memberName: string) {
+  function handleSaveInfo(
+    memberId: number,
+    values: {
+      name: string;
+      nickname: string;
+      email: string;
+      phoneNumber: string;
+    },
+  ) {
     const formData = new FormData();
-    formData.set("name", memberName);
-    formData.set("nickname", nicknameValue);
-    setEditingNicknameId(null);
+    formData.set("name", values.name);
+    formData.set("nickname", values.nickname);
+    formData.set("email", values.email);
+    formData.set("phoneNumber", values.phoneNumber);
+    setInfoEditTarget(null);
     fireAction(() => updateMember(memberId, formData), undefined, {
-      successMsg: t("toastSaved"),
+      successMsg: t("toastInfoSaved"),
     });
   }
 
@@ -524,14 +530,26 @@ export function MemberList({
                         màn hẹp thay vì bị cắt (thay cho hàng dồn 9 phần tử cũ). */}
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="flex min-w-0 flex-1 items-start gap-3">
-                        <MemberAvatar
-                          memberId={member.id}
-                          avatarKey={member.avatarKey}
-                          avatarUrl={member.avatarUrl}
-                          size={44}
-                        />
+                        <button
+                          type="button"
+                          onClick={() => setInfoEditTarget(member)}
+                          className="shrink-0 rounded-full"
+                          title={t("menuEditInfo")}
+                        >
+                          <MemberAvatar
+                            memberId={member.id}
+                            avatarKey={member.avatarKey}
+                            avatarUrl={member.avatarUrl}
+                            size={44}
+                          />
+                        </button>
                         <div className="min-w-0 flex-1 space-y-1.5">
-                          <p className="flex flex-wrap items-center gap-1.5 text-base font-semibold">
+                          <button
+                            type="button"
+                            onClick={() => setInfoEditTarget(member)}
+                            title={t("menuEditInfo")}
+                            className="flex flex-wrap items-center gap-1.5 text-left text-base font-semibold hover:underline"
+                          >
                             {member.name}
                             {member.nickname && (
                               <span className="text-muted-foreground text-sm font-normal">
@@ -547,7 +565,7 @@ export function MemberList({
                                 {t("adminBadge")}
                               </span>
                             )}
-                          </p>
+                          </button>
                           <div className="flex flex-wrap items-center gap-3 text-sm">
                             <span className="text-muted-foreground inline-flex items-center gap-1.5">
                               <span
@@ -653,13 +671,10 @@ export function MemberList({
                           </DropdownMenuTrigger>
                           <DropdownMenuContent>
                             <DropdownMenuItem
-                              onClick={() => {
-                                setEditingNicknameId(member.id);
-                                setNicknameValue(member.nickname ?? "");
-                              }}
+                              onClick={() => setInfoEditTarget(member)}
                             >
                               <Edit className="h-4 w-4" />
-                              {t("menuEditNickname")}
+                              {t("menuEditInfo")}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => handleLinkAdmin(member.id)}
@@ -680,42 +695,6 @@ export function MemberList({
                         </DropdownMenu>
                       </div>
                     </div>
-
-                    {/* Nickname inline edit — mở từ menu "Sửa biệt danh" */}
-                    {editingNicknameId === member.id && (
-                      <div className="flex items-center gap-2">
-                        <Input
-                          value={nicknameValue}
-                          onChange={(e) => setNicknameValue(e.target.value)}
-                          placeholder={t("nickname")}
-                          className="flex-1"
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              handleSaveNickname(member.id, member.name);
-                            }
-                            if (e.key === "Escape") setEditingNicknameId(null);
-                          }}
-                        />
-                        <Button
-                          size="sm"
-                          onClick={() =>
-                            handleSaveNickname(member.id, member.name)
-                          }
-                        >
-                          <Check className="mr-1.5 h-4 w-4" />
-                          {tCommon("save")}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setEditingNicknameId(null)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )}
 
                     {totalDebt > 0 && (
                       <>
@@ -862,6 +841,125 @@ export function MemberList({
         }
         onClose={() => setHistoryTarget(null)}
       />
+      <MemberInfoDialog
+        member={infoEditTarget}
+        onClose={() => setInfoEditTarget(null)}
+        onSave={handleSaveInfo}
+      />
     </div>
+  );
+}
+
+/**
+ * Popup sửa thông tin cơ bản của member (tên/biệt danh/email/sđt) — mở từ
+ * menu "⋮", hoặc bấm avatar/tên trên hàng member. Dùng chung 1 dialog cho cả
+ * 3 điểm vào (spec 2026-07-06).
+ */
+function MemberInfoDialog({
+  member,
+  onClose,
+  onSave,
+}: {
+  member: Member | null;
+  onClose: () => void;
+  onSave: (
+    memberId: number,
+    values: {
+      name: string;
+      nickname: string;
+      email: string;
+      phoneNumber: string;
+    },
+  ) => void;
+}) {
+  const t = useTranslations("adminMembers");
+  return (
+    <Dialog open={member !== null} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("editInfoTitle")}</DialogTitle>
+        </DialogHeader>
+        {/* key=member.id → remount form với state khởi tạo đúng mỗi khi đổi
+            target, thay cho useEffect đồng bộ state (tránh cascading render). */}
+        {member && (
+          <MemberInfoForm key={member.id} member={member} onSave={onSave} />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MemberInfoForm({
+  member,
+  onSave,
+}: {
+  member: Member;
+  onSave: (
+    memberId: number,
+    values: {
+      name: string;
+      nickname: string;
+      email: string;
+      phoneNumber: string;
+    },
+  ) => void;
+}) {
+  const t = useTranslations("adminMembers");
+  const tCommon = useTranslations("common");
+  const [name, setName] = useState(member.name);
+  const [nickname, setNickname] = useState(member.nickname ?? "");
+  const [email, setEmail] = useState(member.email ?? "");
+  const [phoneNumber, setPhoneNumber] = useState(member.phoneNumber ?? "");
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    onSave(member.id, { name: name.trim(), nickname, email, phoneNumber });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="info-name">{t("name")}</Label>
+        <Input
+          id="info-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="info-nickname">{t("nickname")}</Label>
+        <Input
+          id="info-nickname"
+          value={nickname}
+          onChange={(e) => setNickname(e.target.value)}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="info-email">{t("email")}</Label>
+        <Input
+          id="info-email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder={t("emailPlaceholder")}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="info-phone">{t("phoneNumber")}</Label>
+        <Input
+          id="info-phone"
+          type="tel"
+          value={phoneNumber}
+          onChange={(e) => setPhoneNumber(e.target.value)}
+          placeholder={t("phonePlaceholder")}
+        />
+      </div>
+      <Button type="submit" className="w-full">
+        <Check className="mr-1.5 h-4 w-4" />
+        {tCommon("save")}
+      </Button>
+    </form>
   );
 }

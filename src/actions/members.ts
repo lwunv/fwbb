@@ -241,6 +241,31 @@ export async function updateMember(id: number, formData: FormData) {
   if (formData.has("withPartner")) {
     setValues.defaultWithPartner = formData.get("withPartner") === "1";
   }
+  // Email/SĐT: chỉ đụng khi form CÓ gửi field (cùng pattern withPartner) —
+  // dialog "Sửa thông tin" luôn gửi cả 2 (rỗng = xoá), còn các form khác
+  // (vd inline nickname cũ) không gửi thì giữ nguyên giá trị hiện có.
+  if (formData.has("email")) {
+    const emailRaw = (formData.get("email") as string)?.trim() || "";
+    if (emailRaw) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw)) {
+        return { error: "Email không hợp lệ" };
+      }
+      const dup = await db.query.members.findFirst({
+        where: and(eq(members.email, emailRaw), ne(members.id, id)),
+        columns: { id: true },
+      });
+      if (dup) {
+        return { error: "Email này đã được dùng bởi thành viên khác" };
+      }
+      setValues.email = emailRaw;
+    } else {
+      setValues.email = null;
+    }
+  }
+  if (formData.has("phoneNumber")) {
+    const phoneRaw = (formData.get("phoneNumber") as string)?.trim() || "";
+    setValues.phoneNumber = phoneRaw || null;
+  }
   await db.update(members).set(setValues).where(eq(members.id, id));
   revalidatePath("/admin/members");
   return { success: true };

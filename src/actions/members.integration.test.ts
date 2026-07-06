@@ -26,7 +26,8 @@ vi.mock("@/lib/auth", () => ({
 const { db: testDb, client } = await createTestDb();
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { toggleMemberActive, findDuplicateMembers } = await import("./members");
+const { toggleMemberActive, findDuplicateMembers, updateMember } =
+  await import("./members");
 const { getFundBalance } = await import("@/lib/fund-calculator");
 
 async function reset() {
@@ -289,5 +290,158 @@ describe("findDuplicateMembers (integration)", () => {
     const byId = new Map(dups[0].members.map((m) => [m.id, m]));
     expect(byId.get(a1)?.ledgerCount).toBe(3);
     expect(byId.get(a2)?.ledgerCount).toBe(1);
+  });
+});
+
+describe("updateMember — dialog Sửa thông tin (2026-07-06)", () => {
+  beforeEach(reset);
+
+  function formData(fields: Record<string, string>) {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(fields)) fd.set(k, v);
+    return fd;
+  }
+
+  it("cập nhật email + sđt hợp lệ", async () => {
+    const id = await seedMember("Cún");
+    const result = await updateMember(
+      id,
+      formData({
+        name: "Cún",
+        nickname: "",
+        email: "cun@example.com",
+        phoneNumber: "0912345678",
+      }),
+    );
+    expect(result).toEqual({ success: true });
+
+    const m = await testDb.query.members.findFirst({
+      where: eq(members.id, id),
+    });
+    expect(m?.email).toBe("cun@example.com");
+    expect(m?.phoneNumber).toBe("0912345678");
+  });
+
+  it("email sai định dạng → error, không lưu", async () => {
+    const id = await seedMember("Mèo");
+    const result = await updateMember(
+      id,
+      formData({
+        name: "Mèo",
+        nickname: "",
+        email: "khong-hop-le",
+        phoneNumber: "",
+      }),
+    );
+    expect(result).toHaveProperty("error");
+
+    const m = await testDb.query.members.findFirst({
+      where: eq(members.id, id),
+    });
+    expect(m?.email).toBeNull();
+  });
+
+  it("email đã bị member khác dùng → error, không lưu", async () => {
+    await seedMember("A", "fb-a-dup");
+    const idA = (await testDb.query.members.findFirst({
+      where: eq(members.name, "A"),
+    }))!.id;
+    await updateMember(
+      idA,
+      formData({
+        name: "A",
+        nickname: "",
+        email: "shared@example.com",
+        phoneNumber: "",
+      }),
+    );
+    const idB = await seedMember("B", "fb-b-dup");
+
+    const result = await updateMember(
+      idB,
+      formData({
+        name: "B",
+        nickname: "",
+        email: "shared@example.com",
+        phoneNumber: "",
+      }),
+    );
+    expect(result).toHaveProperty("error");
+
+    const mB = await testDb.query.members.findFirst({
+      where: eq(members.id, idB),
+    });
+    expect(mB?.email).toBeNull();
+  });
+
+  it("email đã dùng bởi CHÍNH member đó (không đổi) → vẫn cho lưu (không tự conflict với mình)", async () => {
+    const id = await seedMember("Tự sửa");
+    await updateMember(
+      id,
+      formData({
+        name: "Tự sửa",
+        nickname: "",
+        email: "self@example.com",
+        phoneNumber: "",
+      }),
+    );
+    const result = await updateMember(
+      id,
+      formData({
+        name: "Tự sửa",
+        nickname: "Biệt danh mới",
+        email: "self@example.com",
+        phoneNumber: "0900000000",
+      }),
+    );
+    expect(result).toEqual({ success: true });
+  });
+
+  it("email rỗng → xoá email hiện có (set null)", async () => {
+    const id = await seedMember("Xoá email");
+    await updateMember(
+      id,
+      formData({
+        name: "Xoá email",
+        nickname: "",
+        email: "old@example.com",
+        phoneNumber: "",
+      }),
+    );
+    const result = await updateMember(
+      id,
+      formData({ name: "Xoá email", nickname: "", email: "", phoneNumber: "" }),
+    );
+    expect(result).toEqual({ success: true });
+    const m = await testDb.query.members.findFirst({
+      where: eq(members.id, id),
+    });
+    expect(m?.email).toBeNull();
+  });
+
+  it("form KHÔNG gửi field email/phoneNumber (vd flow cũ) → giữ nguyên giá trị hiện có", async () => {
+    const id = await seedMember("Giữ nguyên");
+    await updateMember(
+      id,
+      formData({
+        name: "Giữ nguyên",
+        nickname: "",
+        email: "keep@example.com",
+        phoneNumber: "0911",
+      }),
+    );
+    // Form chỉ gửi name+nickname, KHÔNG có key "email"/"phoneNumber".
+    const fd = new FormData();
+    fd.set("name", "Giữ nguyên");
+    fd.set("nickname", "Đổi biệt danh");
+    const result = await updateMember(id, fd);
+    expect(result).toEqual({ success: true });
+
+    const m = await testDb.query.members.findFirst({
+      where: eq(members.id, id),
+    });
+    expect(m?.email).toBe("keep@example.com");
+    expect(m?.phoneNumber).toBe("0911");
+    expect(m?.nickname).toBe("Đổi biệt danh");
   });
 });
