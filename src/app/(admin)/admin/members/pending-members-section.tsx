@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { fireAction } from "@/lib/optimistic-action";
 import { formatSessionDate } from "@/lib/date-format";
@@ -41,15 +42,27 @@ export interface PendingMember {
   suggestions: NameMatchSuggestion[];
 }
 
+export interface MergeTarget {
+  id: number;
+  name: string;
+  nickname: string | null;
+  hasPassword: boolean;
+}
+
 export function PendingMembersSection({
   pendingMembers,
+  mergeTargets = [],
 }: {
   pendingMembers: PendingMember[];
+  /** Tất cả member đã duyệt — cho dropdown gộp thủ công (kể cả không trùng tên). */
+  mergeTargets?: MergeTarget[];
 }) {
   const t = useTranslations("adminMembers");
   const [busyId, setBusyId] = useState<number | null>(null);
   const [, startTransition] = useTransition();
   const [list, setList] = useState(pendingMembers);
+  // Member được chọn ở dropdown gộp thủ công, theo từng pending id.
+  const [manualPick, setManualPick] = useState<Record<number, string>>({});
 
   if (list.length === 0) return null;
 
@@ -236,6 +249,61 @@ export function PendingMembersSection({
                   ))}
                 </div>
               )}
+
+              {/* Gộp THỦ CÔNG vào member bất kỳ (kể cả không trùng tên) —
+                  dropdown search toàn bộ member đã duyệt. Tái dùng cùng
+                  handleMerge/approveAndMergeMember với suggestions. */}
+              {mergeTargets.length > 0 &&
+                (() => {
+                  const picked = manualPick[m.id] ?? "";
+                  const pickedTarget = mergeTargets.find(
+                    (mt) => String(mt.id) === picked,
+                  );
+                  return (
+                    <div className="mt-3 space-y-1.5">
+                      <p className="text-muted-foreground text-xs font-medium">
+                        {t("mergeManualLabel")}
+                      </p>
+                      <div className="flex gap-2">
+                        <div className="min-w-0 flex-1">
+                          <CustomSelect
+                            value={picked}
+                            onChange={(v) =>
+                              setManualPick((prev) => ({ ...prev, [m.id]: v }))
+                            }
+                            options={mergeTargets.map((mt) => ({
+                              value: String(mt.id),
+                              label: mt.nickname
+                                ? `${mt.name} (${mt.nickname})`
+                                : mt.name,
+                            }))}
+                            placeholder={t("mergeManualPlaceholder")}
+                            searchable
+                            searchPlaceholder={t("mergeManualSearch")}
+                          />
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={busyId === m.id || !pickedTarget}
+                          onClick={() =>
+                            pickedTarget &&
+                            handleMerge(
+                              m.id,
+                              pickedTarget.id,
+                              pickedTarget.name,
+                              pickedTarget.hasPassword,
+                            )
+                          }
+                          className="min-h-11 shrink-0"
+                        >
+                          <LinkIcon className="mr-1 h-4 w-4" />
+                          {t("mergeManualButton")}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })()}
 
               <div className="mt-3 flex gap-2">
                 <Button

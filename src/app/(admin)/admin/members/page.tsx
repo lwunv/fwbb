@@ -60,6 +60,20 @@ export default async function MembersPage() {
     })),
   );
 
+  // Merge targets cho dropdown "gộp thủ công" ở mỗi pending card — TẤT CẢ
+  // member đã duyệt (kể cả không trùng tên), để admin chủ động gộp pending
+  // signup vào bất kỳ ai. Chỉ whitelist field cần cho dropdown + cảnh báo
+  // reset-password (hasPassword), không đổ nguyên row (tránh lộ PII).
+  const mergeTargets = members
+    .filter((m) => m.approvalStatus === "approved")
+    .map((m) => ({
+      id: m.id,
+      name: m.name,
+      nickname: m.nickname,
+      hasPassword: !!m.passwordHash,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   const fundMemberIdList = fundMemberRows.map((r) => r.id);
 
   const memberIds = members.map((m) => m.id);
@@ -112,7 +126,10 @@ export default async function MembersPage() {
   return (
     <div className="space-y-3">
       {pendingMembers.length > 0 && (
-        <PendingMembersSection pendingMembers={pendingMembers} />
+        <PendingMembersSection
+          pendingMembers={pendingMembers}
+          mergeTargets={mergeTargets}
+        />
       )}
       {dupGroups.length > 0 && <DuplicateMembersBanner groups={dupGroups} />}
       <MemberList
