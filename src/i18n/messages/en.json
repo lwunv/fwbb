@@ -361,6 +361,7 @@
     "emailPlaceholder": "email@example.com",
     "emailInvalid": "Invalid email.",
     "emailTaken": "That email is used by another account.",
+    "editProfileToggle": "Edit your info",
     "saveProfile": "Save",
     "savingProfile": "Saving...",
     "profileNotSignedIn": "Please identify yourself first.",

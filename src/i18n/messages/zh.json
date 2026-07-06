@@ -361,6 +361,7 @@
     "emailPlaceholder": "email@example.com",
     "emailInvalid": "邮箱无效。",
     "emailTaken": "该邮箱已被其他账号使用。",
+    "editProfileToggle": "编辑个人信息",
     "saveProfile": "保存",
     "savingProfile": "保存中...",
     "profileNotSignedIn": "请先完成身份确认。",

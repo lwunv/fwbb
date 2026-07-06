@@ -361,6 +361,7 @@
     "emailPlaceholder": "email@example.com",
     "emailInvalid": "Email không hợp lệ.",
     "emailTaken": "Email đã được dùng bởi tài khoản khác.",
+    "editProfileToggle": "Sửa thông tin cá nhân",
     "saveProfile": "Lưu",
     "savingProfile": "Đang lưu...",
     "profileNotSignedIn": "Vui lòng xác định danh tính trước.",

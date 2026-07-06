@@ -8,6 +8,7 @@ import {
   type FormEvent,
 } from "react";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +31,8 @@ import {
   Banknote,
   PiggyBank,
   ChevronRight,
+  ChevronDown,
+  Pencil,
   Loader2,
   Check,
 } from "lucide-react";
@@ -166,6 +169,9 @@ export function MeClient({
   // spinner, không toast) → user không biết đã lưu chưa.
   const [saving, setSaving] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
+  // Gom cụm sửa thông tin vào toggle (mặc định thu gọn) — trang /me gọn hơn,
+  // các field chỉ hiện khi user chủ động bấm "Sửa thông tin".
+  const [editOpen, setEditOpen] = useState(false);
 
   function handleProfileSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -241,113 +247,144 @@ export function MeClient({
             </form>
           </div>
 
-          <form onSubmit={handleProfileSubmit} className="space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="me-nickname">{tMe("nicknameLabel")}</Label>
-              <Input
-                id="me-nickname"
-                name="nickname"
-                type="text"
-                value={nicknameDraft}
-                onChange={(e) => setNicknameDraft(e.target.value)}
-                autoComplete="nickname"
-                placeholder={tMe("nicknamePlaceholder")}
-                maxLength={40}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="me-username">{tMe("usernameLabel")}</Label>
-              <Input
-                id="me-username"
-                name="username"
-                type="text"
-                value={usernameDraft}
-                onChange={(e) => setUsernameDraft(e.target.value)}
-                autoComplete="username"
-                placeholder={tMe("usernamePlaceholder")}
-                maxLength={32}
-              />
-              <p className="text-muted-foreground text-xs">
-                {tMe("usernameHint")}
-              </p>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="me-phone">{tMe("phoneLabel")}</Label>
-              <Input
-                id="me-phone"
-                name="phoneNumber"
-                type="tel"
-                inputMode="tel"
-                value={phoneDraft}
-                onChange={(e) => setPhoneDraft(e.target.value)}
-                autoComplete="tel"
-                placeholder={tMe("phonePlaceholder")}
-                maxLength={20}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="me-email">{tMe("emailLabel")}</Label>
-              <Input
-                id="me-email"
-                name="email"
-                type="email"
-                inputMode="email"
-                value={emailDraft}
-                onChange={(e) => setEmailDraft(e.target.value)}
-                autoComplete="email"
-                placeholder={tMe("emailPlaceholder")}
-                maxLength={200}
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => setWithPartner((v) => !v)}
-              aria-pressed={withPartner}
+          {/* Toggle mở cụm sửa thông tin — mặc định thu gọn cho gọn trang. */}
+          <button
+            type="button"
+            onClick={() => setEditOpen((v) => !v)}
+            aria-expanded={editOpen}
+            className="hover:bg-muted/30 -mx-2 flex min-h-11 w-[calc(100%+1rem)] items-center justify-between gap-2 rounded-lg px-2 py-2 text-left transition-colors"
+          >
+            <span className="flex items-center gap-2 text-sm font-medium">
+              <Pencil className="text-muted-foreground h-4 w-4 shrink-0" />
+              {tMe("editProfileToggle")}
+            </span>
+            <ChevronDown
               className={cn(
-                "flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5 text-left transition-colors",
-                withPartner
-                  ? "border-primary bg-primary/[0.06]"
-                  : "border-border bg-background hover:border-primary/40",
+                "text-muted-foreground h-4 w-4 shrink-0 transition-transform",
+                editOpen && "rotate-180",
               )}
-            >
-              <span className="flex items-center gap-2 text-sm">
-                <span className="text-lg leading-none" aria-hidden>
-                  👫
-                </span>
-                {tMe("withPartnerLabel")}
-              </span>
-              <span
-                className={cn(
-                  "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
-                  withPartner ? "bg-primary" : "bg-muted-foreground/30",
-                )}
+            />
+          </button>
+
+          <AnimatePresence initial={false}>
+            {editOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
               >
-                <span
-                  className={cn(
-                    "inline-block h-5 w-5 transform rounded-full bg-white transition-transform",
-                    withPartner ? "translate-x-5" : "translate-x-0.5",
-                  )}
-                />
-              </span>
-            </button>
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={saving}
-              aria-live="polite"
-            >
-              {saving ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : justSaved ? (
-                <Check className="mr-2 h-4 w-4" />
-              ) : null}
-              {saving
-                ? tMe("saving")
-                : justSaved
-                  ? tMe("profileSaved")
-                  : tMe("saveProfile")}
-            </Button>
-          </form>
+                <form onSubmit={handleProfileSubmit} className="space-y-3 pt-1">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="me-nickname">{tMe("nicknameLabel")}</Label>
+                    <Input
+                      id="me-nickname"
+                      name="nickname"
+                      type="text"
+                      value={nicknameDraft}
+                      onChange={(e) => setNicknameDraft(e.target.value)}
+                      autoComplete="nickname"
+                      placeholder={tMe("nicknamePlaceholder")}
+                      maxLength={40}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="me-username">{tMe("usernameLabel")}</Label>
+                    <Input
+                      id="me-username"
+                      name="username"
+                      type="text"
+                      value={usernameDraft}
+                      onChange={(e) => setUsernameDraft(e.target.value)}
+                      autoComplete="username"
+                      placeholder={tMe("usernamePlaceholder")}
+                      maxLength={32}
+                    />
+                    <p className="text-muted-foreground text-xs">
+                      {tMe("usernameHint")}
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="me-phone">{tMe("phoneLabel")}</Label>
+                    <Input
+                      id="me-phone"
+                      name="phoneNumber"
+                      type="tel"
+                      inputMode="tel"
+                      value={phoneDraft}
+                      onChange={(e) => setPhoneDraft(e.target.value)}
+                      autoComplete="tel"
+                      placeholder={tMe("phonePlaceholder")}
+                      maxLength={20}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="me-email">{tMe("emailLabel")}</Label>
+                    <Input
+                      id="me-email"
+                      name="email"
+                      type="email"
+                      inputMode="email"
+                      value={emailDraft}
+                      onChange={(e) => setEmailDraft(e.target.value)}
+                      autoComplete="email"
+                      placeholder={tMe("emailPlaceholder")}
+                      maxLength={200}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setWithPartner((v) => !v)}
+                    aria-pressed={withPartner}
+                    className={cn(
+                      "flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5 text-left transition-colors",
+                      withPartner
+                        ? "border-primary bg-primary/[0.06]"
+                        : "border-border bg-background hover:border-primary/40",
+                    )}
+                  >
+                    <span className="flex items-center gap-2 text-sm">
+                      <span className="text-lg leading-none" aria-hidden>
+                        👫
+                      </span>
+                      {tMe("withPartnerLabel")}
+                    </span>
+                    <span
+                      className={cn(
+                        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
+                        withPartner ? "bg-primary" : "bg-muted-foreground/30",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "inline-block h-5 w-5 transform rounded-full bg-white transition-transform",
+                          withPartner ? "translate-x-5" : "translate-x-0.5",
+                        )}
+                      />
+                    </span>
+                  </button>
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={saving}
+                    aria-live="polite"
+                  >
+                    {saving ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : justSaved ? (
+                      <Check className="mr-2 h-4 w-4" />
+                    ) : null}
+                    {saving
+                      ? tMe("saving")
+                      : justSaved
+                        ? tMe("profileSaved")
+                        : tMe("saveProfile")}
+                  </Button>
+                </form>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </CardContent>
       </Card>
 
