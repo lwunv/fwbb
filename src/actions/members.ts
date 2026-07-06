@@ -9,6 +9,7 @@ import {
   sessionDebts,
   financialTransactions,
   admins,
+  memberOauthIdentities,
 } from "@/db/schema";
 import { eq, sql, or, ne, and, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -21,7 +22,11 @@ import { AVATAR_BRAND_KEYS } from "@/lib/member-avatar-presets";
 import { AVATAR_EMOJI_COUNT } from "@/lib/member-avatar-emoji";
 import { computeBalanceFromTransactions } from "@/lib/fund-core";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
-import { foldOAuthIntoTarget } from "@/lib/oauth-identity";
+import {
+  foldOAuthIntoTarget,
+  countLoginMethods,
+  isUsablePassword,
+} from "@/lib/oauth-identity";
 import { z } from "zod";
 
 export type UpdateMyProfileState = null | { success: true } | { error: string };
@@ -824,5 +829,104 @@ export async function mergeMember(sourceId: number, targetId: number) {
   revalidatePath("/admin/fund");
   revalidatePath("/admin/sessions");
   revalidatePath("/admin/dashboard");
+  return { success: true };
+}
+
+/**
+ * Self-service (multi-SSO): member gỡ 1 tài khoản đăng nhập OAuth khỏi hồ sơ
+ * của mình. Chặn gỡ PHƯƠNG THỨC ĐĂNG NHẬP CUỐI CÙNG khi chưa có mật khẩu (nếu
+ * không member sẽ mất hẳn đường vào). Xoá cả cột legacy googleId/facebookId nếu
+ * trùng uid — nếu không `findMemberByOAuth` fallback legacy vẫn cho login lại.
+ */
+export async function unlinkOAuthIdentity(identityId: number) {
+  const t = await getTranslations("serverErrors");
+  const user = await getUserFromCookie();
+  if (!user) return { error: t("notSignedIn") };
+  if (!Number.isInteger(identityId)) return { error: t("invalidId") };
+
+  const rl = await checkRateLimit(
+    `oauth-unlink:${user.memberId}`,
+    10,
+    5 * 60_000,
+  );
+  if (!rl.ok) {
+    return {
+      error: t("tooManyLoginAttempts", { seconds: rl.retryAfter ?? 60 }),
+    };
+  }
+
+  const identity = await db.query.memberOauthIdentities.findFirst({
+    where: eq(memberOauthIdentities.id, identityId),
+  });
+  // Chỉ chủ hồ sơ mới gỡ được identity của chính mình.
+  if (!identity || identity.memberId !== user.memberId) {
+    return { error: t("oauthIdentityNotFound") };
+  }
+
+  // Mật khẩu dùng được (loại temp hết hạn) — ổn định trong thao tác này nên đọc
+  // ngoài tx được. Số lượng identity thì phải đếm TRONG tx (chống race 2 lần gỡ).
+  const member = await db.query.members.findFirst({
+    where: eq(members.id, user.memberId),
+    columns: { passwordHash: true, passwordResetExpiresAt: true },
+  });
+  const pwUsable = isUsablePassword(
+    member?.passwordHash ?? null,
+    member?.passwordResetExpiresAt ?? null,
+  );
+
+  // Pre-check nhanh (báo lỗi thân thiện, khỏi mở tx khi rõ là phương thức cuối).
+  const pre = await countLoginMethods(user.memberId);
+  if (pre.identities <= 1 && !pwUsable) {
+    return { error: t("oauthLastMethod") };
+  }
+
+  const ROLLBACK = "__ROLLBACK_LAST_METHOD__";
+  try {
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(memberOauthIdentities)
+        .where(eq(memberOauthIdentities.id, identityId));
+      // Re-check TRONG tx: đếm lại identity còn lại SAU khi xóa. Turso serialize
+      // các write-tx → 2 lần gỡ đồng thời: cái sau thấy state của cái trước, nếu
+      // còn 0 + không có mật khẩu dùng được thì rollback (chống tự khóa).
+      const remaining = await tx
+        .select({ id: memberOauthIdentities.id })
+        .from(memberOauthIdentities)
+        .where(eq(memberOauthIdentities.memberId, user.memberId));
+      if (remaining.length === 0 && !pwUsable) {
+        throw new Error(ROLLBACK);
+      }
+      // Dọn cột legacy nếu đang trỏ đúng uid vừa gỡ (fallback trong
+      // findMemberByOAuth đọc cột này → phải clear để login qua uid đó tắt hẳn).
+      if (identity.provider === "google") {
+        await tx
+          .update(members)
+          .set({ googleId: null })
+          .where(
+            and(
+              eq(members.id, user.memberId),
+              eq(members.googleId, identity.providerUid),
+            ),
+          );
+      } else {
+        await tx
+          .update(members)
+          .set({ facebookId: null })
+          .where(
+            and(
+              eq(members.id, user.memberId),
+              eq(members.facebookId, identity.providerUid),
+            ),
+          );
+      }
+    });
+  } catch (e) {
+    if (e instanceof Error && e.message === ROLLBACK) {
+      return { error: t("oauthLastMethod") };
+    }
+    throw e;
+  }
+
+  revalidatePath("/me");
   return { success: true };
 }

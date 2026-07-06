@@ -146,6 +146,26 @@ export async function getMemberIdentities(
  * identity + (có passwordHash ? 1 : 0). Dùng để chặn gỡ identity CUỐI CÙNG khi
  * member không có mật khẩu (nếu không họ sẽ mất hẳn đường vào).
  */
+/**
+ * Mật khẩu có DÙNG ĐƯỢC để đăng nhập không: có hash VÀ không phải mật khẩu tạm
+ * đã hết hạn (loginWithPassword từ chối temp quá hạn). Dùng cho guard "gỡ
+ * phương thức đăng nhập cuối" — nếu tính cả temp hết hạn là "có mật khẩu",
+ * member có thể gỡ Google cuối rồi kẹt ngoài với quỹ đóng băng.
+ */
+export function isUsablePassword(
+  passwordHash: string | null,
+  passwordResetExpiresAt: string | null,
+): boolean {
+  if (!passwordHash) return false;
+  if (
+    passwordResetExpiresAt &&
+    new Date(passwordResetExpiresAt).getTime() < Date.now()
+  ) {
+    return false;
+  }
+  return true;
+}
+
 export async function countLoginMethods(memberId: number): Promise<{
   identities: number;
   hasPassword: boolean;
@@ -157,10 +177,16 @@ export async function countLoginMethods(memberId: number): Promise<{
     }),
     db.query.members.findFirst({
       where: eq(members.id, memberId),
-      columns: { passwordHash: true },
+      columns: { passwordHash: true, passwordResetExpiresAt: true },
     }),
   ]);
-  return { identities: ids.length, hasPassword: !!m?.passwordHash };
+  return {
+    identities: ids.length,
+    hasPassword: isUsablePassword(
+      m?.passwordHash ?? null,
+      m?.passwordResetExpiresAt ?? null,
+    ),
+  };
 }
 
 /**

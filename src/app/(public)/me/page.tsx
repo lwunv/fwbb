@@ -4,8 +4,10 @@ import { members, sessionDebts } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { getFundBalance, isFundMember } from "@/lib/fund-calculator";
+import { getMemberIdentities, isUsablePassword } from "@/lib/oauth-identity";
 import { MeClient } from "./me-client";
 import { SetPasswordSection } from "./set-password-section";
+import { LinkedAccountsSection } from "./linked-accounts-section";
 
 export default async function MePage() {
   const user = await getUserFromCookie();
@@ -33,6 +35,7 @@ export default async function MePage() {
     .reduce((sum, d) => sum + d.totalAmount, 0);
 
   const isInFund = await isFundMember(user.memberId);
+  const linkedIdentities = await getMemberIdentities(user.memberId);
   const rawBalance = (await getFundBalance(user.memberId)).balance;
   // Hiển thị balance nếu còn trong quỹ HOẶC còn số dư đóng băng (member đã khóa
   // nhưng chưa hoàn) — tránh member tưởng mất tiền.
@@ -58,6 +61,13 @@ export default async function MePage() {
       <SetPasswordSection
         hasPassword={!!member.passwordHash}
         hasEmail={!!member.email}
+      />
+      <LinkedAccountsSection
+        identities={linkedIdentities}
+        hasPassword={isUsablePassword(
+          member.passwordHash ?? null,
+          member.passwordResetExpiresAt ?? null,
+        )}
       />
     </div>
   );
