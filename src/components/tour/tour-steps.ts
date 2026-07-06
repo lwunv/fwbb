@@ -13,18 +13,23 @@ export function buildTourSteps(t: T): DriveStep[] {
   return [
     // 1. Welcome (canh giữa)
     { popover: s(t("welcomeTitle"), t("welcomeDesc")) },
-    // 2-4. Vote (home, khi có buổi đang mở)
+    // 2-5. Vote (home, khi có buổi đang mở): chơi cầu → nhậu → thêm khách →
+    // đi 2 người. Mỗi step neo đúng ô tương ứng để mô tả rõ thao tác.
     {
       element: '[data-tour="vote-play"]',
       popover: s(t("votePlayTitle"), t("votePlayDesc")),
     },
     {
-      element: '[data-tour="vote-partner"]',
-      popover: s(t("votePartnerTitle"), t("votePartnerDesc")),
+      element: '[data-tour="vote-dine"]',
+      popover: s(t("voteDineTitle"), t("voteDineDesc")),
     },
     {
       element: '[data-tour="vote-guest"]',
       popover: s(t("voteGuestTitle"), t("voteGuestDesc")),
+    },
+    {
+      element: '[data-tour="vote-partner"]',
+      popover: s(t("votePartnerTitle"), t("votePartnerDesc")),
     },
     // 5-6. Quỹ (khi banner quỹ hiện)
     {

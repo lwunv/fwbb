@@ -660,7 +660,11 @@ export function AdminVoteManager({
                 key={member.id}
                 className="bg-card border-primary/30 rounded-xl border px-2 py-1.5 shadow-sm"
               >
-                <div className="flex min-h-[3.5rem] items-center gap-2">
+                {/* Mobile: xếp DỌC (dòng 1 = avatar+tên+tiền full width, dòng 2
+                    = cụm nút vote/thanh toán tự xuống dòng). Desktop (sm:) gộp
+                    lại 1 hàng ngang như cũ. Trước đây nhồi tất cả 1 hàng →
+                    màn hẹp không đủ chỗ, cột tiền bị ép, số rớt dòng lộn xộn. */}
+                <div className="flex flex-col gap-2 sm:min-h-[3.5rem] sm:flex-row sm:items-center">
                   <button
                     type="button"
                     onClick={() => {
@@ -674,7 +678,7 @@ export function AdminVoteManager({
                         currentBalance: memberBalances[member.id],
                       });
                     }}
-                    className="hover:bg-muted/30 -m-1 flex min-w-0 flex-1 items-center gap-2 rounded-lg p-1 text-left transition-colors"
+                    className="hover:bg-muted/30 -m-1 flex w-full min-w-0 items-center gap-2 rounded-lg p-1 text-left transition-colors sm:flex-1"
                   >
                     <MemberAvatar
                       memberId={member.id}
@@ -771,7 +775,9 @@ export function AdminVoteManager({
                     </div>
                   </button>
 
-                  <div className="flex shrink-0 items-center gap-2">
+                  {/* Cụm điều khiển: mobile tự xuống dòng (flex-wrap) thành dòng
+                      2; desktop giữ 1 hàng, dồn phải. */}
+                  <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:flex-nowrap sm:justify-end">
                     {/* Cầu — đã vote: LED border + border tĩnh primary; chưa vote: dashed mờ */}
                     {v.willPlay ? (
                       <div className="led-border-sm primary inline-flex">
@@ -873,9 +879,6 @@ export function AdminVoteManager({
                         🪙
                       </button>
                     ) : null}
-                  </div>
-
-                  <div className="flex min-w-[3.5rem] shrink-0 items-center justify-end gap-1.5">
                     {sc?.isCompleted && amountShown != null && (
                       <span
                         className={`text-sm font-bold tabular-nums ${

@@ -382,6 +382,7 @@ export function VoteButtons({
 
       {/* Nhậu (Tăng 2): luôn theme cam — không dùng primary */}
       <div
+        data-tour="vote-dine"
         className={cn(
           "overflow-hidden rounded-xl border-2 transition-[border-color,box-shadow,background-color] duration-150",
           willDine

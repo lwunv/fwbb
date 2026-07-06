@@ -8,7 +8,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { deriveSessionBadge } from "@/lib/session-status";
 import { VoteCountdown } from "@/components/sessions/vote-countdown";
 import type { AppLocale } from "@/lib/date-fns-locale";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 interface SessionCardProps {
   date: string;
@@ -64,6 +64,27 @@ export function SessionCard({
   const showCountdown =
     !!voteDeadline && (normStatus === "voting" || normStatus === "confirmed");
 
+  // Khi deadline đã qua, badge "Đang vote" (theo status DB) + đồng hồ "Đã đóng
+  // vote" hiện cùng lúc → mâu thuẫn. Theo dõi mốc deadline client-side để khi
+  // hết giờ chỉ hiện "Đã đóng vote", ẩn badge "Đang vote". Init false cho
+  // hydration-safe; effect hội tụ ở tick client đầu tiên.
+  const [deadlinePassed, setDeadlinePassed] = useState(false);
+  useEffect(() => {
+    if (!showCountdown || !voteDeadline) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset khi hết deadline/không còn votable.
+      setDeadlinePassed(false);
+      return;
+    }
+    const msUntil = new Date(voteDeadline).getTime() - Date.now();
+    if (msUntil <= 0) {
+      setDeadlinePassed(true);
+      return;
+    }
+    setDeadlinePassed(false);
+    const timer = setTimeout(() => setDeadlinePassed(true), msUntil);
+    return () => clearTimeout(timer);
+  }, [showCountdown, voteDeadline]);
+
   const card = (
     <Card className={isVoting ? "ring-0" : ""}>
       <CardContent className="space-y-3 p-4">
@@ -83,12 +104,23 @@ export function SessionCard({
               bình thường. Trước đây countdown đặt absolute đè lên hàng chip →
               chồng UI khi chip lấp đầy chiều ngang (bug trang chủ). */}
           <div className="flex shrink-0 flex-col items-end gap-1.5">
-            <StatusBadge variant={badgeVariant}>{badgeText}</StatusBadge>
-            {showCountdown && (
+            {showCountdown && deadlinePassed ? (
+              // Hết giờ vote: chỉ hiện "Đã đóng vote" (đồng hồ), KHÔNG hiện
+              // badge "Đang vote" → tránh 2 trạng thái mâu thuẫn.
               <VoteCountdown
                 deadline={voteDeadline ?? null}
                 variant="compact"
               />
+            ) : (
+              <>
+                <StatusBadge variant={badgeVariant}>{badgeText}</StatusBadge>
+                {showCountdown && (
+                  <VoteCountdown
+                    deadline={voteDeadline ?? null}
+                    variant="compact"
+                  />
+                )}
+              </>
             )}
           </div>
         </div>
