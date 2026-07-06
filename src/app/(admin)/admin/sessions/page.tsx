@@ -8,7 +8,7 @@ import {
   sessionMinDeductionExemptions,
   financialTransactions,
 } from "@/db/schema";
-import { and, asc, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
 import { computeBalancesForMembers } from "@/lib/fund-core";
 import { ymdInVN } from "@/lib/date-format";
 import { getDefaultCourt, getSessionDaysOfWeek } from "@/actions/settings";
@@ -25,10 +25,21 @@ const STATUS_FILTERS = [
   "cancelled",
 ] as const satisfies readonly StatusFilter[];
 
+/** YYYY-MM-DD hợp lệ (thô, đủ để chặn giá trị rác vào query). */
+function isYmd(s: string | undefined): s is string {
+  return !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
+
 export default async function SessionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; status?: string }>;
+  searchParams: Promise<{
+    page?: string;
+    status?: string;
+    from?: string;
+    to?: string;
+    view?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const pageNum = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
@@ -36,6 +47,10 @@ export default async function SessionsPage({
   const statusFilter: StatusFilter = STATUS_FILTERS.includes(statusParam)
     ? statusParam
     : "all";
+  // Date-range filter (tùy chọn) — chỉ nhận YYYY-MM-DD hợp lệ.
+  const fromDate = isYmd(sp.from) ? sp.from : null;
+  const toDate = isYmd(sp.to) ? sp.to : null;
+  const viewMode = sp.view === "list" ? "list" : "cards";
 
   // Where clause theo status filter:
   // - "voting"        → active upcoming/today (status voting/confirmed + date >= today)
@@ -50,7 +65,7 @@ export default async function SessionsPage({
     inArray(sessions.status, ["voting", "confirmed"]),
     gte(sessions.date, today),
   );
-  const whereClause =
+  const statusClause =
     statusFilter === "voting"
       ? isActiveVoting
       : statusFilter === "needsConfirm"
@@ -63,6 +78,15 @@ export default async function SessionsPage({
           : statusFilter === "cancelled"
             ? eq(sessions.status, "cancelled")
             : undefined;
+
+  // Kết hợp status + khoảng ngày (from/to). `and(...[])` bỏ undefined tự động;
+  // rỗng hết → undefined (không lọc).
+  const dateConds = [
+    fromDate ? gte(sessions.date, fromDate) : undefined,
+    toDate ? lte(sessions.date, toDate) : undefined,
+  ].filter(Boolean);
+  const whereClause =
+    dateConds.length > 0 ? and(statusClause, ...dateConds) : statusClause;
 
   // 2-wave fetch: count trước để clamp page, rồi fetch slice theo safePage.
   // Tránh case URL `?page=99` nhưng thực tế chỉ có 3 trang → fetch empty slice.
@@ -319,6 +343,9 @@ export default async function SessionsPage({
         currentPage={safePage}
         totalPages={totalPages}
         currentStatusFilter={statusFilter}
+        currentFrom={fromDate}
+        currentTo={toDate}
+        viewMode={viewMode}
         defaultCourtId={defaultCourt?.id ?? null}
         sessionDays={sessionDays}
         memberBalances={memberBalances}
