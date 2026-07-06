@@ -70,21 +70,22 @@ async function voteOf(sessionId: number, memberId: number) {
 describe("submitVote — upsert + validation + gate", () => {
   beforeEach(reset);
 
-  it("ghi vote mới đúng giá trị (play/dine/guest)", async () => {
+  it("ghi vote mới đúng giá trị; khách member bị ép 0 (chỉ admin thêm khách)", async () => {
     const id = await seedMember();
     const s = await seedSession("voting");
 
+    // Client có thể gửi guest count (RPC), nhưng server ép về 0.
     const r = await submitVote(s, true, true, 2, 1, false);
     expect("error" in r).toBe(false);
 
     const v = await voteOf(s, id);
     expect(v?.willPlay).toBe(true);
     expect(v?.willDine).toBe(true);
-    expect(v?.guestPlayCount).toBe(2);
-    expect(v?.guestDineCount).toBe(1);
+    expect(v?.guestPlayCount).toBe(0);
+    expect(v?.guestDineCount).toBe(0);
   });
 
-  it("vote lại UPDATE đúng 1 row (không nhân đôi)", async () => {
+  it("vote lại UPDATE đúng 1 row (không nhân đôi); khách vẫn 0", async () => {
     const id = await seedMember();
     const s = await seedSession("voting");
 
@@ -97,7 +98,7 @@ describe("submitVote — upsert + validation + gate", () => {
     expect(rows.length).toBe(1);
     expect(rows[0].willPlay).toBe(false);
     expect(rows[0].willDine).toBe(true);
-    expect(rows[0].guestPlayCount).toBe(3);
+    expect(rows[0].guestPlayCount).toBe(0);
   });
 
   it("chặn vote khi session đã completed", async () => {
@@ -133,5 +134,99 @@ describe("submitVote — upsert + validation + gate", () => {
     const s = await seedSession("voting");
     const r = await submitVote(s, true, false, 0, 0, false);
     expect("error" in r).toBe(true);
+  });
+});
+
+/** Seed n member KHÁC + vote chơi cầu cho họ (mỗi người 1 đầu, hoặc 2 nếu partner). */
+async function seedPlayers(sessionId: number, n: number, withPartner = false) {
+  for (let i = 0; i < n; i++) {
+    const [m] = await testDb
+      .insert(members)
+      .values({ name: `P${i}`, isActive: true, approvalStatus: "approved" })
+      .returning({ id: members.id });
+    await testDb.insert(votes).values({
+      sessionId,
+      memberId: m.id,
+      willPlay: true,
+      willDine: false,
+      guestPlayCount: 0,
+      guestDineCount: 0,
+      withPartner,
+    });
+  }
+}
+
+describe("submitVote — giới hạn 16 người chơi cầu (Hết slot)", () => {
+  beforeEach(reset);
+
+  it("chặn vote chơi khi đã đủ 16 người", async () => {
+    const id = await seedMember();
+    const s = await seedSession("voting");
+    await seedPlayers(s, 16); // 16 đầu chơi từ member khác
+
+    const r = await submitVote(s, true, false, 0, 0, false);
+    expect("error" in r).toBe(true);
+    // Không tạo vote chơi cho member này.
+    expect(await voteOf(s, id)).toBeUndefined();
+  });
+
+  it("member ĐANG chơi vẫn bỏ được vote khi đủ 16", async () => {
+    const id = await seedMember();
+    const s = await seedSession("voting");
+    await seedPlayers(s, 15); // 15 khác + member này = 16
+    await testDb.insert(votes).values({
+      sessionId: s,
+      memberId: id,
+      willPlay: true,
+      willDine: false,
+      guestPlayCount: 0,
+      guestDineCount: 0,
+      withPartner: false,
+    });
+
+    const r = await submitVote(s, false, false, 0, 0, false); // bỏ chơi
+    expect("error" in r).toBe(false);
+    expect((await voteOf(s, id))?.willPlay).toBe(false);
+  });
+
+  it("cho vote NHẬU khi chơi đã đủ 16", async () => {
+    const id = await seedMember();
+    const s = await seedSession("voting");
+    await seedPlayers(s, 16);
+
+    const r = await submitVote(s, false, true, 0, 0, false); // chỉ nhậu
+    expect("error" in r).toBe(false);
+    expect((await voteOf(s, id))?.willDine).toBe(true);
+  });
+
+  it("chặn 'đi 2 mình' khi chỉ còn 1 slot", async () => {
+    await seedMember();
+    const s = await seedSession("voting");
+    await seedPlayers(s, 15); // còn 1 slot
+
+    const r = await submitVote(s, true, false, 0, 0, true); // +2 đầu → 17
+    expect("error" in r).toBe(true);
+  });
+
+  it("cho 'đi 2 mình' khi còn đúng 2 slot", async () => {
+    await seedMember();
+    const s = await seedSession("voting");
+    await seedPlayers(s, 14); // còn 2 slot
+
+    const r = await submitVote(s, true, false, 0, 0, true); // +2 đầu → 16
+    expect("error" in r).toBe(false);
+  });
+
+  it("khách của admin tính vào sức chứa 16", async () => {
+    const id = await seedMember();
+    const s = await seedSession("voting");
+    await testDb
+      .update(sessions)
+      .set({ adminGuestPlayCount: 16 })
+      .where(eq(sessions.id, s));
+
+    const r = await submitVote(s, true, false, 0, 0, false);
+    expect("error" in r).toBe(true);
+    expect(await voteOf(s, id)).toBeUndefined();
   });
 });

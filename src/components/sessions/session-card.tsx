@@ -26,6 +26,8 @@ interface SessionCardProps {
    * theo GIÂY ngay TRONG thẻ. Quá hạn → component tự hiển "Đã đóng vote".
    */
   voteDeadline?: string | null;
+  /** Đủ 16 người chơi cầu → hiện badge "Hết slot". */
+  playFull?: boolean;
   /** Nội dung render ở ĐỈNH thẻ (vd hàng chip chọn thứ) — nằm bên trong card. */
   topSlot?: ReactNode;
 }
@@ -42,10 +44,12 @@ export function SessionCard({
   guestPlayCount,
   guestDineCount,
   voteDeadline,
+  playFull = false,
   topSlot,
 }: SessionCardProps) {
   const t = useTranslations("sessions");
   const tF = useTranslations("finance");
+  const tv = useTranslations("voting");
   const locale = useLocale() as AppLocale;
 
   // Badge derivation shared with session-list + session-detail (single source).
@@ -104,6 +108,11 @@ export function SessionCard({
               bình thường. Trước đây countdown đặt absolute đè lên hàng chip →
               chồng UI khi chip lấp đầy chiều ngang (bug trang chủ). */}
           <div className="flex shrink-0 flex-col items-end gap-1.5">
+            {playFull && (
+              <span className="border-destructive/30 bg-destructive/10 text-destructive inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-semibold">
+                {tv("slotsFull")}
+              </span>
+            )}
             {showCountdown && deadlinePassed ? (
               // Hết giờ vote: chỉ hiện "Đã đóng vote" (đồng hồ), KHÔNG hiện
               // badge "Đang vote" → tránh 2 trạng thái mâu thuẫn.

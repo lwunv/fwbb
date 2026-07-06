@@ -27,6 +27,9 @@ export interface WeekSessionItem {
   voteDeadline: string | null;
   /** Đã tính sẵn server-side (status + deadline). Buổi xong → false → view-only. */
   isVotingOpen: boolean;
+  /** Khách của admin (tính vào tổng người + sức chứa 16). */
+  adminGuestPlayCount: number;
+  adminGuestDineCount: number;
   votes: VoteWithMember[];
 }
 
@@ -144,6 +147,8 @@ export function WeekSessionsView({
           currentMemberId={currentMemberId}
           isVotingOpen={selected.session.isVotingOpen}
           voteDeadline={selected.session.voteDeadline}
+          adminGuestPlayCount={selected.session.adminGuestPlayCount}
+          adminGuestDineCount={selected.session.adminGuestDineCount}
         />
       ) : (
         <Card className="bg-card/80 supports-[backdrop-filter]:bg-card/70 backdrop-blur">

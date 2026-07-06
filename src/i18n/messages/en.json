@@ -169,7 +169,9 @@
     "voteDeadlineClear": "Clear deadline",
     "voteDeadlineExtend2h": "+2 hours",
     "voteDeadlineExtend24h": "+24 hours",
-    "withPartner": "Two people"
+    "withPartner": "Two people",
+    "partnerShort": "+1",
+    "slotsFull": "Full"
   },
   "finance": {
     "debts": "Debts",
@@ -1043,6 +1045,7 @@
     "wrongCurrentPassword": "Current password is incorrect",
     "fbAppNotConfigured": "Facebook app not configured",
     "voteNotAccepted": "This session no longer accepts votes",
+    "playSlotsFull": "Play slots are full (max 16 players)",
     "sessionNotFound": "Session not found",
     "sessionNotFoundShort": "Session not found",
     "invalidSessionId": "Invalid sessionId",

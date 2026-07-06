@@ -18,6 +18,7 @@ import {
   attendingVotesCount,
   countVoteParticipation,
 } from "@/lib/vote-list-utils";
+import { isPlayFull } from "@/lib/vote-capacity";
 import type { InferSelectModel } from "drizzle-orm";
 import type { members as membersTable } from "@/db/schema";
 
@@ -43,6 +44,10 @@ interface SessionVoteOptimisticPanelProps {
    * the source of truth; this is defense-in-depth UI per the vote-deadline spec.
    */
   voteDeadline?: string | null;
+  /** Khách của admin (lưu trên session, không phải vote row) — tính vào tổng
+   *  người chơi/nhậu + sức chứa 16. Khách của member đã bỏ. */
+  adminGuestPlayCount?: number;
+  adminGuestDineCount?: number;
   /** Render ở đỉnh SessionCard (vd hàng chip chọn thứ). Forward xuống topSlot. */
   headerSlot?: ReactNode;
 }
@@ -55,6 +60,8 @@ export function SessionVoteOptimisticPanel({
   currentMemberId,
   isVotingOpen,
   voteDeadline,
+  adminGuestPlayCount = 0,
+  adminGuestDineCount = 0,
   headerSlot,
 }: SessionVoteOptimisticPanelProps) {
   const t = useTranslations("sessions");
@@ -103,8 +110,11 @@ export function SessionVoteOptimisticPanel({
   );
   const playerCount = counts.memberPlay;
   const dinerCount = counts.memberDine;
-  const totalGuestPlay = counts.guestPlay;
-  const totalGuestDine = counts.guestDine;
+  // Khách hiển thị = khách member (residual, ~0) + khách admin.
+  const totalGuestPlay = counts.guestPlay + adminGuestPlayCount;
+  const totalGuestDine = counts.guestDine + adminGuestDineCount;
+  // Sức chứa chơi cầu: member heads + khách admin. Đủ 16 → "Hết slot".
+  const playFull = isPlayFull(playerCount + totalGuestPlay);
   const listHeadCount = useMemo(
     () => attendingVotesCount(optimisticVotes),
     [optimisticVotes],
@@ -153,6 +163,7 @@ export function SessionVoteOptimisticPanel({
         guestPlayCount={totalGuestPlay}
         guestDineCount={totalGuestDine}
         voteDeadline={voteDeadline ?? null}
+        playFull={playFull}
         topSlot={headerSlot}
       />
 
@@ -165,9 +176,8 @@ export function SessionVoteOptimisticPanel({
                 title={t("yourVote")}
                 currentWillPlay={myVote?.willPlay ?? false}
                 currentWillDine={myVote?.willDine ?? false}
-                currentGuestPlayCount={myVote?.guestPlayCount ?? 0}
-                currentGuestDineCount={myVote?.guestDineCount ?? 0}
                 currentWithPartner={currentWithPartner}
+                playFull={playFull}
                 optimisticListSync={optimisticListSync}
               />
             </CardContent>

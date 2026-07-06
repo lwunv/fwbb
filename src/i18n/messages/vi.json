@@ -169,7 +169,9 @@
     "voteDeadlineClear": "Bỏ deadline",
     "voteDeadlineExtend2h": "+2 giờ",
     "voteDeadlineExtend24h": "+24 giờ",
-    "withPartner": "Đi 2 mình"
+    "withPartner": "Đi 2 mình",
+    "partnerShort": "2 mình",
+    "slotsFull": "Hết slot"
   },
   "finance": {
     "debts": "Công nợ",
@@ -1043,6 +1045,7 @@
     "wrongCurrentPassword": "Mật khẩu hiện tại không đúng",
     "fbAppNotConfigured": "Facebook app chưa được cấu hình",
     "voteNotAccepted": "Buổi chơi không còn nhận vote",
+    "playSlotsFull": "Hết slot chơi cầu (tối đa 16 người) rồi",
     "sessionNotFound": "Không tìm thấy buổi chơi",
     "sessionNotFoundShort": "Không tìm thấy buổi",
     "invalidSessionId": "sessionId không hợp lệ",

@@ -169,7 +169,9 @@
     "voteDeadlineClear": "清除截止",
     "voteDeadlineExtend2h": "+2 小时",
     "voteDeadlineExtend24h": "+24 小时",
-    "withPartner": "两人同行"
+    "withPartner": "两人同行",
+    "partnerShort": "两人",
+    "slotsFull": "已满"
   },
   "finance": {
     "debts": "债务",
@@ -1043,6 +1045,7 @@
     "wrongCurrentPassword": "当前密码不正确",
     "fbAppNotConfigured": "Facebook 应用未配置",
     "voteNotAccepted": "此活动不再接受投票",
+    "playSlotsFull": "打球名额已满（最多 16 人）",
     "sessionNotFound": "未找到活动",
     "sessionNotFoundShort": "未找到活动",
     "invalidSessionId": "sessionId 无效",

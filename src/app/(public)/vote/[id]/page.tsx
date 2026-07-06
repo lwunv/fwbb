@@ -83,6 +83,8 @@ export default async function VoteSessionPage({
         currentMemberId={user?.memberId ?? null}
         isVotingOpen={isVotingOpen}
         voteDeadline={session.voteDeadline}
+        adminGuestPlayCount={session.adminGuestPlayCount ?? 0}
+        adminGuestDineCount={session.adminGuestDineCount ?? 0}
       />
     </div>
   );

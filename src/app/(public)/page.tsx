@@ -93,6 +93,8 @@ export default async function HomePage() {
               status: s.status as SessionStatus,
               voteDeadline: s.voteDeadline ?? null,
             }).open,
+            adminGuestPlayCount: s.adminGuestPlayCount ?? 0,
+            adminGuestDineCount: s.adminGuestDineCount ?? 0,
             votes: await getSessionVotes(s.id),
           },
         };
@@ -164,6 +166,8 @@ export default async function HomePage() {
           currentMemberId={user?.memberId ?? null}
           isVotingOpen={isVotingOpen}
           voteDeadline={nextSession.voteDeadline}
+          adminGuestPlayCount={nextSession.adminGuestPlayCount ?? 0}
+          adminGuestDineCount={nextSession.adminGuestDineCount ?? 0}
         />
       </div>
     );

@@ -13,6 +13,11 @@ import { requireAdmin } from "@/lib/auth";
 import { adminGuestCountSchema, voteSchema } from "@/lib/validators";
 import { checkRateLimit } from "@/lib/rate-limit";
 import {
+  MAX_PLAY_SLOTS,
+  playHeadcount,
+  votePlayContribution,
+} from "@/lib/vote-capacity";
+import {
   assertEditable,
   isVoteOpen,
   type SessionStatus,
@@ -73,6 +78,28 @@ export async function submitVote(
     return { error: t("tooManyActions", { seconds: rl.retryAfter ?? 60 }) };
   }
 
+  // Khách của member đã BỎ (2026-07-07) — giờ chỉ admin thêm khách. Ép 0 ở
+  // server (guestPlay/DineCount trong `data` bị bỏ qua) để member không set
+  // khách qua RPC dù client không còn UI.
+
+  // Giới hạn sức chứa CHƠI CẦU (MAX_PLAY_SLOTS). Chỉ CHẶN khi member TĂNG số
+  // đầu chơi vượt sức chứa; vẫn cho bỏ vote / giảm / đổi sang nhậu / giữ nguyên
+  // (member đang có slot không bị đá ra kể cả khi admin đã override quá số).
+  const allVotes = await db.query.votes.findMany({
+    where: eq(votes.sessionId, data.sessionId),
+  });
+  const others = allVotes.filter((v) => v.memberId !== user.memberId);
+  const selfVote = allVotes.find((v) => v.memberId === user.memberId);
+  const base = playHeadcount(others, session.adminGuestPlayCount ?? 0);
+  const existingMine = selfVote ? votePlayContribution(selfVote) : 0;
+  const newMine = votePlayContribution({
+    willPlay: data.willPlay,
+    withPartner: data.withPartner,
+  });
+  if (newMine > existingMine && base + newMine > MAX_PLAY_SLOTS) {
+    return { error: t("playSlotsFull") };
+  }
+
   await db
     .insert(votes)
     .values({
@@ -80,8 +107,8 @@ export async function submitVote(
       memberId: user.memberId,
       willPlay: data.willPlay,
       willDine: data.willDine,
-      guestPlayCount: data.guestPlayCount,
-      guestDineCount: data.guestDineCount,
+      guestPlayCount: 0,
+      guestDineCount: 0,
       withPartner: data.withPartner,
     })
     .onConflictDoUpdate({
@@ -89,8 +116,8 @@ export async function submitVote(
       set: {
         willPlay: data.willPlay,
         willDine: data.willDine,
-        guestPlayCount: data.guestPlayCount,
-        guestDineCount: data.guestDineCount,
+        guestPlayCount: 0,
+        guestDineCount: 0,
         withPartner: data.withPartner,
         updatedAt: new Date().toISOString(),
       },

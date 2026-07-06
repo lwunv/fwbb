@@ -24,10 +24,6 @@ export function buildTourSteps(t: T): DriveStep[] {
       popover: s(t("voteDineTitle"), t("voteDineDesc")),
     },
     {
-      element: '[data-tour="vote-guest"]',
-      popover: s(t("voteGuestTitle"), t("voteGuestDesc")),
-    },
-    {
       element: '[data-tour="vote-partner"]',
       popover: s(t("votePartnerTitle"), t("votePartnerDesc")),
     },
