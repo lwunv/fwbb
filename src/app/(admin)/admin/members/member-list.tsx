@@ -58,7 +58,7 @@ import {
 import { confirmPaymentByAdmin } from "@/actions/finance";
 import { fireAction } from "@/lib/optimistic-action";
 import { getFundStatus } from "@/lib/fund-core";
-import { cn, formatK } from "@/lib/utils";
+import { cn, formatK, normalizeVietnamese } from "@/lib/utils";
 import { usePolling } from "@/lib/use-polling";
 import type { InferSelectModel } from "drizzle-orm";
 import type { members as membersTable } from "@/db/schema";
@@ -224,7 +224,11 @@ export function MemberList({
   }
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase().trim();
+    const q = search.trim();
+    // Query chuẩn hoá bỏ dấu để khớp tên/biệt danh (gõ "phieu" ra "Phiêu").
+    const qNorm = normalizeVietnamese(q);
+    // Chỉ-số cho khớp SĐT: bỏ hết ký tự không phải số ở query.
+    const qDigits = q.replace(/\D/g, "");
     const list = members.filter((m) => {
       // ẩn member đã optimistic-delete; nếu server reject (vd còn nợ),
       // fireAction rollback set → member xuất hiện lại.
@@ -245,13 +249,17 @@ export function MemberList({
         getFundStatus(memberBalances[m.id] ?? 0) !== "lowFund"
       )
         return false;
-      // search filter — theo tên hoặc biệt danh (chưa có cột username riêng
-      // trong schema; khi feature username được thêm thì search thêm ở đây).
+      // Search: tên/biệt danh khớp không phân biệt hoa thường + có/không dấu
+      // (normalizeVietnamese); SĐT khớp theo chuỗi số (bỏ khoảng trắng/dấu).
       if (!q) return true;
-      return (
-        m.name.toLowerCase().includes(q) ||
-        (m.nickname ?? "").toLowerCase().includes(q)
-      );
+      const nameHit =
+        !!qNorm &&
+        (normalizeVietnamese(m.name).includes(qNorm) ||
+          normalizeVietnamese(m.nickname ?? "").includes(qNorm));
+      const phoneHit =
+        qDigits.length > 0 &&
+        (m.phoneNumber ?? "").replace(/\D/g, "").includes(qDigits);
+      return nameHit || phoneHit;
     });
     const bal = (id: number) => memberBalances[id] ?? 0;
     const created = (m: Member) => m.createdAt ?? "";

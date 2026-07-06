@@ -39,3 +39,18 @@ export function roundToThousand(amount: number): number {
 export function formatK(amount: number): string {
   return amount.toLocaleString("vi-VN");
 }
+
+/**
+ * Chuẩn hoá text tiếng Việt cho tìm kiếm: lowercase + bỏ dấu (NFD tách dấu
+ * kết hợp rồi xoá) + đổi đ→d + gộp khoảng trắng. Cho phép gõ "phieu" khớp
+ * "Phiêu", "DUONG" khớp "Dương". Dùng cho search phía client (member list…).
+ */
+export function normalizeVietnamese(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // bỏ dấu kết hợp
+    .replace(/đ/g, "d")
+    .replace(/\s+/g, " ")
+    .trim();
+}
