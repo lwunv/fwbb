@@ -684,10 +684,10 @@ export function AdminVoteManager({
                     />
                     <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <span
-                        className="flex items-center gap-1.5 truncate text-base font-semibold"
+                        className="flex min-w-0 items-center gap-1.5 text-base font-semibold"
                         title={member.name}
                       >
-                        {member.name}
+                        <span className="truncate">{member.name}</span>
                         {memberBalances[member.id] !== undefined && (
                           <FundStatusIcon balance={memberBalances[member.id]} />
                         )}
@@ -741,9 +741,11 @@ export function AdminVoteManager({
                               : "text-foreground";
 
                         return (
-                          <span className="flex items-baseline gap-1 text-sm tabular-nums">
+                          <span className="flex min-w-0 flex-wrap items-baseline gap-x-1 gap-y-0.5 text-sm tabular-nums">
                             {/* 💰 = quỹ hiện tại; số sau dấu trừ = chi buổi này.
-                                Tách rõ để admin không nhìn nhầm thành trừ 2 lần. */}
+                                Tách rõ để admin không nhìn nhầm thành trừ 2 lần.
+                                flex-wrap + min-w-0: màn hẹp thì xuống dòng thay
+                                vì tràn ngang đè lên cụm nút vote bên phải. */}
                             <span className={balColor}>💰 {formatK(bal)}</span>
                             <span className="font-medium text-rose-500 dark:text-rose-400">
                               − {formatK(ded)}
