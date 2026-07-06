@@ -50,6 +50,10 @@ export interface NameMatchSuggestion {
   nickname: string | null;
   /** 0..1 similarity score. 1 = perfect, 0 = totally different. */
   score: number;
+  /** Target đã có mật khẩu riêng — approveAndMergeMember sẽ CHẶN merge (chống
+   *  chiếm tài khoản, xem guard trong hàm đó). UI phải disable + giải thích
+   *  ngay tại đây, không để admin bấm rồi mới thấy toast lỗi. */
+  hasPassword: boolean;
 }
 
 /**
@@ -82,6 +86,7 @@ export async function getNameMatches(
       nickname: true,
       facebookId: true,
       googleId: true,
+      passwordHash: true,
     },
   });
 
@@ -119,6 +124,7 @@ export async function getNameMatches(
         name: m.name,
         nickname: m.nickname,
         score,
+        hasPassword: !!m.passwordHash,
       };
     })
     .filter((s) => s.score >= 0.5)
@@ -309,17 +315,12 @@ export async function approveAndMergeMember(
   if (target.approvalStatus === "rejected") {
     return { error: "Target đã bị reject, không thể merge" };
   }
-  // Account-takeover guard: KHÔNG graft OAuth credential lên một tài khoản đã
-  // có mật khẩu riêng. Suggester (getNameMatches) chỉ lọc account thiếu OAuth →
-  // có thể là account password-only thật của người khác; gán googleId/facebookId
-  // của pending vào đó sẽ cho pending user login AS họ (chiếm tài khoản + quỹ).
-  // Mirror invariant ở google-auth.ts — chỉ merge vào placeholder rỗng credential.
-  if (target.passwordHash) {
-    return {
-      error:
-        "Target đã có mật khẩu riêng — không merge OAuth vào (rủi ro chiếm tài khoản). Để member đó tự đăng nhập, hoặc duyệt pending thành tài khoản riêng.",
-    };
-  }
+  // Target đã có mật khẩu riêng → CHO merge (quyết định 2026-07-06, admin chủ
+  // động xác nhận đây đúng là cùng 1 người), nhưng PHẢI reset mật khẩu cũ
+  // (set null ở updates dưới) — nếu không, người cũ vẫn đăng nhập được bằng
+  // password cũ VÀ pending user giờ cũng login được qua OAuth mới gán =
+  // 2 người cùng truy cập 1 tài khoản (chiếm tài khoản). Reset password buộc
+  // chỉ còn 1 đường vào: OAuth vừa merge.
   if (
     (pending.facebookId && target.facebookId) ||
     (pending.googleId && target.googleId)
@@ -353,6 +354,9 @@ export async function approveAndMergeMember(
       updates.bankAccountNo = pending.bankAccountNo;
     if (pending.nickname && !target.nickname)
       updates.nickname = pending.nickname;
+    // Reset mật khẩu cũ — xem giải thích ở guard phía trên. Từ giờ chỉ đăng
+    // nhập được qua OAuth vừa merge (hoặc set lại mật khẩu mới sau này).
+    if (target.passwordHash) updates.passwordHash = null;
 
     // Trước khi delete pending, clear UNIQUE fields để tránh collision với
     // target (cùng email/facebookId chẳng hạn).

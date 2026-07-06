@@ -93,8 +93,13 @@ export function PendingMembersSection({
     pendingId: number,
     targetId: number,
     targetName: string,
+    targetHasPassword: boolean,
   ) {
-    const ok = window.confirm(t("confirmMerge", { name: targetName }));
+    const ok = window.confirm(
+      targetHasPassword
+        ? t("confirmMergeResetPassword", { name: targetName })
+        : t("confirmMerge", { name: targetName }),
+    );
     if (!ok) return;
     setBusyId(pendingId);
     fireAction(
@@ -199,7 +204,12 @@ export function PendingMembersSection({
                       key={s.memberId}
                       type="button"
                       disabled={busyId === m.id}
-                      onClick={() => handleMerge(m.id, s.memberId, s.name)}
+                      onClick={() =>
+                        handleMerge(m.id, s.memberId, s.name, s.hasPassword)
+                      }
+                      title={
+                        s.hasPassword ? t("mergeWillResetPassword") : undefined
+                      }
                       className="bg-card hover:bg-accent flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors disabled:opacity-50"
                     >
                       <span className="flex min-w-0 items-center gap-2">
@@ -213,6 +223,11 @@ export function PendingMembersSection({
                             </span>
                           )}
                         </span>
+                        {s.hasPassword && (
+                          <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                            {t("mergeWillResetPasswordBadge")}
+                          </span>
+                        )}
                       </span>
                       <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
                         {Math.round(s.score * 100)}%
