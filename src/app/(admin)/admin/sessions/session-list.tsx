@@ -655,7 +655,7 @@ export function SessionList({
                 variant: badgeVariant,
                 labelKey,
                 isPastPending,
-              } = deriveSessionBadge(rawStatus, session.date, DEFAULT_DATE);
+              } = deriveSessionBadge(rawStatus, session.date, todayYmd);
               const badgeText = isPastPending
                 ? tF("needsConfirm")
                 : t(labelKey);
