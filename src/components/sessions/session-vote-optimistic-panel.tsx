@@ -169,7 +169,7 @@ export function SessionVoteOptimisticPanel({
 
       {effectiveIsVotingOpen &&
         (currentMemberId != null ? (
-          <Card className="border-primary/20 bg-card/95 supports-[backdrop-filter]:bg-card/85 sticky bottom-20 z-30 shadow-lg backdrop-blur sm:static sm:shadow-sm">
+          <Card className="border-primary/20 bg-card/95 supports-[backdrop-filter]:bg-card/85 sticky bottom-3 z-30 shadow-lg backdrop-blur sm:static sm:shadow-sm">
             <CardContent className="p-4">
               <VoteButtons
                 sessionId={sessionId}

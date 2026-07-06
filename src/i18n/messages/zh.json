@@ -4,7 +4,9 @@
     "history": "历史",
     "fund": "基金",
     "stats": "统计",
-    "me": "我的"
+    "me": "我的",
+    "menu": "打开菜单",
+    "menuTitle": "导航"
   },
   "adminNav": {
     "dashboard": "概览",

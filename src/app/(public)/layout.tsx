@@ -4,7 +4,6 @@ import { members } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getTranslations } from "next-intl/server";
 import { Header } from "@/components/layout/header";
-import { BottomNav } from "@/components/layout/bottom-nav";
 import { PendingApprovalGate } from "./pending-approval-gate";
 import { ForceChangePasswordGate } from "./force-change-password-gate";
 import { ProductTourLauncher } from "@/components/tour/product-tour-launcher";
@@ -104,9 +103,8 @@ export default async function PublicLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <Header appName={appName} />
-      <main className="flex-1 px-4 py-4 pb-20">{children}</main>
-      <BottomNav />
+      <Header appName={appName} showMenu />
+      <main className="flex-1 px-4 py-4 pb-6">{children}</main>
       <ProductTourLauncher />
     </div>
   );

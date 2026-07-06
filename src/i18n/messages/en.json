@@ -4,7 +4,9 @@
     "history": "History",
     "fund": "Fund",
     "stats": "Stats",
-    "me": "Me"
+    "me": "Me",
+    "menu": "Open menu",
+    "menuTitle": "Navigation"
   },
   "adminNav": {
     "dashboard": "Dashboard",

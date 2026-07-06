@@ -4,7 +4,9 @@
     "history": "Lịch sử",
     "fund": "Quỹ",
     "stats": "Thống kê",
-    "me": "Cá nhân"
+    "me": "Cá nhân",
+    "menu": "Mở menu",
+    "menuTitle": "Điều hướng"
   },
   "adminNav": {
     "dashboard": "Tổng quan",
