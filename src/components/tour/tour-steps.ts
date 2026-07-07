@@ -13,8 +13,20 @@ export function buildTourSteps(t: T): DriveStep[] {
   return [
     // 1. Welcome (canh giữa)
     { popover: s(t("welcomeTitle"), t("welcomeDesc")) },
-    // 2-5. Vote (home, khi có buổi đang mở): chơi cầu → nhậu → thêm khách →
-    // đi 2 người. Mỗi step neo đúng ô tương ứng để mô tả rõ thao tác.
+    // 2. Menu điều hướng (nút hamburger góc trái). Các mục Lịch sử / Quỹ /
+    //    Thống kê / Cá nhân nằm trong ngăn kéo ĐÓNG nên driver không neo được
+    //    từng mục — mô tả gộp tại chính nút mở menu.
+    {
+      element: '[data-tour="nav-menu"]',
+      popover: s(t("navMenuTitle"), t("navMenuDesc")),
+    },
+    // 3. Chip chọn ngày trong tuần (đầu thẻ buổi).
+    {
+      element: '[data-tour="week-days"]',
+      popover: s(t("weekDaysTitle"), t("weekDaysDesc")),
+    },
+    // 4-6. Vote (khi có buổi đang mở): chơi cầu → nhậu → đi 2 người. Mỗi step
+    //    neo đúng ô tương ứng để mô tả rõ thao tác.
     {
       element: '[data-tour="vote-play"]',
       popover: s(t("votePlayTitle"), t("votePlayDesc")),
@@ -27,7 +39,7 @@ export function buildTourSteps(t: T): DriveStep[] {
       element: '[data-tour="vote-partner"]',
       popover: s(t("votePartnerTitle"), t("votePartnerDesc")),
     },
-    // 5-6. Quỹ (khi banner quỹ hiện)
+    // 7-8. Quỹ (khi banner quỹ hiện).
     {
       element: '[data-tour="fund-banner"]',
       popover: s(t("fundBannerTitle"), t("fundBannerDesc")),
@@ -35,27 +47,6 @@ export function buildTourSteps(t: T): DriveStep[] {
     {
       element: '[data-tour="fund-topup"]',
       popover: s(t("fundTopupTitle"), t("fundTopupDesc")),
-    },
-    // 7-11. Thanh điều hướng dưới (luôn có)
-    {
-      element: '[data-tour="nav-home"]',
-      popover: s(t("navHomeTitle"), t("navHomeDesc")),
-    },
-    {
-      element: '[data-tour="nav-history"]',
-      popover: s(t("navHistoryTitle"), t("navHistoryDesc")),
-    },
-    {
-      element: '[data-tour="nav-fund"]',
-      popover: s(t("navFundTitle"), t("navFundDesc")),
-    },
-    {
-      element: '[data-tour="nav-stats"]',
-      popover: s(t("navStatsTitle"), t("navStatsDesc")),
-    },
-    {
-      element: '[data-tour="nav-me"]',
-      popover: s(t("navMeTitle"), t("navMeDesc")),
     },
     // Kết thúc (canh giữa)
     { popover: s(t("doneTitle"), t("doneDesc")) },

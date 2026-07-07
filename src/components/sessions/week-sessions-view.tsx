@@ -79,7 +79,10 @@ export function WeekSessionsView({
   // Hàng chip ĐỦ các thứ — render BÊN TRONG thẻ (topSlot/headerSlot). Divider
   // dưới để tách khỏi tiêu đề ngày của buổi (giữ focal point là ngày buổi chơi).
   const chipRow = (
-    <div className="border-border/50 flex gap-2 border-b pb-3">
+    <div
+      data-tour="week-days"
+      className="border-border/50 flex gap-2 border-b pb-3"
+    >
       {days.map((d) => {
         const active = d.date === selected.date;
         const done =
