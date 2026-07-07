@@ -201,29 +201,6 @@ export function SessionVoteOptimisticPanel({
         topSlot={headerSlot}
       />
 
-      {/* Khách chưa đăng nhập: CTA đăng nhập inline (member → thanh vote fixed
-          portal ở cuối). */}
-      {effectiveIsVotingOpen && currentMemberId == null && (
-        <Card className="border-primary/30 bg-card/95">
-          <CardContent className="flex flex-col items-center gap-3 p-5 text-center">
-            <p className="text-base font-semibold">
-              {tGuest("guestVoteCtaTitle")}
-            </p>
-            <p className="text-muted-foreground text-sm">
-              {tGuest("guestVoteCtaBody")}
-            </p>
-            <Button
-              size="lg"
-              className="w-full sm:w-auto"
-              render={<Link href="/login" />}
-            >
-              <LogIn className="mr-2 h-4 w-4" />
-              {tGuest("guestVoteCtaButton")}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
       <Card>
         <CardContent className="p-4">
           <h2 className="mb-3 text-lg font-bold sm:text-xl">
@@ -268,28 +245,43 @@ export function SessionVoteOptimisticPanel({
         </CardContent>
       </Card>
 
-      {/* Spacer chừa chỗ cho thanh vote fixed (portal) khỏi che danh sách. */}
-      {effectiveIsVotingOpen && currentMemberId != null && (
-        <div className="h-28" aria-hidden />
-      )}
+      {/* Spacer chừa chỗ cho thanh sticky đáy (vote bar khi đã login, hoặc CTA
+          đăng nhập khi là khách) khỏi che danh sách. */}
+      {effectiveIsVotingOpen && <div className="h-28" aria-hidden />}
 
-      {/* Thanh vote FIXED full-width, portal ra body để tràn hết mép màn hình
-          (không dính containing-block của tổ tiên có backdrop-blur/transform).
-          Nội dung căn giữa max-w-lg cho desktop; safe-area đáy cho iOS. */}
+      {/* Thanh FIXED full-width, portal ra body để tràn hết mép màn hình (không
+          dính containing-block của tổ tiên có backdrop-blur/transform). Member
+          → nút vote; khách chưa login → CTA đăng nhập (cùng khung sticky để UX
+          nhất quán). Căn giữa max-w-lg cho desktop; safe-area đáy cho iOS. */}
       {mounted &&
         effectiveIsVotingOpen &&
-        currentMemberId != null &&
         createPortal(
           <div className="border-primary/20 bg-card/95 supports-[backdrop-filter]:bg-card/85 fixed inset-x-0 bottom-0 z-40 border-t shadow-[0_-4px_20px_rgba(0,0,0,0.18)] backdrop-blur">
             <div className="mx-auto w-full max-w-lg px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-              <VoteButtons
-                sessionId={sessionId}
-                currentWillPlay={myVote?.willPlay ?? false}
-                currentWillDine={myVote?.willDine ?? false}
-                currentWithPartner={currentWithPartner}
-                playFull={playFull}
-                optimisticListSync={optimisticListSync}
-              />
+              {currentMemberId != null ? (
+                <VoteButtons
+                  sessionId={sessionId}
+                  currentWillPlay={myVote?.willPlay ?? false}
+                  currentWillDine={myVote?.willDine ?? false}
+                  currentWithPartner={currentWithPartner}
+                  playFull={playFull}
+                  optimisticListSync={optimisticListSync}
+                />
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  <p className="text-center text-sm font-semibold">
+                    {tGuest("guestVoteCtaTitle")}
+                  </p>
+                  <Button
+                    size="lg"
+                    className="min-h-12 w-full"
+                    render={<Link href="/login" />}
+                  >
+                    <LogIn className="mr-2 h-4 w-4" />
+                    {tGuest("guestVoteCtaButton")}
+                  </Button>
+                </div>
+              )}
             </div>
           </div>,
           document.body,
