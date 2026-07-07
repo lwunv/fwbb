@@ -1,12 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
-import { Home, Clock, Wallet, BarChart3, User, Menu } from "lucide-react";
+import {
+  Home,
+  Clock,
+  Wallet,
+  BarChart3,
+  User,
+  Menu,
+  HelpCircle,
+} from "lucide-react";
 import { NavPendingIcon } from "./nav-pending-icon";
+import { useProductTour } from "@/components/tour/use-product-tour";
 import {
   Sheet,
   SheetContent,
@@ -46,6 +55,21 @@ export function NavDrawer() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const t = useTranslations("nav");
+  const tTour = useTranslations("tour");
+  const { run, hasSeen } = useProductTour();
+
+  // Auto-chạy tour lần đầu (thay cho nút compass đã bỏ). Chỉ 1 lần/phiên, bỏ
+  // qua dưới automation (Playwright: navigator.webdriver=true).
+  const autoRan = useRef(false);
+  useEffect(() => {
+    if (autoRan.current) return;
+    autoRan.current = true;
+    if (typeof navigator !== "undefined" && navigator.webdriver) return;
+    if (!hasSeen()) {
+      const id = setTimeout(() => run(), 800);
+      return () => clearTimeout(id);
+    }
+  }, [hasSeen, run]);
 
   return (
     <>
@@ -88,6 +112,20 @@ export function NavDrawer() {
                 </Link>
               );
             })}
+
+            {/* Hướng dẫn (product tour) — cuối menu, thay nút compass đã bỏ. */}
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                // Đóng ngăn kéo trước rồi chạy tour để overlay neo đúng trang.
+                setTimeout(() => run(), 300);
+              }}
+              className="text-foreground hover:bg-accent mt-1 flex min-h-12 w-full items-center gap-3 rounded-xl border-t px-3 py-3 text-base font-medium transition-colors"
+            >
+              <HelpCircle className="text-muted-foreground h-6 w-6 shrink-0" />
+              <span>{tTour("open")}</span>
+            </button>
           </nav>
         </SheetContent>
       </Sheet>

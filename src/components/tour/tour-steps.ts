@@ -57,12 +57,7 @@ export function buildTourSteps(t: T): DriveStep[] {
       element: '[data-tour="nav-me"]',
       popover: s(t("navMeTitle"), t("navMeDesc")),
     },
-    // 12. Nút mở lại tour
-    {
-      element: '[data-tour="tour-launcher"]',
-      popover: s(t("launcherTitle"), t("launcherDesc")),
-    },
-    // 13. Kết thúc (canh giữa)
+    // Kết thúc (canh giữa)
     { popover: s(t("doneTitle"), t("doneDesc")) },
   ];
 }

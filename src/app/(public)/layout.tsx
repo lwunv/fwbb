@@ -6,7 +6,6 @@ import { getTranslations } from "next-intl/server";
 import { Header } from "@/components/layout/header";
 import { PendingApprovalGate } from "./pending-approval-gate";
 import { ForceChangePasswordGate } from "./force-change-password-gate";
-import { ProductTourLauncher } from "@/components/tour/product-tour-launcher";
 import { getAppName } from "@/actions/settings";
 
 export default async function PublicLayout({
@@ -105,7 +104,6 @@ export default async function PublicLayout({
     <div className="flex min-h-screen flex-col">
       <Header appName={appName} showMenu />
       <main className="flex-1 px-4 py-4 pb-6">{children}</main>
-      <ProductTourLauncher />
     </div>
   );
 }
