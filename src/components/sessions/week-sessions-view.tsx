@@ -64,6 +64,12 @@ export function WeekSessionsView({
 
   // selectedDate giữ lại qua các lần refresh (polling) vì state không re-init.
   const [selectedDate, setSelectedDate] = useState<string | null>(defaultDate);
+  // Optimistic votes của buổi ĐANG CHỌN, panel báo lên → badge chip cập nhật
+  // NGAY khi vote (không chờ server). Gắn sessionId để chỉ dùng đúng buổi.
+  const [optSel, setOptSel] = useState<{
+    sessionId: number;
+    votes: VoteWithMember[];
+  } | null>(null);
 
   if (days.length === 0) return null;
   const selected = days.find((d) => d.date === selectedDate) ?? days[0];
@@ -78,11 +84,18 @@ export function WeekSessionsView({
           d.session?.status === "completed" ||
           d.session?.status === "cancelled";
         const noSession = !d.session;
-        // Số người đi chơi cầu cho thứ đó = member willPlay + tổng khách chơi
-        // (khớp "N người (gồm K khách)" trên thẻ). Helper chung countVote-
-        // Participation → khỏi drift với các chỗ đếm khác.
+        // Số người đi chơi cầu cho thứ đó = member willPlay (gồm 2-mình) + khách
+        // admin. Buổi ĐANG CHỌN dùng optimisticVotes (badge cập nhật ngay khi
+        // vote); các buổi khác dùng server votes. Khớp "N người" trên thẻ.
+        const votesForChip =
+          d.session &&
+          d.date === selected.date &&
+          optSel?.sessionId === d.session.id
+            ? optSel.votes
+            : (d.session?.votes ?? []);
         const playCount = d.session
-          ? countVoteParticipation(d.session.votes).totalPlayers
+          ? countVoteParticipation(votesForChip).totalPlayers +
+            d.session.adminGuestPlayCount
           : 0;
         return (
           <motion.button
@@ -143,6 +156,9 @@ export function WeekSessionsView({
           voteDeadline={selected.session.voteDeadline}
           adminGuestPlayCount={selected.session.adminGuestPlayCount}
           adminGuestDineCount={selected.session.adminGuestDineCount}
+          onOptimisticVotesChange={(votes) =>
+            setOptSel({ sessionId: selected.session!.id, votes })
+          }
         />
       ) : (
         <Card className="bg-card/80 supports-[backdrop-filter]:bg-card/70 backdrop-blur">

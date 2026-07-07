@@ -51,6 +51,9 @@ interface SessionVoteOptimisticPanelProps {
   adminGuestDineCount?: number;
   /** Render ở đỉnh SessionCard (vd hàng chip chọn thứ). Forward xuống topSlot. */
   headerSlot?: ReactNode;
+  /** Báo optimisticVotes ra ngoài (week-sessions-view) để badge chip ngày cũng
+   *  cập nhật NGAY khi vote — không chờ server revalidate. */
+  onOptimisticVotesChange?: (votes: VoteWithMember[]) => void;
 }
 
 export function SessionVoteOptimisticPanel({
@@ -64,6 +67,7 @@ export function SessionVoteOptimisticPanel({
   adminGuestPlayCount = 0,
   adminGuestDineCount = 0,
   headerSlot,
+  onOptimisticVotesChange,
 }: SessionVoteOptimisticPanelProps) {
   const t = useTranslations("sessions");
   const tv = useTranslations("voting");
@@ -85,6 +89,18 @@ export function SessionVoteOptimisticPanel({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- optimistic list must converge after server revalidation.
     setOptimisticVotes(serverVotes);
   }, [serverVotes]);
+
+  // Báo optimisticVotes ra ngoài để badge chip ngày (week-sessions-view) đồng
+  // bộ optimistic cùng thẻ. Ref giữ callback mới nhất (cập nhật TRONG effect,
+  // không mutate lúc render) → effect emit chỉ phụ thuộc optimisticVotes, tránh
+  // vòng lặp khi parent truyền arrow inline (đổi identity mỗi render).
+  const onOptChangeRef = useRef(onOptimisticVotesChange);
+  useEffect(() => {
+    onOptChangeRef.current = onOptimisticVotesChange;
+  }, [onOptimisticVotesChange]);
+  useEffect(() => {
+    onOptChangeRef.current?.(optimisticVotes);
+  }, [optimisticVotes]);
 
   // Defense-in-depth: when `voteDeadline` passes mid-session, flip a local
   // flag so vote buttons disable client-side. Server still rejects with
