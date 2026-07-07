@@ -6,7 +6,8 @@
     "stats": "Thống kê",
     "me": "Cá nhân",
     "menu": "Mở menu",
-    "menuTitle": "Điều hướng"
+    "menuTitle": "Điều hướng",
+    "logout": "Đăng xuất"
   },
   "adminNav": {
     "dashboard": "Tổng quan",

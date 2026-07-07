@@ -6,7 +6,8 @@
     "stats": "统计",
     "me": "我的",
     "menu": "打开菜单",
-    "menuTitle": "导航"
+    "menuTitle": "导航",
+    "logout": "退出登录"
   },
   "adminNav": {
     "dashboard": "概览",

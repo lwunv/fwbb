@@ -6,7 +6,8 @@
     "stats": "Stats",
     "me": "Me",
     "menu": "Open menu",
-    "menuTitle": "Navigation"
+    "menuTitle": "Navigation",
+    "logout": "Log out"
   },
   "adminNav": {
     "dashboard": "Dashboard",

@@ -13,6 +13,7 @@ import {
   User,
   Menu,
   HelpCircle,
+  LogOut,
 } from "lucide-react";
 import { NavPendingIcon } from "./nav-pending-icon";
 import { useProductTour } from "@/components/tour/use-product-tour";
@@ -84,7 +85,7 @@ export function NavDrawer() {
       </button>
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="left" className="w-72 gap-0">
+        <SheetContent side="left" className="flex w-72 flex-col gap-0">
           <SheetHeader>
             <SheetTitle>{t("menuTitle")}</SheetTitle>
           </SheetHeader>
@@ -127,6 +128,22 @@ export function NavDrawer() {
               <span>{tTour("open")}</span>
             </button>
           </nav>
+
+          {/* Đăng xuất — ghim đáy ngăn kéo (mt-auto). Form POST tới
+              /api/reset-identity: clear cookie + redirect về trang chủ. */}
+          <form
+            action="/api/reset-identity"
+            method="POST"
+            className="mt-auto border-t px-3 py-3"
+          >
+            <button
+              type="submit"
+              className="text-muted-foreground hover:bg-muted hover:text-foreground flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-3 text-base font-medium transition-colors"
+            >
+              <LogOut className="h-6 w-6 shrink-0" />
+              <span>{t("logout")}</span>
+            </button>
+          </form>
         </SheetContent>
       </Sheet>
     </>

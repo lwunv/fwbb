@@ -23,7 +23,6 @@ import { updateMyProfile, type UpdateMyProfileState } from "@/actions/members";
 import { fireAction } from "@/lib/optimistic-action";
 import { usePolling } from "@/lib/use-polling";
 import {
-  LogOut,
   Wallet,
   Sun,
   Moon,
@@ -230,21 +229,6 @@ export function MeClient({
             >
               {memberName}
             </p>
-            <form
-              action="/api/reset-identity"
-              method="POST"
-              className="shrink-0"
-            >
-              <Button
-                type="submit"
-                variant="outline"
-                size="sm"
-                className="gap-1 whitespace-nowrap"
-              >
-                <LogOut className="h-4 w-4 shrink-0" />
-                {tMe("signOut")}
-              </Button>
-            </form>
           </div>
 
           {/* Toggle mở cụm sửa thông tin — mặc định thu gọn cho gọn trang. */}
