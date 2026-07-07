@@ -78,7 +78,7 @@ export function NavDrawer() {
         onClick={() => setOpen(true)}
         aria-label={t("menu")}
         data-tour="nav-menu"
-        className="hover:bg-accent -ml-1 flex h-11 w-11 items-center justify-center rounded-xl transition-colors"
+        className="hover:bg-muted -ml-1 flex h-11 w-11 items-center justify-center rounded-xl transition-colors"
       >
         <Menu className="h-6 w-6" />
       </button>
@@ -104,7 +104,7 @@ export function NavDrawer() {
                     "flex min-h-12 items-center gap-3 rounded-xl px-3 py-3 text-base font-medium transition-colors",
                     isActive
                       ? "bg-primary/10 text-primary"
-                      : "text-foreground hover:bg-accent",
+                      : "text-foreground hover:bg-muted",
                   )}
                 >
                   <NavPendingIcon Icon={item.icon} isActive={isActive} />
@@ -121,7 +121,7 @@ export function NavDrawer() {
                 // Đóng ngăn kéo trước rồi chạy tour để overlay neo đúng trang.
                 setTimeout(() => run(), 300);
               }}
-              className="text-foreground hover:bg-accent mt-1 flex min-h-12 w-full items-center gap-3 rounded-xl border-t px-3 py-3 text-base font-medium transition-colors"
+              className="text-foreground hover:bg-muted mt-1 flex min-h-12 w-full items-center gap-3 rounded-xl border-t px-3 py-3 text-base font-medium transition-colors"
             >
               <HelpCircle className="text-muted-foreground h-6 w-6 shrink-0" />
               <span>{tTour("open")}</span>
