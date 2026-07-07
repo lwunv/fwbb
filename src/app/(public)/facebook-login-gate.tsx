@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useTransition } from "react";
+import { useState, useEffect, useCallback, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
@@ -39,7 +39,6 @@ export function FacebookLoginGate({ appName = "FWBB" }: { appName?: string }) {
   const isIAB = typeof navigator !== "undefined" && isInFacebookBrowser();
   // FB button visibility = SDK sẵn sàng VÀ chưa bị ẩn tạm (feature flag trên).
   const fbVisible = SHOW_FACEBOOK_LOGIN && fbReady;
-  const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
   // Initialize Facebook SDK and attempt auto-login in IAB
   useEffect(() => {
@@ -100,27 +99,36 @@ export function FacebookLoginGate({ appName = "FWBB" }: { appName?: string }) {
     };
   }, [isIAB]);
 
-  // Render the Google button once SDK is ready and the ref is mounted.
-  // Note: setState-in-effect intentionally avoided — if renderButton fails
-  // (rare), user can still use FB login or refresh.
-  useEffect(() => {
-    if (!googleReady || !googleButtonRef.current) return;
-    try {
-      renderGoogleButton(
-        googleButtonRef.current,
-        (idToken) => {
-          startTransition(async () => {
-            const result = await googleLogin(idToken);
-            if (result.error) setError(result.error);
-            else router.refresh();
-          });
-        },
-        { width: 280, locale },
-      );
-    } catch (err) {
-      console.error("Google button render failed", err);
-    }
-  }, [googleReady, locale]);
+  // Render the Google button via a CALLBACK REF (not useEffect) to kill a
+  // race: the button container is gated behind `isLoading` (which waits on the
+  // Facebook SDK init), so when `googleReady` flips true the node often isn't
+  // mounted yet. An effect keyed on [googleReady] would fire, find a null ref,
+  // bail, and never re-run once the node finally mounts → empty button. A
+  // callback ref fires exactly when the node attaches, whichever resolves
+  // first (Google SDK vs the isLoading gate). Width = container width so the
+  // button matches the full-width password form above it.
+  const mountGoogleButton = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (!node || !googleReady) return;
+      try {
+        const width = Math.min(400, Math.max(240, node.offsetWidth || 320));
+        renderGoogleButton(
+          node,
+          (idToken) => {
+            startTransition(async () => {
+              const result = await googleLogin(idToken);
+              if (result.error) setError(result.error);
+              else router.refresh();
+            });
+          },
+          { width, locale },
+        );
+      } catch (err) {
+        console.error("Google button render failed", err);
+      }
+    },
+    [googleReady, locale, router],
+  );
 
   const handleFbLogin = () => {
     setError("");
@@ -199,9 +207,10 @@ export function FacebookLoginGate({ appName = "FWBB" }: { appName?: string }) {
               </Button>
             )}
 
-            {/* Google button — chỉ render khi không trong IAB (popup không work) */}
+            {/* Google button — chỉ render khi không trong IAB (popup không work).
+                Callback ref (mountGoogleButton) render nút ngay khi node mount. */}
             {!isIAB && googleReady && (
-              <div className="flex justify-center" ref={googleButtonRef} />
+              <div className="flex justify-center" ref={mountGoogleButton} />
             )}
 
             {/* Chỉ hiện retry khi CẢ HAI OAuth fail — single fail thường do env

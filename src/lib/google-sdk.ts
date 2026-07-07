@@ -190,9 +190,11 @@ export function renderGoogleButton(
     theme: "outline",
     size: "large",
     text: "continue_with",
-    shape: "rectangular",
+    // Pill + full-width (caller passes container width) để khớp nút bấm bo
+    // tròn của app, thay vì nút hẹp lệch giữa trông rời rạc.
+    shape: "pill",
     width: options?.width ?? 300,
-    logo_alignment: "left",
+    logo_alignment: "center",
     locale: options?.locale,
   });
 }
