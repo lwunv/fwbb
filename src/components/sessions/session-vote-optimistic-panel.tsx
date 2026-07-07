@@ -18,7 +18,7 @@ import {
   attendingVotesCount,
   countVoteParticipation,
 } from "@/lib/vote-list-utils";
-import { isPlayFull } from "@/lib/vote-capacity";
+import { isPlayFull, remainingPlaySlots } from "@/lib/vote-capacity";
 import type { InferSelectModel } from "drizzle-orm";
 import type { members as membersTable } from "@/db/schema";
 
@@ -113,8 +113,10 @@ export function SessionVoteOptimisticPanel({
   // Khách hiển thị = khách member (residual, ~0) + khách admin.
   const totalGuestPlay = counts.guestPlay + adminGuestPlayCount;
   const totalGuestDine = counts.guestDine + adminGuestDineCount;
-  // Sức chứa chơi cầu: member heads + khách admin. Đủ 16 → "Hết slot".
+  // Sức chứa chơi cầu: member heads + khách admin. Đủ 16 → "Hết slot";
+  // còn ≤2 slot (≥14 người) → cảnh báo "Còn N slot".
   const playFull = isPlayFull(playerCount + totalGuestPlay);
+  const playRemaining = remainingPlaySlots(playerCount + totalGuestPlay);
   const listHeadCount = useMemo(
     () => attendingVotesCount(optimisticVotes),
     [optimisticVotes],
@@ -164,6 +166,7 @@ export function SessionVoteOptimisticPanel({
         guestDineCount={totalGuestDine}
         voteDeadline={voteDeadline ?? null}
         playFull={playFull}
+        playRemaining={playRemaining}
         topSlot={headerSlot}
       />
 

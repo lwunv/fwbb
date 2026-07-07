@@ -173,7 +173,8 @@
     "voteDeadlineExtend24h": "+24 小时",
     "withPartner": "两人同行",
     "partnerShort": "两人",
-    "slotsFull": "已满"
+    "slotsFull": "已满",
+    "slotsLeft": "剩 {count} 个名额"
   },
   "finance": {
     "debts": "债务",

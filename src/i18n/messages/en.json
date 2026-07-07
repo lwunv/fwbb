@@ -173,7 +173,8 @@
     "voteDeadlineExtend24h": "+24 hours",
     "withPartner": "Two people",
     "partnerShort": "+1",
-    "slotsFull": "Full"
+    "slotsFull": "Full",
+    "slotsLeft": "{count} slot(s) left"
   },
   "finance": {
     "debts": "Debts",

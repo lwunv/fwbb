@@ -173,7 +173,8 @@
     "voteDeadlineExtend24h": "+24 giờ",
     "withPartner": "Đi 2 mình",
     "partnerShort": "2 mình",
-    "slotsFull": "Hết slot"
+    "slotsFull": "Hết slot",
+    "slotsLeft": "Còn {count} slot"
   },
   "finance": {
     "debts": "Công nợ",
