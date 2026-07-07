@@ -154,7 +154,7 @@ export function LanguageSelector({ className }: LanguageSelectorProps) {
     return (
       <div
         className={cn(
-          "bg-muted/60 h-9 w-[8.25rem] animate-pulse rounded-xl",
+          "bg-muted/60 h-9 w-9 animate-pulse rounded-xl sm:w-[8.25rem]",
           className,
         )}
         aria-hidden
@@ -166,7 +166,7 @@ export function LanguageSelector({ className }: LanguageSelectorProps) {
     <div
       ref={rootRef}
       className={cn(
-        "relative w-[min(11rem,calc(100vw-8.5rem))] shrink-0",
+        "relative shrink-0 sm:w-[min(11rem,calc(100vw-8.5rem))]",
         className,
       )}
     >
@@ -178,21 +178,25 @@ export function LanguageSelector({ className }: LanguageSelectorProps) {
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          "border-border bg-card text-foreground flex h-9 w-full items-center justify-between gap-1.5 rounded-xl border px-2.5 text-left text-sm font-medium shadow-sm",
+          // Mobile: chỉ icon cờ (vuông, canh giữa). sm+: mở rộng full-width có
+          // nhãn ngôn ngữ + mũi tên.
+          "border-border bg-card text-foreground flex h-9 w-9 items-center justify-center rounded-xl border text-left text-sm font-medium shadow-sm sm:w-full sm:justify-between sm:gap-1.5 sm:px-2.5",
           "hover:bg-muted/60 focus-visible:border-ring focus-visible:ring-ring/40 transition-colors outline-none focus-visible:ring-2",
           open && "border-primary/50 bg-muted/40",
         )}
       >
-        <span className="flex min-w-0 flex-1 items-center gap-2">
+        <span className="flex min-w-0 items-center gap-2 sm:flex-1">
           <LocaleFlag
             country={countryForLocale(locale)}
             className="h-4 w-6 border border-black/10 dark:border-white/15"
           />
-          <span className="truncate">{t(locale as LocaleCode)}</span>
+          <span className="hidden truncate sm:inline">
+            {t(locale as LocaleCode)}
+          </span>
         </span>
         <ChevronDown
           className={cn(
-            "text-muted-foreground h-4 w-4 shrink-0 transition-transform",
+            "text-muted-foreground hidden h-4 w-4 shrink-0 transition-transform sm:block",
             open && "rotate-180",
           )}
           aria-hidden
@@ -204,7 +208,9 @@ export function LanguageSelector({ className }: LanguageSelectorProps) {
           role="listbox"
           aria-labelledby="header-language-trigger"
           className={cn(
-            "border-border bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 absolute right-0 left-0 z-[100] overflow-hidden rounded-xl border py-1 shadow-lg duration-150",
+            // Mobile: trigger chỉ rộng bằng icon → neo phải + min-width để 3
+            // dòng ngôn ngữ đọc được. sm+: bám full-width trigger (left-0).
+            "border-border bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 absolute right-0 z-[100] min-w-[11rem] overflow-hidden rounded-xl border py-1 shadow-lg duration-150 sm:left-0",
             dropUp
               ? "slide-in-from-bottom-1 bottom-[calc(100%+6px)]"
               : "slide-in-from-top-1 top-[calc(100%+6px)]",
