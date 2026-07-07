@@ -109,13 +109,13 @@ export function WeekSessionsView({
               <span
                 title={tS("playCountTitle")}
                 className={cn(
-                  "text-lg font-extrabold tabular-nums",
-                  // Số người chơi: to, không nền, màu nổi. Trên chip active (nền
-                  // primary) dùng màu foreground cho tương phản; chip thường dùng
-                  // cam (accent đếm người của app).
+                  "inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-lg px-1.5 text-sm font-extrabold tabular-nums shadow-sm",
+                  // Badge số người chơi. Chip active (nền primary) → badge sáng
+                  // mờ để nổi trên tím; chip thường → badge cam (accent đếm
+                  // người của app) nổi trên nền tối.
                   active
-                    ? "text-primary-foreground"
-                    : "text-orange-500 dark:text-orange-400",
+                    ? "bg-primary-foreground/25 text-primary-foreground"
+                    : "bg-orange-500 text-white",
                 )}
               >
                 {playCount}

@@ -169,11 +169,10 @@ export function SessionVoteOptimisticPanel({
 
       {effectiveIsVotingOpen &&
         (currentMemberId != null ? (
-          <Card className="border-primary/20 bg-card/95 supports-[backdrop-filter]:bg-card/85 sticky bottom-0 z-30 shadow-lg backdrop-blur sm:static sm:shadow-sm">
-            <CardContent className="p-4">
+          <Card className="bg-card/95 supports-[backdrop-filter]:bg-card/85 fixed inset-x-0 bottom-0 z-40 rounded-t-2xl rounded-b-none border-x-0 border-t border-b-0 shadow-[0_-4px_20px_rgba(0,0,0,0.18)] backdrop-blur sm:static sm:inset-auto sm:rounded-xl sm:border sm:shadow-sm">
+            <CardContent className="mx-auto max-w-lg p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-4">
               <VoteButtons
                 sessionId={sessionId}
-                title={t("yourVote")}
                 currentWillPlay={myVote?.willPlay ?? false}
                 currentWillDine={myVote?.willDine ?? false}
                 currentWithPartner={currentWithPartner}
@@ -247,6 +246,12 @@ export function SessionVoteOptimisticPanel({
           />
         </CardContent>
       </Card>
+
+      {/* Spacer: thanh vote fixed che đáy trên mobile → chừa chỗ để danh sách
+          cuộn hết không bị khuất. Desktop thanh vote inline nên không cần. */}
+      {effectiveIsVotingOpen && currentMemberId != null && (
+        <div className="h-28 sm:hidden" aria-hidden />
+      )}
     </>
   );
 }
