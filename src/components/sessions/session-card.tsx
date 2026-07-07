@@ -26,10 +26,6 @@ interface SessionCardProps {
    * theo GIÂY ngay TRONG thẻ. Quá hạn → component tự hiển "Đã đóng vote".
    */
   voteDeadline?: string | null;
-  /** Đủ 16 người chơi cầu → hiện badge "Hết slot". */
-  playFull?: boolean;
-  /** Số slot chơi còn lại — còn 1-2 thì hiện cảnh báo "Còn N slot". */
-  playRemaining?: number;
   /** Nội dung render ở ĐỈNH thẻ (vd hàng chip chọn thứ) — nằm bên trong card. */
   topSlot?: ReactNode;
 }
@@ -46,13 +42,10 @@ export function SessionCard({
   guestPlayCount,
   guestDineCount,
   voteDeadline,
-  playFull = false,
-  playRemaining,
   topSlot,
 }: SessionCardProps) {
   const t = useTranslations("sessions");
   const tF = useTranslations("finance");
-  const tv = useTranslations("voting");
   const locale = useLocale() as AppLocale;
 
   // Badge derivation shared with session-list + session-detail (single source).
@@ -111,17 +104,6 @@ export function SessionCard({
               bình thường. Trước đây countdown đặt absolute đè lên hàng chip →
               chồng UI khi chip lấp đầy chiều ngang (bug trang chủ). */}
           <div className="flex shrink-0 flex-col items-end gap-1.5">
-            {playFull ? (
-              <span className="border-destructive/30 bg-destructive/10 text-destructive inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-semibold">
-                {tv("slotsFull")}
-              </span>
-            ) : playRemaining !== undefined &&
-              playRemaining >= 1 &&
-              playRemaining <= 2 ? (
-              <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
-                {tv("slotsLeft", { count: playRemaining })}
-              </span>
-            ) : null}
             {showCountdown && deadlinePassed ? (
               // Hết giờ vote: chỉ hiện "Đã đóng vote" (đồng hồ), KHÔNG hiện
               // badge "Đang vote" → tránh 2 trạng thái mâu thuẫn.
@@ -162,9 +144,9 @@ export function SessionCard({
             </div>
           )}
 
-          <div className="flex items-center gap-2">
-            <Users className="text-muted-foreground h-4 w-4" />
-            <div className="flex gap-4">
+          <div className="flex items-start gap-2">
+            <Users className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
               <span>
                 {t("badminton")}:{" "}
                 <strong className="text-primary text-xl font-extrabold tabular-nums">

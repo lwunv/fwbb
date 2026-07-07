@@ -196,47 +196,58 @@ export function SessionVoteOptimisticPanel({
         guestPlayCount={totalGuestPlay}
         guestDineCount={totalGuestDine}
         voteDeadline={voteDeadline ?? null}
-        playFull={playFull}
-        playRemaining={playRemaining}
         topSlot={headerSlot}
       />
 
       <Card>
         <CardContent className="p-4">
-          <h2 className="mb-3 text-lg font-bold sm:text-xl">
-            <span className="inline-flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-              <span className="inline-flex items-baseline whitespace-nowrap">
-                <span className="pr-1">{t("voteList")}</span>
-                <span className="text-muted-foreground">(</span>
-                <span className="text-primary text-2xl leading-none font-extrabold tabular-nums sm:text-3xl">
-                  {listHeadCount}
+          <div className="mb-3 flex items-start justify-between gap-2">
+            <h2 className="text-lg font-bold sm:text-xl">
+              <span className="inline-flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+                <span className="inline-flex items-baseline whitespace-nowrap">
+                  <span className="pr-1">{t("voteList")}</span>
+                  <span className="text-muted-foreground">(</span>
+                  <span className="text-primary text-2xl leading-none font-extrabold tabular-nums sm:text-3xl">
+                    {listHeadCount}
+                  </span>
+                  <span className="text-muted-foreground tabular-nums">/</span>
+                  <span className="text-muted-foreground tabular-nums">
+                    {members.length}
+                  </span>
+                  <span className="text-muted-foreground">)</span>
                 </span>
-                <span className="text-muted-foreground tabular-nums">/</span>
-                <span className="text-muted-foreground tabular-nums">
-                  {members.length}
-                </span>
-                <span className="text-muted-foreground">)</span>
+                {totalGuestPlay > 0 && (
+                  <span className="text-muted-foreground text-base font-normal whitespace-nowrap">
+                    +{" "}
+                    <span className="text-primary text-lg font-bold tabular-nums">
+                      {totalGuestPlay}
+                    </span>{" "}
+                    {tv("guestSummaryPlayTail", { count: totalGuestPlay })}
+                  </span>
+                )}
+                {totalGuestDine > 0 && (
+                  <span className="text-muted-foreground text-base font-normal whitespace-nowrap">
+                    +{" "}
+                    <span className="text-lg font-bold text-orange-600 tabular-nums dark:text-orange-400">
+                      {totalGuestDine}
+                    </span>{" "}
+                    {tv("guestSummaryDineTail", { count: totalGuestDine })}
+                  </span>
+                )}
               </span>
-              {totalGuestPlay > 0 && (
-                <span className="text-muted-foreground text-base font-normal whitespace-nowrap">
-                  +{" "}
-                  <span className="text-primary text-lg font-bold tabular-nums">
-                    {totalGuestPlay}
-                  </span>{" "}
-                  {tv("guestSummaryPlayTail", { count: totalGuestPlay })}
-                </span>
-              )}
-              {totalGuestDine > 0 && (
-                <span className="text-muted-foreground text-base font-normal whitespace-nowrap">
-                  +{" "}
-                  <span className="text-lg font-bold text-orange-600 tabular-nums dark:text-orange-400">
-                    {totalGuestDine}
-                  </span>{" "}
-                  {tv("guestSummaryDineTail", { count: totalGuestDine })}
-                </span>
-              )}
-            </span>
-          </h2>
+            </h2>
+            {/* Badge sức chứa: chuyển từ SessionCard xuống đây (cạnh "Danh
+                sách") theo yêu cầu. Hết slot → đỏ; còn 1-2 → cảnh báo cam. */}
+            {playFull ? (
+              <span className="border-destructive/30 bg-destructive/10 text-destructive inline-flex shrink-0 items-center gap-1 self-center rounded-md border px-2 py-0.5 text-xs font-semibold">
+                {tv("slotsFull")}
+              </span>
+            ) : playRemaining >= 1 && playRemaining <= 2 ? (
+              <span className="inline-flex shrink-0 items-center gap-1 self-center rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
+                {tv("slotsLeft", { count: playRemaining })}
+              </span>
+            ) : null}
+          </div>
           <VoteList
             votes={optimisticVotes}
             members={members}

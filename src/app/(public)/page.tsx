@@ -42,7 +42,7 @@ export default async function HomePage() {
     const latestSession = await getLatestCompletedSession();
 
     return (
-      <div className="mx-auto max-w-lg space-y-6">
+      <div className="mx-auto w-full max-w-lg space-y-6">
         <AutoRefresh />
         <FundBalanceBanner balance={userFundBalance} memberId={user.memberId} />
         <div className="space-y-4">
@@ -114,7 +114,7 @@ export default async function HomePage() {
       null;
 
     return (
-      <div className="mx-auto max-w-lg space-y-4">
+      <div className="mx-auto w-full max-w-lg space-y-4">
         <AutoRefresh />
         {user && (
           <FundBalanceBanner
@@ -143,7 +143,7 @@ export default async function HomePage() {
     }).open;
 
     return (
-      <div className="mx-auto max-w-lg space-y-4">
+      <div className="mx-auto w-full max-w-lg space-y-4">
         <AutoRefresh />
         {user && (
           <FundBalanceBanner
@@ -178,7 +178,7 @@ export default async function HomePage() {
   const latestSession = await getLatestCompletedSession();
 
   return (
-    <div className="mx-auto max-w-lg space-y-6">
+    <div className="mx-auto w-full max-w-lg space-y-6">
       <AutoRefresh />
       {user && (
         <FundBalanceBanner balance={userFundBalance} memberId={user.memberId} />
