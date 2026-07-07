@@ -1,11 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { Badge } from "@/components/ui/badge";
 import { useTranslations } from "next-intl";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Users } from "lucide-react";
+import { Users, ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { InferSelectModel } from "drizzle-orm";
 import type { votes as votesTable, members as membersTable } from "@/db/schema";
 
@@ -26,6 +28,9 @@ export function VoteList({
   currentMemberId?: number | null;
 }) {
   const t = useTranslations("voting");
+  // Danh sách "Chưa vote" mặc định ĐÓNG (accordion) — buổi đông thì phần đã
+  // vote là trọng tâm, danh sách chưa vote dài không chiếm chỗ.
+  const [notVotedOpen, setNotVotedOpen] = useState(false);
   const voteMap = new Map(votes.map((v) => [v.memberId, v]));
 
   const votedMembers = members.filter((m) => {
@@ -106,39 +111,57 @@ export function VoteList({
 
       {notVotedMembers.length > 0 && (
         <div className="space-y-2">
-          <p className="text-muted-foreground text-base font-semibold tracking-wider uppercase">
-            {t("notVoted")} ({notVotedMembers.length})
-          </p>
-          <div className="bg-background/60 dark:bg-background/40 ring-border/60 divide-border/60 divide-y overflow-hidden rounded-xl shadow-sm ring-1">
-            <AnimatePresence initial={false}>
-              {notVotedMembers.map((member) => (
-                <motion.div
-                  key={member.id}
-                  layout
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 0.6 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15 }}
-                  className="flex items-center gap-3 px-3 py-2"
-                >
-                  <MemberAvatar
-                    memberId={member.id}
-                    avatarKey={member.avatarKey}
-                    avatarUrl={member.avatarUrl}
-                    size={40}
-                  />
-                  <p className="truncate text-base font-medium">
-                    {member.name}
-                    {member.nickname && (
-                      <span className="text-muted-foreground ml-1.5 text-sm font-normal">
-                        ({member.nickname})
-                      </span>
-                    )}
-                  </p>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
+          <button
+            type="button"
+            onClick={() => setNotVotedOpen((v) => !v)}
+            aria-expanded={notVotedOpen}
+            className="flex min-h-11 w-full items-center justify-between gap-2 text-left"
+          >
+            <span className="text-muted-foreground text-base font-semibold tracking-wider uppercase">
+              {t("notVoted")} ({notVotedMembers.length})
+            </span>
+            <ChevronDown
+              className={cn(
+                "text-muted-foreground h-5 w-5 shrink-0 transition-transform",
+                notVotedOpen && "rotate-180",
+              )}
+            />
+          </button>
+          <AnimatePresence initial={false}>
+            {notVotedOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="bg-background/60 dark:bg-background/40 ring-border/60 divide-border/60 divide-y overflow-hidden rounded-xl shadow-sm ring-1">
+                  {notVotedMembers.map((member) => (
+                    <div
+                      key={member.id}
+                      className="flex items-center gap-3 px-3 py-2 opacity-60"
+                    >
+                      <MemberAvatar
+                        memberId={member.id}
+                        avatarKey={member.avatarKey}
+                        avatarUrl={member.avatarUrl}
+                        size={40}
+                      />
+                      <p className="truncate text-base font-medium">
+                        {member.name}
+                        {member.nickname && (
+                          <span className="text-muted-foreground ml-1.5 text-sm font-normal">
+                            ({member.nickname})
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
 

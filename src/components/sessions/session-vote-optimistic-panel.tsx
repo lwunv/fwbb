@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { LogIn } from "lucide-react";
 import { SessionCard } from "@/components/sessions/session-card";
@@ -70,6 +71,14 @@ export function SessionVoteOptimisticPanel({
   const [optimisticVotes, setOptimisticVotes] =
     useState<VoteWithMember[]>(serverVotes);
   const serverVotesRef = useRef<VoteWithMember[]>(serverVotes);
+  // Portal thanh vote ra document.body → fixed full-width thật (không bị
+  // containing-block của tổ tiên có backdrop-blur/transform kéo thụt vào).
+  // mounted-gate cho SSR-safe (document chỉ có ở client).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- cờ mount 1 lần cho portal client-only.
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     serverVotesRef.current = serverVotes;
@@ -170,41 +179,28 @@ export function SessionVoteOptimisticPanel({
         topSlot={headerSlot}
       />
 
-      {effectiveIsVotingOpen &&
-        (currentMemberId != null ? (
-          <Card className="bg-card/95 supports-[backdrop-filter]:bg-card/85 fixed inset-x-0 bottom-0 z-40 rounded-t-2xl rounded-b-none border-x-0 border-t border-b-0 shadow-[0_-4px_20px_rgba(0,0,0,0.18)] backdrop-blur sm:static sm:inset-auto sm:rounded-xl sm:border sm:shadow-sm">
-            <CardContent className="mx-auto max-w-lg p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-4">
-              <VoteButtons
-                sessionId={sessionId}
-                currentWillPlay={myVote?.willPlay ?? false}
-                currentWillDine={myVote?.willDine ?? false}
-                currentWithPartner={currentWithPartner}
-                playFull={playFull}
-                optimisticListSync={optimisticListSync}
-              />
-            </CardContent>
-          </Card>
-        ) : (
-          // Khách chưa đăng nhập: thay panel vote bằng CTA đăng nhập/đăng ký.
-          <Card className="border-primary/30 bg-card/95">
-            <CardContent className="flex flex-col items-center gap-3 p-5 text-center">
-              <p className="text-base font-semibold">
-                {tGuest("guestVoteCtaTitle")}
-              </p>
-              <p className="text-muted-foreground text-sm">
-                {tGuest("guestVoteCtaBody")}
-              </p>
-              <Button
-                size="lg"
-                className="w-full sm:w-auto"
-                render={<Link href="/login" />}
-              >
-                <LogIn className="mr-2 h-4 w-4" />
-                {tGuest("guestVoteCtaButton")}
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
+      {/* Khách chưa đăng nhập: CTA đăng nhập inline (member → thanh vote fixed
+          portal ở cuối). */}
+      {effectiveIsVotingOpen && currentMemberId == null && (
+        <Card className="border-primary/30 bg-card/95">
+          <CardContent className="flex flex-col items-center gap-3 p-5 text-center">
+            <p className="text-base font-semibold">
+              {tGuest("guestVoteCtaTitle")}
+            </p>
+            <p className="text-muted-foreground text-sm">
+              {tGuest("guestVoteCtaBody")}
+            </p>
+            <Button
+              size="lg"
+              className="w-full sm:w-auto"
+              render={<Link href="/login" />}
+            >
+              <LogIn className="mr-2 h-4 w-4" />
+              {tGuest("guestVoteCtaButton")}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="p-4">
@@ -250,11 +246,32 @@ export function SessionVoteOptimisticPanel({
         </CardContent>
       </Card>
 
-      {/* Spacer: thanh vote fixed che đáy trên mobile → chừa chỗ để danh sách
-          cuộn hết không bị khuất. Desktop thanh vote inline nên không cần. */}
+      {/* Spacer chừa chỗ cho thanh vote fixed (portal) khỏi che danh sách. */}
       {effectiveIsVotingOpen && currentMemberId != null && (
-        <div className="h-28 sm:hidden" aria-hidden />
+        <div className="h-28" aria-hidden />
       )}
+
+      {/* Thanh vote FIXED full-width, portal ra body để tràn hết mép màn hình
+          (không dính containing-block của tổ tiên có backdrop-blur/transform).
+          Nội dung căn giữa max-w-lg cho desktop; safe-area đáy cho iOS. */}
+      {mounted &&
+        effectiveIsVotingOpen &&
+        currentMemberId != null &&
+        createPortal(
+          <div className="border-primary/20 bg-card/95 supports-[backdrop-filter]:bg-card/85 fixed inset-x-0 bottom-0 z-40 border-t shadow-[0_-4px_20px_rgba(0,0,0,0.18)] backdrop-blur">
+            <div className="mx-auto w-full max-w-lg px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+              <VoteButtons
+                sessionId={sessionId}
+                currentWillPlay={myVote?.willPlay ?? false}
+                currentWillDine={myVote?.willDine ?? false}
+                currentWithPartner={currentWithPartner}
+                playFull={playFull}
+                optimisticListSync={optimisticListSync}
+              />
+            </div>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }
