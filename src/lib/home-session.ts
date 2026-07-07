@@ -1,6 +1,10 @@
+import { ymdInVN } from "@/lib/date-format";
+
 /** Số ngày (theo lịch) còn lại đến ngày chơi; 0 = hôm nay. */
 export function calendarDaysUntilSession(sessionDateYmd: string): number {
-  const today = new Date().toISOString().split("T")[0];
+  // Ngày "hôm nay" theo giờ VN — sessionDateYmd cũng là ngày VN. Dùng
+  // toISOString() (UTC) sẽ lệch 1 ngày trong 00:00-07:00 VN.
+  const today = ymdInVN();
   const start = new Date(`${today}T12:00:00`);
   const end = new Date(`${sessionDateYmd}T12:00:00`);
   return Math.round((end.getTime() - start.getTime()) / 86400000);

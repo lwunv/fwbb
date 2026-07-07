@@ -133,6 +133,54 @@ describe("checkPaymentForMemo — auth + memberId binding", () => {
     expect(r.amount).toBe(200_000);
   });
 
+  it("does NOT match a longer-id member's payment (prefix-collision leak fixed)", async () => {
+    // member 50's transfer, stored with the sender's real name (PII) in the memo.
+    await testDb.insert(paymentNotifications).values({
+      gmailMessageId: "g-50",
+      transferContent: "FWBB QUY 50 FT26 CT tu 999 NGUYEN VAN A tai TCB",
+      amount: 500_000,
+      status: "matched",
+      receivedAt: new Date().toISOString(),
+    });
+    await asMember(5); // member 5 polls their own memo "FWBB QUY 5"
+    const r = await checkPaymentForMemo("FWBB QUY 5");
+    // "FWBB QUY 5" must NOT substring-match "FWBB QUY 50 ..." → no leak.
+    expect(r.received).toBe(false);
+    expect(r.amount).toBeUndefined();
+    expect(r.transferContent).toBeUndefined();
+  });
+
+  it("still matches the member's own memo with trailing bank detail after the id", async () => {
+    await testDb.insert(paymentNotifications).values({
+      gmailMessageId: "g-5",
+      transferContent: "FWBB QUY 5 FT26 CT tu 111 ME tai TCB",
+      amount: 300_000,
+      status: "matched",
+      receivedAt: new Date().toISOString(),
+    });
+    await asMember(5);
+    const r = await checkPaymentForMemo("FWBB QUY 5");
+    expect(r.received).toBe(true);
+    expect(r.amount).toBe(300_000);
+  });
+
+  it("finds a notification stored with the SQLite default timestamp (space format)", async () => {
+    // Production inserts omit receivedAt → column default current_timestamp emits
+    // "YYYY-MM-DD HH:MM:SS" (space). `since` must be built in the same format or
+    // the lexicographic window comparison drops every same-day row.
+    await testDb.insert(paymentNotifications).values({
+      gmailMessageId: "g-default-ts",
+      transferContent: "FWBB QUY 5",
+      amount: 120_000,
+      status: "matched",
+      // receivedAt omitted → space-format default fires (like production).
+    });
+    await asMember(5);
+    const r = await checkPaymentForMemo("FWBB QUY 5");
+    expect(r.received).toBe(true);
+    expect(r.amount).toBe(120_000);
+  });
+
   it("very short memo never returns positive (anti-leak guard)", async () => {
     const meId = await seedMember("Me", "fb-me");
     await testDb.insert(paymentNotifications).values({

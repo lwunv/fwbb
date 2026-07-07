@@ -195,31 +195,54 @@ export function AdminVoteManager({
     return debtMap[memberId]?.adminConfirmed ?? false;
   }
 
+  function getVoteRow(memberId: number) {
+    return votes.find((v) => v.memberId === memberId);
+  }
+
+  /** Số đầu member này đại diện ("đi 2 người" → 2). Admin không đổi withPartner
+   *  ở đây nên lấy từ server row; finalize dùng đúng số này (finance.ts headcount
+   *  = withPartner ? 2 : 1). */
+  function memberHeadcount(memberId: number): number {
+    return getVoteRow(memberId)?.withPartner ? 2 : 1;
+  }
+
+  function getGuestCounts(memberId: number): { play: number; dine: number } {
+    const local = localGuests[memberId];
+    if (local) return local;
+    const row = getVoteRow(memberId);
+    return { play: row?.guestPlayCount ?? 0, dine: row?.guestDineCount ?? 0 };
+  }
+
   const allActiveMembers = members.filter((m) => {
     const v = getVote(m.id);
     return v && (v.willPlay || v.willDine);
   });
   const activeMembers = filterMembers(allActiveMembers, search);
 
-  /** Thành viên (không tính khách) đang play / dine */
-  const memberPlayerCount = allActiveMembers.filter(
-    (m) => getVote(m.id)?.willPlay,
-  ).length;
-  const memberDinerCount = allActiveMembers.filter(
-    (m) => getVote(m.id)?.willDine,
-  ).length;
+  /** Thành viên (không tính khách) đang play / dine — CỘNG THEO ĐẦU NGƯỜI
+   *  ("đi 2 người" = 2 đầu) để mẫu số /suất khớp finalize, không phải .length. */
+  const memberPlayerCount = allActiveMembers.reduce(
+    (s, m) => (getVote(m.id)?.willPlay ? s + memberHeadcount(m.id) : s),
+    0,
+  );
+  const memberDinerCount = allActiveMembers.reduce(
+    (s, m) => (getVote(m.id)?.willDine ? s + memberHeadcount(m.id) : s),
+    0,
+  );
 
-  /** Khách cộng từ vote — bỏ member đã remove khỏi danh sách. Cộng cả khách
-   *  của admin (lưu trên `sessions.admin_guest_*_count`) để khớp finalize. */
+  /** Khách cộng từ vote — dùng getGuestCounts (nguồn optimistic, cùng chỗ các
+   *  row đọc) để khi admin đổi số khách thì mẫu số + per-head cập nhật NGAY,
+   *  không lệch với per-member deduction trong lúc chờ server. Bỏ member đã
+   *  remove. Cộng cả khách-của-admin để khớp finalize. */
   const totalGuestPlay =
-    votes.reduce((s, v) => {
-      if (removedMembers.has(v.memberId)) return s;
-      return s + (v.guestPlayCount ?? 0);
+    members.reduce((s, m) => {
+      if (removedMembers.has(m.id)) return s;
+      return s + getGuestCounts(m.id).play;
     }, 0) + adminGuestPlayCount;
   const totalGuestDine =
-    votes.reduce((s, v) => {
-      if (removedMembers.has(v.memberId)) return s;
-      return s + (v.guestDineCount ?? 0);
+    members.reduce((s, m) => {
+      if (removedMembers.has(m.id)) return s;
+      return s + getGuestCounts(m.id).dine;
     }, 0) + adminGuestDineCount;
 
   /** Tổng “mạng” play/dine — khớp logic finalize (cost-calculator) */
@@ -250,40 +273,35 @@ export function AdminVoteManager({
       [memberId]: { willPlay: newPlay, willDine: newDine },
     }));
 
-    // Khi tắt cờ play/dine, reset guest count tương ứng về 0 để tránh ghost
-    // guest: VD member bỏ tick "Nhậu" mà vẫn hiển thị "1 khách 🍻". Chỉ chạy
-    // khi đang tắt (true → false) và guest count > 0.
+    // Khi tắt cờ play/dine, guest tương ứng cũng về 0 (adminSetVote giờ reset
+    // guest ATOMIC ở server). Chỉ mirror optimistic ở client + rollback CÙNG
+    // với vote trong MỘT fireAction — trước đây bắn 2 fireAction độc lập, nếu 1
+    // cái fail thì willPlay/guestCount lệch nhau và finalize tính ghost guest.
     const togglingOffPlay = tag === "play" && current.willPlay && !newPlay;
     const togglingOffDine = tag === "dine" && current.willDine && !newDine;
-    if (togglingOffPlay || togglingOffDine) {
-      const guests = getGuestCounts(memberId);
-      const needsReset =
-        (togglingOffPlay && guests.play > 0) ||
-        (togglingOffDine && guests.dine > 0);
-      if (needsReset) {
-        const prevGuests = { ...guests };
-        const nextGuests = {
-          play: togglingOffPlay ? 0 : guests.play,
-          dine: togglingOffDine ? 0 : guests.dine,
-        };
-        setLocalGuests((s) => ({ ...s, [memberId]: nextGuests }));
-        fireAsync(
-          () =>
-            adminSetGuestCount(
-              sessionId,
-              memberId,
-              nextGuests.play,
-              nextGuests.dine,
-            ),
-          () => setLocalGuests((s) => ({ ...s, [memberId]: prevGuests })),
-        );
-      }
+    const prevGuests = getGuestCounts(memberId);
+    const guestsChanged =
+      (togglingOffPlay && prevGuests.play > 0) ||
+      (togglingOffDine && prevGuests.dine > 0);
+    if (guestsChanged) {
+      setLocalGuests((s) => ({
+        ...s,
+        [memberId]: {
+          play: togglingOffPlay ? 0 : prevGuests.play,
+          dine: togglingOffDine ? 0 : prevGuests.dine,
+        },
+      }));
     }
 
-    // API: vote update
+    // MỘT action duy nhất: adminSetVote đã tự reset guest server-side. Rollback
+    // khôi phục cả vote lẫn guest → không còn trạng thái lệch.
     fireAsync(
       () => adminSetVote(sessionId, memberId, newPlay, newDine),
-      () => setLocalVotes((s) => ({ ...s, [memberId]: prev })),
+      () => {
+        setLocalVotes((s) => ({ ...s, [memberId]: prev }));
+        if (guestsChanged)
+          setLocalGuests((s) => ({ ...s, [memberId]: prevGuests }));
+      },
     );
   }
 
@@ -404,17 +422,6 @@ export function AdminVoteManager({
   );
   const totalOwed = totalDebtAmount - paidAmount;
 
-  function getVoteRow(memberId: number) {
-    return votes.find((v) => v.memberId === memberId);
-  }
-
-  function getGuestCounts(memberId: number): { play: number; dine: number } {
-    const local = localGuests[memberId];
-    if (local) return local;
-    const row = getVoteRow(memberId);
-    return { play: row?.guestPlayCount ?? 0, dine: row?.guestDineCount ?? 0 };
-  }
-
   function handleGuestChange(
     memberId: number,
     field: "play" | "dine",
@@ -442,8 +449,9 @@ export function AdminVoteManager({
     const row = getVoteRow(memberId);
     const gp = row?.guestPlayCount ?? 0;
     const gd = row?.guestDineCount ?? 0;
-    const playPart = (v.willPlay ? playPerHead : 0) + gp * playPerHead;
-    const dinePart = (v.willDine ? dinePerHead : 0) + gd * dinePerHead;
+    const hc = memberHeadcount(memberId);
+    const playPart = (v.willPlay ? playPerHead * hc : 0) + gp * playPerHead;
+    const dinePart = (v.willDine ? dinePerHead * hc : 0) + gd * dinePerHead;
     const est = playPart + dinePart;
     if (est > 0) return est;
     return debt?.amount ?? null;
@@ -458,8 +466,9 @@ export function AdminVoteManager({
     const guests = getGuestCounts(memberId);
     const gp = v?.willPlay ? guests.play : 0;
     const gd = v?.willDine ? guests.dine : 0;
-    const playAmount = willPlay ? playPerHead : 0;
-    const dineAmount = willDine ? dinePerHead : 0;
+    const hc = memberHeadcount(memberId);
+    const playAmount = willPlay ? playPerHead * hc : 0;
+    const dineAmount = willDine ? dinePerHead * hc : 0;
     const guestPlayAmount = gp * playPerHead;
     const guestDineAmount = gd * dinePerHead;
     return {

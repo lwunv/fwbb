@@ -70,7 +70,7 @@ export default async function MembersPage() {
       id: m.id,
       name: m.name,
       nickname: m.nickname,
-      hasPassword: !!m.passwordHash,
+      hasPassword: m.hasPassword,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 

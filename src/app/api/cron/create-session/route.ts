@@ -32,6 +32,10 @@ async function createSessionIfMissing(
   });
   if (existing) return false;
 
+  // onConflictDoNothing trên UNIQUE(date): nếu 2 lần cron chạy trùng (Vercel cron
+  // at-least-once, có thể double-fire) cùng chèn 1 ngày, lần thứ 2 KHÔNG ném
+  // UNIQUE error (trước đây throw giữa vòng lặp Thứ Bảy → bỏ dở các buổi còn
+  // lại của tuần). Conflict → returning [] → coi như đã tồn tại, bỏ qua.
   const [newSession] = await db
     .insert(sessions)
     .values({
@@ -42,7 +46,9 @@ async function createSessionIfMissing(
       useMinDeduction: true,
       voteDeadline: computeDefaultDeadline(dateStr, DEFAULT_PLAY_START_TIME),
     })
+    .onConflictDoNothing({ target: sessions.date })
     .returning();
+  if (!newSession) return false;
 
   if (defaultBrand) {
     await db.insert(sessionShuttlecocks).values({

@@ -114,24 +114,33 @@ export async function getShuttlecockFinanceSummary(): Promise<ShuttlecockFinance
     s.quaPurchased += tubesToQua(p.tubes);
   }
 
-  let totalRevenueExact = 0;
   let totalQuaUsed = 0;
+  // Gom exact theo TỪNG BUỔI để round per-session — khớp số member thực trả.
+  const perSessionExact = new Map<number, number>();
   for (const u of usages) {
     if (u.session?.status === "cancelled") continue;
     const exact = calculateExactShuttlecockCost(u.quantityUsed, u.pricePerTube);
-    totalRevenueExact += exact;
     totalQuaUsed += u.quantityUsed;
     const s = ensureBrand(u.brandId);
     s.revenue += exact;
     s.quaUsed += u.quantityUsed;
+    if (u.sessionId != null) {
+      perSessionExact.set(
+        u.sessionId,
+        (perSessionExact.get(u.sessionId) ?? 0) + exact,
+      );
+    }
   }
 
-  // Revenue = số tiền admin THỰC TẾ thu được từ member cho cầu. Member bị
-  // charge qua `calculateShuttlecockCost` (round UP to 1k), nên admin nhận
-  // ≥ exact cost. Dùng `roundToThousand` thay vì `Math.round` để match đúng
-  // số đã charge (Math.round có thể trả về số THẤP hơn thực thu → report
-  // underestimate admin's actual revenue).
-  const totalRevenue = roundToThousand(totalRevenueExact);
+  // Revenue = tổng tiền member THỰC TẾ bị charge cho cầu. finalize round chi phí
+  // cầu THEO TỪNG BUỔI (calculateSessionCosts/computeShuttlecockTotal), nên
+  // doanh thu = Σ round-per-session, KHÔNG phải roundToThousand(Σ tất cả). Round
+  // 1 lần trên tổng cross-session under-state so với Σ per-session (roundToThousand
+  // round UP), khiến header lệch với các dòng hiển thị bên dưới + số đã charge.
+  let totalRevenue = 0;
+  for (const v of perSessionExact.values()) {
+    totalRevenue += roundToThousand(v);
+  }
 
   // Tồn kho theo giá nhập: cho mỗi brand → remaining_qua × weighted-avg
   // cost_per_qua. Bỏ qua adjustQua (manual correction) vì admin chưa thực sự
@@ -208,6 +217,7 @@ export async function getUsageHistory(limit = 100): Promise<UsageRow[]> {
       id: sessionShuttlecocks.id,
       sessionId: sessionShuttlecocks.sessionId,
       sessionDate: sessions.date,
+      sessionStatus: sessions.status,
       brandId: sessionShuttlecocks.brandId,
       brandName: shuttlecockBrands.name,
       quantityUsed: sessionShuttlecocks.quantityUsed,
@@ -222,16 +232,23 @@ export async function getUsageHistory(limit = 100): Promise<UsageRow[]> {
     .orderBy(desc(sessions.date), desc(sessionShuttlecocks.id))
     .limit(limit);
 
-  return rows.map((r) => ({
-    id: r.id,
-    sessionId: r.sessionId,
-    sessionDate: r.sessionDate ?? "",
-    brandId: r.brandId,
-    brandName: r.brandName ?? "—",
-    quantityUsed: r.quantityUsed,
-    pricePerTube: r.pricePerTube,
-    exactRevenue: roundToThousand(
-      calculateExactShuttlecockCost(r.quantityUsed, r.pricePerTube),
-    ),
-  }));
+  return (
+    rows
+      // Loại buổi đã hủy: cancelSession giữ lại sessionShuttlecocks nhưng member
+      // KHÔNG bị charge → không tính là doanh thu (khớp getShuttlecockFinanceSummary
+      // dòng 120). Nếu không, tổng doanh thu ở header ≠ tổng các dòng liệt kê.
+      .filter((r) => r.sessionStatus !== "cancelled")
+      .map((r) => ({
+        id: r.id,
+        sessionId: r.sessionId,
+        sessionDate: r.sessionDate ?? "",
+        brandId: r.brandId,
+        brandName: r.brandName ?? "—",
+        quantityUsed: r.quantityUsed,
+        pricePerTube: r.pricePerTube,
+        exactRevenue: roundToThousand(
+          calculateExactShuttlecockCost(r.quantityUsed, r.pricePerTube),
+        ),
+      }))
+  );
 }

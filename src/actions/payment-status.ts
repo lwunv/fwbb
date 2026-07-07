@@ -60,10 +60,24 @@ export async function checkPaymentForMemo(
   );
   if (!matchesOwner) return { received: false, matched: false };
 
-  const since = new Date(Date.now() - sinceMinutes * 60_000).toISOString();
+  // Compare in the SAME timestamp format the column actually stores. received_at
+  // defaults to SQLite current_timestamp → "YYYY-MM-DD HH:MM:SS" (UTC, space
+  // separator, no ms/Z). Building `since` with a raw toISOString() (T separator)
+  // made the lexicographic gte() drop same-day rows (' ' 0x20 < 'T' 0x54), so
+  // the 30-min window never matched a genuinely recent transfer.
+  const since = new Date(Date.now() - sinceMinutes * 60_000)
+    .toISOString()
+    .slice(0, 19)
+    .replace("T", " ");
 
-  // SQLite LIKE is case-insensitive by default for ASCII; we match against
-  // the normalized memo text since Timo memos may be uppercased/stripped.
+  // Anchor the memo match to THIS member's id with a non-digit boundary. A bare
+  // LIKE %FWBB QUY 5% substring-matches "FWBB QUY 50 ..." (member 50), leaking
+  // their amount + sender name (PII) and falsely reporting "received". The LIKE
+  // narrows candidates; the regex enforces the exact-id boundary in JS.
+  const memoBoundary = new RegExp(
+    `${memoNorm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?!\\d)`,
+    "i",
+  );
   const rows = await db
     .select({
       id: paymentNotifications.id,
@@ -80,13 +94,15 @@ export async function checkPaymentForMemo(
       ),
     )
     .orderBy(desc(paymentNotifications.receivedAt))
-    .limit(1);
+    .limit(20);
 
-  if (rows.length === 0) {
+  const row = rows.find(
+    (r) => r.transferContent && memoBoundary.test(r.transferContent),
+  );
+  if (!row) {
     return { received: false, matched: false };
   }
 
-  const row = rows[0];
   return {
     received: true,
     matched: row.status === "matched",

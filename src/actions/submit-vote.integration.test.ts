@@ -229,4 +229,37 @@ describe("submitVote — giới hạn 16 người chơi cầu (Hết slot)", () 
     expect("error" in r).toBe(true);
     expect(await voteOf(s, id)).toBeUndefined();
   });
+
+  it("vote của member đã KHÓA không chiếm slot (finalize bỏ họ) — active member vẫn vote được", async () => {
+    const id = await seedMember(); // active + approved (Alice, cookie owner)
+    const s = await seedSession("voting");
+    await seedPlayers(s, 15); // 15 active players → + Alice = 16 real players
+
+    // Locked member với vote willPlay còn sót. finalize (buildAttendees) bỏ qua
+    // họ, nên slot này thực chất trống — capacity gate KHÔNG được đếm họ.
+    const [locked] = await testDb
+      .insert(members)
+      .values({
+        name: "Locked",
+        facebookId: "fb-locked",
+        isActive: false,
+        approvalStatus: "approved",
+      })
+      .returning({ id: members.id });
+    await testDb.insert(votes).values({
+      sessionId: s,
+      memberId: locked.id,
+      willPlay: true,
+      willDine: false,
+      guestPlayCount: 0,
+      guestDineCount: 0,
+      withPartner: false,
+    });
+
+    // Alice là người chơi thật thứ 16 → phải được vote (nếu đếm cả locked thì
+    // thành 17 → bị chặn oan).
+    const r = await submitVote(s, true, false, 0, 0, false);
+    expect("error" in r).toBe(false);
+    expect((await voteOf(s, id))?.willPlay).toBe(true);
+  });
 });

@@ -32,7 +32,7 @@ export function StockCard({ stock }: StockCardProps) {
             <Package className="text-muted-foreground h-4 w-4" />
             <div>
               <div className="text-sm font-medium">{stock.brandName}</div>
-              <div className="text-muted-foreground text-xs">
+              <div className="text-muted-foreground text-sm">
                 {formatK(stock.pricePerTube)}/{t("tube")}
               </div>
             </div>
@@ -123,7 +123,7 @@ export function StockCard({ stock }: StockCardProps) {
             <Button
               variant="outline"
               size="sm"
-              className="ml-auto"
+              className="ml-auto min-h-11"
               onClick={() => {
                 setEditOng(stock.ong);
                 setEditQua(stock.qua);

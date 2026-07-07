@@ -87,8 +87,17 @@ export async function submitVote(
   // (member đang có slot không bị đá ra kể cả khi admin đã override quá số).
   const allVotes = await db.query.votes.findMany({
     where: eq(votes.sessionId, data.sessionId),
+    with: { member: { columns: { isActive: true, approvalStatus: true } } },
   });
-  const others = allVotes.filter((v) => v.memberId !== user.memberId);
+  // Locked / unapproved members are SKIPPED at finalize (finance.ts buildAttendees
+  // continues past them), so their stale willPlay rows must NOT count toward the
+  // capacity divisor here — otherwise an active member is wrongly blocked with
+  // "Hết slot" for a slot that finalize would leave empty.
+  const countableVotes = allVotes.filter(
+    (v) =>
+      v.member && v.member.isActive && v.member.approvalStatus === "approved",
+  );
+  const others = countableVotes.filter((v) => v.memberId !== user.memberId);
   const selfVote = allVotes.find((v) => v.memberId === user.memberId);
   const base = playHeadcount(others, session.adminGuestPlayCount ?? 0);
   const existingMine = selfVote ? votePlayContribution(selfVote) : 0;
@@ -183,6 +192,14 @@ export async function adminSetVote(
       set: {
         willPlay,
         willDine,
+        // Atomically drop guests for a flag turned OFF — một member không
+        // chơi/nhậu thì không thể có khách chơi/nhậu. Làm ở ĐÂY (thay vì client
+        // gọi thêm adminSetGuestCount riêng) để bỏ desync: trước đây 2 request
+        // độc lập, nếu 1 cái fail thì finalize vẫn tính "ghost guest". finalize
+        // (buildAttendees) tạo guest theo guestPlayCount/DineCount không phụ
+        // thuộc willPlay/willDine nên phải zero ở đây mới thật sự không tính.
+        ...(willPlay ? {} : { guestPlayCount: 0 }),
+        ...(willDine ? {} : { guestDineCount: 0 }),
         updatedAt: new Date().toISOString(),
       },
     });

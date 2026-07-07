@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { members } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, isNotNull } from "drizzle-orm";
 
 /** Chuẩn hoá identifier để so khớp + làm khoá rate-limit ổn định. */
 export function normalizeIdentifier(s: string): string {
@@ -43,12 +43,21 @@ export async function findMemberByIdentifier(
   if (byUsername) return byUsername;
 
   // 3. Phone — chỉ nhận khi khớp đúng 1 (phone không unique).
+  //
+  // Storage KHÔNG chuẩn hoá đồng nhất: signup / admin-edit / duyệt member giữ
+  // nguyên '+' và dấu cách, chỉ self-edit lưu digits-only. Một `eq(phoneNumber,
+  // digits)` cứng sẽ không khớp row lưu "+84..." hoặc "0912 345 678" → login
+  // bằng SĐT im lặng fail. So khớp digits-only ở CẢ HAI phía để đúng với mọi
+  // định dạng đã lưu (nhóm nhỏ nên tải các row có phone rồi lọc là chấp nhận được).
   const digits = digitsOnly(identifier);
   if (digits.length >= 6) {
-    const byPhone = await db.query.members.findMany({
-      where: eq(members.phoneNumber, digits),
+    const withPhone = await db.query.members.findMany({
+      where: isNotNull(members.phoneNumber),
     });
-    if (byPhone.length === 1) return byPhone[0];
+    const matches = withPhone.filter(
+      (m) => m.phoneNumber && digitsOnly(m.phoneNumber) === digits,
+    );
+    if (matches.length === 1) return matches[0];
   }
 
   return null;

@@ -181,6 +181,51 @@ describe("loginWithPassword", () => {
     expect("error" in r).toBe(true);
   });
 
+  it("member khóa + SAI mật khẩu → lỗi CHUNG (không enumerate được)", async () => {
+    // C4: check khóa/rejected phải chạy SAU bcrypt. Sai mật khẩu trên tài khoản
+    // khóa phải trả cùng thông báo với định danh không tồn tại → không phân biệt.
+    await seedPwMember({
+      email: "lockedwrong@example.com",
+      password: "supersecret123",
+      isActive: false,
+    });
+    const locked = await loginWithPassword({
+      identifier: "lockedwrong@example.com",
+      password: "wrongpassword",
+    });
+    const ghost = await loginWithPassword({
+      identifier: "ghost@example.com",
+      password: "wrongpassword",
+    });
+    expect("error" in locked).toBe(true);
+    expect("error" in ghost).toBe(true);
+    expect((locked as { error: string }).error).toBe(
+      (ghost as { error: string }).error,
+    );
+  });
+
+  it("member khóa + ĐÚNG mật khẩu → mới lộ thông báo 'đã khóa'", async () => {
+    await seedPwMember({
+      email: "lockedok@example.com",
+      password: "supersecret123",
+      isActive: false,
+    });
+    const right = await loginWithPassword({
+      identifier: "lockedok@example.com",
+      password: "supersecret123",
+    });
+    const wrong = await loginWithPassword({
+      identifier: "lockedok@example.com",
+      password: "nope",
+    });
+    expect("error" in right).toBe(true);
+    // Chỉ chủ tài khoản (đúng mật khẩu) thấy thông báo khóa; sai mật khẩu vẫn
+    // là lỗi chung → 2 thông báo phải KHÁC nhau.
+    expect((right as { error: string }).error).not.toBe(
+      (wrong as { error: string }).error,
+    );
+  });
+
   it("đăng nhập bằng USERNAME (đa kênh)", async () => {
     const id = await seedPwMember({
       email: "u@example.com",

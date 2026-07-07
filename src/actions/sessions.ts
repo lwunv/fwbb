@@ -27,6 +27,7 @@ import {
   isNull,
   inArray,
   like,
+  or,
 } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
@@ -539,9 +540,25 @@ export async function cancelSession(
         .where(eq(sessions.id, sessionId));
 
       if (passed && passRevenue > 0 && adminMemberId !== null) {
-        // idempotencyKey natural-keyed by sessionId — DB UNIQUE INDEX trên
-        // financial_transactions.idempotency_key chặn admin double-click
-        // (form đã reset → tưởng vẫn submit được).
+        // Cycle-fresh idempotencyKey. Re-entry within the SAME cancel is blocked
+        // by the status guard above (status===cancelled → early return). But a
+        // cancel(pass) → reopen → cancel(pass) cycle would collide on a static
+        // `session-pass-${sessionId}` key: reopen reverses the original pass
+        // contribution but never deletes it, so the second cancel replays the
+        // key as a no-op → the fund is NOT credited while admin holds the cash.
+        // Seed the key with the most-recent prior pass contribution id for this
+        // session so each cancel cycle inserts a real row.
+        const priorPass = await tx.query.financialTransactions.findMany({
+          where: and(
+            eq(financialTransactions.sessionId, sessionId),
+            eq(financialTransactions.type, "fund_contribution"),
+          ),
+          columns: { id: true },
+        });
+        const passCycleSeed = priorPass.reduce(
+          (mx, r) => (r.id > mx ? r.id : mx),
+          0,
+        );
         const r = await recordFinancialTransaction(
           {
             type: "fund_contribution",
@@ -551,7 +568,7 @@ export async function cancelSession(
             sessionId,
             description: `Pass sân buổi ${session.date} — admin nhận lại`,
             metadata: { source: "session_passed", sessionId },
-            idempotencyKey: `session-pass-${sessionId}`,
+            idempotencyKey: `session-pass-${sessionId}-${passCycleSeed}`,
           },
           tx,
         );
@@ -735,12 +752,22 @@ export async function unlockSession(sessionId: number) {
       // finalizeSession step 2b. Bước trên chỉ reverse fund_deduction; penalty
       // là fund_contribution của admin nên không bị reverse → unlock để lại
       // admin double-credit (vỡ I1). Match qua idempotencyKey prefix.
+      // Bắt CẢ `min-deduction-penalty-*` (gốc) LẪN `re-confirm-penalty-*`
+      // (khôi phục sau undo→re-confirm). Nếu chỉ match dạng đầu, penalty được
+      // restore sẽ sống sót qua unlock → admin bị cộng dư (vỡ I1) — cùng lớp
+      // lỗi với finalize step 2b.
       const priorPenalties = await tx.query.financialTransactions.findMany({
         where: and(
           eq(financialTransactions.sessionId, sessionId),
           eq(financialTransactions.type, "fund_contribution"),
           isNull(financialTransactions.reversalOfId),
-          like(financialTransactions.idempotencyKey, "min-deduction-penalty-%"),
+          or(
+            like(
+              financialTransactions.idempotencyKey,
+              "min-deduction-penalty-%",
+            ),
+            like(financialTransactions.idempotencyKey, "re-confirm-penalty-%"),
+          ),
         ),
       });
       for (const ptx of priorPenalties) {
@@ -771,6 +798,23 @@ export async function unlockSession(sessionId: number) {
         .update(financialTransactions)
         .set({ debtId: null })
         .where(eq(financialTransactions.sessionId, sessionId));
+
+      // 2b. NULL paymentNotifications.matchedDebtId trỏ về các debt sắp xóa.
+      // libsql KHÔNG enforce FK nên onDelete:set null không tự chạy → nếu bỏ
+      // qua sẽ để lại dangling matchedDebtId (transactions.ts hiện ref chết).
+      // Mirror deleteSession.
+      const debtIdsToWipe = (
+        await tx
+          .select({ id: sessionDebts.id })
+          .from(sessionDebts)
+          .where(eq(sessionDebts.sessionId, sessionId))
+      ).map((r) => r.id);
+      if (debtIdsToWipe.length > 0) {
+        await tx
+          .update(paymentNotifications)
+          .set({ matchedDebtId: null })
+          .where(inArray(paymentNotifications.matchedDebtId, debtIdsToWipe));
+      }
 
       // 3. Wipe attendees + debts → state về "chưa finalize"
       await tx
@@ -972,6 +1016,19 @@ export async function deleteSession(sessionId: number) {
   return { success: true };
 }
 
+/** Chuẩn YYYY-MM-DD + là ngày CÓ THẬT (loại "2026-02-30", "2026-13-01"). */
+function isValidYmd(s: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const [y, m, day] = s.split("-").map(Number);
+  const d = new Date(`${s}T00:00:00`);
+  return (
+    !Number.isNaN(d.getTime()) &&
+    d.getFullYear() === y &&
+    d.getMonth() + 1 === m &&
+    d.getDate() === day
+  );
+}
+
 export async function createSessionManually(
   date: string,
   startTime?: string,
@@ -980,6 +1037,23 @@ export async function createSessionManually(
 ) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
+
+  // Validate input. Admin-only nhưng vẫn là server action gọi trực tiếp được;
+  // AGENTS.md cấm skip validation. Trước đây ngày/giờ rác ("25-99-99"/"25:99")
+  // lọt vào DB và sinh voteDeadline "NaN-NaN-NaNTNaN:NaN:NaN".
+  const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+  if (!isValidYmd(date)) {
+    return { error: "Ngày không hợp lệ (định dạng YYYY-MM-DD)" };
+  }
+  if (startTime && !HHMM.test(startTime)) {
+    return { error: "Giờ bắt đầu không hợp lệ (HH:MM)" };
+  }
+  if (endTime && !HHMM.test(endTime)) {
+    return { error: "Giờ kết thúc không hợp lệ (HH:MM)" };
+  }
+  if (courtId !== undefined && (!Number.isInteger(courtId) || courtId <= 0)) {
+    return { error: "Sân không hợp lệ" };
+  }
 
   // Check if session already exists for this date
   const existing = await db.query.sessions.findFirst({

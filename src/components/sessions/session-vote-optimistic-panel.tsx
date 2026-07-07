@@ -131,9 +131,14 @@ export function SessionVoteOptimisticPanel({
   const effectiveIsVotingOpen = isVotingOpen && !deadlinePassed;
 
   // Đếm 1 lần qua helper chung (member play/dine + tổng khách) — SINGLE SOURCE,
-  // khớp divisor chia tiền của cost-calculator.
+  // khớp divisor chia tiền của cost-calculator. LOẠI vote của member đã khóa
+  // (isActive=false): finalize bỏ qua họ (finance.ts buildAttendees) nên không
+  // được tính vào sức chứa/"Hết slot" — nếu không sẽ báo hết slot oan.
   const counts = useMemo(
-    () => countVoteParticipation(optimisticVotes),
+    () =>
+      countVoteParticipation(
+        optimisticVotes.filter((v) => v.member?.isActive !== false),
+      ),
     [optimisticVotes],
   );
   const playerCount = counts.memberPlay;

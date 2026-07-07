@@ -47,27 +47,30 @@ export async function login(
       error: t("tooManyLoginAttempts", { seconds: rl.retryAfter ?? 60 }),
     };
   }
-  // 3. Per USERNAME (IP-independent): caps online guessing of one account even
-  //    when the attacker rotates source IPs (XFF can't reset this bucket).
-  const rlUser = await checkRateLimit(
-    `login-user:${parsed.data.username}`,
-    10,
-    15 * 60_000,
-  );
-  if (!rlUser.ok) {
-    return {
-      error: t("tooManyLoginAttempts", { seconds: rlUser.retryAfter ?? 900 }),
-    };
-  }
-
   const admin = await db.query.admins.findFirst({
     where: eq(admins.username, parsed.data.username),
   });
 
-  if (
-    !admin ||
-    !(await bcrypt.compare(parsed.data.password, admin.passwordHash))
-  ) {
+  const passwordOk =
+    !!admin && (await bcrypt.compare(parsed.data.password, admin.passwordHash));
+
+  if (!admin || !passwordOk) {
+    // Per-USERNAME (IP-independent) throttle — but consumed ONLY on FAILED
+    // attempts. A correct-password login skips this branch entirely, so an
+    // attacker trickling wrong guesses can no longer lock the real admin out
+    // (the previous version pre-checked this bucket BEFORE bcrypt → a hard
+    // block on valid logins too = trivial account-lockout DoS). Distributed
+    // guessing across rotating IPs is still throttled per account.
+    const rlUser = await checkRateLimit(
+      `login-user:${parsed.data.username}`,
+      10,
+      15 * 60_000,
+    );
+    if (!rlUser.ok) {
+      return {
+        error: t("tooManyLoginAttempts", { seconds: rlUser.retryAfter ?? 900 }),
+      };
+    }
     return { error: t("invalidCredentials") };
   }
 

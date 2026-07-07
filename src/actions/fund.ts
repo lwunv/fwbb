@@ -1041,23 +1041,33 @@ export async function getSessionFinanceReport(): Promise<
   // reversal — done in JS using a single pass over the ledger like
   // `computeBalanceFromTransactions` does.
   const sessionIds = completedSessions.map((s) => s.id);
+  // Load BOTH fund_deduction and fund_contribution: the reversal of a
+  // fund_deduction is inserted as a fund_contribution (reversalOfId=deduction.id)
+  // by undoPaymentByAdmin / re-finalize. Loading only fund_deduction left
+  // `voidedIds` empty, so a reversed deduction still counted toward `thu`
+  // (doubled after re-finalize). Pulling the contribution reversals lets us
+  // void the reversed originals correctly.
   const ledgerRows =
     sessionIds.length > 0
       ? await db.query.financialTransactions.findMany({
           where: and(
             inArray(financialTransactions.sessionId, sessionIds),
-            eq(financialTransactions.type, "fund_deduction"),
+            inArray(financialTransactions.type, [
+              "fund_deduction",
+              "fund_contribution",
+            ]),
           ),
           columns: {
             id: true,
             sessionId: true,
             amount: true,
+            type: true,
             reversalOfId: true,
           },
         })
       : [];
 
-  // Find originals that have been reversed away.
+  // A reversal row (of any loaded type) voids the original it points at.
   const voidedIds = new Set<number>();
   for (const tx of ledgerRows) {
     if (tx.reversalOfId !== null && tx.reversalOfId !== undefined) {
@@ -1067,9 +1077,12 @@ export async function getSessionFinanceReport(): Promise<
 
   const thuBySession = new Map<number, number>();
   for (const tx of ledgerRows) {
+    // Thu = settled member deductions only (contributions are loaded solely to
+    // detect reversed deductions above).
+    if (tx.type !== "fund_deduction") continue;
     // Reversal entries themselves don't count as thu (they undo, not collect).
     if (tx.reversalOfId !== null && tx.reversalOfId !== undefined) continue;
-    // Originals that were reversed don't count either.
+    // Originals that were reversed away don't count either.
     if (voidedIds.has(tx.id)) continue;
     if (tx.sessionId === null) continue;
     thuBySession.set(

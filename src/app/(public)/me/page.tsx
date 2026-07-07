@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { getFundBalance, isFundMember } from "@/lib/fund-calculator";
 import { getMemberIdentities, isUsablePassword } from "@/lib/oauth-identity";
+import { ymdInVN } from "@/lib/date-format";
 import { MeClient } from "./me-client";
 import { SetPasswordSection } from "./set-password-section";
 import { LinkedAccountsSection } from "./linked-accounts-section";
@@ -24,8 +25,9 @@ export default async function MePage() {
     with: { session: true },
   });
 
-  const now = new Date();
-  const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  // Tháng theo giờ VN (server Vercel chạy UTC → new Date().getMonth() lệch tháng
+  // trong ~7h đầu mỗi tháng VN). ymdInVN() cho ngày VN, cắt "YYYY-MM".
+  const monthPrefix = ymdInVN().slice(0, 7);
   const totalSpentThisMonth = debts
     .filter((d) => d.session?.date?.startsWith(monthPrefix))
     .reduce((sum, d) => sum + d.totalAmount, 0);

@@ -237,9 +237,9 @@ export function FundAdjustDialog({
                       onClick={startEditingBalance}
                       aria-label={t("editBalanceAria")}
                       title={t("editBalanceAria")}
-                      className="border-border text-muted-foreground hover:bg-muted/50 inline-flex h-9 w-9 items-center justify-center rounded-md border transition-colors"
+                      className="border-border text-muted-foreground hover:bg-muted/50 inline-flex h-11 w-11 items-center justify-center rounded-md border transition-colors"
                     >
-                      <Pencil className="h-3.5 w-3.5" />
+                      <Pencil className="h-4 w-4" />
                     </button>
                   </div>
                 )}
@@ -330,7 +330,7 @@ function ModeButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex h-10 items-center justify-center gap-1 rounded-lg border-2 px-2 text-xs font-semibold transition-colors",
+        "inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border-2 px-2 text-sm font-semibold transition-colors",
         active
           ? activeClass
           : "border-border text-muted-foreground hover:bg-muted/50",

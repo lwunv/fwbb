@@ -105,8 +105,22 @@ async function verifyPubsubOidc(
       audience,
     });
 
-    if (expectedSA && (payload as { email?: string }).email !== expectedSA) {
-      return { ok: false, reason: "SA email mismatch" };
+    // Fail-closed on the service-account identity too. Without this, ANY
+    // Google-signed OIDC token whose `aud` matches (any GCP principal can mint
+    // one via IAM generateIdToken) would pass — an attacker could then poison
+    // the stored historyId and make real Timo emails be skipped. Mirror the
+    // audience gate: in prod a missing SA = misconfigured = reject.
+    const p = payload as { email?: string; email_verified?: boolean };
+    if (!expectedSA) {
+      if (process.env.NODE_ENV === "production") {
+        return {
+          ok: false,
+          reason:
+            "PUBSUB_OIDC_SERVICE_ACCOUNT not configured (refusing in production)",
+        };
+      }
+    } else if (p.email !== expectedSA || p.email_verified !== true) {
+      return { ok: false, reason: "SA email mismatch or unverified" };
     }
 
     return { ok: true };
@@ -240,7 +254,23 @@ async function handlePubSubPush(
 
   for (const record of history.history ?? []) {
     for (const added of record.messagesAdded ?? []) {
-      const msg = await gmailMessageGet(accessToken, added.message.id);
+      let msg;
+      try {
+        msg = await gmailMessageGet(accessToken, added.message.id);
+      } catch (err) {
+        const m = err instanceof Error ? err.message : String(err);
+        // A permanently-ungettable message (deleted/expunged → 404) must NOT
+        // block the batch or freeze the historyId watermark below — a frozen
+        // watermark makes the daily watch-renew jump historyId forward and
+        // permanently skip the intervening bank emails (silent payment loss).
+        // Skip a 404 and continue; re-throw transient errors (token/5xx/network)
+        // so the outer handler lets Pub/Sub retry the whole push.
+        if (/\(404\)/.test(m)) {
+          skipped++;
+          continue;
+        }
+        throw err;
+      }
 
       // Security: verify sender is Timo
       const fromEmail = extractEmailFromHeader(findHeader(msg, "From"));

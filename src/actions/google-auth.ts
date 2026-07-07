@@ -118,16 +118,18 @@ export async function googleLogin(idToken: string) {
       updates.name = claims.name;
     if (claims.picture && existing.avatarUrl !== claims.picture)
       updates.avatarUrl = claims.picture;
-    if (
-      claims.emailVerified &&
-      claims.email &&
-      existing.email !== claims.email
-    ) {
-      const emailTaken = await db.query.members.findFirst({
-        where: eq(members.email, claims.email),
-        columns: { id: true },
-      });
-      if (!emailTaken) updates.email = claims.email;
+    if (claims.emailVerified && claims.email) {
+      // Lowercase để khớp normalizeEmail dùng ở password-auth / login-lookup —
+      // email UNIQUE của SQLite phân biệt hoa-thường, nếu ghi thô case của
+      // Workspace sẽ tạo bản trùng + login-by-email fail.
+      const emailNorm = claims.email.trim().toLowerCase();
+      if (existing.email !== emailNorm) {
+        const emailTaken = await db.query.members.findFirst({
+          where: eq(members.email, emailNorm),
+          columns: { id: true },
+        });
+        if (!emailTaken) updates.email = emailNorm;
+      }
     }
     if (Object.keys(updates).length > 0) {
       await db.update(members).set(updates).where(eq(members.id, existing.id));
@@ -156,9 +158,10 @@ export async function googleLogin(idToken: string) {
 
   // Email collision check cho nhánh tạo mới: chỉ ghi email khi Google ĐÃ XÁC
   // MINH (emailVerified) VÀ chưa bị account khác chiếm.
-  let emailToWrite: string | null = claims.emailVerified
-    ? (claims.email ?? null)
-    : null;
+  let emailToWrite: string | null =
+    claims.emailVerified && claims.email
+      ? claims.email.trim().toLowerCase()
+      : null;
   if (emailToWrite) {
     const collision = await db.query.members.findFirst({
       where: eq(members.email, emailToWrite),

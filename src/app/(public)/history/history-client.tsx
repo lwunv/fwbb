@@ -445,29 +445,46 @@ export function HistoryClient({
                 <button
                   key={key + String(day.getTime())}
                   type="button"
-                  disabled={!hasSession}
+                  // Out-of-month spillover cells are context only — never
+                  // interactive, even if that day happens to have a session
+                  // (clicking would jump to another month's session).
+                  disabled={!hasSession || !onMonth}
                   onClick={() => onDayClick(day)}
                   className={cn(
                     "relative min-h-11 overflow-hidden rounded-md py-1 text-sm font-medium transition-colors sm:min-h-11",
-                    !onMonth && "opacity-35",
-                    // Không có buổi: ô trơn, số mờ → tách bạch với ô có buổi.
-                    !hasSession && "text-muted-foreground cursor-default",
-                    hasSession &&
+                    // Ngày ngoài tháng đang xem: chỉ là số mờ, KHÔNG viền/nền/ring
+                    // (tránh trông như ô có buổi dù đã disable).
+                    !onMonth && "text-muted-foreground/40 cursor-default",
+                    // Trong tháng, không có buổi: ô trơn, số mờ.
+                    onMonth &&
+                      !hasSession &&
+                      "text-muted-foreground cursor-default",
+                    // Còn nợ buổi này → cảnh báo đỏ.
+                    onMonth &&
+                      hasSession &&
                       hasUnpaidSession &&
                       "border-destructive/50 bg-destructive/20 text-destructive dark:bg-destructive/30 border dark:text-red-200",
-                    hasSession &&
-                      !hasUnpaidSession &&
-                      !userPlayed &&
-                      "border border-[var(--color-hist-play-border)] bg-[var(--color-hist-play-bg)] text-[var(--color-hist-play-fg)]",
-                    hasSession &&
+                    // CÓ CHƠI (không nợ) → nổi bật màu primary + viền, để tách
+                    // hẳn với buổi không chơi.
+                    onMonth &&
+                      hasSession &&
                       !hasUnpaidSession &&
                       userPlayed &&
-                      "border border-[var(--color-hist-play-border)] bg-[var(--color-hist-play-bg-strong)] text-[var(--color-hist-play-fg)]",
+                      "border-primary bg-primary/15 text-primary dark:bg-primary/25 border font-semibold",
+                    // Có buổi nhưng KHÔNG chơi → nền mờ nhạt, ít nổi hơn buổi chơi.
+                    onMonth &&
+                      hasSession &&
+                      !hasUnpaidSession &&
+                      !userPlayed &&
+                      "border-border/60 bg-muted/40 text-muted-foreground border",
+                    // Ring "hôm nay" / "đang chọn" chỉ trong tháng đang xem.
                     today &&
+                      onMonth &&
                       !isSelected &&
                       "ring-offset-background font-semibold ring-2 ring-sky-500/70 ring-offset-1 dark:ring-sky-400/65",
-                    today && isSelected && "font-semibold",
+                    today && onMonth && isSelected && "font-semibold",
                     isSelected &&
+                      onMonth &&
                       "ring-primary ring-offset-background ring-2 ring-offset-1",
                   )}
                 >

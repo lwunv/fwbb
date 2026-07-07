@@ -41,6 +41,18 @@ export async function GET(req: NextRequest) {
 
     const data = await res.json();
 
+    // fetch() KHÔNG reject trên HTTP 4xx/5xx. Nếu inner webhook trả non-2xx
+    // (thiếu env, token refresh fail, secret mismatch...) mà ta vẫn báo
+    // status:"ok" 200 thì Vercel Cron coi như thành công → renew fail âm thầm,
+    // sau 7 ngày watch hết hạn, Pub/Sub ngừng đẩy, chuyển khoản không được ghi.
+    // Phải phản ánh thất bại ra HTTP status để cron báo đỏ.
+    if (!res.ok) {
+      return NextResponse.json(
+        { status: "error", statusCode: res.status, watchResult: data },
+        { status: 502 },
+      );
+    }
+
     return NextResponse.json({
       status: "ok",
       watchResult: data,

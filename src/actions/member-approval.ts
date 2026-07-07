@@ -203,9 +203,25 @@ export async function updatePendingProfile(input: {
       ? input.bankAccountNo.replace(/[^\d]/g, "").slice(0, 32) || null
       : null;
 
+  // bankAccountNo là cột UNIQUE. Form này TỒN TẠI để pending user nhập đúng số
+  // TK khớp với row admin đã tạo sẵn cho họ → số đó nhiều khả năng ĐÃ nằm trên
+  // member khác. Ghi thẳng sẽ vỡ UNIQUE và ném lỗi thô. Nếu số đã thuộc member
+  // khác thì bỏ qua trường bank (nickname/phone vẫn lưu); admin sẽ gộp/khớp sau.
+  let bankToWrite = bankAccountNo;
+  if (bankAccountNo) {
+    const bankOwner = await db.query.members.findFirst({
+      where: and(
+        eq(members.bankAccountNo, bankAccountNo),
+        ne(members.id, member.id),
+      ),
+      columns: { id: true },
+    });
+    if (bankOwner) bankToWrite = null;
+  }
+
   await db
     .update(members)
-    .set({ nickname, phoneNumber, bankAccountNo })
+    .set({ nickname, phoneNumber, bankAccountNo: bankToWrite })
     .where(eq(members.id, member.id));
 
   revalidatePath("/pending-approval");

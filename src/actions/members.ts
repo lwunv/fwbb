@@ -10,6 +10,8 @@ import {
   financialTransactions,
   admins,
   memberOauthIdentities,
+  sessionMinDeductionExemptions,
+  paymentNotifications,
 } from "@/db/schema";
 import { eq, sql, or, ne, and, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -32,15 +34,27 @@ import { z } from "zod";
 export type UpdateMyProfileState = null | { success: true } | { error: string };
 
 /**
- * Admin-only: full member rows including sensitive fields (facebookId, email, bankAccountNo).
- * Returns [] if caller is not admin.
+ * Admin-only: member rows including admin-managed fields (facebookId, email,
+ * bankAccountNo). Returns [] if caller is not admin.
+ *
+ * SECURITY: bcrypt `passwordHash` and `passwordResetExpiresAt` are NEVER shipped
+ * to the client — the admin UI (MemberList) doesn't use them, and this list is
+ * serialized into the RSC flight payload. We scrub them to null and expose only
+ * a `hasPassword` boolean (used for the reset-password / merge-target hints).
+ * Defense-in-depth even though the route is admin-gated.
  */
 export async function getMembers() {
   const auth = await requireAdmin();
   if ("error" in auth) return [];
-  return db.query.members.findMany({
+  const rows = await db.query.members.findMany({
     orderBy: (m, { asc }) => [asc(m.name)],
   });
+  return rows.map((m) => ({
+    ...m,
+    passwordHash: null,
+    passwordResetExpiresAt: null,
+    hasPassword: !!m.passwordHash,
+  }));
 }
 
 /**
@@ -267,7 +281,20 @@ export async function updateMyProfile(
     }
   }
 
-  await db.update(members).set(setValues).where(eq(members.id, user.memberId));
+  // username/email đều UNIQUE. Pre-check ở trên có race window (2 người claim
+  // cùng lúc), nên bọc write: nếu dính UNIQUE, trả {error} localized thay vì
+  // ném lỗi DB thô (React 19 action reject → toast 500 khó hiểu).
+  try {
+    await db
+      .update(members)
+      .set(setValues)
+      .where(eq(members.id, user.memberId));
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (/username/i.test(msg)) return { error: t("usernameTaken") };
+    if (/email/i.test(msg)) return { error: t("emailTaken") };
+    throw e; // lỗi khác không nuốt
+  }
 
   revalidatePath("/me");
   revalidatePath("/");
@@ -307,7 +334,12 @@ export async function updateMember(id: number, formData: FormData) {
   // dialog "Sửa thông tin" luôn gửi cả 2 (rỗng = xoá), còn các form khác
   // (vd inline nickname cũ) không gửi thì giữ nguyên giá trị hiện có.
   if (formData.has("email")) {
-    const emailRaw = (formData.get("email") as string)?.trim() || "";
+    // Lowercase như updateMyProfile / signup / login-lookup (email UNIQUE của
+    // SQLite phân biệt hoa-thường). Nếu admin lưu "Nam@Gmail.com" thì login
+    // bằng email (đã hạ lowercase) không khớp, và có thể tạo email trùng khác
+    // hoa-thường.
+    const emailRaw =
+      (formData.get("email") as string)?.trim().toLowerCase() || "";
     if (emailRaw) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw)) {
         return { error: "Email không hợp lệ" };
@@ -631,6 +663,45 @@ export async function mergeMember(sourceId: number, targetId: number) {
   if (!source) return { error: t("sourceMemberNotFound") };
   if (!target) return { error: t("targetMemberNotFound") };
 
+  // B4 guard: khi source và target CÙNG có debt cho 1 buổi (conflict), nhánh
+  // xử lý bên dưới LUÔN giữ debt của target và drop + reverse ledger của source.
+  // Nếu chính SOURCE mới là bên đã nhận chuyển khoản thật cho buổi đó, merge sẽ
+  // huỷ khoản tiền thật (tiền đã vào TK admin) trong khi debt target vẫn chưa
+  // trả → thành viên bị đòi trả 2 lần. Tiền quỹ nội bộ thì re-point cân bằng an
+  // toàn, nhưng tiền bank thật thì không thể tự hoà giải. Chặn lại, để admin xử
+  // lý tay (xác nhận/huỷ khoản đó trước rồi merge).
+  const targetDebtSessionSet = new Set(
+    (
+      await db
+        .select({ sessionId: sessionDebts.sessionId })
+        .from(sessionDebts)
+        .where(eq(sessionDebts.memberId, targetId))
+    ).map((r) => r.sessionId),
+  );
+  const sourceConflictDebtIds = (
+    await db
+      .select({ id: sessionDebts.id, sessionId: sessionDebts.sessionId })
+      .from(sessionDebts)
+      .where(eq(sessionDebts.memberId, sourceId))
+  )
+    .filter((d) => targetDebtSessionSet.has(d.sessionId))
+    .map((d) => d.id);
+  if (sourceConflictDebtIds.length > 0) {
+    const bankMatch = await db.query.paymentNotifications.findFirst({
+      where: and(
+        inArray(paymentNotifications.matchedDebtId, sourceConflictDebtIds),
+        eq(paymentNotifications.status, "matched"),
+      ),
+      columns: { id: true },
+    });
+    if (bankMatch) {
+      return {
+        error:
+          "Không gộp được: bản ghi nguồn đã có chuyển khoản ngân hàng khớp cho một buổi mà bản ghi đích cũng có nợ. Hãy xử lý khoản thanh toán đó trước (xác nhận hoặc hoàn) rồi mới gộp, để không mất khoản tiền thật đã nhận.",
+      };
+    }
+  }
+
   await db.transaction(async (tx) => {
     // 1. votes — UNIQUE (sessionId, memberId). Lấy danh sách session mà target
     //    đã có vote → xóa source ở các session đó (giữ target). Còn lại update.
@@ -796,6 +867,36 @@ export async function mergeMember(sourceId: number, targetId: number) {
       .update(sessionAttendees)
       .set({ invitedById: targetId })
       .where(eq(sessionAttendees.invitedById, sourceId));
+
+    // 3b. sessionMinDeductionExemptions — composite PK (sessionId, memberId).
+    //     Bảng này có FK memberId ON DELETE CASCADE → nếu KHÔNG re-point trước
+    //     khi xóa source, mọi exemption của source biến mất. Buổi đó re-finalize
+    //     sẽ áp lại sàn 60K cho target (tưởng target không được miễn) → thu oan.
+    //     Cùng pattern conflict như votes/debts: bỏ row source ở session mà
+    //     target đã có exemption (PK trùng), còn lại re-point.
+    const targetExemptSessionIds = (
+      await tx
+        .select({ sessionId: sessionMinDeductionExemptions.sessionId })
+        .from(sessionMinDeductionExemptions)
+        .where(eq(sessionMinDeductionExemptions.memberId, targetId))
+    ).map((r) => r.sessionId);
+    if (targetExemptSessionIds.length > 0) {
+      await tx
+        .delete(sessionMinDeductionExemptions)
+        .where(
+          and(
+            eq(sessionMinDeductionExemptions.memberId, sourceId),
+            inArray(
+              sessionMinDeductionExemptions.sessionId,
+              targetExemptSessionIds,
+            ),
+          ),
+        );
+    }
+    await tx
+      .update(sessionMinDeductionExemptions)
+      .set({ memberId: targetId })
+      .where(eq(sessionMinDeductionExemptions.memberId, sourceId));
 
     // 4. financialTransactions — bulk update. Balance của target sẽ tự sum.
     await tx

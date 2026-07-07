@@ -180,7 +180,7 @@ export function LanguageSelector({ className }: LanguageSelectorProps) {
         className={cn(
           // Mobile: chỉ icon cờ (vuông, canh giữa). sm+: mở rộng full-width có
           // nhãn ngôn ngữ + mũi tên.
-          "border-border bg-card text-foreground flex h-11 w-11 items-center justify-center rounded-xl border text-left text-sm font-medium shadow-sm sm:h-9 sm:w-full sm:justify-between sm:gap-1.5 sm:px-2.5",
+          "border-border bg-card text-foreground flex h-11 w-11 items-center justify-center rounded-xl border text-left text-sm font-medium shadow-sm sm:h-11 sm:w-full sm:justify-between sm:gap-1.5 sm:px-2.5",
           "hover:bg-muted/60 focus-visible:border-ring focus-visible:ring-ring/40 transition-colors outline-none focus-visible:ring-2",
           open && "border-primary/50 bg-muted/40",
         )}

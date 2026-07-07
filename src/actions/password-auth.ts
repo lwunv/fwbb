@@ -154,13 +154,18 @@ export async function loginWithPassword(input: {
   if (!member || !member.passwordHash) {
     return { error: GENERIC };
   }
-  if (member.approvalStatus === "rejected" || !member.isActive) {
-    return { error: "Tài khoản đã bị khóa. Liên hệ admin." };
-  }
 
   const ok = await bcrypt.compare(input.password, member.passwordHash);
   if (!ok) {
     return { error: GENERIC };
+  }
+
+  // Chỉ lộ trạng thái khóa SAU khi mật khẩu đã đúng. Nếu check trước bcrypt,
+  // kẻ tấn công vô danh phân biệt được tài khoản khóa/rejected (thông báo khác)
+  // với định danh không tồn tại → enumerate được thành viên. Người nhập đúng
+  // mật khẩu là chủ tài khoản nên báo "đã khóa" cho họ là hợp lý.
+  if (member.approvalStatus === "rejected" || !member.isActive) {
+    return { error: "Tài khoản đã bị khóa. Liên hệ admin." };
   }
 
   // Mật khẩu tạm (admin reset) đã hết hạn → từ chối, bắt xin admin cấp lại.

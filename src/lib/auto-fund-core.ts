@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { sessionDebts, financialTransactions } from "@/db/schema";
-import { eq, and, asc } from "drizzle-orm";
+import { eq, and, asc, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { isFundMember } from "@/lib/fund-calculator";
 import { computeBalanceFromTransactions } from "@/lib/fund-core";
@@ -70,16 +70,37 @@ export async function autoApplyFundToDebts(
       for (const debt of unpaid) {
         if (balance < debt.totalAmount) break;
 
-        await tx
-          .update(sessionDebts)
-          .set({
-            memberConfirmed: true,
-            memberConfirmedAt: now,
-            adminConfirmed: true,
-            adminConfirmedAt: now,
-          })
-          .where(eq(sessionDebts.id, debt.id));
+        // Cycle-fresh idempotency key. After an undo the previous
+        // `auto-apply-debt-<id>` deduction persists as a VOIDED row (its key
+        // still occupies the UNIQUE index). A static key would make the next
+        // apply replay as a no-op — marking the debt paid WITHOUT deducting the
+        // fund (silent free session). Seed the key with the most-recent voided
+        // deduction id for this debt so each re-apply inserts a real row, and
+        // skip entirely if a LIVE deduction already exists (never double-charge
+        // an inconsistent flags=false state). Mirrors restoreVoidedLedgerForDebt.
+        const priorDeductions = await tx.query.financialTransactions.findMany({
+          where: and(
+            eq(financialTransactions.debtId, debt.id),
+            eq(financialTransactions.type, "fund_deduction"),
+            isNull(financialTransactions.reversalOfId),
+          ),
+          columns: { id: true },
+        });
+        let liveDeductionExists = false;
+        let cycleSeed = 0;
+        for (const d of priorDeductions) {
+          const reversal = await tx.query.financialTransactions.findFirst({
+            where: eq(financialTransactions.reversalOfId, d.id),
+            columns: { id: true },
+          });
+          if (!reversal) liveDeductionExists = true;
+          else if (d.id > cycleSeed) cycleSeed = d.id;
+        }
+        if (liveDeductionExists) continue;
 
+        // Write the balancing ledger entry FIRST, then flip the confirmed flags
+        // only after it actually persisted — never mark a debt paid without a
+        // deduction (invariant I8).
         const r = await recordFinancialTransaction(
           {
             type: "fund_deduction",
@@ -90,11 +111,21 @@ export async function autoApplyFundToDebts(
             debtId: debt.id,
             description: `Auto trừ quỹ — debt #${debt.id}`,
             metadata: { autoApplied: true },
-            idempotencyKey: `auto-apply-debt-${debt.id}`,
+            idempotencyKey: `auto-apply-debt-${debt.id}-${cycleSeed}`,
           },
           tx,
         );
         if ("error" in r) throw new Error(r.error);
+
+        await tx
+          .update(sessionDebts)
+          .set({
+            memberConfirmed: true,
+            memberConfirmedAt: now,
+            adminConfirmed: true,
+            adminConfirmedAt: now,
+          })
+          .where(eq(sessionDebts.id, debt.id));
 
         balance -= debt.totalAmount;
         appliedTotal += debt.totalAmount;

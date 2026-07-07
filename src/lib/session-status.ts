@@ -22,6 +22,8 @@
  *   * → completed (phải qua finalizeSession để build attendees + debts đúng)
  */
 
+import { parseVoteDeadline } from "./vote-deadline";
+
 export type SessionStatus = "voting" | "confirmed" | "completed" | "cancelled";
 
 /** Subset of StatusBadge variants a session row can show. */
@@ -136,7 +138,10 @@ export function isVoteOpen(session: {
   if (session.status !== "voting" && session.status !== "confirmed") {
     return { open: false, reason: "status" };
   }
-  if (session.voteDeadline && new Date(session.voteDeadline) <= new Date()) {
+  if (
+    session.voteDeadline &&
+    parseVoteDeadline(session.voteDeadline) <= new Date()
+  ) {
     return { open: false, reason: "deadline" };
   }
   return { open: true };

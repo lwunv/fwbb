@@ -98,9 +98,12 @@ export function WeekSessionsView({
           optSel?.sessionId === d.session.id
             ? optSel.votes
             : (d.session?.votes ?? []);
+        // Loại vote của member đã khóa (isActive=false) — finalize bỏ qua họ,
+        // nên "N người" trên chip cũng không được tính (khớp sức chứa/finalize).
         const playCount = d.session
-          ? countVoteParticipation(votesForChip).totalPlayers +
-            d.session.adminGuestPlayCount
+          ? countVoteParticipation(
+              votesForChip.filter((v) => v.member?.isActive !== false),
+            ).totalPlayers + d.session.adminGuestPlayCount
           : 0;
         return (
           <motion.button

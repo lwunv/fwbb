@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 interface BaseModalProps {
@@ -17,7 +18,7 @@ interface BaseModalProps {
  * Backdrop + animated card wrapper for app modals. Trước đây pattern này
  * được copy-paste ở nhiều chỗ (fund-dashboard, shuttlecock-finance,
  * record-contribution-dialog, …). Giờ centralized — chỉ render content,
- * BaseModal lo phần animation + backdrop + ESC/click-outside.
+ * BaseModal lo phần animation + backdrop + ESC + click-outside + dialog a11y.
  */
 export function BaseModal({
   open,
@@ -26,6 +27,17 @@ export function BaseModal({
   maxWidthClass = "max-w-md",
   closeOnBackdrop = true,
 }: BaseModalProps) {
+  // Esc để đóng (JSDoc trước đây hứa "ESC" nhưng không có listener). Chỉ gắn
+  // khi mở để không nuốt Esc của các surface khác.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
   return (
     <AnimatePresence>
       {open && (
@@ -37,6 +49,8 @@ export function BaseModal({
           onClick={closeOnBackdrop ? onClose : undefined}
         >
           <motion.div
+            role="dialog"
+            aria-modal="true"
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}

@@ -104,7 +104,7 @@ export function TabSegment<V extends string = string>({
             aria-selected={active}
             onClick={() => onChange(opt.value)}
             className={cn(
-              "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium whitespace-nowrap transition-colors",
+              "inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium whitespace-nowrap transition-colors",
               active
                 ? "border-primary bg-primary text-primary-foreground"
                 : "border-border bg-card text-muted-foreground hover:text-foreground",

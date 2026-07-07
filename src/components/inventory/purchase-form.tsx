@@ -11,6 +11,7 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import { recordPurchase } from "@/actions/inventory";
 import { fireAction } from "@/lib/optimistic-action";
 import { formatK } from "@/lib/utils";
+import { ymdInVN } from "@/lib/date-format";
 import { Plus } from "lucide-react";
 import type { InferSelectModel } from "drizzle-orm";
 import type { shuttlecockBrands as brandsTable } from "@/db/schema";
@@ -31,9 +32,9 @@ export function PurchaseForm({ brands }: PurchaseFormProps) {
   const [pricePerTube, setPricePerTube] = useState<number>(
     brands.length > 0 ? brands[0].pricePerTube : 0,
   );
-  const [purchasedAt, setPurchasedAt] = useState(
-    new Date().toISOString().split("T")[0],
-  );
+  // Ngày mặc định theo giờ VN, KHÔNG dùng toISOString() (UTC) — nếu không, mở
+  // form lúc 00:00-07:00 VN sẽ mặc định về hôm qua.
+  const [purchasedAt, setPurchasedAt] = useState(ymdInVN());
   const [notes, setNotes] = useState("");
 
   function handleBrandChange(val: string) {

@@ -11,7 +11,7 @@ import {
   financialTransactions,
   admins,
 } from "@/db/schema";
-import { eq, desc, and, isNull, asc, inArray, like } from "drizzle-orm";
+import { eq, desc, and, isNull, asc, inArray, like, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getUserFromCookie } from "@/lib/user-identity";
 import { requireApprovedMember } from "@/lib/member-auth";
@@ -220,12 +220,24 @@ export async function finalizeSession(
       // trên CHỈ reverse fund_deduction; penalty là fund_contribution
       // (memberId=adminMemberId) nên KHÔNG bị reverse → re-finalize sẽ
       // double-credit admin (vỡ I1). Match qua idempotencyKey prefix.
+      //
+      // Phải bắt CẢ HAI dạng penalty còn sống:
+      //  - `min-deduction-penalty-*`: penalty gốc do finalize tạo.
+      //  - `re-confirm-penalty-*`: penalty được restoreVoidedLedgerForDebt khôi
+      //    phục sau chu kỳ undo→re-confirm. Trước đây step 2b chỉ match dạng
+      //    đầu → dạng thứ hai sống sót qua re-finalize → admin bị cộng dư (vỡ I1).
       const priorPenalties = await tx.query.financialTransactions.findMany({
         where: and(
           eq(financialTransactions.sessionId, data.sessionId),
           eq(financialTransactions.type, "fund_contribution"),
           isNull(financialTransactions.reversalOfId),
-          like(financialTransactions.idempotencyKey, "min-deduction-penalty-%"),
+          or(
+            like(
+              financialTransactions.idempotencyKey,
+              "min-deduction-penalty-%",
+            ),
+            like(financialTransactions.idempotencyKey, "re-confirm-penalty-%"),
+          ),
         ),
       });
       for (const ptx of priorPenalties) {

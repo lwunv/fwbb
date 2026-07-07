@@ -176,6 +176,49 @@ describe("reopenSession (integration)", () => {
     });
     expect(txs).toHaveLength(0);
   });
+
+  it("cancel → reopen → cancel re-credits the fund (cycle-fresh pass-revenue key)", async () => {
+    // Regression: a static `session-pass-${sessionId}` key made the SECOND
+    // cancel replay a no-op (reopen reverses but never deletes the original),
+    // so the re-collected pass cash never hit the fund. The cycle-fresh key
+    // must make the second cancel insert a real contribution.
+    const memberId = await seedMember("Admin");
+    await seedAdmin(memberId);
+    const sId = await seedSession("confirmed");
+
+    await cancelSession(sId, { passed: true, passRevenue: 100_000 }); // C1 +100k
+    await reopenSession(sId); // D1 -100k (reverses C1), status → voting
+    const r = await cancelSession(sId, { passed: true, passRevenue: 200_000 });
+    expect(r).toEqual({ success: true });
+
+    const after = await testDb.query.sessions.findFirst({
+      where: eq(sessions.id, sId),
+    });
+    expect(after?.status).toBe("cancelled");
+    expect(after?.passRevenue).toBe(200_000);
+
+    // Ledger: C1(+100k), D1(-100k reversalOf C1), C2(+200k live). The second
+    // cancel must have inserted a NEW live contribution of 200k.
+    const txs = await testDb.query.financialTransactions.findMany({
+      where: eq(financialTransactions.sessionId, sId),
+    });
+    const reversedIds = new Set(
+      txs.map((t) => t.reversalOfId).filter((x): x is number => x != null),
+    );
+    const liveContribs = txs.filter(
+      (t) => t.type === "fund_contribution" && !reversedIds.has(t.id),
+    );
+    expect(liveContribs).toHaveLength(1);
+    expect(liveContribs[0].amount).toBe(200_000);
+    expect(liveContribs[0].memberId).toBe(memberId);
+
+    // Net admin credit from this session = -100k(reversed C1 nets 0) + 200k = 200k.
+    const net = txs.reduce((sum, t) => {
+      const sign = t.direction === "in" ? 1 : t.direction === "out" ? -1 : 0;
+      return sum + sign * t.amount;
+    }, 0);
+    expect(net).toBe(200_000);
+  });
 });
 
 describe("unlockSession (integration)", () => {

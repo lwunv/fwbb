@@ -110,6 +110,10 @@ export function VoteButtons({
 
   // Hết slot: chỉ chặn khi CHƯA đi cầu (bật mới). Đang đi cầu vẫn cho bỏ.
   const playLocked = playFull && !willPlay;
+  // "2 mình" (đi 2 người) = +1 đầu chơi. Đã hết slot → chặn BẬT (vẫn cho tắt),
+  // để control khớp cap thay vì để submitVote reject rồi rollback (count nhấp
+  // nháy vượt cap 1 frame). togglePlay đã gate riêng nên chỉ xét khi đang chơi.
+  const partnerLocked = playFull && willPlay && !withPartner;
 
   function togglePlay() {
     if (disabled || playLocked) return;
@@ -135,7 +139,7 @@ export function VoteButtons({
   }
 
   function togglePartner() {
-    if (disabled || !willPlay) return;
+    if (disabled || !willPlay || partnerLocked) return;
     const next = !withPartner;
     const prev = withPartner;
     setWithPartner(next);
@@ -182,12 +186,15 @@ export function VoteButtons({
               data-tour="vote-partner"
               aria-checked={withPartner}
               aria-label={t("withPartner")}
-              disabled={disabled}
+              disabled={disabled || partnerLocked}
               onClick={(e) => {
                 e.stopPropagation();
                 togglePartner();
               }}
-              className="flex shrink-0 items-center gap-1.5 rounded-full px-1.5 py-1"
+              className={cn(
+                "flex shrink-0 items-center gap-1.5 rounded-full px-1.5 py-1",
+                partnerLocked && "cursor-not-allowed opacity-40",
+              )}
             >
               <span className="text-base leading-none" aria-hidden>
                 👫

@@ -26,6 +26,8 @@ import {
   sessionDebts,
   financialTransactions,
   admins as adminsTable,
+  sessionMinDeductionExemptions,
+  paymentNotifications,
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { computeBalanceFromTransactions } from "@/lib/fund-core";
@@ -205,6 +207,68 @@ describe("F2 — mergeMember conflict reversal prevents double-deduct", () => {
       where: eq(members.id, sourceId),
     });
     expect(sourceMember).toBeUndefined();
+  });
+
+  it("re-points sessionMinDeductionExemptions to target (not cascade-deleted)", async () => {
+    // B3: bảng exemptions có FK memberId ON DELETE CASCADE. Nếu merge không
+    // re-point trước khi xóa source, exemption của source biến mất → buổi đó
+    // re-finalize sẽ tính sàn 60K cho target (tưởng không được miễn) → thu oan.
+    const { sourceId, targetId } = await seedActors();
+    const [s] = await testDb
+      .insert(sessions)
+      .values({
+        date: "2026-05-21",
+        status: "completed",
+        courtPrice: 60_000,
+        useMinDeduction: true,
+      })
+      .returning({ id: sessions.id });
+    await testDb
+      .insert(sessionMinDeductionExemptions)
+      .values({ sessionId: s.id, memberId: sourceId });
+
+    const mergeR = await mergeMember(sourceId, targetId);
+    expect("error" in mergeR).toBe(false);
+
+    // Exemption vẫn còn (không bị cascade xóa) và giờ thuộc target.
+    const rows = await testDb.query.sessionMinDeductionExemptions.findMany({});
+    expect(rows).toHaveLength(1);
+    expect(rows[0].memberId).toBe(targetId);
+    expect(rows[0].sessionId).toBe(s.id);
+  });
+
+  it("refuses merge when a conflicting SOURCE debt has a matched bank payment", async () => {
+    // B4: nhánh conflict luôn giữ debt target + reverse ledger source. Nếu chính
+    // source mới là bên nhận chuyển khoản thật, merge sẽ huỷ tiền thật. Chặn lại.
+    const { sourceId, targetId } = await seedActors();
+    const [s] = await testDb
+      .insert(sessions)
+      .values({ date: "2026-05-22", status: "completed", courtPrice: 60_000 })
+      .returning({ id: sessions.id });
+    const [srcDebt] = await testDb
+      .insert(sessionDebts)
+      .values({ sessionId: s.id, memberId: sourceId, totalAmount: 20_000 })
+      .returning({ id: sessionDebts.id });
+    await testDb
+      .insert(sessionDebts)
+      .values({ sessionId: s.id, memberId: targetId, totalAmount: 20_000 });
+    // Source's debt received a matched bank transfer (real money in admin acct).
+    await testDb.insert(paymentNotifications).values({
+      gmailMessageId: "g-bank-merge",
+      transferContent: "FWBB NO src",
+      amount: 20_000,
+      matchedDebtId: srcDebt.id,
+      status: "matched",
+    });
+
+    const mergeR = await mergeMember(sourceId, targetId);
+    expect("error" in mergeR).toBe(true);
+
+    // Merge bị hủy → source CHƯA bị xóa (admin xử lý tay trước).
+    const src = await testDb.query.members.findFirst({
+      where: eq(members.id, sourceId),
+    });
+    expect(src).toBeTruthy();
   });
 
   it("reverses admin min-deduction penalty when source duplicate had floored debt in conflict session", async () => {

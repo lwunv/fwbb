@@ -1,6 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { isVoteOpen, deriveSessionBadge } from "./session-status";
-import { formatLocalDeadline } from "./vote-deadline";
 
 describe("deriveSessionBadge", () => {
   const today = "2026-06-15";
@@ -48,23 +47,37 @@ describe("deriveSessionBadge", () => {
   });
 });
 
-// Use the same local-time-no-Z format the production code stores (matches
-// integration tests + DB rows). Comparison in isVoteOpen is absolute-ms so
-// either format would pass — using local format is cosmetic consistency.
+// voteDeadline is a VN wall-clock string (no offset). isVoteOpen must interpret
+// it as +07:00, NOT the runtime local TZ — the Vercel server runs UTC. These
+// tests fix the system clock in UTC and use explicit VN deadlines so they assert
+// the correct timezone framing regardless of the machine running the suite.
 describe("isVoteOpen", () => {
-  const future = formatLocalDeadline(new Date(Date.now() + 60 * 60 * 1000));
-  const past = formatLocalDeadline(new Date(Date.now() - 60 * 60 * 1000));
+  afterEach(() => vi.useRealTimers());
+
+  // Freeze "now" at 2026-05-21 10:00Z == 17:00 VN.
+  function nowAtUtc(iso: string) {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(iso));
+  }
+
+  // 20:00 VN (13:00Z) is after 17:00 VN → future; 16:00 VN (09:00Z) → past.
+  const futureVN = "2026-05-21T20:00:00";
+  const pastVN = "2026-05-21T16:00:00";
 
   it("returns open=true when status=voting and deadline in future", () => {
-    expect(isVoteOpen({ status: "voting", voteDeadline: future })).toEqual({
+    nowAtUtc("2026-05-21T10:00:00Z");
+    expect(isVoteOpen({ status: "voting", voteDeadline: futureVN })).toEqual({
       open: true,
     });
   });
 
   it("returns open=true when status=confirmed and deadline in future", () => {
-    expect(isVoteOpen({ status: "confirmed", voteDeadline: future })).toEqual({
-      open: true,
-    });
+    nowAtUtc("2026-05-21T10:00:00Z");
+    expect(isVoteOpen({ status: "confirmed", voteDeadline: futureVN })).toEqual(
+      {
+        open: true,
+      },
+    );
   });
 
   it("returns open=true when deadline is null (no deadline)", () => {
@@ -74,17 +87,35 @@ describe("isVoteOpen", () => {
   });
 
   it("returns open=false reason=deadline when status=voting and deadline in past", () => {
-    expect(isVoteOpen({ status: "voting", voteDeadline: past })).toEqual({
+    nowAtUtc("2026-05-21T10:00:00Z");
+    expect(isVoteOpen({ status: "voting", voteDeadline: pastVN })).toEqual({
       open: false,
       reason: "deadline",
     });
   });
 
+  it("interprets the deadline as VN time, not UTC (regression: was ~7h late)", () => {
+    // 09:45Z == 16:45 VN, just past a 16:30 VN deadline. A bare UTC parse would
+    // read the deadline as 16:30Z and wrongly keep voting open until 16:30Z.
+    nowAtUtc("2026-05-21T09:45:00Z");
+    expect(
+      isVoteOpen({ status: "voting", voteDeadline: "2026-05-21T16:30:00" }),
+    ).toEqual({ open: false, reason: "deadline" });
+    // Sanity: at 09:15Z (16:15 VN) the same deadline is still open.
+    nowAtUtc("2026-05-21T09:15:00Z");
+    expect(
+      isVoteOpen({ status: "voting", voteDeadline: "2026-05-21T16:30:00" }),
+    ).toEqual({ open: true });
+  });
+
   it("returns open=false reason=status when status=completed (regardless of deadline)", () => {
-    expect(isVoteOpen({ status: "completed", voteDeadline: future })).toEqual({
-      open: false,
-      reason: "status",
-    });
+    nowAtUtc("2026-05-21T10:00:00Z");
+    expect(isVoteOpen({ status: "completed", voteDeadline: futureVN })).toEqual(
+      {
+        open: false,
+        reason: "status",
+      },
+    );
   });
 
   it("returns open=false reason=status when status=cancelled and deadline null", () => {
@@ -95,7 +126,8 @@ describe("isVoteOpen", () => {
   });
 
   it("status check fires before deadline check (completed + past deadline → reason=status)", () => {
-    expect(isVoteOpen({ status: "completed", voteDeadline: past })).toEqual({
+    nowAtUtc("2026-05-21T10:00:00Z");
+    expect(isVoteOpen({ status: "completed", voteDeadline: pastVN })).toEqual({
       open: false,
       reason: "status",
     });

@@ -272,6 +272,77 @@ describe("autoApplyFundToDebts (integration)", () => {
     expect(deds).toHaveLength(1);
   });
 
+  it("re-applies after an undo cycle instead of replaying a no-op (no silent free session)", async () => {
+    // Regression for the non-cycle-fresh idempotency key bug: after a debt is
+    // auto-applied then undone, a second auto-apply must insert a NEW deduction
+    // (fresh key) rather than replay the old key as a no-op — otherwise the debt
+    // is marked paid without the fund being decremented (free session).
+    const m = await seedMember();
+    await joinFund(m);
+    await contribute(m, 200_000);
+    const s = await seedSession();
+    const debtId = await seedDebt(s, m, 100_000);
+
+    // Cycle 1: auto-apply → deduction + flags true, balance 200k-100k=100k.
+    const r1 = await autoApplyFundToDebts(m);
+    expect(r1.appliedCount).toBe(1);
+    expect(r1.remainingBalance).toBe(100_000);
+
+    // Simulate an admin undo: reverse the live deduction + clear the flags.
+    const ded1 = await testDb.query.financialTransactions.findFirst({
+      where: and(
+        eq(financialTransactions.debtId, debtId),
+        eq(financialTransactions.type, "fund_deduction"),
+      ),
+    });
+    expect(ded1).toBeTruthy();
+    await testDb.insert(financialTransactions).values({
+      type: "fund_contribution",
+      direction: "in",
+      amount: ded1!.amount,
+      memberId: m,
+      sessionId: s,
+      debtId,
+      reversalOfId: ded1!.id,
+    });
+    await testDb
+      .update(sessionDebts)
+      .set({ memberConfirmed: false, adminConfirmed: false })
+      .where(eq(sessionDebts.id, debtId));
+
+    // Cycle 2: auto-apply again → must actually deduct the fund again.
+    const r2 = await autoApplyFundToDebts(m);
+    expect(r2.appliedCount).toBe(1);
+    expect(r2.remainingBalance).toBe(100_000); // 200k(after undo) - 100k
+
+    const debt = await testDb.query.sessionDebts.findFirst({
+      where: eq(sessionDebts.id, debtId),
+    });
+    expect(debt?.memberConfirmed).toBe(true);
+    expect(debt?.adminConfirmed).toBe(true);
+
+    // A confirmed debt MUST be backed by a LIVE (non-reversed) deduction (I8):
+    // 2 deduction rows total — the cycle-1 one (now voided) + a fresh cycle-2 one.
+    const allDeductions = await testDb.query.financialTransactions.findMany({
+      where: and(
+        eq(financialTransactions.debtId, debtId),
+        eq(financialTransactions.type, "fund_deduction"),
+      ),
+    });
+    expect(allDeductions).toHaveLength(2);
+    const reversedIds = new Set(
+      (
+        await testDb.query.financialTransactions.findMany({
+          where: eq(financialTransactions.type, "fund_contribution"),
+        })
+      )
+        .map((t) => t.reversalOfId)
+        .filter((x): x is number => x != null),
+    );
+    const liveDeductions = allDeductions.filter((d) => !reversedIds.has(d.id));
+    expect(liveDeductions).toHaveLength(1);
+  });
+
   it("respects fund_refund and fund_deduction in balance computation", async () => {
     const m = await seedMember();
     await joinFund(m);
