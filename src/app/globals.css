@@ -227,6 +227,71 @@
   }
 }
 
+/* ─── Nền texture theo theme ───
+ * Light = vân giấy; Dark = tường gạch / vân đá; Pink = hoa anh đào.
+ * Dùng gradient thuần (không cần ảnh, không request ngoài), opacity THẤP để
+ * card + chữ vẫn đọc rõ. `background-attachment: fixed` giữ nền khi cuộn. */
+body {
+  background-color: var(--background);
+  /* Light: vân giấy — hatch chéo rất nhạt (màu nâu ấm). */
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(120, 100, 70, 0.022) 0 2px,
+    transparent 2px 7px
+  );
+  background-attachment: fixed;
+}
+.dark body {
+  /* Dark: tường gạch/đá — mạch vữa ngang + dọc nhạt trên nền tối. */
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.045) 0 1px,
+      transparent 1px 26px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.03) 0 1px,
+      transparent 1px 52px
+    ),
+    radial-gradient(
+      circle at 30% 20%,
+      rgba(148, 163, 184, 0.05),
+      transparent 45%
+    );
+  background-size:
+    52px 52px,
+    52px 52px,
+    100% 100%;
+  background-attachment: fixed;
+}
+.pink body {
+  /* Pink: hoa anh đào — cụm cánh tròn hồng nhạt rải rác. */
+  background-image:
+    radial-gradient(
+      circle at 18% 22%,
+      rgba(219, 39, 119, 0.08) 0 7px,
+      transparent 8px
+    ),
+    radial-gradient(
+      circle at 60% 12%,
+      rgba(190, 24, 93, 0.06) 0 6px,
+      transparent 7px
+    ),
+    radial-gradient(
+      circle at 82% 55%,
+      rgba(219, 39, 119, 0.07) 0 8px,
+      transparent 9px
+    ),
+    radial-gradient(
+      circle at 38% 78%,
+      rgba(190, 24, 93, 0.06) 0 6px,
+      transparent 7px
+    );
+  background-size: 210px 210px;
+  background-attachment: fixed;
+}
+
 @keyframes border-pulse {
   0%,
   100% {
