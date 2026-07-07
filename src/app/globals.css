@@ -266,29 +266,40 @@ body {
   background-attachment: fixed;
 }
 .pink body {
-  /* Pink: hoa anh đào — cụm cánh tròn hồng nhạt rải rác. */
+  /* Pink: các hình tròn LỚN (đường kính ~200–800px), tâm lệch nhau, rải
+   * random, hồng nhạt mềm (viền tan dần). no-repeat để không lặp thành pattern. */
   background-image:
     radial-gradient(
-      circle at 18% 22%,
-      rgba(219, 39, 119, 0.08) 0 7px,
-      transparent 8px
+      circle 400px at 10% 16%,
+      rgba(236, 72, 153, 0.13),
+      transparent
     ),
     radial-gradient(
-      circle at 60% 12%,
-      rgba(190, 24, 93, 0.06) 0 6px,
-      transparent 7px
+      circle 150px at 82% 10%,
+      rgba(219, 39, 119, 0.12),
+      transparent
     ),
     radial-gradient(
-      circle at 82% 55%,
-      rgba(219, 39, 119, 0.07) 0 8px,
-      transparent 9px
+      circle 300px at 72% 52%,
+      rgba(244, 114, 182, 0.12),
+      transparent
     ),
     radial-gradient(
-      circle at 38% 78%,
-      rgba(190, 24, 93, 0.06) 0 6px,
-      transparent 7px
+      circle 220px at 24% 82%,
+      rgba(219, 39, 119, 0.1),
+      transparent
+    ),
+    radial-gradient(
+      circle 120px at 52% 36%,
+      rgba(236, 72, 153, 0.1),
+      transparent
+    ),
+    radial-gradient(
+      circle 360px at 95% 92%,
+      rgba(244, 114, 182, 0.11),
+      transparent
     );
-  background-size: 210px 210px;
+  background-repeat: no-repeat;
   background-attachment: fixed;
 }
 
