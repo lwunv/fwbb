@@ -97,8 +97,8 @@ export function SessionCard({
       <CardContent className="space-y-3 p-4">
         {topSlot}
         <div className="flex items-start justify-between gap-2">
-          {/* Ngày + giờ trên 1 dòng header. */}
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1.5">
+          {/* Ngày ở trên, GIỜ chơi xuống dòng riêng ở dưới. */}
+          <div className="flex min-w-0 flex-col items-start gap-1">
             <h2 className="text-lg font-bold capitalize">
               {formatSessionDate(date, "weekdayLong", locale)}
             </h2>

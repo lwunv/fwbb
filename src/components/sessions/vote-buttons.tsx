@@ -164,7 +164,7 @@ export function VoteButtons({
             }
           }}
           className={cn(
-            "flex flex-1 items-center justify-between gap-2 rounded-2xl border-2 px-4 py-3.5 transition-all outline-none select-none",
+            "flex flex-1 items-center gap-2 rounded-2xl border-2 px-4 py-3.5 transition-all outline-none select-none",
             "focus-visible:ring-primary focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2",
             willPlay
               ? "border-primary bg-primary/[0.08] dark:bg-primary/10"
@@ -174,7 +174,33 @@ export function VoteButtons({
               : "hover:border-primary/50 cursor-pointer",
           )}
         >
-          <span className="flex min-w-0 items-center gap-2">
+          {/* Bên TRÁI: switch "2 mình" (chỉ hiện khi đã đi cầu). */}
+          {willPlay && (
+            <button
+              type="button"
+              role="switch"
+              data-tour="vote-partner"
+              aria-checked={withPartner}
+              aria-label={t("withPartner")}
+              disabled={disabled}
+              onClick={(e) => {
+                e.stopPropagation();
+                togglePartner();
+              }}
+              className="flex shrink-0 items-center gap-1.5 rounded-full px-1.5 py-1"
+            >
+              <span className="text-base leading-none" aria-hidden>
+                👫
+              </span>
+              <span className="text-primary/90 hidden text-xs font-medium sm:inline">
+                {t("partnerShort")}
+              </span>
+              <MiniToggle on={withPartner} />
+            </button>
+          )}
+
+          {/* Bên PHẢI (ml-auto để luôn dồn phải): 🏸 + chữ + checkbox ở góc phải cùng. */}
+          <span className="ml-auto flex min-w-0 items-center gap-2">
             <span className="text-xl leading-none" aria-hidden>
               🏸
             </span>
@@ -186,33 +212,6 @@ export function VoteButtons({
             >
               {playLocked ? t("slotsFull") : t("play")}
             </span>
-          </span>
-
-          {/* Bên phải khối: switch "2 mình" (khi đã đi cầu) + checkbox ở GÓC PHẢI. */}
-          <span className="flex shrink-0 items-center gap-2">
-            {willPlay && (
-              <button
-                type="button"
-                role="switch"
-                data-tour="vote-partner"
-                aria-checked={withPartner}
-                aria-label={t("withPartner")}
-                disabled={disabled}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  togglePartner();
-                }}
-                className="flex shrink-0 items-center gap-1.5 rounded-full px-1.5 py-1"
-              >
-                <span className="text-base leading-none" aria-hidden>
-                  👫
-                </span>
-                <span className="text-primary/90 hidden text-xs font-medium sm:inline">
-                  {t("partnerShort")}
-                </span>
-                <MiniToggle on={withPartner} />
-              </button>
-            )}
             <span
               className={cn(
                 "flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 transition-all",
