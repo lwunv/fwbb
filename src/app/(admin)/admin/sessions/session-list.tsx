@@ -572,57 +572,64 @@ export function SessionList({
 
         {/* Hàng lọc phụ: khoảng ngày + đổi kiểu xem (thẻ / danh sách gọn). */}
         <div className="mb-3 flex flex-wrap items-end gap-2">
+          {/* Date range gộp làm 1 control: [từ] → [đến] + nút xoá, chung 1 viền
+              → nhìn như một input khoảng ngày. Giữ native date picker (đáng tin
+              + lịch OS trên mobile) và state URL from/to như cũ. `max`/`min`
+              ràng buộc chéo để không chọn "từ" > "đến". */}
           <div className="flex flex-col gap-1">
             <Label
               htmlFor="filter-from"
               className="text-muted-foreground text-xs"
             >
-              {t("filterFrom")}
+              {t("filterDateRange")}
             </Label>
-            <Input
-              id="filter-from"
-              type="date"
-              value={currentFrom ?? ""}
-              onChange={(e) => {
-                setPage(1);
-                setFrom(e.target.value || null);
-              }}
-              className="h-9 w-[8.5rem]"
-            />
+            <div className="border-input bg-background focus-within:border-ring focus-within:ring-ring/40 flex h-9 w-fit max-w-full items-center gap-1.5 rounded-md border px-2 transition-colors focus-within:ring-2">
+              <input
+                id="filter-from"
+                type="date"
+                aria-label={t("filterFrom")}
+                value={currentFrom ?? ""}
+                max={currentTo ?? undefined}
+                onChange={(e) => {
+                  setPage(1);
+                  setFrom(e.target.value || null);
+                }}
+                className="w-[7.25rem] bg-transparent text-sm outline-none"
+              />
+              <span
+                className="text-muted-foreground shrink-0 text-sm"
+                aria-hidden
+              >
+                →
+              </span>
+              <input
+                type="date"
+                aria-label={t("filterTo")}
+                value={currentTo ?? ""}
+                min={currentFrom ?? undefined}
+                onChange={(e) => {
+                  setPage(1);
+                  setTo(e.target.value || null);
+                }}
+                className="w-[7.25rem] bg-transparent text-sm outline-none"
+              />
+              {(currentFrom || currentTo) && (
+                <button
+                  type="button"
+                  aria-label={t("filterClearDates")}
+                  title={t("filterClearDates")}
+                  onClick={() => {
+                    setPage(1);
+                    setFrom(null);
+                    setTo(null);
+                  }}
+                  className="text-muted-foreground hover:text-foreground shrink-0"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
           </div>
-          <div className="flex flex-col gap-1">
-            <Label
-              htmlFor="filter-to"
-              className="text-muted-foreground text-xs"
-            >
-              {t("filterTo")}
-            </Label>
-            <Input
-              id="filter-to"
-              type="date"
-              value={currentTo ?? ""}
-              onChange={(e) => {
-                setPage(1);
-                setTo(e.target.value || null);
-              }}
-              className="h-9 w-[8.5rem]"
-            />
-          </div>
-          {(currentFrom || currentTo) && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9 shrink-0"
-              onClick={() => {
-                setPage(1);
-                setFrom(null);
-                setTo(null);
-              }}
-            >
-              <X className="mr-1 h-3.5 w-3.5" />
-              {t("filterClearDates")}
-            </Button>
-          )}
           <div className="ml-auto">
             <TabSegment<"cards" | "list">
               variant="pills"

@@ -112,6 +112,7 @@
     "filterUpcoming": "Upcoming",
     "filterFrom": "From",
     "filterTo": "To",
+    "filterDateRange": "Date range",
     "filterClearDates": "Clear dates",
     "viewCards": "Cards",
     "viewList": "List",
