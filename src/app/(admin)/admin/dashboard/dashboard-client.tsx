@@ -41,6 +41,7 @@ import { AdminVoteManager } from "@/components/sessions/admin-vote-manager";
 import { WeekStrip } from "@/components/sessions/week-strip";
 import { VoteCountdown } from "@/components/sessions/vote-countdown";
 import { VoteDeadlineEdit } from "@/components/sessions/vote-deadline-edit";
+import { MaxPlayersToggle } from "@/components/sessions/max-players-toggle";
 import { SessionCostStats } from "@/components/sessions/session-cost-stats";
 import { RecordContributionDialog } from "@/components/fund/record-contribution-dialog";
 import type { InferSelectModel } from "drizzle-orm";
@@ -103,6 +104,7 @@ interface UpcomingSession {
   adminGuestDineCount: number;
   useMinDeduction: boolean;
   voteDeadline: string | null;
+  maxPlayers: number;
   exemptMemberIds: number[];
   votedCount: number;
   totalEligibleVoters: number;
@@ -766,6 +768,10 @@ export function DashboardClient({
                         <VoteDeadlineEdit
                           sessionId={upcomingSession.id}
                           current={upcomingSession.voteDeadline}
+                        />
+                        <MaxPlayersToggle
+                          sessionId={upcomingSession.id}
+                          current={upcomingSession.maxPlayers}
                         />
                       </div>
                     </div>

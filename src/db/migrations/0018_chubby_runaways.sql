@@ -1,0 +1,1 @@
+ALTER TABLE `sessions` ADD `max_players` integer DEFAULT 16 NOT NULL;

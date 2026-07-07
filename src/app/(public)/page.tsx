@@ -95,6 +95,7 @@ export default async function HomePage() {
             }).open,
             adminGuestPlayCount: s.adminGuestPlayCount ?? 0,
             adminGuestDineCount: s.adminGuestDineCount ?? 0,
+            maxPlayers: s.maxPlayers ?? 16,
             votes: await getSessionVotes(s.id),
           },
         };
@@ -168,6 +169,7 @@ export default async function HomePage() {
           voteDeadline={nextSession.voteDeadline}
           adminGuestPlayCount={nextSession.adminGuestPlayCount ?? 0}
           adminGuestDineCount={nextSession.adminGuestDineCount ?? 0}
+          maxPlayers={nextSession.maxPlayers ?? 16}
         />
       </div>
     );

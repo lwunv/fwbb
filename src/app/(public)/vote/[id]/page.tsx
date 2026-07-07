@@ -85,6 +85,7 @@ export default async function VoteSessionPage({
         voteDeadline={session.voteDeadline}
         adminGuestPlayCount={session.adminGuestPlayCount ?? 0}
         adminGuestDineCount={session.adminGuestDineCount ?? 0}
+        maxPlayers={session.maxPlayers ?? 16}
       />
     </div>
   );

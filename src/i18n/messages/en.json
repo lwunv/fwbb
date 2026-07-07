@@ -174,7 +174,9 @@
     "withPartner": "Two people",
     "partnerShort": "+1",
     "slotsFull": "Full",
-    "slotsLeft": "{count} slot(s) left"
+    "slotsLeft": "{count} slot(s) left",
+    "maxPlayersLabel": "Max {max}",
+    "maxPlayersHint": "Toggle max court capacity (16 ⇄ 8)"
   },
   "finance": {
     "debts": "Debts",
@@ -1048,7 +1050,7 @@
     "wrongCurrentPassword": "Current password is incorrect",
     "fbAppNotConfigured": "Facebook app not configured",
     "voteNotAccepted": "This session no longer accepts votes",
-    "playSlotsFull": "Play slots are full (max 16 players)",
+    "playSlotsFull": "Play slots are full (max {max} players)",
     "sessionNotFound": "Session not found",
     "sessionNotFoundShort": "Session not found",
     "invalidSessionId": "Invalid sessionId",

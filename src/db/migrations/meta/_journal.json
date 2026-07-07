@@ -127,6 +127,13 @@
       "when": 1783332649451,
       "tag": "0017_chemical_famine",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1783398104536,
+      "tag": "0018_chubby_runaways",
+      "breakpoints": true
     }
   ]
 }

@@ -22,14 +22,20 @@ export function playHeadcount(
   return countVoteParticipation(votes).totalPlayers + adminGuestPlayCount;
 }
 
-/** Đã đủ / vượt sức chứa chơi cầu. */
-export function isPlayFull(headcount: number): boolean {
-  return headcount >= MAX_PLAY_SLOTS;
+/** Đã đủ / vượt sức chứa chơi cầu. `max` mặc định 16, admin có thể set 8/buổi. */
+export function isPlayFull(
+  headcount: number,
+  max: number = MAX_PLAY_SLOTS,
+): boolean {
+  return headcount >= max;
 }
 
 /** Số slot chơi còn lại (không âm). */
-export function remainingPlaySlots(headcount: number): number {
-  return Math.max(0, MAX_PLAY_SLOTS - headcount);
+export function remainingPlaySlots(
+  headcount: number,
+  max: number = MAX_PLAY_SLOTS,
+): number {
+  return Math.max(0, max - headcount);
 }
 
 /** Số đầu chơi mà 1 vote đóng góp (member + partner). Khách member đã bỏ. */

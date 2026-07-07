@@ -34,6 +34,7 @@ import { WeekStrip } from "@/components/sessions/week-strip";
 import { SessionCostStats } from "@/components/sessions/session-cost-stats";
 import { VoteCountdown } from "@/components/sessions/vote-countdown";
 import { VoteDeadlineEdit } from "@/components/sessions/vote-deadline-edit";
+import { MaxPlayersToggle } from "@/components/sessions/max-players-toggle";
 import {
   Dialog,
   DialogContent,
@@ -139,6 +140,7 @@ interface SessionCard {
   >;
   attendees: AttendeeInfo[];
   voteDeadline: string | null;
+  maxPlayers: number;
 }
 
 type SessionStatus = "voting" | "confirmed" | "completed" | "cancelled";
@@ -925,6 +927,10 @@ export function SessionList({
                                 <VoteDeadlineEdit
                                   sessionId={session.id}
                                   current={session.voteDeadline}
+                                />
+                                <MaxPlayersToggle
+                                  sessionId={session.id}
+                                  current={session.maxPlayers}
                                 />
                               </div>
                             )}

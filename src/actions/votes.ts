@@ -96,8 +96,9 @@ export async function submitVote(
     willPlay: data.willPlay,
     withPartner: data.withPartner,
   });
-  if (newMine > existingMine && base + newMine > MAX_PLAY_SLOTS) {
-    return { error: t("playSlotsFull") };
+  const maxSlots = session.maxPlayers ?? MAX_PLAY_SLOTS;
+  if (newMine > existingMine && base + newMine > maxSlots) {
+    return { error: t("playSlotsFull", { max: maxSlots }) };
   }
 
   await db

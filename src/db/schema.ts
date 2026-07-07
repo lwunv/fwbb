@@ -197,6 +197,9 @@ export const sessions = sqliteTable(
      * convention). See docs/superpowers/specs/2026-05-21-vote-deadline-design.md.
      */
     voteDeadline: text("vote_deadline"),
+    /** Sức chứa chơi cầu tối đa của buổi. Admin toggle 16 (mặc định) ⇄ 8.
+     *  submitVote chặn vote play khi đủ; UI hiện "Hết slot"/"Còn N slot". */
+    maxPlayers: integer("max_players").notNull().default(16),
     notes: text("notes"),
     createdAt: text("created_at").default(sql`(current_timestamp)`),
     updatedAt: text("updated_at").default(sql`(current_timestamp)`),

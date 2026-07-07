@@ -174,7 +174,9 @@
     "withPartner": "两人同行",
     "partnerShort": "两人",
     "slotsFull": "已满",
-    "slotsLeft": "剩 {count} 个名额"
+    "slotsLeft": "剩 {count} 个名额",
+    "maxPlayersLabel": "最多 {max}",
+    "maxPlayersHint": "切换打球最大容量（16 ⇄ 8）"
   },
   "finance": {
     "debts": "债务",
@@ -1048,7 +1050,7 @@
     "wrongCurrentPassword": "当前密码不正确",
     "fbAppNotConfigured": "Facebook 应用未配置",
     "voteNotAccepted": "此活动不再接受投票",
-    "playSlotsFull": "打球名额已满（最多 16 人）",
+    "playSlotsFull": "打球名额已满（最多 {max} 人）",
     "sessionNotFound": "未找到活动",
     "sessionNotFoundShort": "未找到活动",
     "invalidSessionId": "sessionId 无效",

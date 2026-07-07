@@ -49,6 +49,8 @@ interface SessionVoteOptimisticPanelProps {
    *  người chơi/nhậu + sức chứa 16. Khách của member đã bỏ. */
   adminGuestPlayCount?: number;
   adminGuestDineCount?: number;
+  /** Sức chứa chơi cầu tối đa của buổi (admin set 16/8). Mặc định 16. */
+  maxPlayers?: number;
   /** Render ở đỉnh SessionCard (vd hàng chip chọn thứ). Forward xuống topSlot. */
   headerSlot?: ReactNode;
   /** Báo optimisticVotes ra ngoài (week-sessions-view) để badge chip ngày cũng
@@ -66,6 +68,7 @@ export function SessionVoteOptimisticPanel({
   voteDeadline,
   adminGuestPlayCount = 0,
   adminGuestDineCount = 0,
+  maxPlayers = 16,
   headerSlot,
   onOptimisticVotesChange,
 }: SessionVoteOptimisticPanelProps) {
@@ -138,10 +141,13 @@ export function SessionVoteOptimisticPanel({
   // Khách hiển thị = khách member (residual, ~0) + khách admin.
   const totalGuestPlay = counts.guestPlay + adminGuestPlayCount;
   const totalGuestDine = counts.guestDine + adminGuestDineCount;
-  // Sức chứa chơi cầu: member heads + khách admin. Đủ 16 → "Hết slot";
-  // còn ≤2 slot (≥14 người) → cảnh báo "Còn N slot".
-  const playFull = isPlayFull(playerCount + totalGuestPlay);
-  const playRemaining = remainingPlaySlots(playerCount + totalGuestPlay);
+  // Sức chứa chơi cầu: member heads + khách admin, so với maxPlayers (16/8).
+  // Đủ → "Hết slot"; còn ≤2 slot → cảnh báo "Còn N slot".
+  const playFull = isPlayFull(playerCount + totalGuestPlay, maxPlayers);
+  const playRemaining = remainingPlaySlots(
+    playerCount + totalGuestPlay,
+    maxPlayers,
+  );
   const listHeadCount = useMemo(
     () => attendingVotesCount(optimisticVotes),
     [optimisticVotes],

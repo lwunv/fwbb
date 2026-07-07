@@ -1562,6 +1562,46 @@ export async function setVoteDeadline(
 }
 
 /**
+ * Admin đặt sức chứa chơi cầu tối đa cho buổi (toggle 16 mặc định ⇄ 8). Chỉ
+ * nhận 8 hoặc 16. Guard editable (không đổi khi đã chốt sổ). KHÔNG đá ai đang
+ * vote ra — chỉ chặn vote MỚI vượt số (xem submitVote cap).
+ */
+export async function setSessionMaxPlayers(
+  sessionId: number,
+  maxPlayers: number,
+) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
+
+  if (!Number.isInteger(sessionId) || sessionId <= 0) {
+    return { error: t("invalidSessionId") };
+  }
+  if (maxPlayers !== 8 && maxPlayers !== 16) {
+    return { error: t("invalidData", { detail: "maxPlayers" }) };
+  }
+
+  const session = await db.query.sessions.findFirst({
+    where: eq(sessions.id, sessionId),
+    columns: { status: true },
+  });
+  if (!session) return { error: t("sessionNotFound") };
+  const guard = assertEditable(session.status as SessionStatus);
+  if (!guard.ok) return { error: guard.error };
+
+  await db
+    .update(sessions)
+    .set({ maxPlayers, updatedAt: new Date().toISOString() })
+    .where(eq(sessions.id, sessionId));
+
+  revalidatePath("/");
+  revalidatePath(`/vote/${sessionId}`);
+  revalidatePath("/admin/sessions");
+  revalidatePath(`/admin/sessions/${sessionId}`);
+  return { success: true };
+}
+
+/**
  * Quick-extend the vote deadline by 2 or 24 hours. Pushes from `max(now,
  * currentDeadline)` so calling it when the deadline is already in the past
  * resets the clock from now, not from the past.

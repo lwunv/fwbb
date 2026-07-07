@@ -27,9 +27,11 @@ export interface WeekSessionItem {
   voteDeadline: string | null;
   /** Đã tính sẵn server-side (status + deadline). Buổi xong → false → view-only. */
   isVotingOpen: boolean;
-  /** Khách của admin (tính vào tổng người + sức chứa 16). */
+  /** Khách của admin (tính vào tổng người + sức chứa). */
   adminGuestPlayCount: number;
   adminGuestDineCount: number;
+  /** Sức chứa chơi cầu tối đa (admin set 16/8). */
+  maxPlayers: number;
   votes: VoteWithMember[];
 }
 
@@ -156,6 +158,7 @@ export function WeekSessionsView({
           voteDeadline={selected.session.voteDeadline}
           adminGuestPlayCount={selected.session.adminGuestPlayCount}
           adminGuestDineCount={selected.session.adminGuestDineCount}
+          maxPlayers={selected.session.maxPlayers}
           onOptimisticVotesChange={(votes) =>
             setOptSel({ sessionId: selected.session!.id, votes })
           }

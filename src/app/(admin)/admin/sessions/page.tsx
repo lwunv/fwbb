@@ -316,6 +316,7 @@ export default async function SessionsPage({
       shuttlecocks: s.shuttlecocks,
       debtMap,
       voteDeadline: s.voteDeadline ?? null,
+      maxPlayers: s.maxPlayers ?? 16,
       // attendees gắn member + invitedBy để client render expanded list cho
       // completed sessions. Map về shape gọn để không nhồi cả member object.
       attendees: s.attendees.map((a) => ({
