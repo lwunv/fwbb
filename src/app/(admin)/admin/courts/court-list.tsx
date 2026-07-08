@@ -96,7 +96,8 @@ export function CourtList({ courts }: { courts: Court[] }) {
   }
 
   return (
-    <div className="">
+    // pb-28 chừa chỗ cho thanh "Thêm sân" fixed ở đáy khỏi che card cuối.
+    <div className="pb-28">
       <Dialog
         open={dialogOpen}
         onOpenChange={(open) => {
