@@ -145,7 +145,12 @@ export function SessionCard({
           )}
 
           <div className="flex items-start gap-2">
-            <Users className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+            {/* Số người là text-xl (line-height 1.75rem) → dòng đầu cao 1.75rem.
+                Bọc icon trong span cao đúng h-7 + items-center để icon căn giữa
+                theo dòng đầu, đồng thời vẫn dính đỉnh khi nội dung wrap 2 dòng. */}
+            <span className="flex h-7 shrink-0 items-center">
+              <Users className="text-muted-foreground h-4 w-4" />
+            </span>
             <div className="flex flex-wrap gap-x-4 gap-y-1">
               <span>
                 {t("badminton")}:{" "}
