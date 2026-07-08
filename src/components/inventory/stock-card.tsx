@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { NumberStepper } from "@/components/ui/number-stepper";
-import { formatK } from "@/lib/utils";
+import { formatK, cn } from "@/lib/utils";
 import { Package, Pencil, Check, X } from "lucide-react";
 import { setStockQua } from "@/actions/inventory";
 import { fireAction } from "@/lib/optimistic-action";
@@ -39,6 +39,12 @@ export function StockCard({ stock }: StockCardProps) {
           </div>
           {!stock.isActive ? (
             <Badge variant="secondary">{tCommon("inactive")}</Badge>
+          ) : stock.rawStockQua < 0 ? (
+            // Âm kho: dùng > mua+điều chỉnh. Hiện rõ "thiếu N quả" thay vì
+            // chỉ báo low-stock chung, để admin biết cần nhập bù / điều chỉnh.
+            <Badge variant="destructive">
+              {t("shortBy", { count: -stock.rawStockQua })}
+            </Badge>
           ) : stock.isLowStock ? (
             <Badge variant="destructive">{t("lowStockWarning")}</Badge>
           ) : null}
@@ -157,8 +163,16 @@ export function StockCard({ stock }: StockCardProps) {
             </>
           )}
           <span className="text-foreground font-medium">{t("onHand")}</span>
-          <span className="text-foreground text-right font-medium">
-            {stock.currentStockQua} {t("piece")}
+          {/* Tồn thực = mua − dùng + điều chỉnh (số RAW, âm được) để hàng số
+              cân đối. Âm → đỏ, báo đang thiếu. Ô "N ống N quả" ở trên vẫn clamp
+              ≥0 (số thực cầm được), còn dòng này là số kế toán thật. */}
+          <span
+            className={cn(
+              "text-right font-medium",
+              stock.rawStockQua < 0 ? "text-destructive" : "text-foreground",
+            )}
+          >
+            {stock.rawStockQua} {t("piece")}
           </span>
         </div>
       </CardContent>

@@ -284,6 +284,7 @@
     "purchased": "Đã mua",
     "used": "Đã dùng",
     "onHand": "Tồn kho",
+    "shortBy": "Thiếu {count} quả",
     "adjust": "Điều chỉnh"
   },
   "stats": {

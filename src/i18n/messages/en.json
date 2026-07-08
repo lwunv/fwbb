@@ -284,6 +284,7 @@
     "purchased": "Purchased",
     "used": "Used",
     "onHand": "On hand",
+    "shortBy": "Short {count}",
     "adjust": "Adjustment"
   },
   "stats": {
