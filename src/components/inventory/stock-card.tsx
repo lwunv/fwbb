@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +21,7 @@ interface StockCardProps {
 export function StockCard({ stock }: StockCardProps) {
   const t = useTranslations("inventory");
   const tCommon = useTranslations("common");
+  const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [editOng, setEditOng] = useState(stock.ong);
   const [editQua, setEditQua] = useState(stock.qua);
@@ -88,6 +90,9 @@ export function StockCard({ stock }: StockCardProps) {
                       setEditQua(prevQua);
                       setEditing(true);
                     },
+                    // Refresh ngay để tồn kho + tổng cập nhật tức thì (không
+                    // chờ lượt polling 5s) — giống fix ở form nhập mua.
+                    { onSuccess: () => router.refresh() },
                   );
                 }}
               >

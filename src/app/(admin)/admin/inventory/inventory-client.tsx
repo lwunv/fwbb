@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -60,6 +61,7 @@ export function InventoryClient({
   const t = useTranslations("inventory");
   const tStats = useTranslations("stats");
   const locale = useLocale() as AppLocale;
+  const router = useRouter();
   const formatDate = (d: string) => formatSessionDate(d, "long", locale);
   usePolling();
 
@@ -158,6 +160,8 @@ export function InventoryClient({
                                       setEditingId(p.id);
                                       setEditTubes(prevTubes);
                                     },
+                                    // Refresh ngay để tồn kho cập nhật tức thì.
+                                    { onSuccess: () => router.refresh() },
                                   );
                                 }}
                                 className="text-green-600 hover:text-green-700"
