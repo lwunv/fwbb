@@ -280,6 +280,7 @@
     "totalWithAmount": "合计：{amount}",
     "recordPurchase": "保存采购",
     "savedOk": "保存成功！",
+    "saving": "保存中...",
     "purchased": "已采购",
     "used": "已用",
     "onHand": "库存",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +13,7 @@ import { recordPurchase } from "@/actions/inventory";
 import { fireAction } from "@/lib/optimistic-action";
 import { formatK } from "@/lib/utils";
 import { ymdInVN } from "@/lib/date-format";
-import { Plus } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import type { InferSelectModel } from "drizzle-orm";
 import type { shuttlecockBrands as brandsTable } from "@/db/schema";
 
@@ -24,7 +25,9 @@ interface PurchaseFormProps {
 
 export function PurchaseForm({ brands }: PurchaseFormProps) {
   const t = useTranslations("inventory");
+  const router = useRouter();
   const [success, setSuccess] = useState(false);
+  const [pending, setPending] = useState(false);
   const [selectedBrandId, setSelectedBrandId] = useState<string>(
     brands.length > 0 ? String(brands[0].id) : "",
   );
@@ -64,24 +67,22 @@ export function PurchaseForm({ brands }: PurchaseFormProps) {
     formData.set("notes", notes);
     formData.set("idempotencyKey", idempotencyKey);
 
-    // Capture current values for rollback
-    const prevTubes = tubes;
-    const prevNotes = notes;
-
-    // Optimistic: reset form and show success immediately
-    setTubes(1);
-    setNotes("");
-    setSuccess(true);
-    setTimeout(() => setSuccess(false), 3000);
-
-    fireAction(
-      () => recordPurchase(formData),
-      () => {
-        setTubes(prevTubes);
-        setNotes(prevNotes);
-        setSuccess(false);
+    // Loading-first: hiện spinner trong lúc ghi (user cần thấy feedback), rồi
+    // reset form + refresh khi thành công. Refresh ngay để tồn kho + lịch sử
+    // mua cập nhật tức thì thay vì chờ lượt polling 5s (đây là lý do trước
+    // đây "nhập mua mà tồn kho không đổi").
+    setPending(true);
+    fireAction(() => recordPurchase(formData), undefined, {
+      onSuccess: () => {
+        setPending(false);
+        setTubes(1);
+        setNotes("");
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 3000);
+        router.refresh();
       },
-    );
+      onError: () => setPending(false),
+    });
   }
 
   const totalPrice = tubes * pricePerTube;
@@ -157,9 +158,17 @@ export function PurchaseForm({ brands }: PurchaseFormProps) {
             </div>
           )}
 
-          <Button type="submit" disabled={!selectedBrandId} className="w-full">
-            <Plus className="mr-2 h-4 w-4" />
-            {t("recordPurchase")}
+          <Button
+            type="submit"
+            disabled={!selectedBrandId || pending}
+            className="w-full"
+          >
+            {pending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="mr-2 h-4 w-4" />
+            )}
+            {pending ? t("saving") : t("recordPurchase")}
           </Button>
 
           {success && <p className="text-primary text-sm">{t("savedOk")}</p>}

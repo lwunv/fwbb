@@ -280,6 +280,7 @@
     "totalWithAmount": "Total: {amount}",
     "recordPurchase": "Record purchase",
     "savedOk": "Saved successfully!",
+    "saving": "Saving...",
     "purchased": "Purchased",
     "used": "Used",
     "onHand": "On hand",

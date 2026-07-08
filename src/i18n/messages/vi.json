@@ -280,6 +280,7 @@
     "totalWithAmount": "Tổng: {amount}",
     "recordPurchase": "Nhập mua",
     "savedOk": "Đã lưu thành công!",
+    "saving": "Đang lưu...",
     "purchased": "Đã mua",
     "used": "Đã dùng",
     "onHand": "Tồn kho",
