@@ -3,7 +3,7 @@ import { SkeletonList } from "@/components/shared/skeleton-card";
 
 export default function Loading() {
   return (
-    <div className="space-y-3 pb-28">
+    <div className="w-full space-y-3 pb-28">
       {/* Header — back button + session title + status badge (1 flex row) */}
       <div className="flex items-center gap-2">
         <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />

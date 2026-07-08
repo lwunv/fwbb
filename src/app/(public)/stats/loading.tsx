@@ -14,7 +14,7 @@ function ChartCardSkeleton({ hasFilter = false }: { hasFilter?: boolean }) {
 
 export default function Loading() {
   return (
-    <div className="mx-auto max-w-lg space-y-4 p-4">
+    <div className="mx-auto w-full max-w-lg space-y-4">
       {/* Card 1: Active members chart + year filter */}
       <ChartCardSkeleton hasFilter />
 

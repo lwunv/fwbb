@@ -20,7 +20,7 @@ function SectionSkeleton({ children }: { children: React.ReactNode }) {
 
 export default function Loading() {
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       {/* App name editor row */}
       <Skeleton className="h-6 w-48" />
 
@@ -36,8 +36,16 @@ export default function Loading() {
       <SectionSkeleton>
         {/* date + time row */}
         <div className="space-y-2">
-          <Skeleton className="h-8 w-56" />
-          <Skeleton className="h-5 w-40" />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <Skeleton className="h-8 w-56" />
+            <Skeleton className="h-5 w-32" />
+          </div>
+          {/* week strip — day chips */}
+          <div className="flex justify-center gap-1">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-6 w-8 rounded" />
+            ))}
+          </div>
         </div>
         {/* location row */}
         <Skeleton className="h-5 w-48" />
@@ -45,6 +53,12 @@ export default function Loading() {
         <div className="space-y-2">
           <Skeleton className="h-10 w-full rounded-xl" />
           <Skeleton className="h-10 w-full rounded-xl" />
+        </div>
+        {/* vote countdown + deadline + max players chips */}
+        <div className="flex flex-wrap gap-2">
+          <Skeleton className="h-7 w-24 rounded-lg" />
+          <Skeleton className="h-7 w-20 rounded-lg" />
+          <Skeleton className="h-7 w-28 rounded-lg" />
         </div>
         {/* cost stats row */}
         <div className="grid grid-cols-3 gap-2">
@@ -57,6 +71,8 @@ export default function Loading() {
           <Skeleton className="h-10 flex-1 rounded-xl" />
           <Skeleton className="h-10 flex-1 rounded-xl" />
         </div>
+        {/* members block toggle bar (🏸/🍻 counts + chevron) */}
+        <Skeleton className="h-12 w-full rounded-xl" />
       </SectionSkeleton>
 
       {/* DefaultSettings card */}

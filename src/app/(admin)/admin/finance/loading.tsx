@@ -1,33 +1,36 @@
-import { SkeletonCard, SkeletonList } from "@/components/shared/skeleton-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonCard, SkeletonList } from "@/components/shared/skeleton-card";
 
-// /admin/finance redirects to /admin/fund — skeleton mirrors /admin/fund shape.
+/**
+ * /admin/finance redirect sang /admin/fund — skeleton mirror đúng shape của
+ * trang quỹ để không nhảy layout nếu loading state kịp hiện trước redirect.
+ * `w-full` để không tràn ngang trên mobile (main đã bọc sẵn p-4).
+ */
 export default function Loading() {
   return (
-    <div className="space-y-6">
-      {/* Header: icon + title + button */}
-      <div className="flex items-center justify-between">
+    <div className="w-full space-y-6">
+      {/* FundDashboard header: icon + tiêu đề + nút ghi nhận đóng quỹ */}
+      <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Skeleton className="h-10 w-10 rounded-xl" />
           <div className="space-y-1.5">
-            <Skeleton className="h-6 w-32" />
-            <Skeleton className="h-3.5 w-24" />
+            <Skeleton className="h-7 w-40" />
+            <Skeleton className="h-4 w-24" />
           </div>
         </div>
-        <Skeleton className="h-10 w-36 rounded-xl" />
+        <Skeleton className="h-11 w-40 shrink-0 rounded-xl" />
       </div>
 
-      {/* Overview: 4 stat cards (2-col mobile, 4-col desktop) */}
+      {/* Overview: 4 stat tiles (2-col mobile / 4-col md) */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <SkeletonCard variant="stat" />
-        <SkeletonCard variant="stat" />
-        <SkeletonCard variant="stat" />
-        <SkeletonCard variant="stat" />
+        {Array.from({ length: 4 }).map((_, i) => (
+          <SkeletonCard key={i} variant="stat" />
+        ))}
       </div>
 
-      {/* Chi quỹ chung card: title + 2 action buttons */}
-      <div className="bg-card/80 rounded-2xl border p-4">
-        <div className="mb-3 flex items-center justify-between">
+      {/* Panel "Chi quỹ chung": tiêu đề + 2 nút (trả sân / mua cầu) */}
+      <div className="border-border bg-card/80 rounded-2xl border p-4">
+        <div className="mb-3 flex items-center justify-between gap-2">
           <Skeleton className="h-4 w-28" />
           <Skeleton className="h-3.5 w-24" />
         </div>
@@ -37,31 +40,57 @@ export default function Loading() {
         </div>
       </div>
 
-      {/* SessionFinanceReport: card với list rows */}
-      <div className="bg-card/80 rounded-2xl border p-4">
-        <Skeleton className="mb-3 h-4 w-36" />
+      {/* Báo cáo Thu/Chi: tiêu đề + tabs mốc thời gian + 3 tile tổng + danh sách */}
+      <div className="border-border bg-card space-y-3 rounded-2xl border p-4">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-5 w-48" />
+          <Skeleton className="h-3.5 w-12" />
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-9 w-16 rounded-full" />
+          ))}
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-14 rounded-lg" />
+          ))}
+        </div>
         <SkeletonList variant="row" count={3} />
       </div>
 
-      {/* FundReport: card với list member rows */}
-      <div className="bg-card/80 rounded-2xl border p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <Skeleton className="h-4 w-28" />
-          <Skeleton className="h-7 w-20 rounded-lg" />
+      {/* FundReport: search + filter chips + danh sách member */}
+      <div className="border-border bg-card space-y-4 rounded-2xl border p-4">
+        <Skeleton className="h-10 w-full rounded-xl" />
+        <div className="flex flex-wrap gap-1.5">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-[42px] w-24 rounded-full" />
+          ))}
         </div>
-        <SkeletonList variant="row" count={5} />
+        <SkeletonList variant="row" count={6} />
       </div>
 
-      {/* Transactions link card */}
-      <div className="border-border bg-card flex items-center justify-between rounded-2xl border p-4">
+      {/* Thẻ link sang trang lịch sử giao dịch */}
+      <div className="border-border bg-card flex items-center justify-between gap-3 rounded-2xl border p-4">
         <div className="flex items-center gap-3">
-          <Skeleton className="h-9 w-9 rounded-full" />
+          <Skeleton className="h-10 w-10 rounded-full" />
           <div className="space-y-1.5">
             <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-3 w-40" />
+            <Skeleton className="h-3 w-44" />
           </div>
         </div>
-        <Skeleton className="h-8 w-24 rounded-lg" />
+        <Skeleton className="h-9 w-24 shrink-0 rounded-lg" />
+      </div>
+
+      {/* ReconcilePanel: tiêu đề + mô tả + nút chạy đối soát */}
+      <div className="border-border bg-card rounded-2xl border p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1.5">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-4 w-52" />
+          </div>
+          <Skeleton className="h-9 w-28 shrink-0 rounded-lg" />
+        </div>
       </div>
     </div>
   );

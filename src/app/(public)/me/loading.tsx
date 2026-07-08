@@ -1,37 +1,56 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import { SkeletonCard } from "@/components/shared/skeleton-card";
 
+/**
+ * Khớp layout MeClient: thẻ hồ sơ (avatar + tên + hàng toggle "Sửa thông tin")
+ * → thẻ giao diện (hàng 3 nút theme + hàng 3 nút ngôn ngữ) → thẻ 3 ô số liệu
+ * (chi tháng / quỹ / còn nợ, mỗi ô icon tròn + số + nhãn). Giữ shape để không
+ * nhảy layout khi data về. Trước đây skeleton có "thẻ đặt mật khẩu" không tồn
+ * tại trong UI thật.
+ */
 export default function Loading() {
   return (
-    <div className="mx-auto max-w-lg space-y-4 p-4">
-      {/* Profile card: avatar + tên + picker theme/ngôn ngữ */}
-      <div className="bg-card/80 space-y-4 rounded-2xl border p-4 backdrop-blur">
+    <div className="mx-auto w-full max-w-lg space-y-4">
+      {/* Thẻ hồ sơ */}
+      <div className="border-border bg-card space-y-4 rounded-2xl border p-4">
         <div className="flex items-center gap-3">
-          <Skeleton className="h-16 w-16 shrink-0 rounded-full" />
-          <div className="flex-1 space-y-2">
-            <Skeleton className="h-5 w-32 rounded" />
-            <Skeleton className="h-4 w-20 rounded" />
+          <Skeleton className="h-12 w-12 shrink-0 rounded-full" />
+          <Skeleton className="h-6 w-40 flex-1" />
+        </div>
+        {/* Hàng toggle "Sửa thông tin" */}
+        <div className="flex min-h-11 items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-4 w-4 rounded" />
+            <Skeleton className="h-4 w-28" />
           </div>
+          <Skeleton className="h-4 w-4 rounded" />
         </div>
-        {/* theme / language pickers */}
+      </div>
+
+      {/* Thẻ giao diện: theme + ngôn ngữ (mỗi hàng 3 nút full-width) */}
+      <div className="border-border bg-card space-y-4 rounded-2xl border p-4">
         <div className="flex gap-2">
-          <Skeleton className="h-9 flex-1 rounded-lg" />
-          <Skeleton className="h-9 flex-1 rounded-lg" />
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-[4.25rem] flex-1 rounded-xl" />
+          ))}
+        </div>
+        <div className="flex gap-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-[4.25rem] flex-1 rounded-xl" />
+          ))}
         </div>
       </div>
 
-      {/* 3 ô số liệu: chi tháng / còn nợ / quỹ */}
-      <div className="grid grid-cols-3 gap-2">
-        <SkeletonCard variant="stat" />
-        <SkeletonCard variant="stat" />
-        <SkeletonCard variant="stat" />
-      </div>
-
-      {/* Thẻ đặt mật khẩu */}
-      <div className="bg-card/80 space-y-3 rounded-2xl border p-4 backdrop-blur">
-        <Skeleton className="h-5 w-40 rounded" />
-        <Skeleton className="h-4 w-56 rounded" />
-        <Skeleton className="h-10 w-full rounded-lg" />
+      {/* Thẻ 3 ô số liệu */}
+      <div className="border-border bg-card rounded-2xl border p-4">
+        <div className="grid grid-cols-3 gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex flex-col items-center gap-1.5">
+              <Skeleton className="h-10 w-10 rounded-full" />
+              <Skeleton className="h-5 w-12" />
+              <Skeleton className="h-4 w-16" />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
  */
 export default function Loading() {
   return (
-    <div className="mx-auto max-w-lg space-y-4">
+    <div className="mx-auto w-full max-w-lg space-y-4">
       {/* Thẻ số dư */}
       <div className="border-border bg-card rounded-2xl border p-5">
         <div className="mb-2 flex items-center gap-2">
