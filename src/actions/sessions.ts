@@ -958,6 +958,40 @@ export async function deleteSession(sessionId: number) {
         if ("error" in r) throw new Error(r.error);
       }
 
+      // Reverse any admin-guest income (session_guest_income) recorded for this
+      // session. Nó vào quỹ chung (memberId=null) khi chốt sổ; xóa buổi mà không
+      // reverse → getFundOverview.cashOnHand + realIn tháng đó bị dôi vĩnh viễn.
+      // Reverse bằng row cùng type direction="out" reversalOfId trỏ về gốc.
+      const liveGuestIncome = await tx.query.financialTransactions.findMany({
+        where: and(
+          eq(financialTransactions.sessionId, sessionId),
+          eq(financialTransactions.type, "session_guest_income"),
+          isNull(financialTransactions.reversalOfId),
+        ),
+      });
+      for (const ftx of liveGuestIncome) {
+        const alreadyReversed = await tx.query.financialTransactions.findFirst({
+          where: eq(financialTransactions.reversalOfId, ftx.id),
+        });
+        if (alreadyReversed) continue;
+
+        const r = await recordFinancialTransaction(
+          {
+            type: "session_guest_income",
+            direction: "out",
+            amount: ftx.amount,
+            memberId: null,
+            sessionId: null,
+            reversalOfId: ftx.id,
+            description: `Hoàn lại thu khách của admin do xóa buổi ${session.date}`,
+            metadata: { reversedDueToSessionDelete: true, sessionId },
+            idempotencyKey: `delete-session-reverse-guestincome-${ftx.id}`,
+          },
+          tx,
+        );
+        if ("error" in r) throw new Error(r.error);
+      }
+
       // NULL out `paymentNotifications.matchedDebtId` for all debts being
       // deleted — libsql doesn't enforce FK by default so these would
       // become dangling references otherwise. The notification row itself

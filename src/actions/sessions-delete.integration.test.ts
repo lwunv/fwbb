@@ -313,6 +313,49 @@ describe("deleteSession (integration)", () => {
     expect(await fundBalance(adminId)).toBe(0);
   });
 
+  it("reverses session_guest_income when deleting a completed session (fund cash not overstated)", async () => {
+    // A completed session with an admin guest recorded 60K into the shared
+    // fund via session_guest_income (memberId=null). Deleting the session must
+    // reverse it — otherwise getFundOverview.cashOnHand stays inflated.
+    const [s] = await testDb
+      .insert(sessions)
+      .values({
+        date: "2026-06-10",
+        status: "completed",
+        courtPrice: 200_000,
+        diningBill: 0,
+      })
+      .returning({ id: sessions.id });
+    await testDb.insert(financialTransactions).values({
+      type: "session_guest_income",
+      direction: "in",
+      amount: 60_000,
+      memberId: null,
+      sessionId: s.id,
+      description: "Thu tiền khách của admin buổi 2026-06-10",
+    });
+
+    const activeIncome = async () => {
+      const rows = await testDb.query.financialTransactions.findMany({
+        where: eq(financialTransactions.type, "session_guest_income"),
+      });
+      const voided = new Set(
+        rows.filter((r) => r.reversalOfId != null).map((r) => r.reversalOfId),
+      );
+      return rows
+        .filter((r) => r.reversalOfId == null && !voided.has(r.id))
+        .reduce((sum, r) => sum + (r.direction === "in" ? r.amount : 0), 0);
+    };
+
+    expect(await activeIncome()).toBe(60_000);
+
+    const r = await deleteSession(s.id);
+    expect("error" in r).toBe(false);
+
+    // After delete the income must net to 0 (reversal row inserted).
+    expect(await activeIncome()).toBe(0);
+  });
+
   it("nulls out paymentNotifications.matchedDebtId for deleted debts (no orphan FK refs)", async () => {
     const memberId = await seedMemberInFund("Alice", "fb-a");
     const { sessionId, debtId } = await seedCompletedSessionWithDeduction(

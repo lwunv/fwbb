@@ -867,6 +867,7 @@
     "txLabelCourtRent": "Court rent",
     "txLabelManualAdjustment": "Manual adjustment",
     "txLabelBankReceived": "Bank transfer received",
+    "txLabelGuestIncome": "Admin guest income",
     "txLabelInventoryPurchase": "Shuttlecock purchase",
     "logTitle": "Recent transactions",
     "logSubtitle": "Contributions, deductions, purchases, court rent — split by automated (QR) vs admin / system entries",

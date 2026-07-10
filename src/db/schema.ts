@@ -513,6 +513,10 @@ export const financialTransactions = sqliteTable(
         "court_rent_payment",
         "manual_adjustment",
         "bank_payment_received",
+        // Thu nhóm: tiền khách của admin trả (sàn 60K/khách) — vào quỹ chung,
+        // memberId=null (không gắn balance ai). Đối xứng với court_rent_payment
+        // (chi nhóm). KHÔNG thuộc nhóm fund_* nên không đụng invariant I1.
+        "session_guest_income",
       ],
     }).notNull(),
     direction: text("direction", { enum: ["in", "out", "neutral"] }).notNull(),

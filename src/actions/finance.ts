@@ -262,6 +262,40 @@ export async function finalizeSession(
         }
       }
 
+      // 2c. Reverse prior admin-guest income (session_guest_income). Nó là thu
+      // nhóm (memberId=null) không thuộc fund_* nên 2 bước trên bỏ sót → re-finalize
+      // sẽ double-count vào quỹ + report. Reverse bằng 1 row direction="out"
+      // cùng type, reversalOfId trỏ về gốc → getSessionFinanceReport/getFundOverview
+      // (đã lọc cặp reversal) tự bỏ cả 2.
+      const priorGuestIncome = await tx.query.financialTransactions.findMany({
+        where: and(
+          eq(financialTransactions.sessionId, data.sessionId),
+          eq(financialTransactions.type, "session_guest_income"),
+          isNull(financialTransactions.reversalOfId),
+        ),
+      });
+      for (const gtx of priorGuestIncome) {
+        const alreadyReversed = await tx.query.financialTransactions.findFirst({
+          where: eq(financialTransactions.reversalOfId, gtx.id),
+        });
+        if (!alreadyReversed) {
+          const r = await recordFinancialTransaction(
+            {
+              type: "session_guest_income",
+              direction: "out",
+              amount: gtx.amount,
+              memberId: null,
+              sessionId: gtx.sessionId,
+              reversalOfId: gtx.id,
+              description: `Hoàn lại thu khách của admin khi chốt lại buổi ${session.date}`,
+              idempotencyKey: `finalize-reverse-guestincome-${gtx.id}`,
+            },
+            tx,
+          );
+          if ("error" in r) throw new Error(r.error);
+        }
+      }
+
       // Wipe stale attendees + debts for clean re-finalize. Before deleting
       // sessionDebts, NULL out `debtId` on any debt-scoped ledger rows
       // pointing at them — otherwise we'd leave orphan refs (libsql doesn't
@@ -334,12 +368,10 @@ export async function finalizeSession(
       // unpaid rows.
       for (const debt of memberDebts) {
         const isAdminDebt = debt.memberId === adminMemberId;
-        // Admin trừ quỹ như member bình thường cho OWN play+dine.
-        // Khách của admin (admin guests) KHÔNG tính vào debt admin — quỹ chung
-        // gánh (hiển thị thành "lỗ" trên session card, đúng design: admin
-        // dùng quỹ đãi khách). Khách CỦA admin với tư cách cá nhân (future)
-        // sẽ là 1 attendee invitedBy=admin nhưng KHÔNG count trong
-        // adminGuestPlayCount → tự động dùng nhánh else.
+        // Admin trừ quỹ (balance) CHỈ cho OWN play+dine — không bị trừ phần khách.
+        // Tiền khách của admin (guestPlayAmount + guestDineAmount) KHÔNG gắn vào
+        // balance ai; nó vào QUỸ CHUNG qua `session_guest_income` bên dưới
+        // (quyết định 2026-07-10: khách tự trả, tiền vào quỹ, không cộng cho Châu).
         const fundDeductionAmount = isAdminDebt
           ? debt.playAmount + debt.dineAmount
           : debt.totalAmount;
@@ -405,6 +437,31 @@ export async function finalizeSession(
             tx,
           );
           if ("error" in r2) throw new Error(r2.error);
+        }
+
+        // Tiền khách của admin → QUỸ CHUNG (session_guest_income, memberId=null).
+        // Khách tự trả sàn 60K; khoản này KHÔNG trừ/cộng balance ai (kể cả Châu),
+        // chỉ tăng quỹ. getSessionFinanceReport cộng nó vào "Thu" nên buổi không
+        // còn hiển thị lỗ giả. Chỉ admin mới có nhánh này (khách-của-member đã
+        // gộp vào totalAmount của member đó ở fund_deduction phía trên).
+        if (isAdminDebt) {
+          const guestIncome = debt.guestPlayAmount + debt.guestDineAmount;
+          if (guestIncome > 0) {
+            const rGi = await recordFinancialTransaction(
+              {
+                type: "session_guest_income",
+                direction: "in",
+                amount: guestIncome,
+                memberId: null,
+                sessionId: data.sessionId,
+                debtId: insertedDebt.id,
+                description: `Thu tiền khách của admin buổi ${session.date}`,
+                idempotencyKey: `finalize-guestincome-${data.sessionId}-${insertedDebt.id}`,
+              },
+              tx,
+            );
+            if ("error" in rGi) throw new Error(rGi.error);
+          }
         }
 
         // Min-deduction penalty surplus → admin fund.

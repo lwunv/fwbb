@@ -16,7 +16,8 @@ export type FinancialTransactionType =
   | "inventory_purchase"
   | "court_rent_payment"
   | "manual_adjustment"
-  | "bank_payment_received";
+  | "bank_payment_received"
+  | "session_guest_income";
 
 export type FinancialTransactionDirection = "in" | "out" | "neutral";
 

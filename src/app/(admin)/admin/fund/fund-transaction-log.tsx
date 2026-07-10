@@ -26,7 +26,8 @@ type FinancialTxType =
   | "inventory_purchase"
   | "court_rent_payment"
   | "manual_adjustment"
-  | "bank_payment_received";
+  | "bank_payment_received"
+  | "session_guest_income";
 
 export interface FinancialTransactionRow {
   id: number;
@@ -108,6 +109,11 @@ const TX_TYPE_META: Record<
   },
   bank_payment_received: {
     labelKey: "txLabelBankReceived",
+    icon: ArrowUpCircle,
+    iconClass: "text-green-500",
+  },
+  session_guest_income: {
+    labelKey: "txLabelGuestIncome",
     icon: ArrowUpCircle,
     iconClass: "text-green-500",
   },

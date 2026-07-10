@@ -77,6 +77,22 @@ describe("bucketMonthlyTransactions", () => {
     expect(r.realOut).toBe(30_000);
   });
 
+  it("buckets session_guest_income into realIn (tiền khách của admin vào quỹ)", () => {
+    const r = bucketMonthlyTransactions([
+      row(1, "session_guest_income", "in", 60_000),
+    ]);
+    expect(r.realIn).toBe(60_000);
+    expect(r.realOut).toBe(0);
+  });
+
+  it("cancels a reversed session_guest_income pair to 0", () => {
+    const r = bucketMonthlyTransactions([
+      row(1, "session_guest_income", "in", 60_000),
+      row(2, "session_guest_income", "out", 60_000, 1), // reversal of #1
+    ]);
+    expect(r.realIn).toBe(0);
+  });
+
   it("cancels reversal pairs — both original and reversal contribute 0", () => {
     const r = bucketMonthlyTransactions([
       row(1, "fund_contribution", "in", 200_000),

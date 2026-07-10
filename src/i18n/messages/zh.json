@@ -867,6 +867,7 @@
     "txLabelCourtRent": "支付场地费",
     "txLabelManualAdjustment": "手动调整",
     "txLabelBankReceived": "已收到转账",
+    "txLabelGuestIncome": "管理员客人收入",
     "txLabelInventoryPurchase": "购买羽毛球",
     "logTitle": "最近交易",
     "logSubtitle": "缴费、扣款、购买、场地费 — 按自动（QR）或管理员/系统录入划分",

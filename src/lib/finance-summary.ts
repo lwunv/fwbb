@@ -32,7 +32,7 @@ export interface LedgerRowForSummary {
 }
 
 export interface MonthlyCashFlow {
-  /** fund_contribution + manual_adjustment(in). */
+  /** fund_contribution + manual_adjustment(in) + session_guest_income(in). */
   realIn: number;
   /** fund_refund + inventory_purchase + court_rent_payment + manual_adjustment(out). */
   realOut: number;
@@ -75,6 +75,12 @@ export function bucketMonthlyTransactions(
         realIn += r.amount;
         break;
       case "manual_adjustment":
+        if (r.direction === "in") realIn += r.amount;
+        else if (r.direction === "out") realOut += r.amount;
+        break;
+      // Thu khách của admin vào quỹ chung (real cash in). Reversal (direction=out)
+      // đã bị lọc theo cặp ở trên; nhánh out phòng row lẻ.
+      case "session_guest_income":
         if (r.direction === "in") realIn += r.amount;
         else if (r.direction === "out") realOut += r.amount;
         break;

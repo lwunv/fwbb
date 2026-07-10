@@ -555,6 +555,7 @@ export async function getFundOverview() {
       where: inArray(financialTransactions.type, [
         "court_rent_payment",
         "inventory_purchase",
+        "session_guest_income",
       ]),
       columns: {
         id: true,
@@ -598,18 +599,24 @@ export async function getFundOverview() {
   );
   let groupExpenseCourtRent = 0;
   let groupExpenseInventory = 0;
+  // Thu nhóm: tiền khách của admin vào quỹ (session_guest_income, memberId=null).
+  // Là cash thật vào két nhưng không gắn balance ai → cộng riêng vào cashOnHand.
+  let guestIncome = 0;
   for (const t of groupTxs) {
     if (reversedIds.has(t.id)) continue; // bị reversal khác chỉ tới → bỏ
     if (t.reversalOfId !== null) continue; // chính nó là reversal → bỏ
     const signed = t.direction === "out" ? t.amount : -t.amount;
     if (t.type === "court_rent_payment") groupExpenseCourtRent += signed;
     else if (t.type === "inventory_purchase") groupExpenseInventory += signed;
+    else if (t.type === "session_guest_income")
+      guestIncome += t.direction === "in" ? t.amount : -t.amount;
   }
   const totalGroupExpenses = groupExpenseCourtRent + groupExpenseInventory;
-  // Cash flow công thức: contributions vào − refunds ra − chi quỹ chung ra.
-  // KHÔNG trừ totalDeductions (deduction từ finalizeSession là member-allocation,
-  // không phải cash movement — admin chưa thực sự đưa ai tiền).
-  const cashOnHand = totalContributions - totalRefunds - totalGroupExpenses;
+  // Cash flow công thức: contributions vào + thu khách-admin vào − refunds ra
+  // − chi quỹ chung ra. KHÔNG trừ totalDeductions (deduction từ finalizeSession
+  // là member-allocation, không phải cash movement — admin chưa thực sự đưa ai tiền).
+  const cashOnHand =
+    totalContributions + guestIncome - totalRefunds - totalGroupExpenses;
 
   return {
     totalBalance,
@@ -1055,6 +1062,7 @@ export async function getSessionFinanceReport(): Promise<
             inArray(financialTransactions.type, [
               "fund_deduction",
               "fund_contribution",
+              "session_guest_income",
             ]),
           ),
           columns: {
@@ -1077,9 +1085,11 @@ export async function getSessionFinanceReport(): Promise<
 
   const thuBySession = new Map<number, number>();
   for (const tx of ledgerRows) {
-    // Thu = settled member deductions only (contributions are loaded solely to
-    // detect reversed deductions above).
-    if (tx.type !== "fund_deduction") continue;
+    // Thu = tiền thực thu cho buổi: member deductions + thu khách-của-admin
+    // (session_guest_income, vào quỹ chung). fund_contribution chỉ được load để
+    // phát hiện deduction đã bị reverse ở trên → KHÔNG cộng vào thu.
+    if (tx.type !== "fund_deduction" && tx.type !== "session_guest_income")
+      continue;
     // Reversal entries themselves don't count as thu (they undo, not collect).
     if (tx.reversalOfId !== null && tx.reversalOfId !== undefined) continue;
     // Originals that were reversed away don't count either.

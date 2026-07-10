@@ -867,6 +867,7 @@
     "txLabelCourtRent": "Trả tiền sân",
     "txLabelManualAdjustment": "Điều chỉnh thủ công",
     "txLabelBankReceived": "Nhận chuyển khoản",
+    "txLabelGuestIncome": "Thu tiền khách của admin",
     "txLabelInventoryPurchase": "Mua cầu",
     "logTitle": "Giao dịch gần đây",
     "logSubtitle": "Đóng quỹ, trừ quỹ, mua cầu, trả tiền sân — phân theo nguồn tự động (QR) hay admin / hệ thống ghi nhận",

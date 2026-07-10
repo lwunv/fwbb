@@ -31,7 +31,8 @@ export interface SystemTxRow {
     | "debt_undo"
     | "inventory_purchase"
     | "manual_adjustment"
-    | "bank_payment_received";
+    | "bank_payment_received"
+    | "session_guest_income";
   direction: "in" | "out" | "neutral";
   amount: number;
   memberId: number | null;
@@ -116,6 +117,7 @@ export async function getSystemTransactions(
     "debt_admin_confirmed",
     "debt_undo",
     "manual_adjustment",
+    "session_guest_income",
   ] as const;
 
   const rows = await db.query.financialTransactions.findMany({
