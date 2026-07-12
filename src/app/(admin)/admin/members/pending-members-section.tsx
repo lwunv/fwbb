@@ -69,19 +69,14 @@ export function PendingMembersSection({
   if (list.length === 0) return null;
 
   function handleApprove(memberId: number) {
-    setBusyId(memberId);
+    const prev = list;
+    startTransition(() =>
+      setList((cur) => cur.filter((m) => m.id !== memberId)),
+    );
     fireAction(
       () => approveMember(memberId),
-      () => setBusyId(null),
-      {
-        successMsg: t("toastApproved"),
-        onSuccess: () => {
-          setBusyId(null);
-          startTransition(() =>
-            setList((cur) => cur.filter((m) => m.id !== memberId)),
-          );
-        },
-      },
+      () => setList(prev),
+      { successMsg: t("toastApproved") },
     );
   }
 
@@ -92,19 +87,14 @@ export function PendingMembersSection({
       confirmLabel: t("btnReject"),
     });
     if (!ok) return;
-    setBusyId(memberId);
+    const prev = list;
+    startTransition(() =>
+      setList((cur) => cur.filter((m) => m.id !== memberId)),
+    );
     fireAction(
       () => rejectMember(memberId),
-      () => setBusyId(null),
-      {
-        successMsg: t("toastRejected"),
-        onSuccess: () => {
-          setBusyId(null);
-          startTransition(() =>
-            setList((cur) => cur.filter((m) => m.id !== memberId)),
-          );
-        },
-      },
+      () => setList(prev),
+      { successMsg: t("toastRejected") },
     );
   }
 

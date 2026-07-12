@@ -590,6 +590,18 @@ export function DashboardClient({
           localAdminGuests?.play ?? upcomingSession?.adminGuestPlayCount ?? 0;
         const adminGuestDine =
           localAdminGuests?.dine ?? upcomingSession?.adminGuestDineCount ?? 0;
+        // Optimistic guest totals — fold the local admin-guest delta into the
+        // server prop count (which already bakes in the SERVER adminGuest
+        // count). Khớp session-list.tsx:748-751 để collapsed header + cost
+        // summary di chuyển ngay khi stepper đổi, không chờ revalidate.
+        const optimGuestPlay =
+          (upcomingSession?.guestPlayCount ?? 0) +
+          adminGuestPlay -
+          (upcomingSession?.adminGuestPlayCount ?? 0);
+        const optimGuestDine =
+          (upcomingSession?.guestDineCount ?? 0) +
+          adminGuestDine -
+          (upcomingSession?.adminGuestDineCount ?? 0);
         const handleAdminGuestSet = (play: number, dine: number) => {
           if (!upcomingSession) return;
           const sessionId = upcomingSession.id;
@@ -621,12 +633,12 @@ export function DashboardClient({
         const diningBillVal = upcomingSession?.diningBill ?? 0;
         const totalExpense = courtPriceVal + shuttlecockCost + diningBillVal;
         const totalPlayers = upcomingSession
-          ? upcomingSession.playerCount + upcomingSession.guestPlayCount
+          ? upcomingSession.playerCount + optimGuestPlay
           : 0;
         const totalDiners = upcomingSession
-          ? upcomingSession.dinerCount + upcomingSession.guestDineCount
+          ? upcomingSession.dinerCount + optimGuestDine
           : 0;
-        const adminGuestPlayHeads = upcomingSession?.adminGuestPlayCount ?? 0;
+        const adminGuestPlayHeads = adminGuestPlay;
         const { playCostPerHead, adminGuestPlayCostPerHead, dineCostPerHead } =
           computePerHeadCharges({
             courtPrice: courtPriceVal,
@@ -834,19 +846,18 @@ export function DashboardClient({
                           <span className="text-primary">
                             🏸{" "}
                             <strong>
-                              {upcomingSession.playerCount +
-                                upcomingSession.guestPlayCount}
+                              {upcomingSession.playerCount + optimGuestPlay}
                             </strong>{" "}
                             <span className="text-foreground/80">
                               {ts("people")}
                             </span>
-                            {upcomingSession.guestPlayCount > 0 && (
+                            {optimGuestPlay > 0 && (
                               <span className="tabular-nums">
                                 {" "}
                                 <span className="text-foreground/80">
                                   ({ts("including")}{" "}
                                 </span>
-                                {upcomingSession.guestPlayCount}{" "}
+                                {optimGuestPlay}{" "}
                                 <span className="text-foreground/80">
                                   {ts("guest")})
                                 </span>
@@ -856,19 +867,18 @@ export function DashboardClient({
                           <span className="text-orange-500 dark:text-orange-400">
                             🍻{" "}
                             <strong>
-                              {upcomingSession.dinerCount +
-                                upcomingSession.guestDineCount}
+                              {upcomingSession.dinerCount + optimGuestDine}
                             </strong>{" "}
                             <span className="text-foreground/80">
                               {ts("people")}
                             </span>
-                            {upcomingSession.guestDineCount > 0 && (
+                            {optimGuestDine > 0 && (
                               <span className="tabular-nums">
                                 {" "}
                                 <span className="text-foreground/80">
                                   ({ts("including")}{" "}
                                 </span>
-                                {upcomingSession.guestDineCount}{" "}
+                                {optimGuestDine}{" "}
                                 <span className="text-foreground/80">
                                   {ts("guest")})
                                 </span>

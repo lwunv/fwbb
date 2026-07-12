@@ -40,6 +40,12 @@ export function BrandList({ brands }: { brands: Brand[] }) {
   );
   const [deleteTarget, setDeleteTarget] = useState<Brand | null>(null);
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
+  // Overlay optimistic cho create/edit: edit patch theo id + ghost row (id âm)
+  // cho brand mới. revalidatePath trả `brands` mới → useEffect dưới dọn overlay.
+  const [editedBrands, setEditedBrands] = useState<
+    Record<number, { name: string; pricePerTube: number }>
+  >({});
+  const [addedBrands, setAddedBrands] = useState<Brand[]>([]);
   const t = useTranslations("adminShuttlecocks");
   const tCommon = useTranslations("common");
   usePolling();
@@ -68,20 +74,71 @@ export function BrandList({ brands }: { brands: Brand[] }) {
     );
   }
 
+  // Khi server revalidate và trả `brands` mới, dọn overlay CÓ ĐIỀU KIỆN (khớp
+  // court-list): chỉ bỏ ghost khi đã có row thật trùng, chỉ bỏ patch khi prop
+  // đã phản ánh. Dùng "adjust state on prop change" lúc render (không useEffect
+  // → tránh cascading-render lint). Tránh poll 5s (usePolling) xoá overlay sớm
+  // khi revalidate của action chưa commit → brand mới/tên sửa nhấp nháy.
+  const [prevBrands, setPrevBrands] = useState(brands);
+  if (brands !== prevBrands) {
+    setPrevBrands(brands);
+    setAddedBrands((prev) =>
+      prev.filter(
+        (g) =>
+          !brands.some(
+            (b) => b.name === g.name && b.pricePerTube === g.pricePerTube,
+          ),
+      ),
+    );
+    setEditedBrands((prev) => {
+      const next: Record<number, { name: string; pricePerTube: number }> = {};
+      for (const [idStr, patch] of Object.entries(prev)) {
+        const row = brands.find((b) => b.id === Number(idStr));
+        const matches =
+          row &&
+          row.name === patch.name &&
+          row.pricePerTube === patch.pricePerTube;
+        if (row && !matches) next[Number(idStr)] = patch;
+      }
+      return next;
+    });
+  }
+
   function handleSubmit(formData: FormData) {
     const wasEditing = editingBrand;
+    const name = String(formData.get("name") ?? "");
+    const pricePerTube = Number(formData.get("pricePerTube"));
     setDialogOpen(false);
     setEditingBrand(null);
-    fireAction(
-      () =>
-        wasEditing
-          ? updateBrand(wasEditing.id, formData)
-          : createBrand(formData),
-      () => {
-        setEditingBrand(wasEditing);
-        setDialogOpen(true);
-      },
-    );
+    if (wasEditing) {
+      const id = wasEditing.id;
+      setEditedBrands((prev) => ({ ...prev, [id]: { name, pricePerTube } }));
+      fireAction(
+        () => updateBrand(id, formData),
+        () => {
+          setEditedBrands((prev) => {
+            const n = { ...prev };
+            delete n[id];
+            return n;
+          });
+          setEditingBrand(wasEditing);
+          setDialogOpen(true);
+        },
+      );
+    } else {
+      const tempId = -Date.now();
+      setAddedBrands((prev) => [
+        { id: tempId, name, pricePerTube, isActive: true } as Brand,
+        ...prev,
+      ]);
+      fireAction(
+        () => createBrand(formData),
+        () => {
+          setAddedBrands((prev) => prev.filter((b) => b.id !== tempId));
+          setDialogOpen(true);
+        },
+      );
+    }
   }
 
   return (
@@ -139,8 +196,9 @@ export function BrandList({ brands }: { brands: Brand[] }) {
       </Dialog>
 
       <div className="grid gap-3">
-        {[...brands]
+        {[...addedBrands, ...brands]
           .filter((b) => !deletedIds.has(b.id))
+          .map((b) => ({ ...b, ...(editedBrands[b.id] ?? {}) }))
           .sort((a, b) => {
             const aActive = toggledBrands[a.id] ?? a.isActive;
             const bActive = toggledBrands[b.id] ?? b.isActive;

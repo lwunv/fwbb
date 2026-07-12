@@ -609,7 +609,7 @@ export function AdminVoteManager({
       <MinDeductionToggle
         sessionId={sessionId}
         enabled={minDeductionEnabled}
-        exemptCount={exemptMemberIds.length}
+        exemptCount={members.filter((m) => getExempt(m.id)).length}
         disabled={readOnly}
       />
 

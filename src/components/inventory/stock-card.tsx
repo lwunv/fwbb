@@ -11,7 +11,7 @@ import { formatK, cn } from "@/lib/utils";
 import { Package, Pencil, Check, X } from "lucide-react";
 import { setStockQua } from "@/actions/inventory";
 import { fireAction } from "@/lib/optimistic-action";
-import { tubesToQua } from "@/lib/inventory-core";
+import { tubesToQua, splitOngQua, isLowStock } from "@/lib/inventory-core";
 import type { StockByBrand } from "@/actions/inventory";
 
 interface StockCardProps {
@@ -25,6 +25,20 @@ export function StockCard({ stock }: StockCardProps) {
   const [editing, setEditing] = useState(false);
   const [editOng, setEditOng] = useState(stock.ong);
   const [editQua, setEditQua] = useState(stock.qua);
+  // Optimistic display: mirror the RAW stock (carries negativity for the
+  // "thiếu N" badge) and patch it on save so the number moves instantly,
+  // before router.refresh() lands. Re-sync during render when the prop changes
+  // (post-refresh + polling + rollback), per the fund-dashboard prop-sync
+  // pattern — cheaper than an effect and lint-clean.
+  const [displayRawQua, setDisplayRawQua] = useState(stock.rawStockQua);
+  const [prevRawQua, setPrevRawQua] = useState(stock.rawStockQua);
+  if (stock.rawStockQua !== prevRawQua) {
+    setPrevRawQua(stock.rawStockQua);
+    setDisplayRawQua(stock.rawStockQua);
+  }
+  const clampedQua = Math.max(0, displayRawQua);
+  const shown = splitOngQua(clampedQua);
+  const shownLow = isLowStock(displayRawQua);
 
   return (
     <Card size="sm">
@@ -41,13 +55,13 @@ export function StockCard({ stock }: StockCardProps) {
           </div>
           {!stock.isActive ? (
             <Badge variant="secondary">{tCommon("inactive")}</Badge>
-          ) : stock.rawStockQua < 0 ? (
+          ) : displayRawQua < 0 ? (
             // Âm kho: dùng > mua+điều chỉnh. Hiện rõ "thiếu N quả" thay vì
             // chỉ báo low-stock chung, để admin biết cần nhập bù / điều chỉnh.
             <Badge variant="destructive">
-              {t("shortBy", { count: -stock.rawStockQua })}
+              {t("shortBy", { count: -displayRawQua })}
             </Badge>
-          ) : stock.isLowStock ? (
+          ) : shownLow ? (
             <Badge variant="destructive">{t("lowStockWarning")}</Badge>
           ) : null}
         </div>
@@ -81,13 +95,17 @@ export function StockCard({ stock }: StockCardProps) {
                 onClick={() => {
                   const prevOng = editOng;
                   const prevQua = editQua;
+                  const prevDisplayRaw = displayRawQua;
+                  const desiredQua = tubesToQua(editOng) + editQua;
+                  // Optimistic: số tồn nhảy ngay khi Lưu, không chờ round-trip.
+                  setDisplayRawQua(desiredQua);
                   setEditing(false);
                   fireAction(
-                    () =>
-                      setStockQua(stock.brandId, tubesToQua(editOng) + editQua),
+                    () => setStockQua(stock.brandId, desiredQua),
                     () => {
                       setEditOng(prevOng);
                       setEditQua(prevQua);
+                      setDisplayRawQua(prevDisplayRaw);
                       setEditing(true);
                     },
                     // Refresh ngay để tồn kho + tổng cập nhật tức thì (không
@@ -105,8 +123,8 @@ export function StockCard({ stock }: StockCardProps) {
                 className="h-11 flex-1"
                 onClick={() => {
                   setEditing(false);
-                  setEditOng(stock.ong);
-                  setEditQua(stock.qua);
+                  setEditOng(shown.ong);
+                  setEditQua(shown.qua);
                 }}
               >
                 <X className="mr-1 h-4 w-4" />
@@ -118,17 +136,17 @@ export function StockCard({ stock }: StockCardProps) {
           <div className="flex items-center gap-2">
             <div className="flex items-baseline gap-2">
               <span className="text-primary text-2xl font-bold">
-                {stock.ong}
+                {shown.ong}
               </span>
               <span className="text-muted-foreground text-sm">{t("tube")}</span>
               <span className="text-primary text-2xl font-bold">
-                {stock.qua}
+                {shown.qua}
               </span>
               <span className="text-muted-foreground text-sm">
                 {t("piece")}
               </span>
               <span className="text-muted-foreground text-xs">
-                ({stock.currentStockQua} {t("piece")})
+                ({clampedQua} {t("piece")})
               </span>
             </div>
             <Button
@@ -136,8 +154,8 @@ export function StockCard({ stock }: StockCardProps) {
               size="sm"
               className="ml-auto min-h-11"
               onClick={() => {
-                setEditOng(stock.ong);
-                setEditQua(stock.qua);
+                setEditOng(shown.ong);
+                setEditQua(shown.qua);
                 setEditing(true);
               }}
             >
@@ -174,10 +192,10 @@ export function StockCard({ stock }: StockCardProps) {
           <span
             className={cn(
               "text-right font-medium",
-              stock.rawStockQua < 0 ? "text-destructive" : "text-foreground",
+              displayRawQua < 0 ? "text-destructive" : "text-foreground",
             )}
           >
-            {stock.rawStockQua} {t("piece")}
+            {displayRawQua} {t("piece")}
           </span>
         </div>
       </CardContent>

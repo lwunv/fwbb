@@ -86,6 +86,38 @@ function statusFor(
 export function FundReport({ fundMembers, transactions }: Props) {
   const t = useTranslations("fundAdmin");
   const tHistory = useTranslations("memberHistory");
+  // Mirror server prop vào local state để mọi số dẫn xuất (balance từng row,
+  // status badge, màu, count filter) update NGAY khi admin cộng/trừ/hết nợ,
+  // không phải chờ revalidatePath round-trip. Sync lại theo pattern "adjust
+  // state on prop change" (fund-dashboard.tsx) để hội tụ sau refetch + rollback.
+  const [members, setMembers] = useState(fundMembers);
+  const [prevMembers, setPrevMembers] = useState(fundMembers);
+  if (fundMembers !== prevMembers) {
+    setPrevMembers(fundMembers);
+    setMembers(fundMembers);
+  }
+
+  // Patch optimistic balance của 1 member theo delta (display-only; money math
+  // vẫn do server tính, delta ở đây khớp công thức nên không lệch).
+  function patchBalance(memberId: number, delta: number) {
+    setMembers((ms) =>
+      ms.map((fm) =>
+        fm.memberId === memberId
+          ? {
+              ...fm,
+              balance: {
+                ...fm.balance,
+                balance: fm.balance.balance + delta,
+                totalContributions:
+                  fm.balance.totalContributions + (delta > 0 ? delta : 0),
+                totalRefunds:
+                  fm.balance.totalRefunds + (delta < 0 ? -delta : 0),
+              },
+            }
+          : fm,
+      ),
+    );
+  }
   const [filter, setFilter] = useState<FilterKey | null>(null);
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -124,13 +156,18 @@ export function FundReport({ fundMembers, transactions }: Props) {
       return;
     }
     const idemKey = `${diff > 0 ? "set-contrib" : "set-refund"}-${crypto.randomUUID()}`;
+    const prev = members;
+    patchBalance(memberId, diff);
     setAdjusting(true);
     fireAction(
       () =>
         diff > 0
           ? recordContribution(memberId, diff, "Sửa balance", idemKey)
           : recordRefund(memberId, -diff, "Sửa balance", idemKey),
-      () => setAdjusting(false),
+      () => {
+        setMembers(prev);
+        setAdjusting(false);
+      },
       {
         successMsg: `Đã set balance → ${formatVND(balanceDraft)}`,
         onSuccess: () => {
@@ -151,13 +188,18 @@ export function FundReport({ fundMembers, transactions }: Props) {
     const sign = adjustSign;
     const desc = adjustDesc.trim() || undefined;
     const idemKey = `${sign === 1 ? "contrib" : "refund"}-${crypto.randomUUID()}`;
+    const prev = members;
+    patchBalance(memberId, sign * amount);
     setAdjusting(true);
     fireAction(
       () =>
         sign === 1
           ? recordContribution(memberId, amount, desc, idemKey)
           : recordRefund(memberId, amount, desc, idemKey),
-      () => setAdjusting(false),
+      () => {
+        setMembers(prev);
+        setAdjusting(false);
+      },
       {
         successMsg:
           sign === 1
@@ -184,10 +226,15 @@ export function FundReport({ fundMembers, transactions }: Props) {
     if (balance >= 0) return;
     const amount = -balance;
     const idemKey = `clear-debt-${memberId}-${crypto.randomUUID()}`;
+    const prev = members;
+    patchBalance(memberId, amount);
     setAdjusting(true);
     fireAction(
       () => recordContribution(memberId, amount, t("clearDebtNote"), idemKey),
-      () => setAdjusting(false),
+      () => {
+        setMembers(prev);
+        setAdjusting(false);
+      },
       {
         successMsg: t("toastClearDebt", { amount: formatVND(amount) }),
         onSuccess: () => {
@@ -206,13 +253,13 @@ export function FundReport({ fundMembers, transactions }: Props) {
       FilterKey,
       number
     >;
-    for (const fm of fundMembers) c[getFundStatus(fm.balance.balance)] += 1;
+    for (const fm of members) c[getFundStatus(fm.balance.balance)] += 1;
     return c;
-  }, [fundMembers]);
+  }, [members]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return [...fundMembers]
+    return [...members]
       .filter((fm) => {
         if (filter && getFundStatus(fm.balance.balance) !== filter)
           return false;
@@ -227,7 +274,7 @@ export function FundReport({ fundMembers, transactions }: Props) {
         return true;
       })
       .sort((a, b) => b.balance.balance - a.balance.balance);
-  }, [fundMembers, filter, search]);
+  }, [members, filter, search]);
 
   const txByMember = useMemo(() => {
     const map = new Map<number, FundTransaction[]>();

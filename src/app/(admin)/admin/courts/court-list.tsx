@@ -49,6 +49,12 @@ export function CourtList({ courts }: { courts: Court[] }) {
   );
   const [deleteTarget, setDeleteTarget] = useState<Court | null>(null);
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
+  // Overlay optimistic cho create/edit: edit patch theo id + ghost row (id âm)
+  // cho court mới. revalidatePath trả `courts` mới → useEffect dưới dọn overlay.
+  const [editedCourts, setEditedCourts] = useState<
+    Record<number, Partial<Court>>
+  >({});
+  const [addedCourts, setAddedCourts] = useState<Court[]>([]);
   const t = useTranslations("adminCourts");
   const tCommon = useTranslations("common");
   usePolling();
@@ -79,16 +85,75 @@ export function CourtList({ courts }: { courts: Court[] }) {
     );
   }
 
+  // Khi server revalidate và trả `courts` mới, dọn overlay đã phản ánh vào prop
+  // để tránh card trùng (ghost + row thật) hoặc patch cũ đè lên. Dùng "adjust
+  // state on prop change" lúc render (không useEffect → tránh cascading-render
+  // lint). Chỉ bỏ ghost khi đã có row thật trùng; chỉ bỏ patch khi prop khớp,
+  // nên poll 5s không xoá overlay sớm khi revalidate của action chưa commit.
+  const [prevCourts, setPrevCourts] = useState(courts);
+  if (courts !== prevCourts) {
+    setPrevCourts(courts);
+    setAddedCourts((prev) =>
+      prev.filter(
+        (g) =>
+          !courts.some(
+            (c) => c.name === g.name && c.pricePerSession === g.pricePerSession,
+          ),
+      ),
+    );
+    setEditedCourts((prev) => {
+      const next: Record<number, Partial<Court>> = {};
+      for (const [idStr, patch] of Object.entries(prev)) {
+        const row = courts.find((c) => c.id === Number(idStr));
+        const matches =
+          row &&
+          row.name === patch.name &&
+          row.pricePerSession === patch.pricePerSession &&
+          (row.pricePerSessionRetail ?? null) ===
+            (patch.pricePerSessionRetail ?? null);
+        if (row && !matches) next[Number(idStr)] = patch;
+      }
+      return next;
+    });
+  }
+
   function handleSubmit(formData: FormData) {
     const wasEditing = editingCourt;
+    const patch: Partial<Court> = {
+      name: String(formData.get("name") ?? ""),
+      address: (formData.get("address") as string) || null,
+      mapLink: (formData.get("mapLink") as string) || null,
+      pricePerSession: Number(formData.get("pricePerSession")),
+      pricePerSessionRetail: formData.get("pricePerSessionRetail")
+        ? Number(formData.get("pricePerSessionRetail"))
+        : null,
+    };
     setDialogOpen(false);
     setEditingCourt(null);
+    const tempId = -Date.now();
+    if (wasEditing) {
+      setEditedCourts((prev) => ({ ...prev, [wasEditing.id]: patch }));
+    } else {
+      setAddedCourts((prev) => [
+        { id: tempId, isActive: true, ...patch } as Court,
+        ...prev,
+      ]);
+    }
     fireAction(
       () =>
         wasEditing
           ? updateCourt(wasEditing.id, formData)
           : createCourt(formData),
       () => {
+        if (wasEditing) {
+          setEditedCourts((prev) => {
+            const n = { ...prev };
+            delete n[wasEditing.id];
+            return n;
+          });
+        } else {
+          setAddedCourts((prev) => prev.filter((c) => c.id !== tempId));
+        }
         setEditingCourt(wasEditing);
         setDialogOpen(true);
       },
@@ -188,8 +253,9 @@ export function CourtList({ courts }: { courts: Court[] }) {
       </Dialog>
 
       <div className="grid gap-3">
-        {[...courts]
+        {[...addedCourts, ...courts]
           .filter((c) => !deletedIds.has(c.id))
+          .map((c) => ({ ...c, ...(editedCourts[c.id] ?? {}) }))
           .sort((a, b) => {
             const aActive = toggledCourts[a.id] ?? a.isActive;
             const bActive = toggledCourts[b.id] ?? b.isActive;

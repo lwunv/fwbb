@@ -15,15 +15,29 @@ import { formatK } from "@/lib/utils";
 import { ymdInVN } from "@/lib/date-format";
 import { Plus, Loader2 } from "lucide-react";
 import type { InferSelectModel } from "drizzle-orm";
-import type { shuttlecockBrands as brandsTable } from "@/db/schema";
+import type {
+  shuttlecockBrands as brandsTable,
+  inventoryPurchases as purchasesTable,
+} from "@/db/schema";
 
 type Brand = InferSelectModel<typeof brandsTable>;
+type Purchase = InferSelectModel<typeof purchasesTable> & { brand: Brand };
 
 interface PurchaseFormProps {
   brands: Brand[];
+  /** Optimistically insert the new purchase row + bump the brand's stock in
+   * the parent (InventoryClient owns both lists). Called before the server
+   * write so the new row + moved stock number appear on submit. */
+  onOptimisticAdd?: (ghost: Purchase, brandId: number, tubes: number) => void;
+  /** Reverse the optimistic insert if the server write fails. */
+  onRollbackAdd?: (ghostId: number, brandId: number, tubes: number) => void;
 }
 
-export function PurchaseForm({ brands }: PurchaseFormProps) {
+export function PurchaseForm({
+  brands,
+  onOptimisticAdd,
+  onRollbackAdd,
+}: PurchaseFormProps) {
   const t = useTranslations("inventory");
   const router = useRouter();
   const [success, setSuccess] = useState(false);
@@ -67,22 +81,51 @@ export function PurchaseForm({ brands }: PurchaseFormProps) {
     formData.set("notes", notes);
     formData.set("idempotencyKey", idempotencyKey);
 
+    // Optimistic: chèn ngay dòng mua mới + cộng tồn kho ở parent (ghost row với
+    // id âm) để user thấy kết quả tức thì; router.refresh() bên dưới sẽ thay
+    // ghost bằng dòng thật. Money math server-side không đổi.
+    const brand = brands.find((b) => b.id === Number(selectedBrandId));
+    const ghostId = -Date.now();
+    const capturedTubes = tubes;
+    const capturedBrandId = Number(selectedBrandId);
+    if (brand) {
+      const ghost: Purchase = {
+        id: ghostId,
+        brandId: brand.id,
+        tubes: capturedTubes,
+        pricePerTube,
+        totalPrice: capturedTubes * pricePerTube,
+        purchasedAt,
+        notes: notes || null,
+        createdAt: new Date().toISOString(),
+        brand,
+      };
+      onOptimisticAdd?.(ghost, capturedBrandId, capturedTubes);
+    }
+
     // Loading-first: hiện spinner trong lúc ghi (user cần thấy feedback), rồi
     // reset form + refresh khi thành công. Refresh ngay để tồn kho + lịch sử
     // mua cập nhật tức thì thay vì chờ lượt polling 5s (đây là lý do trước
     // đây "nhập mua mà tồn kho không đổi").
     setPending(true);
-    fireAction(() => recordPurchase(formData), undefined, {
-      onSuccess: () => {
-        setPending(false);
-        setTubes(1);
-        setNotes("");
-        setSuccess(true);
-        setTimeout(() => setSuccess(false), 3000);
-        router.refresh();
+    fireAction(
+      () => recordPurchase(formData),
+      // Rollback: gỡ ghost row + trừ lại tồn kho khi ghi thất bại.
+      brand
+        ? () => onRollbackAdd?.(ghostId, capturedBrandId, capturedTubes)
+        : undefined,
+      {
+        onSuccess: () => {
+          setPending(false);
+          setTubes(1);
+          setNotes("");
+          setSuccess(true);
+          setTimeout(() => setSuccess(false), 3000);
+          router.refresh();
+        },
+        onError: () => setPending(false),
       },
-      onError: () => setPending(false),
-    });
+    );
   }
 
   const totalPrice = tubes * pricePerTube;

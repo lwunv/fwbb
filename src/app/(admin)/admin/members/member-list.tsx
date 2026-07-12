@@ -274,13 +274,30 @@ export function MemberList({
     );
   }
 
+  // Optimistic insert cho "Thêm thành viên": ghost row (id âm) hiện NGAY khi
+  // submit, được thay bằng row thật sau revalidate. Ghost đúng ngữ nghĩa
+  // (member mới thực sự balance 0, chưa nợ) nên card hiển thị chuẩn. Dọn ghost
+  // theo pattern "adjust state on prop change" (không useEffect, tránh cascading
+  // render) — khớp style file; chỉ bỏ ghost khi prop `members` đã có row thật
+  // trùng tên, nên poll 5s không xoá overlay sớm.
+  const [addedMembers, setAddedMembers] = useState<Member[]>([]);
+  const [prevMembersProp, setPrevMembersProp] = useState(members);
+  if (members !== prevMembersProp) {
+    setPrevMembersProp(members);
+    if (addedMembers.length > 0) {
+      setAddedMembers((prev) =>
+        prev.filter((g) => !members.some((m) => m.name === g.name)),
+      );
+    }
+  }
+
   const filtered = useMemo(() => {
     const q = search.trim();
     // Query chuẩn hoá bỏ dấu để khớp tên/biệt danh (gõ "phieu" ra "Phiêu").
     const qNorm = normalizeVietnamese(q);
     // Chỉ-số cho khớp SĐT: bỏ hết ký tự không phải số ở query.
     const qDigits = q.replace(/\D/g, "");
-    const list = members.filter((m) => {
+    const list = [...addedMembers, ...members].filter((m) => {
       // ẩn member đã optimistic-delete; nếu server reject (vd còn nợ),
       // fireAction rollback set → member xuất hiện lại.
       if (deletedIds.has(m.id)) return false;
@@ -340,7 +357,15 @@ export function MemberList({
         }
       }
     });
-  }, [members, search, statusFilter, sortMode, deletedIds, memberBalances]);
+  }, [
+    members,
+    addedMembers,
+    search,
+    statusFilter,
+    sortMode,
+    deletedIds,
+    memberBalances,
+  ]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -365,6 +390,14 @@ export function MemberList({
     Record<number, boolean>
   >({});
 
+  // Optimistic override cho name/nickname hiển thị trên card (email/phone không
+  // render trên card nên không cần). Cùng pattern partnerOverrides: set trước
+  // khi fireAction, revert trong rollback; prop mới sau revalidate vẫn hiển thị
+  // đúng vì override chỉ đè khi có entry.
+  const [infoOverrides, setInfoOverrides] = useState<
+    Record<number, { name: string; nickname: string }>
+  >({});
+
   // Optimistic toggle "đi 2 người" cho member. updateMember chỉ đổi
   // defaultWithPartner khi form CÓ field withPartner → an toàn với sửa nickname.
   function handleTogglePartner(m: Member) {
@@ -382,9 +415,42 @@ export function MemberList({
 
   function handleCreate(formData: FormData) {
     setDialogOpen(false);
+    // Optimistic: chèn ghost card ngay. Member mới balance 0, chưa nợ, active +
+    // approved (admin tạo trực tiếp). createdAt = now để sort "mới nhất" đúng.
+    const name = String(formData.get("name") ?? "").trim();
+    const nickname = (formData.get("nickname") as string)?.trim() || null;
+    const withPartner = formData.get("withPartner") === "1";
+    const tempId = -Date.now();
+    // Ghost đầy đủ field (annotation Member → TS bắt thiếu field). Member admin
+    // tạo trực tiếp mặc định approvalStatus "approved" + active; các field OAuth/
+    // liên hệ để null. balance/nợ derive từ props khác (memberBalances) → 0.
+    const ghost: Member = {
+      id: tempId,
+      name,
+      nickname,
+      avatarKey: null,
+      facebookId: null,
+      googleId: null,
+      avatarUrl: null,
+      email: null,
+      passwordHash: null,
+      phoneNumber: null,
+      username: null,
+      passwordResetExpiresAt: null,
+      mustChangePassword: false,
+      bankAccountNo: null,
+      approvalStatus: "approved",
+      approvedAt: null,
+      approvedBy: null,
+      isActive: true,
+      defaultWithPartner: withPartner,
+      createdAt: new Date().toISOString(),
+    };
+    setAddedMembers((prev) => [ghost, ...prev]);
     fireAction(
       () => createMember(formData),
       () => {
+        setAddedMembers((prev) => prev.filter((m) => m.id !== tempId));
         setDialogOpen(true);
       },
       { successMsg: t("toastMemberAdded") },
@@ -405,18 +471,31 @@ export function MemberList({
     formData.set("nickname", values.nickname);
     formData.set("email", values.email);
     formData.set("phoneNumber", values.phoneNumber);
+    const prev = infoOverrides[memberId];
+    setInfoOverrides((o) => ({
+      ...o,
+      [memberId]: { name: values.name, nickname: values.nickname },
+    }));
     setInfoEditTarget(null);
-    fireAction(() => updateMember(memberId, formData), undefined, {
-      successMsg: t("toastInfoSaved"),
-    });
+    fireAction(
+      () => updateMember(memberId, formData),
+      () =>
+        setInfoOverrides((o) => {
+          const n = { ...o };
+          if (prev) n[memberId] = prev;
+          else delete n[memberId];
+          return n;
+        }),
+      { successMsg: t("toastInfoSaved") },
+    );
   }
 
   // Bucket đếm sẵn cho mỗi chip filter — hiện luôn kể cả khi chip không active
   // (khớp mockup "Tất cả 12 / Hoạt động 10 / ..."). Đếm trên toàn bộ list
   // trước filter (chỉ trừ optimistic-deleted), không phải trên `filtered`.
   const liveMembers = useMemo(
-    () => members.filter((m) => !deletedIds.has(m.id)),
-    [members, deletedIds],
+    () => [...addedMembers, ...members].filter((m) => !deletedIds.has(m.id)),
+    [addedMembers, members, deletedIds],
   );
   const statusCounts = useMemo(
     () => ({
@@ -556,16 +635,26 @@ export function MemberList({
         <AnimatePresence initial={false}>
           {paged.map((member) => {
             const debts = debtsByMember[member.id] ?? [];
-            const totalDebt = debts.reduce((s, d) => s + d.totalAmount, 0);
-            const unpaidAmount = debts
+            // Ẩn ngay khoản vừa xác nhận (optimistic) khỏi tổng + danh sách; nếu
+            // server reject, fireAction rollback bỏ id khỏi confirmedDebts →
+            // khoản hiện lại và tổng quay về.
+            const visibleDebts = debts.filter((d) => !confirmedDebts.has(d.id));
+            const totalDebt = visibleDebts.reduce(
+              (s, d) => s + d.totalAmount,
+              0,
+            );
+            const unpaidAmount = visibleDebts
               .filter((d) => !d.memberConfirmed)
               .reduce((s, d) => s + d.totalAmount, 0);
-            const waitingAmount = debts
+            const waitingAmount = visibleDebts
               .filter((d) => d.memberConfirmed)
               .reduce((s, d) => s + d.totalAmount, 0);
             const isExpanded = expandedId === member.id;
 
             const memberIsActive = toggledMembers[member.id] ?? member.isActive;
+            const displayName = infoOverrides[member.id]?.name ?? member.name;
+            const displayNickname =
+              infoOverrides[member.id]?.nickname ?? member.nickname;
             return (
               <motion.div
                 key={member.id}
@@ -607,10 +696,10 @@ export function MemberList({
                             title={t("menuEditInfo")}
                             className="flex flex-wrap items-center gap-1.5 text-left text-base font-semibold hover:underline"
                           >
-                            {member.name}
-                            {member.nickname && (
+                            {displayName}
+                            {displayNickname && (
                               <span className="text-muted-foreground text-sm font-normal">
-                                ({member.nickname})
+                                ({displayNickname})
                               </span>
                             )}
                             {adminMemberId === member.id && (
@@ -800,7 +889,7 @@ export function MemberList({
 
                         {isExpanded && (
                           <div className="mt-2 ml-12 space-y-1.5">
-                            {debts
+                            {visibleDebts
                               .sort((a, b) =>
                                 a.sessionDate.localeCompare(b.sessionDate),
                               )

@@ -33,10 +33,18 @@ export function ShuttlecockSelector({
   sessionId,
   brands,
   currentShuttlecocks,
+  onItemsChange,
 }: {
   sessionId: number;
   brands: Brand[];
   currentShuttlecocks: SessionShuttlecock[];
+  /**
+   * Báo danh sách cầu hiệu lực lên parent để tóm tắt chi phí ở AdminVoteManager
+   * cập nhật NGAY khi admin thêm/bớt/đổi giá. `items` đã optimistic + rollback
+   * (trong từng fireAction) + resync theo prop, nên effect dưới tự khớp cả 3
+   * trạng thái.
+   */
+  onItemsChange?: (items: SessionShuttlecock[]) => void;
 }) {
   const [items, setItems] = useState<SessionShuttlecock[]>(currentShuttlecocks);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -54,6 +62,13 @@ export function ShuttlecockSelector({
   useEffect(() => {
     setItems(currentShuttlecocks);
   }, [currentShuttlecocks]);
+
+  // Mirror danh sách cầu hiệu lực lên parent (giá/số lượng đổi → tóm tắt chi phí
+  // recompute ngay). Chạy khi `items` đổi: optimistic add/remove/qty/override,
+  // rollback khi server fail, và resync sau revalidate đều đi qua state này.
+  useEffect(() => {
+    onItemsChange?.(items);
+  }, [items, onItemsChange]);
 
   // Position dropdown over trigger when opened.
   useEffect(() => {

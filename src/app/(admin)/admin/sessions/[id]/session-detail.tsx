@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { cancelSession } from "@/actions/sessions";
@@ -73,6 +73,21 @@ export function SessionDetail({
   memberBalances?: Record<number, number>;
 }) {
   const [localStatus, setLocalStatus] = useState(session.status);
+  // Optimistic mirror của giá/tên sân + danh sách cầu. CourtSelector /
+  // ShuttlecockSelector cập nhật giá HIỂN THỊ của CHÍNH chúng ngay, nhưng tóm
+  // tắt chi phí trong AdminVoteManager (Tổng chi / per-head / trừ dự kiến từng
+  // member) đọc props này → nâng lên state để recompute NGAY, không chờ
+  // revalidate. Nguồn optimistic vẫn là 2 selector (chúng giữ fireAction +
+  // rollback); ở đây chỉ mirror giá trị hiệu lực chúng báo lên.
+  const [localCourtPrice, setLocalCourtPrice] = useState(
+    session.courtPrice ?? 0,
+  );
+  const [localCourtName, setLocalCourtName] = useState(
+    session.court?.name ?? null,
+  );
+  const [localShuttlecocks, setLocalShuttlecocks] = useState(
+    session.shuttlecocks,
+  );
   const t = useTranslations("sessions");
   const tF = useTranslations("finance");
   usePolling();
@@ -82,6 +97,31 @@ export function SessionDetail({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- local optimistic state must resync after server revalidation.
     setLocalStatus(session.status);
   }, [session.status]);
+
+  // Resync mirror khi server prop đổi (sau revalidate). Selector cũng resync
+  // state riêng của chúng từ cùng prop → 2 nguồn hội tụ về cùng số.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- local optimistic mirror must resync after server revalidation.
+    setLocalCourtPrice(session.courtPrice ?? 0);
+  }, [session.courtPrice]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- local optimistic mirror must resync after server revalidation.
+    setLocalCourtName(session.court?.name ?? null);
+  }, [session.court?.name]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- local optimistic mirror must resync after server revalidation.
+    setLocalShuttlecocks(session.shuttlecocks);
+  }, [session.shuttlecocks]);
+
+  // Callback ổn định (useCallback) để effect mirror trong CourtSelector không
+  // chạy lại mỗi render.
+  const handleCourtChange = useCallback(
+    (price: number, name: string | null) => {
+      setLocalCourtPrice(price);
+      setLocalCourtName(name);
+    },
+    [],
+  );
 
   // Shared badge derivation (session-card/list dùng chung). Past-pending →
   // amber "needsConfirm" (trước đây detail giữ màu voting — nay đồng nhất).
@@ -139,6 +179,7 @@ export function SessionDetail({
               sessionDate={session.date}
               defaultCourtId={defaultCourtId}
               sessionDays={sessionDays}
+              onCourtChange={handleCourtChange}
             />
           </CardContent>
         </Card>
@@ -152,6 +193,7 @@ export function SessionDetail({
               sessionId={session.id}
               brands={brands}
               currentShuttlecocks={session.shuttlecocks}
+              onItemsChange={setLocalShuttlecocks}
             />
           </CardContent>
         </Card>
@@ -170,10 +212,10 @@ export function SessionDetail({
         exemptMemberIds={exemptMemberIds}
         memberBalances={memberBalances}
         sessionCosts={{
-          courtPrice: session.courtPrice ?? 0,
-          courtName: session.court?.name ?? null,
+          courtPrice: localCourtPrice,
+          courtName: localCourtName,
           diningBill: session.diningBill ?? 0,
-          shuttlecocks: (session.shuttlecocks ?? []).map((s) => ({
+          shuttlecocks: (localShuttlecocks ?? []).map((s) => ({
             brandName: s.brand?.name ?? "",
             quantity: s.quantityUsed,
             pricePerTube: s.pricePerTube,

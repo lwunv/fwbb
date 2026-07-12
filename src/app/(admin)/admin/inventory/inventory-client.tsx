@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import { TabSegment } from "@/components/shared/tab-segment";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatK } from "@/lib/utils";
 import { calculateShuttlecockCost } from "@/lib/cost-calculator";
-import { isLowStock } from "@/lib/inventory-core";
+import { isLowStock, tubesToQua, splitOngQua } from "@/lib/inventory-core";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { Calendar, ArrowDown, ArrowUp, Pencil, Check, X } from "lucide-react";
 import { updatePurchaseTubes } from "@/actions/inventory";
@@ -65,10 +65,65 @@ export function InventoryClient({
   const formatDate = (d: string) => formatSessionDate(d, "long", locale);
   usePolling();
 
-  const totalQua = stock
+  // Optimistic mirrors: render the purchase history + stock from local copies
+  // so a new purchase row, an edited tube count, and the moved stock number
+  // appear on submit instead of waiting for router.refresh(). Re-sync when the
+  // props change (post-refresh + polling + rollback) per the prop-sync rule.
+  const [localPurchases, setLocalPurchases] = useState(purchases);
+  useEffect(() => {
+    setLocalPurchases(purchases);
+  }, [purchases]);
+  const [localStock, setLocalStock] = useState(stock);
+  useEffect(() => {
+    setLocalStock(stock);
+  }, [stock]);
+
+  const totalQua = localStock
     .filter((s) => s.isActive)
     .reduce((sum, s) => sum + s.currentStockQua, 0);
   const lowStock = isLowStock(totalQua);
+
+  // Recompute a brand's stock row for an optimistic purchase (adds tubes to
+  // purchased + stock). Mirrors getStockByBrand's server math so the display
+  // number does not drift before it reconciles on refresh.
+  function bumpStock(s: StockByBrand, tubesDelta: number): StockByBrand {
+    const quaDelta = tubesToQua(tubesDelta);
+    const rawStockQua = s.rawStockQua + quaDelta;
+    const currentStockQua = Math.max(0, rawStockQua);
+    const { ong, qua } = splitOngQua(currentStockQua);
+    return {
+      ...s,
+      totalPurchasedTubes: s.totalPurchasedTubes + tubesDelta,
+      totalPurchasedQua: s.totalPurchasedQua + quaDelta,
+      rawStockQua,
+      currentStockQua,
+      ong,
+      qua,
+      isLowStock: isLowStock(rawStockQua),
+    };
+  }
+
+  function applyOptimisticPurchase(
+    ghost: Purchase,
+    brandId: number,
+    tubesDelta: number,
+  ) {
+    setLocalPurchases((rows) => [ghost, ...rows]);
+    setLocalStock((st) =>
+      st.map((s) => (s.brandId === brandId ? bumpStock(s, tubesDelta) : s)),
+    );
+  }
+
+  function rollbackOptimisticPurchase(
+    ghostId: number,
+    brandId: number,
+    tubesDelta: number,
+  ) {
+    setLocalPurchases((rows) => rows.filter((r) => r.id !== ghostId));
+    setLocalStock((st) =>
+      st.map((s) => (s.brandId === brandId ? bumpStock(s, -tubesDelta) : s)),
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -101,11 +156,11 @@ export function InventoryClient({
       {/* Stock tab */}
       {activeTab === "stock" && (
         <div className="space-y-3">
-          {stock.length === 0 ? (
+          {localStock.length === 0 ? (
             <EmptyState variant="inline" title={tStats("noData")} />
           ) : (
             <>
-              {stock.map((s) => (
+              {localStock.map((s) => (
                 <StockCard key={s.brandId} stock={s} />
               ))}
             </>
@@ -116,14 +171,18 @@ export function InventoryClient({
       {/* Purchases tab */}
       {activeTab === "purchases" && (
         <div className="space-y-4">
-          <PurchaseForm brands={brands} />
+          <PurchaseForm
+            brands={brands}
+            onOptimisticAdd={applyOptimisticPurchase}
+            onRollbackAdd={rollbackOptimisticPurchase}
+          />
 
           <h3 className="text-base font-semibold">{t("purchaseHistory")}</h3>
-          {purchases.length === 0 ? (
+          {localPurchases.length === 0 ? (
             <EmptyState variant="inline" title={t("noPurchases")} />
           ) : (
             <div className="space-y-2">
-              {purchases.map((p) => {
+              {localPurchases.map((p) => {
                 const isEditing = editingId === p.id;
                 return (
                   <Card key={p.id} size="sm">
@@ -148,15 +207,42 @@ export function InventoryClient({
                                 type="button"
                                 onClick={() => {
                                   const prevTubes = p.tubes;
+                                  const prevTotalPrice = p.totalPrice;
+                                  const nextTubes = editTubes;
+                                  // Optimistic: count + thành tiền của dòng nhảy
+                                  // ngay khi bấm Lưu, không chờ round-trip.
+                                  setLocalPurchases((rows) =>
+                                    rows.map((r) =>
+                                      r.id === p.id
+                                        ? {
+                                            ...r,
+                                            tubes: nextTubes,
+                                            totalPrice:
+                                              nextTubes * r.pricePerTube,
+                                          }
+                                        : r,
+                                    ),
+                                  );
                                   setEditingId(null);
                                   fireAction(
                                     () =>
                                       updatePurchaseTubes(
                                         p.id,
-                                        editTubes,
+                                        nextTubes,
                                         crypto.randomUUID(),
                                       ),
                                     () => {
+                                      setLocalPurchases((rows) =>
+                                        rows.map((r) =>
+                                          r.id === p.id
+                                            ? {
+                                                ...r,
+                                                tubes: prevTubes,
+                                                totalPrice: prevTotalPrice,
+                                              }
+                                            : r,
+                                        ),
+                                      );
                                       setEditingId(p.id);
                                       setEditTubes(prevTubes);
                                     },

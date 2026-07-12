@@ -25,6 +25,7 @@ export function CourtSelector({
   sessionDate,
   defaultCourtId = null,
   sessionDays,
+  onCourtChange,
 }: {
   sessionId: number;
   courts: Court[];
@@ -44,6 +45,13 @@ export function CourtSelector({
    * khi admin đã đổi lịch).
    */
   sessionDays?: readonly number[] | number[];
+  /**
+   * Báo giá sân + tên sân hiệu lực (đã tính override/double court) lên parent
+   * để block tóm tắt chi phí ở AdminVoteManager cập nhật NGAY khi admin đổi sân,
+   * không chờ revalidate. Vì `displayPrice`/`selectedCourt` đã optimistic +
+   * rollback + resync theo prop, effect dưới tự khớp cả 3 trạng thái.
+   */
+  onCourtChange?: (price: number, name: string | null) => void;
 }) {
   const [localCourtId, setLocalCourtId] = useState(currentCourtId);
   const [quantity, setQuantity] = useState(currentCourtQuantity);
@@ -176,6 +184,25 @@ export function CourtSelector({
     );
   }
 
+  // Giá + tên sân hiệu lực (override hoặc auto). Khai báo TRƯỚC early-return để
+  // effect báo lên parent chạy vô điều kiện (rules-of-hooks). `totalForCourt`
+  // được hoist nên gọi được ở đây dù định nghĩa bên dưới.
+  const selectedCourt = courts.find((c) => c.id === localCourtId);
+  const autoPrice = selectedCourt ? totalForCourt(selectedCourt, quantity) : 0;
+  // Hiển thị giá override nếu có, ngược lại fallback auto. Truyền `autoPrice`
+  // làm "Mặc định" trong sheet để admin biết giá nào sẽ áp dụng khi Reset.
+  const displayPrice =
+    overriddenLocal && overridePriceLocal !== null
+      ? overridePriceLocal
+      : autoPrice;
+
+  // Mirror giá/tên hiệu lực lên parent. displayPrice/selectedCourt đã optimistic
+  // + rollback + resync theo prop, nên tóm tắt chi phí ở AdminVoteManager khớp
+  // cả lúc đổi sân, lúc server fail (rollback), lẫn sau revalidate.
+  useEffect(() => {
+    onCourtChange?.(displayPrice, selectedCourt?.name ?? null);
+  }, [displayPrice, selectedCourt, onCourtChange]);
+
   if (courts.length === 0) {
     return <p className="text-muted-foreground text-sm">{ts("noCourtsYet")}</p>;
   }
@@ -203,15 +230,6 @@ export function CourtSelector({
       sessionDays,
     });
   }
-
-  const selectedCourt = courts.find((c) => c.id === localCourtId);
-  const autoPrice = selectedCourt ? totalForCourt(selectedCourt, quantity) : 0;
-  // Hiển thị giá override nếu có, ngược lại fallback auto. Truyền `autoPrice`
-  // làm "Mặc định" trong sheet để admin biết giá nào sẽ áp dụng khi Reset.
-  const displayPrice =
-    overriddenLocal && overridePriceLocal !== null
-      ? overridePriceLocal
-      : autoPrice;
 
   return (
     <div>

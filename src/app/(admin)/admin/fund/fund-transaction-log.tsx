@@ -149,13 +149,30 @@ export function FundTransactionLog({ transactions }: Props) {
     "all",
   );
 
+  // Mirror server prop vào local state để undo có thể patch `isReversed` ngay
+  // lập tức; resync khi prop đổi (sau revalidate / rollback) theo pattern
+  // "adjust state on prop change".
+  const [txs, setTxs] = useState(transactions);
+  const [prevTxs, setPrevTxs] = useState(transactions);
+  if (transactions !== prevTxs) {
+    setPrevTxs(transactions);
+    setTxs(transactions);
+  }
+
+  // Optimistic: đánh dấu row là đã hủy (line-through + badge "Đã hủy" +
+  // opacity-60, đồng thời ẩn nút hủy vì canReverse thành false).
+  const markReversed = (id: number, value: boolean) =>
+    setTxs((cur) =>
+      cur.map((tx) => (tx.id === id ? { ...tx, isReversed: value } : tx)),
+    );
+
   // Ẩn `debt_created` mặc định — nó là audit-only entry (record-keeping), không
   // ảnh hưởng balance member. Mỗi `debt_created` luôn có 1 `fund_deduction`
   // đối ứng đã thể hiện đầy đủ impact → để cả 2 nhìn như duplicate. Reconcile
   // script vẫn truy DB trực tiếp được, admin UI không cần show.
   const visibleTransactions = useMemo(
-    () => transactions.filter((tx) => tx.type !== "debt_created"),
-    [transactions],
+    () => txs.filter((tx) => tx.type !== "debt_created"),
+    [txs],
   );
 
   const counts = useMemo(() => {
@@ -241,7 +258,11 @@ export function FundTransactionLog({ transactions }: Props) {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -4 }}
                 >
-                  <TxCard tx={tx} />
+                  <TxCard
+                    tx={tx}
+                    onReverse={(id) => markReversed(id, true)}
+                    onReverseRollback={(id) => markReversed(id, false)}
+                  />
                 </motion.li>
               ))}
             </AnimatePresence>
@@ -252,12 +273,19 @@ export function FundTransactionLog({ transactions }: Props) {
   );
 }
 
-function TxCard({ tx }: { tx: FinancialTransactionRow }) {
+function TxCard({
+  tx,
+  onReverse,
+  onReverseRollback,
+}: {
+  tx: FinancialTransactionRow;
+  onReverse: (id: number) => void;
+  onReverseRollback: (id: number) => void;
+}) {
   const t = useTranslations("fundAdmin");
   const tCommon = useTranslations("common");
   const locale = useLocale();
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [reversing, setReversing] = useState(false);
   const meta = TX_TYPE_META[tx.type] ?? {
     labelKey: "txLabelManualAdjustment",
     icon: RotateCcw,
@@ -289,7 +317,8 @@ function TxCard({ tx }: { tx: FinancialTransactionRow }) {
 
   function handleConfirm() {
     setConfirmOpen(false);
-    setReversing(true);
+    // Optimistic: đánh dấu row đã hủy ngay (line-through + badge + ẩn nút).
+    onReverse(tx.id);
     const idemKey = `reverse-tx-${tx.id}-${
       typeof crypto !== "undefined" && crypto.randomUUID
         ? crypto.randomUUID()
@@ -297,7 +326,7 @@ function TxCard({ tx }: { tx: FinancialTransactionRow }) {
     }`;
     fireAction(
       () => reverseFinancialTransaction(tx.id, idemKey),
-      () => setReversing(false),
+      () => onReverseRollback(tx.id),
       {
         successMsg: t("toastUndoTransaction"),
       },
@@ -391,7 +420,6 @@ function TxCard({ tx }: { tx: FinancialTransactionRow }) {
             <button
               type="button"
               onClick={() => setConfirmOpen(true)}
-              disabled={reversing}
               className="border-destructive/30 text-destructive hover:bg-destructive/10 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors disabled:opacity-50"
               aria-label={t("ariaUndoTransaction")}
               title={t("ariaUndoTransaction")}
