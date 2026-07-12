@@ -99,7 +99,7 @@ export function AdminMobileNav({
                   href={item.href}
                   onClick={() => setOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                    "flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                     isActive
                       ? "bg-primary text-primary-foreground"
                       : "hover:bg-accent",
@@ -132,7 +132,7 @@ export function AdminMobileNav({
             <form action={logout}>
               <button
                 type="submit"
-                className="hover:bg-accent flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium"
+                className="hover:bg-accent flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium"
               >
                 <LogOut className="h-4 w-4" />
                 {t("logout")}

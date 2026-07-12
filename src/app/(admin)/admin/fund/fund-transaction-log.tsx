@@ -392,7 +392,7 @@ function TxCard({ tx }: { tx: FinancialTransactionRow }) {
               type="button"
               onClick={() => setConfirmOpen(true)}
               disabled={reversing}
-              className="border-destructive/30 text-destructive hover:bg-destructive/10 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors disabled:opacity-50"
+              className="border-destructive/30 text-destructive hover:bg-destructive/10 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors disabled:opacity-50"
               aria-label={t("ariaUndoTransaction")}
               title={t("ariaUndoTransaction")}
             >

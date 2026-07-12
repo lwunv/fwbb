@@ -150,7 +150,7 @@ export function SessionFinanceReport({
               type="button"
               onClick={() => setG(tab.key)}
               className={cn(
-                "h-9 rounded-full border px-3 text-sm font-medium transition-colors",
+                "inline-flex min-h-11 items-center rounded-full border px-3 text-sm font-medium transition-colors",
                 g === tab.key
                   ? "bg-primary text-primary-foreground border-primary"
                   : "bg-background text-muted-foreground hover:bg-muted/80",
@@ -219,7 +219,7 @@ export function SessionFinanceReport({
                           </span>
                         )}
                       </div>
-                      <div className="text-muted-foreground mt-0.5 text-xs tabular-nums">
+                      <div className="text-muted-foreground mt-0.5 text-sm tabular-nums">
                         Chi {formatK(b.chi)} · Thu {formatK(b.thu)}
                       </div>
                     </div>

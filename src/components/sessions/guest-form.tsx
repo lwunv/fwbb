@@ -30,7 +30,7 @@ export function GuestForm({
     <div className="space-y-3">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="text-muted-foreground hover:text-foreground flex items-center gap-2 text-sm transition-colors"
+        className="text-muted-foreground hover:text-foreground flex min-h-11 items-center gap-2 py-2 text-sm transition-colors"
         type="button"
       >
         <UserPlus className="h-4 w-4" />

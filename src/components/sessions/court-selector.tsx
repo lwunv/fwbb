@@ -252,7 +252,7 @@ export function CourtSelector({
           onClick={() => selectedCourt && setOverrideOpen(true)}
           disabled={!selectedCourt}
           className={cn(
-            "group inline-flex min-w-20 shrink-0 items-center justify-end gap-1 rounded-lg px-1 py-0.5 text-right text-base font-bold tabular-nums transition-colors",
+            "group inline-flex min-h-11 min-w-20 shrink-0 items-center justify-end gap-1 rounded-lg px-2 text-right text-base font-bold tabular-nums transition-colors",
             overriddenLocal
               ? "text-amber-600 dark:text-amber-400"
               : "text-primary",

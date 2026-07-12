@@ -145,7 +145,7 @@ export function PendingApprovalGate({
             type="button"
             onClick={handleLogout}
             disabled={saving}
-            className="text-muted-foreground text-xs underline underline-offset-2 disabled:opacity-50"
+            className="text-muted-foreground inline-flex min-h-11 items-center px-2 text-sm underline underline-offset-2 disabled:opacity-50"
           >
             {t("logoutAndUseOtherAccount")}
           </button>

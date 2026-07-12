@@ -131,7 +131,7 @@ export function StatTile({
         className,
       )}
     >
-      <div className="text-muted-foreground mb-1.5 flex items-center gap-1.5 text-xs">
+      <div className="text-muted-foreground mb-1.5 flex items-center gap-1.5 text-sm">
         {Icon && <Icon className={cn("h-4 w-4 shrink-0", t.iconText)} />}
         <span className="truncate">{label}</span>
       </div>

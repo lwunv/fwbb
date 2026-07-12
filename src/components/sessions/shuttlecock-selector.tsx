@@ -254,7 +254,7 @@ export function ShuttlecockSelector({
                 type="button"
                 onClick={() => setOverrideTargetId(sc.id)}
                 className={cn(
-                  "group hover:bg-muted/60 inline-flex min-w-20 shrink-0 items-center justify-end gap-1 rounded-lg px-1 py-0.5 text-right text-base font-medium tabular-nums transition-colors",
+                  "group hover:bg-muted/60 inline-flex min-h-11 min-w-20 shrink-0 items-center justify-end gap-1 rounded-lg px-2 text-right text-base font-medium tabular-nums transition-colors",
                   isOverridden
                     ? "text-amber-600 dark:text-amber-400"
                     : "text-primary",

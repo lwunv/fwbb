@@ -192,7 +192,7 @@ export function VoteButtons({
                 togglePartner();
               }}
               className={cn(
-                "flex shrink-0 items-center gap-1.5 rounded-full px-1.5 py-1",
+                "-my-2 flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-2",
                 partnerLocked && "cursor-not-allowed opacity-40",
               )}
             >

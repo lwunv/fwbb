@@ -121,60 +121,62 @@ export function DuplicateMembersBanner({ groups }: { groups: DupGroup[] }) {
                     const isKeep = m.id === keepId;
                     const isMerging = mergingIds.has(m.id);
                     return (
-                      <li
-                        key={m.id}
-                        className={cn(
-                          "flex items-center gap-3 rounded-lg border px-3 py-2 transition-all duration-200",
-                          isKeep
-                            ? "border-primary bg-primary/10"
-                            : "border-border bg-muted/30",
-                          isMerging && "pointer-events-none opacity-40",
-                        )}
-                      >
-                        <input
-                          type="radio"
-                          name={`keep-${group.name}`}
-                          checked={isKeep}
-                          onChange={() =>
-                            setKeepIds((s) => ({ ...s, [group.name]: m.id }))
-                          }
-                          className="accent-primary h-4 w-4 shrink-0"
-                        />
-                        <MemberAvatar
-                          memberId={m.id}
-                          avatarKey={m.avatarKey}
-                          avatarUrl={m.avatarUrl}
-                          size={32}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="truncate font-semibold">
-                              #{m.id} · {m.name}
-                              {m.nickname ? ` (${m.nickname})` : ""}
-                            </span>
-                            {!m.isActive && (
-                              <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">
-                                inactive
+                      <li key={m.id}>
+                        <label
+                          className={cn(
+                            "flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 transition-all duration-200",
+                            isKeep
+                              ? "border-primary bg-primary/10"
+                              : "border-border bg-muted/30",
+                            isMerging && "pointer-events-none opacity-40",
+                          )}
+                        >
+                          <input
+                            type="radio"
+                            name={`keep-${group.name}`}
+                            checked={isKeep}
+                            onChange={() =>
+                              setKeepIds((s) => ({ ...s, [group.name]: m.id }))
+                            }
+                            className="accent-primary h-4 w-4 shrink-0"
+                          />
+                          <MemberAvatar
+                            memberId={m.id}
+                            avatarKey={m.avatarKey}
+                            avatarUrl={m.avatarUrl}
+                            size={32}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="truncate font-semibold">
+                                #{m.id} · {m.name}
+                                {m.nickname ? ` (${m.nickname})` : ""}
                               </span>
-                            )}
+                              {!m.isActive && (
+                                <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">
+                                  inactive
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-muted-foreground text-xs">
+                              {m.ledgerCount} giao dịch ·{" "}
+                              <span
+                                className={cn(
+                                  "text-sm",
+                                  getFundStatus(m.balance) === "owing"
+                                    ? "text-red-600 dark:text-red-400"
+                                    : getFundStatus(m.balance) === "depleted"
+                                      ? ""
+                                      : "text-green-600 dark:text-green-400",
+                                )}
+                              >
+                                balance {formatK(m.balance)}
+                              </span>
+                              {m.facebookId?.startsWith("admin_") &&
+                                " · admin tạo"}
+                            </div>
                           </div>
-                          <div className="text-muted-foreground text-xs">
-                            {m.ledgerCount} giao dịch ·{" "}
-                            <span
-                              className={
-                                getFundStatus(m.balance) === "owing"
-                                  ? "text-red-600 dark:text-red-400"
-                                  : getFundStatus(m.balance) === "depleted"
-                                    ? ""
-                                    : "text-green-600 dark:text-green-400"
-                              }
-                            >
-                              balance {formatK(m.balance)}
-                            </span>
-                            {m.facebookId?.startsWith("admin_") &&
-                              " · admin tạo"}
-                          </div>
-                        </div>
+                        </label>
                       </li>
                     );
                   })}

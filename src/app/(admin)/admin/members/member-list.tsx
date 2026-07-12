@@ -837,7 +837,7 @@ export function MemberList({
                                     </div>
                                     <Button
                                       size="sm"
-                                      className="h-7 gap-1 text-xs"
+                                      className="min-h-11 gap-1 text-xs"
                                       disabled={confirmedDebts.has(debt.id)}
                                       onClick={() =>
                                         handleConfirmPayment(debt.id)

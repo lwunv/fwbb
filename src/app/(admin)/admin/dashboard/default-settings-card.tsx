@@ -162,7 +162,7 @@ export function DefaultSettingsCard({
                   type="button"
                   onClick={() => toggleDay(dow)}
                   className={cn(
-                    "inline-flex items-center justify-center rounded-md border px-1 py-1 text-xs font-medium whitespace-nowrap transition-colors",
+                    "inline-flex min-h-11 items-center justify-center rounded-md border px-1 py-1 text-xs font-medium whitespace-nowrap transition-colors",
                     active
                       ? "border-primary bg-primary text-primary-foreground shadow-sm"
                       : "border-border bg-muted/30 text-muted-foreground hover:bg-muted",

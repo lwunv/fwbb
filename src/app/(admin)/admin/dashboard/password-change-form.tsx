@@ -50,7 +50,7 @@ export function PasswordChangeForm() {
                 <button
                   type="button"
                   onClick={() => setShowCurrent(!showCurrent)}
-                  className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2"
+                  className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center"
                 >
                   {showCurrent ? (
                     <EyeOff className="h-4 w-4" />
@@ -75,7 +75,7 @@ export function PasswordChangeForm() {
                 <button
                   type="button"
                   onClick={() => setShowNew(!showNew)}
-                  className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2"
+                  className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center"
                 >
                   {showNew ? (
                     <EyeOff className="h-4 w-4" />

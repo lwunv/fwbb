@@ -998,7 +998,7 @@ export function AdminVoteManager({
                           <button
                             type="button"
                             onClick={() => setExpandedGuest(member.id)}
-                            className="text-primary hover:text-primary/80 pt-1 pb-1 text-left text-sm transition-colors"
+                            className="text-primary hover:text-primary/80 inline-flex min-h-11 items-center text-left text-sm transition-colors"
                           >
                             {showPlayGuest && (
                               <span>

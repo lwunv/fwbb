@@ -1150,7 +1150,7 @@ export function DashboardClient({
                   <button
                     type="button"
                     onClick={() => setContribFor(m)}
-                    className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-9 shrink-0 items-center justify-center gap-1 rounded-lg px-3 text-xs font-semibold shadow-sm transition-colors"
+                    className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex min-h-11 shrink-0 items-center justify-center gap-1 rounded-lg px-3 text-sm font-semibold shadow-sm transition-colors"
                   >
                     <Plus className="h-3.5 w-3.5" /> {td("contributeButton")}
                   </button>
@@ -1158,7 +1158,7 @@ export function DashboardClient({
                     type="button"
                     onClick={() => handleClearDebt(m.memberId, m.amount)}
                     disabled={isClearing}
-                    className="border-primary bg-card text-primary hover:bg-primary/10 inline-flex h-9 shrink-0 items-center justify-center gap-1 rounded-lg border-2 px-3 text-xs font-semibold shadow-sm transition-colors disabled:opacity-50"
+                    className="border-primary bg-card text-primary hover:bg-primary/10 inline-flex min-h-11 shrink-0 items-center justify-center gap-1 rounded-lg border-2 px-3 text-sm font-semibold shadow-sm transition-colors disabled:opacity-50"
                   >
                     <Check className="h-3.5 w-3.5" /> {td("markPaidButton")}
                   </button>

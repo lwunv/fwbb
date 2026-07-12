@@ -402,7 +402,7 @@ export function CourtRentClient({
                 type="button"
                 onClick={() => setSelectedMonth(m)}
                 className={cn(
-                  "min-w-12 rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+                  "min-h-11 min-w-12 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
                   selectedMonth === m
                     ? "bg-background text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground",
@@ -605,7 +605,7 @@ export function CourtRentClient({
               type="button"
               onClick={() => setFormBucket("fixed")}
               className={cn(
-                "inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border-2 text-sm font-semibold transition-colors",
+                "inline-flex h-11 items-center justify-center gap-1.5 rounded-lg border-2 text-sm font-semibold transition-colors",
                 formBucket === "fixed"
                   ? "border-primary bg-primary text-primary-foreground"
                   : "border-border text-muted-foreground hover:bg-muted/50",
@@ -617,7 +617,7 @@ export function CourtRentClient({
               type="button"
               onClick={() => setFormBucket("extra")}
               className={cn(
-                "inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border-2 text-sm font-semibold transition-colors",
+                "inline-flex h-11 items-center justify-center gap-1.5 rounded-lg border-2 text-sm font-semibold transition-colors",
                 formBucket === "extra"
                   ? "border-amber-500 bg-amber-500 text-white"
                   : "border-border text-muted-foreground hover:bg-muted/50",
@@ -628,7 +628,7 @@ export function CourtRentClient({
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <div>
-              <Label className="text-xs">{t("yearLabel")}</Label>
+              <Label className="text-sm">{t("yearLabel")}</Label>
               <CustomSelect
                 value={String(formYear)}
                 onChange={(v) => setFormYear(parseInt(v, 10))}
@@ -640,7 +640,7 @@ export function CourtRentClient({
               />
             </div>
             <div>
-              <Label className="text-xs">{t("monthLabel")}</Label>
+              <Label className="text-sm">{t("monthLabel")}</Label>
               <CustomSelect
                 value={String(formMonth)}
                 onChange={(v) => setFormMonth(parseInt(v, 10))}
@@ -652,7 +652,7 @@ export function CourtRentClient({
               />
             </div>
             <div className="col-span-2 sm:col-span-1">
-              <Label className="text-xs">{t("courtFieldLabel")}</Label>
+              <Label className="text-sm">{t("courtFieldLabel")}</Label>
               <CustomSelect
                 value={formCourtId}
                 onChange={(v) => setFormCourtId(v)}
@@ -668,7 +668,7 @@ export function CourtRentClient({
               />
             </div>
             <div className="col-span-2 sm:col-span-1">
-              <Label className="text-xs">{t("amountLabel")}</Label>
+              <Label className="text-sm">{t("amountLabel")}</Label>
               <Input
                 type="text"
                 inputMode="numeric"
@@ -683,7 +683,7 @@ export function CourtRentClient({
             </div>
           </div>
           <div>
-            <Label className="text-xs">{t("noteLabel")}</Label>
+            <Label className="text-sm">{t("noteLabel")}</Label>
             <Input
               value={formNote}
               onChange={(e) => setFormNote(e.target.value)}

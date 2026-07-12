@@ -56,7 +56,7 @@ export function MinDeductionToggle({
       onClick={handleToggle}
       disabled={disabled}
       className={cn(
-        "flex w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 text-sm transition-colors",
+        "flex min-h-11 w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 text-sm transition-colors",
         localEnabled
           ? "border-primary/40 bg-primary/[0.06] hover:bg-primary/[0.1]"
           : "border-border bg-card/60 hover:border-primary/30",

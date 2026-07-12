@@ -80,7 +80,7 @@ export function ForceChangePasswordGate() {
             required
           />
           {error && (
-            <p className="text-destructive text-center text-xs">{error}</p>
+            <p className="text-destructive text-center text-sm">{error}</p>
           )}
           <Button type="submit" disabled={saving} className="w-full" size="lg">
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

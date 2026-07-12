@@ -290,7 +290,7 @@ export function DebtFundTabs({
             </Button>
             <Link
               href="/my-fund"
-              className="text-muted-foreground hover:text-foreground block text-center text-xs"
+              className="text-muted-foreground hover:text-foreground flex min-h-11 items-center justify-center text-center text-xs"
             >
               {tFinance("detail")} →
             </Link>

@@ -388,7 +388,7 @@ function CopyRow({
     <button
       type="button"
       onClick={() => onCopy(value, label)}
-      className="hover:bg-accent/50 flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left transition-colors"
+      className="hover:bg-accent/50 flex min-h-11 w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left transition-colors"
       aria-label={ariaLabel}
     >
       <span className="flex items-center gap-1.5 text-xs">

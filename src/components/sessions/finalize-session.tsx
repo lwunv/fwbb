@@ -461,8 +461,9 @@ export function FinalizeSession({
                       )}
                     </div>
                     <button
+                      type="button"
                       onClick={() => removeGuest(i)}
-                      className="text-destructive hover:text-destructive/80 p-1"
+                      className="text-destructive hover:bg-destructive/10 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -496,21 +497,21 @@ export function FinalizeSession({
                 </div>
               </div>
               <div className="flex gap-4">
-                <label className="flex items-center gap-2 text-sm">
+                <label className="flex min-h-11 cursor-pointer items-center gap-2 py-2 text-sm">
                   <input
                     type="checkbox"
                     checked={newGuestPlays}
                     onChange={(e) => setNewGuestPlays(e.target.checked)}
-                    className="accent-primary h-4 w-4 rounded"
+                    className="accent-primary h-6 w-6 rounded"
                   />
                   {t("playBadminton")}
                 </label>
-                <label className="flex items-center gap-2 text-sm">
+                <label className="flex min-h-11 cursor-pointer items-center gap-2 py-2 text-sm">
                   <input
                     type="checkbox"
                     checked={newGuestDines}
                     onChange={(e) => setNewGuestDines(e.target.checked)}
-                    className="accent-primary h-4 w-4 rounded"
+                    className="accent-primary h-6 w-6 rounded"
                   />
                   {t("dineOut")}
                 </label>

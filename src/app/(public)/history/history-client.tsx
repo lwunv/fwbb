@@ -709,7 +709,7 @@ function SessionDetailCard({
                   </strong>
                 </span>
                 {isCompleted && playPerHead > 0 && (
-                  <span className="ml-auto text-xs font-bold text-[var(--color-hist-play-fg)] tabular-nums">
+                  <span className="ml-auto text-sm font-bold text-[var(--color-hist-play-fg)] tabular-nums">
                     {formatK(playPerHead)}
                     {t("perHead")}
                   </span>

@@ -60,7 +60,7 @@ export default async function PublicLayout({
             >
               <button
                 type="submit"
-                className="text-primary text-sm underline underline-offset-2"
+                className="text-primary inline-flex min-h-11 items-center justify-center px-3 text-sm underline underline-offset-2"
               >
                 {tPub("loginAgainOther")}
               </button>

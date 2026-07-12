@@ -81,7 +81,7 @@ export function PasswordAuthForm() {
             setError("");
           }}
           disabled={isPending}
-          className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+          className={`min-h-11 flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
             mode === "login"
               ? "bg-card text-foreground shadow-sm"
               : "text-muted-foreground"
@@ -96,7 +96,7 @@ export function PasswordAuthForm() {
             setError("");
           }}
           disabled={isPending}
-          className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+          className={`min-h-11 flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
             mode === "signup"
               ? "bg-card text-foreground shadow-sm"
               : "text-muted-foreground"
@@ -149,12 +149,12 @@ export function PasswordAuthForm() {
             }
             disabled={isPending}
             required
-            className="pr-10"
+            className="pr-11"
           />
           <button
             type="button"
             onClick={() => setShowPassword((v) => !v)}
-            className="text-muted-foreground absolute inset-y-0 right-2 inline-flex h-full w-7 items-center justify-center"
+            className="text-muted-foreground absolute inset-y-0 right-2 inline-flex h-full w-11 items-center justify-center"
             aria-label={showPassword ? t("hidePassword") : t("showPassword")}
             tabIndex={-1}
           >
@@ -210,7 +210,7 @@ export function PasswordAuthForm() {
         )}
 
         {error && (
-          <p className="text-destructive text-center text-xs">{error}</p>
+          <p className="text-destructive text-center text-sm">{error}</p>
         )}
 
         <Button type="submit" disabled={isPending} className="w-full" size="lg">

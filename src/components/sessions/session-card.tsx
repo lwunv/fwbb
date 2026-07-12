@@ -135,9 +135,9 @@ export function SessionCard({
                   href={courtMapLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-primary inline-flex shrink-0 items-center gap-1 text-xs font-medium hover:underline"
+                  className="text-primary -my-2 inline-flex min-h-11 shrink-0 items-center gap-1 px-1 text-sm font-medium hover:underline"
                 >
-                  <Navigation className="h-3 w-3 shrink-0" aria-hidden />
+                  <Navigation className="h-4 w-4 shrink-0" aria-hidden />
                   {t("directions")}
                 </a>
               )}

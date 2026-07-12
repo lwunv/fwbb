@@ -91,7 +91,7 @@ export function StatsClient({
               <button
                 key={g}
                 onClick={() => setParam("expenseGroup", g)}
-                className={`flex-1 rounded-md px-2 py-2 text-sm font-medium transition-colors ${
+                className={`flex min-h-11 flex-1 items-center justify-center rounded-md px-2 py-2 text-sm font-medium transition-colors ${
                   expenseGroup === g
                     ? "bg-background text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"

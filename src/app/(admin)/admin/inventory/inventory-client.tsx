@@ -132,16 +132,16 @@ export function InventoryClient({
                         <ArrowDown className="text-primary h-4 w-4" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 text-base font-medium">
+                        <div className="flex flex-wrap items-center gap-1.5 text-base font-medium">
                           {p.brand.name} -{" "}
                           {isEditing ? (
-                            <span className="inline-flex items-center gap-1.5">
+                            <span className="flex w-full flex-wrap items-center gap-1.5">
                               <NumberStepper
                                 value={editTubes}
                                 onChange={setEditTubes}
                                 min={1}
                                 max={99}
-                                className="rounded-lg"
+                                className="min-w-0 flex-1 rounded-lg"
                               />
                               <span className="text-sm">{t("tube")}</span>
                               <button
@@ -164,14 +164,14 @@ export function InventoryClient({
                                     { onSuccess: () => router.refresh() },
                                   );
                                 }}
-                                className="text-green-600 hover:text-green-700"
+                                className="inline-flex size-11 items-center justify-center rounded-lg text-green-600 hover:text-green-700"
                               >
                                 <Check className="h-4 w-4" />
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setEditingId(null)}
-                                className="text-muted-foreground hover:text-foreground"
+                                className="text-muted-foreground hover:text-foreground inline-flex size-11 items-center justify-center rounded-lg"
                               >
                                 <X className="h-4 w-4" />
                               </button>
@@ -185,7 +185,7 @@ export function InventoryClient({
                                   setEditingId(p.id);
                                   setEditTubes(p.tubes);
                                 }}
-                                className="text-muted-foreground hover:text-foreground"
+                                className="text-muted-foreground hover:text-foreground -m-2.5 inline-flex size-11 items-center justify-center"
                               >
                                 <Pencil className="h-4 w-4" />
                               </button>

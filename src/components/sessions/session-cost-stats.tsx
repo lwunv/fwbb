@@ -154,7 +154,7 @@ export function SessionCostStats({
                 e.stopPropagation();
                 onFinalize();
               }}
-              className="bg-primary hover:bg-primary/90 active:bg-primary/95 shadow-primary/30 hover:shadow-primary/40 inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+              className="bg-primary hover:bg-primary/90 active:bg-primary/95 shadow-primary/30 hover:shadow-primary/40 inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Check className="h-4 w-4" />
               {isFinalizing ? confirmingLabel : confirmLabel}

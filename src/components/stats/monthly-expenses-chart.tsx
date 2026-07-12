@@ -118,6 +118,7 @@ export function MonthlyExpensesChart({
                 const isHidden = hidden.has(value);
                 return (
                   <span
+                    className="inline-flex items-center py-2"
                     style={{
                       color: isHidden
                         ? "var(--color-muted-foreground)"

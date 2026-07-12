@@ -181,7 +181,7 @@ export function PendingMembersSection({
                         : ""}
                     </span>
                   </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                     {m.googleId && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
                         Google
@@ -231,7 +231,7 @@ export function PendingMembersSection({
                       title={
                         s.hasPassword ? t("mergeWillResetPassword") : undefined
                       }
-                      className="bg-card hover:bg-accent flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors disabled:opacity-50"
+                      className="bg-card hover:bg-accent flex min-h-11 w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors disabled:opacity-50"
                     >
                       <span className="flex min-w-0 items-center gap-2">
                         <LinkIcon className="h-3.5 w-3.5 shrink-0 text-amber-600" />

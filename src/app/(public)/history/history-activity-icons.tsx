@@ -35,10 +35,10 @@ export function HistoryActivityIcons({
           onIconClick("play");
         }}
         className={cn(
-          "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-lg leading-none transition-all hover:opacity-90 active:scale-[0.98]",
+          "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border text-lg leading-none transition-all hover:opacity-90 active:scale-[0.98]",
           attendsPlay
             ? "border-[var(--color-hist-play-border)] bg-[var(--color-hist-play-icon-bg)] text-[var(--color-hist-play-fg)]"
-            : "border-transparent bg-muted/80 text-muted-foreground opacity-45",
+            : "bg-muted/80 text-muted-foreground border-transparent opacity-45",
         )}
         aria-label={t("ariaPlay")}
       >
@@ -51,10 +51,10 @@ export function HistoryActivityIcons({
           onIconClick("dine");
         }}
         className={cn(
-          "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-lg leading-none transition-all hover:opacity-90 active:scale-[0.98]",
+          "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border text-lg leading-none transition-all hover:opacity-90 active:scale-[0.98]",
           attendsDine
             ? "border-[var(--color-hist-dine-border)] bg-[var(--color-hist-dine-icon-bg)] text-[var(--color-hist-dine-fg)]"
-            : "border-transparent bg-muted/80 text-muted-foreground opacity-45",
+            : "bg-muted/80 text-muted-foreground border-transparent opacity-45",
         )}
         aria-label={t("ariaDine")}
       >

@@ -527,7 +527,7 @@ export function SessionList({
                         : openCreateFor(d.date)
                     }
                     className={cn(
-                      "inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium capitalize transition-colors",
+                      "inline-flex min-h-11 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium capitalize transition-colors",
                       has
                         ? done
                           ? "bg-muted text-muted-foreground border-transparent"
@@ -563,7 +563,7 @@ export function SessionList({
           </div>
           <Button
             size="sm"
-            className="h-9 shrink-0 gap-1 px-3 text-sm"
+            className="min-h-11 shrink-0 gap-1 px-3 text-sm"
             onClick={() => openCreateFor(DEFAULT_DATE)}
           >
             <Plus className="h-4 w-4" />

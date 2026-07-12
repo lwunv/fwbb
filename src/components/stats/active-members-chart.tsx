@@ -149,7 +149,7 @@ export function ActiveMembersChart({ data }: ActiveMembersChartProps) {
                 const isHidden = hidden.has(value);
                 return (
                   <span
-                    className="text-muted-foreground text-xs"
+                    className="text-muted-foreground inline-flex items-center py-2 text-xs"
                     style={{
                       cursor: "pointer",
                       opacity: isHidden ? 0.45 : 1,

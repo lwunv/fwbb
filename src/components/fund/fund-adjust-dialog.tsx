@@ -189,7 +189,7 @@ export function FundAdjustDialog({
                   {target.memberNickname || target.memberName}
                 </div>
                 {editingBalance ? (
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-2xl">💰</span>
                     <NumberStepper
                       value={balanceDraft}
@@ -199,7 +199,7 @@ export function FundAdjustDialog({
                       max={MAX_AMOUNT}
                       disabled={submitting}
                       displayFormat="vnd"
-                      className="flex-1"
+                      className="min-w-0 flex-1"
                     />
                     <button
                       type="button"
@@ -247,7 +247,7 @@ export function FundAdjustDialog({
               <button
                 type="button"
                 onClick={handleClose}
-                className="text-muted-foreground hover:text-foreground p-1"
+                className="text-muted-foreground hover:text-foreground inline-flex h-11 w-11 items-center justify-center rounded-md"
                 aria-label={t("close")}
               >
                 <X className="h-5 w-5" />

@@ -51,7 +51,7 @@ export function DateRangeFilter({
   return (
     <div className={cn("flex flex-col gap-1", className)}>
       {label && <span className="text-muted-foreground text-xs">{label}</span>}
-      <div className="border-input bg-background focus-within:border-ring focus-within:ring-ring/40 flex h-9 w-fit max-w-full items-center gap-1.5 rounded-md border px-2 transition-colors focus-within:ring-2">
+      <div className="border-input bg-background focus-within:border-ring focus-within:ring-ring/40 flex h-11 w-fit max-w-full items-center gap-1.5 rounded-md border px-2 transition-colors focus-within:ring-2">
         <input
           type="date"
           aria-label={fromAriaLabel}
@@ -77,7 +77,7 @@ export function DateRangeFilter({
             aria-label={clearAriaLabel}
             title={clearAriaLabel}
             onClick={clear}
-            className="text-muted-foreground hover:text-foreground shrink-0"
+            className="text-muted-foreground hover:text-foreground inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center"
           >
             <X className="h-3.5 w-3.5" />
           </button>
