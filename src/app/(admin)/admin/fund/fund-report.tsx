@@ -390,22 +390,40 @@ export function FundReport({ fundMembers, transactions }: Props) {
                       }
                     }}
                     className={cn(
-                      "flex w-full cursor-pointer items-center gap-4 px-3 py-2 text-left transition-colors",
+                      "flex w-full cursor-pointer flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5 text-left transition-colors",
                       tones.hover,
                     )}
                   >
-                    <MemberAvatar
-                      memberId={fm.memberId}
-                      avatarKey={fm.member.avatarKey}
-                      avatarUrl={fm.member.avatarUrl}
-                      size={32}
-                    />
-                    <span className="min-w-0 flex-1 truncate text-sm font-semibold">
-                      {fm.member.nickname || fm.member.name}
-                    </span>
+                    {/* Danh tính — avatar + tên, badge trạng thái làm phụ đề
+                        dưới tên. flex-1/min-w-0 (basis 0) nên luôn ở dòng 1;
+                        badge sizing theo nội dung (w-fit) để không kéo giãn
+                        hàng như bản cũ (w-[110px] cố định gây tràn mobile). */}
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <MemberAvatar
+                        memberId={fm.memberId}
+                        avatarKey={fm.member.avatarKey}
+                        avatarUrl={fm.member.avatarUrl}
+                        size={32}
+                        className="shrink-0"
+                      />
+                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <span className="truncate text-sm font-semibold">
+                          {fm.member.nickname || fm.member.name}
+                        </span>
+                        <StatusBadge variant={status.variant} className="w-fit">
+                          {status.label}
+                        </StatusBadge>
+                      </div>
+                    </div>
+
+                    {/* Cụm phải — số dư + nút sửa/lịch sử (hoặc stepper khi
+                        đang edit). w-full để rớt xuống dòng riêng trên mobile
+                        (khớp pattern member-list), chung dòng từ sm: trở lên.
+                        Trước đây cả cụm shrink-0 trên 1 hàng nên tràn + bị
+                        overflow-hidden của card cắt mất badge/chevron. */}
                     {editingBalanceId === fm.memberId ? (
                       <div
-                        className="flex items-center gap-1.5"
+                        className="flex w-full shrink-0 items-center gap-1.5 sm:w-auto"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <NumberStepper
@@ -416,7 +434,7 @@ export function FundReport({ fundMembers, transactions }: Props) {
                           max={100_000_000}
                           disabled={adjusting}
                           displayFormat="vnd"
-                          className="w-44"
+                          className="min-w-0 flex-1 sm:w-44 sm:flex-none"
                         />
                         <button
                           type="button"
@@ -427,7 +445,7 @@ export function FundReport({ fundMembers, transactions }: Props) {
                           disabled={adjusting}
                           aria-label="Lưu balance"
                           title="Lưu"
-                          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-blue-500 bg-blue-500 text-white transition-colors hover:bg-blue-600 disabled:opacity-60"
+                          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-blue-500 bg-blue-500 text-white transition-colors hover:bg-blue-600 disabled:opacity-60"
                         >
                           <Check className="h-4 w-4" />
                         </button>
@@ -440,60 +458,56 @@ export function FundReport({ fundMembers, transactions }: Props) {
                           disabled={adjusting}
                           aria-label="Hủy"
                           title="Hủy"
-                          className="border-border text-muted-foreground hover:bg-muted/50 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors disabled:opacity-60"
+                          className="border-border text-muted-foreground hover:bg-muted/50 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors disabled:opacity-60"
                         >
                           <X className="h-4 w-4" />
                         </button>
                       </div>
                     ) : (
-                      <div className="flex shrink-0 items-center gap-2">
+                      <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto">
                         <span
                           className={cn(
-                            "min-w-24 text-right text-base font-bold tabular-nums",
+                            "text-right text-base font-bold tabular-nums",
                             balanceColor,
                           )}
                         >
                           {formatK(fm.balance.balance)}
                         </span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            startEditBalance(fm.memberId, fm.balance.balance);
-                          }}
-                          aria-label="Sửa balance"
-                          title="Sửa balance"
-                          className="border-border text-muted-foreground hover:bg-muted/50 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border transition-colors"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setHistoryTarget({
-                              id: fm.memberId,
-                              name: fm.member.nickname || fm.member.name,
-                            });
-                          }}
-                          aria-label={tHistory("openHistory")}
-                          title={tHistory("openHistory")}
-                          className="border-border text-muted-foreground hover:bg-muted/50 inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border transition-colors"
-                        >
-                          <History className="h-4 w-4" />
-                        </button>
-                        <StatusBadge
-                          variant={status.variant}
-                          className="w-[110px] shrink-0 justify-center"
-                        >
-                          {status.label}
-                        </StatusBadge>
-                        <ChevronDown
-                          className={cn(
-                            "text-muted-foreground h-4 w-4 shrink-0 transition-transform",
-                            isOpen && "rotate-180",
-                          )}
-                        />
+                        <div className="ml-auto flex items-center gap-2 sm:ml-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startEditBalance(fm.memberId, fm.balance.balance);
+                            }}
+                            aria-label="Sửa balance"
+                            title="Sửa balance"
+                            className="border-border text-muted-foreground hover:bg-muted/50 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border transition-colors"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setHistoryTarget({
+                                id: fm.memberId,
+                                name: fm.member.nickname || fm.member.name,
+                              });
+                            }}
+                            aria-label={tHistory("openHistory")}
+                            title={tHistory("openHistory")}
+                            className="border-border text-muted-foreground hover:bg-muted/50 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border transition-colors"
+                          >
+                            <History className="h-4 w-4" />
+                          </button>
+                          <ChevronDown
+                            className={cn(
+                              "text-muted-foreground h-4 w-4 shrink-0 transition-transform",
+                              isOpen && "rotate-180",
+                            )}
+                          />
+                        </div>
                       </div>
                     )}
                   </div>

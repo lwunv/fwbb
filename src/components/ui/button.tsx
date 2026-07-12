@@ -25,23 +25,24 @@ const buttonVariants = cva(
           "border-amber-500/40 bg-amber-500/10 text-amber-800 hover:bg-amber-500/20 focus-visible:border-amber-500/40 focus-visible:ring-amber-500/20 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-300 dark:hover:bg-amber-500/25",
         link: "text-primary underline-offset-4 hover:underline",
       },
-      // Chuẩn hóa height toàn site:
-      //   default = 42px (≥ 44px touch target nhờ padding visual)
-      //   sm = 38px
+      // Chuẩn hóa height toàn site theo touch-target tối thiểu 44px
+      // (AGENTS.md mobile-first). MỌI size cao ≥ 44px:
+      //   default / sm / xs / icon* = 44px (h-11 / size-11)
       //   lg = 46px
-      // Áp dụng đồng nhất mobile + desktop (bỏ responsive split sm:h-X cũ)
-      // để input/button/stepper luôn cùng cao trên mọi viewport.
+      // Các size nhỏ vẫn "nhẹ" hơn nhờ text-sm + px hẹp + bo góc nhỏ, chỉ
+      // nâng chiều cao đủ chạm tay. Đồng nhất mobile + desktop để
+      // input/button/stepper (đều h-11 = 44px) luôn cùng cao.
       size: {
         default:
-          "h-[42px] gap-2 px-4 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3",
-        xs: "h-[38px] gap-1.5 rounded-lg px-3 text-sm in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 [&_svg:not([class*='size-'])]:size-4",
-        sm: "h-[38px] gap-1.5 rounded-lg px-3 text-sm in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 [&_svg:not([class*='size-'])]:size-4",
+          "h-11 gap-2 px-4 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3",
+        xs: "h-11 gap-1.5 rounded-lg px-3 text-sm in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 [&_svg:not([class*='size-'])]:size-4",
+        sm: "h-11 gap-1.5 rounded-lg px-3 text-sm in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 [&_svg:not([class*='size-'])]:size-4",
         lg: "h-[46px] gap-2 px-5 text-base has-data-[icon=inline-end]:pr-4 has-data-[icon=inline-start]:pl-4",
-        icon: "size-[42px]",
+        icon: "size-11",
         "icon-xs":
-          "size-[38px] rounded-lg in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-4",
+          "size-11 rounded-lg in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-4",
         "icon-sm":
-          "size-[38px] rounded-lg in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-4",
+          "size-11 rounded-lg in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-4",
         "icon-lg": "size-[46px]",
       },
     },
