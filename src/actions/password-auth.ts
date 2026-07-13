@@ -240,23 +240,35 @@ export async function setPassword(input: {
 
   // Nếu chưa có email — cho user nhập kèm trong form. Validate + check unique
   // trước khi save. Email là UNIQUE column.
+  //
+  // NGOẠI LỆ force-change (admin vừa reset temp): member đã login được bằng
+  // username/số điện thoại rồi (nếu không có định danh nào thì đã không vào
+  // được gate), nên KHÔNG bắt buộc email — ForceChangePasswordGate cũng không
+  // thu email. Nếu bắt, member không-email bị kẹt ở gate, đổi không được, phải
+  // dùng mật khẩu tạm mãi. Email vẫn optional: có nhập thì validate + lưu.
   let emailToSave: string | null = null;
   if (!member.email) {
     const raw =
       typeof input.email === "string"
         ? normalizeEmail(input.email).slice(0, 200)
         : "";
-    if (!raw || !isEmail(raw)) {
-      return { error: "Cần nhập email hợp lệ để đặt mật khẩu" };
+    if (!raw) {
+      if (!member.mustChangePassword) {
+        return { error: "Cần nhập email hợp lệ để đặt mật khẩu" };
+      }
+    } else {
+      if (!isEmail(raw)) {
+        return { error: "Cần nhập email hợp lệ để đặt mật khẩu" };
+      }
+      const existing = await db.query.members.findFirst({
+        where: eq(members.email, raw),
+        columns: { id: true },
+      });
+      if (existing && existing.id !== member.id) {
+        return { error: "Email này đã được dùng bởi tài khoản khác" };
+      }
+      emailToSave = raw;
     }
-    const existing = await db.query.members.findFirst({
-      where: eq(members.email, raw),
-      columns: { id: true },
-    });
-    if (existing && existing.id !== member.id) {
-      return { error: "Email này đã được dùng bởi tài khoản khác" };
-    }
-    emailToSave = raw;
   }
 
   const hash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);

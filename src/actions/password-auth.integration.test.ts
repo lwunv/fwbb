@@ -388,4 +388,52 @@ describe("setPassword", () => {
     expect(after?.mustChangePassword).toBe(false);
     expect(after?.passwordResetExpiresAt).toBeNull();
   });
+
+  it("force-change KHÔNG email: đổi được mà không phải nhập email (login bằng username)", async () => {
+    // Member do admin tạo, login bằng username, KHÔNG có email. Admin reset →
+    // mustChangePassword=true. ForceChangePasswordGate gọi setPassword CHỈ với
+    // newPassword (không thu email). Trước fix: kẹt vì bị đòi email → member
+    // không đổi được, phải xài mật khẩu tạm mãi.
+    const [m] = await testDb
+      .insert(members)
+      .values({
+        name: "NoEmail",
+        username: "noemail",
+        passwordHash: "$2a$12$placeholderhashplaceholderhashplaceholderhashpl",
+        mustChangePassword: true,
+        passwordResetExpiresAt: new Date(Date.now() + 3600_000).toISOString(),
+      })
+      .returning({ id: members.id });
+    userMock.getUserFromCookie.mockResolvedValue({
+      memberId: m.id,
+      externalId: `pw:${m.id}`,
+    });
+
+    const r = await setPassword({ newPassword: "freshpass12345" });
+    expect("error" in r).toBe(false);
+
+    const after = await testDb.query.members.findFirst({
+      where: eq(members.id, m.id),
+    });
+    expect(after?.mustChangePassword).toBe(false);
+    expect(after?.passwordResetExpiresAt).toBeNull();
+    expect(after?.passwordHash).toBeTruthy();
+    expect(after?.email).toBeNull(); // không tự bịa email
+  });
+
+  it("first-set KHÔNG force-change + không email → VẪN bắt nhập email", async () => {
+    // Bảo toàn flow /me: OAuth user set mật khẩu lần đầu vẫn cần email làm định
+    // danh login. Chỉ force-change mới được miễn.
+    const [m] = await testDb
+      .insert(members)
+      .values({ name: "OAuthNoEmail", facebookId: "fb-noemail" })
+      .returning({ id: members.id });
+    userMock.getUserFromCookie.mockResolvedValue({
+      memberId: m.id,
+      externalId: "fb-noemail",
+    });
+
+    const r = await setPassword({ newPassword: "brandnewpass123" });
+    expect("error" in r).toBe(true);
+  });
 });
