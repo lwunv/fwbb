@@ -25,16 +25,7 @@ import { deriveSessionBadge } from "@/lib/session-status";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
-import { MemberAvatar } from "@/components/shared/member-avatar";
-import { CourtSelector } from "@/components/sessions/court-selector";
-import { ShuttlecockSelector } from "@/components/sessions/shuttlecock-selector";
-import { AdminVoteManager } from "@/components/sessions/admin-vote-manager";
-import { WeekStrip } from "@/components/sessions/week-strip";
-import { SessionCostStats } from "@/components/sessions/session-cost-stats";
-import { VoteCountdown } from "@/components/sessions/vote-countdown";
-import { VoteDeadlineEdit } from "@/components/sessions/vote-deadline-edit";
-import { MaxPlayersToggle } from "@/components/sessions/max-players-toggle";
+import { AdminSessionCard } from "@/components/sessions/admin-session-card";
 import {
   Dialog,
   DialogContent,
@@ -44,17 +35,8 @@ import {
 import { CustomSelect } from "@/components/ui/custom-select";
 import {
   Plus,
-  Calendar,
-  Clock,
-  MapPin,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Navigation,
-  AlertTriangle,
-  X,
-  Check,
-  RotateCcw,
   LayoutGrid,
   List,
 } from "lucide-react";
@@ -62,7 +44,6 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { TabSegment } from "@/components/shared/tab-segment";
 import { DateRangePicker } from "@/components/shared/date-range-picker";
-import { LedBorder } from "@/components/shared/led-border";
 import { usePolling } from "@/lib/use-polling";
 import {
   formatSessionDate as fmtSessionDate,
@@ -160,30 +141,6 @@ export type StatusFilter =
   | "needsConfirm"
   | "completed"
   | "cancelled";
-
-const statusStyles: Record<
-  SessionStatus,
-  { labelKey: SessionStatus; cardBg: string }
-> = {
-  // Voting / confirmed: viền pink LED neon (LedBorder bao ngoài Card),
-  // không cần thêm bg ở Card → giữ bg-card consistent across themes.
-  voting: { labelKey: "voting", cardBg: "" },
-  confirmed: { labelKey: "confirmed", cardBg: "" },
-  completed: {
-    labelKey: "completed",
-    // Buổi đã hoàn thành: viền xanh lơ (cyan) rõ ràng để phân biệt nhanh với
-    // buổi đang vote / cần chốt sổ.
-    cardBg:
-      "border-cyan-400 border-2 ring-2 ring-cyan-200/50 dark:border-cyan-500 dark:ring-cyan-900/30",
-  },
-  cancelled: {
-    labelKey: "cancelled",
-    // Buổi hủy: border ĐỎ rõ ràng + nền xám desaturated (opacity giảm cảm giác
-    // "không còn relevant").
-    cardBg:
-      "border-red-400 border-2 ring-2 ring-red-200/50 bg-zinc-100 opacity-85 dark:border-red-500 dark:bg-zinc-800/40 dark:ring-red-900/30",
-  },
-};
 
 const DEFAULT_DATE = getNextSessionDay().toISOString().split("T")[0];
 
@@ -307,7 +264,6 @@ export function SessionList({
 
   const t = useTranslations("sessions");
   const tF = useTranslations("finance");
-  const tVoting = useTranslations("voting");
   const tFundAdmin = useTranslations("fundAdmin");
   usePolling();
 
@@ -437,10 +393,6 @@ export function SessionList({
         dine: session.adminGuestDineCount,
       }
     );
-  }
-
-  function formatSessionDate(dateStr: string) {
-    return fmtSessionDate(dateStr, "weekdayLong");
   }
 
   function toggleExpand(e: React.MouseEvent, sessionId: number) {
@@ -842,26 +794,9 @@ export function SessionList({
                   ? rawStatus
                   : "voting"
               ) as SessionStatus;
-              const status = statusStyles[effectiveStatus];
-              // Filter unpaid debts đã optimistically paid → list rút ngắn ngay
-              // khi admin bấm "Đã nhận", không chờ revalidate.
-              const optimisticUnpaidDebts = session.unpaidDebts.filter(
-                (d) => !paidDebtIds.has(d.debtId),
-              );
-              const optimisticPaidExtra = session.unpaidDebts
-                .filter((d) => paidDebtIds.has(d.debtId))
-                .reduce((sum, d) => sum + d.amount, 0);
-              const unpaidAmount =
-                session.totalDebt - session.paidDebt - optimisticPaidExtra;
-              const allPaid =
-                effectiveStatus === "completed" && unpaidAmount <= 0;
-              const isExpanded = expandedId === session.id;
               const isActive =
                 effectiveStatus === "voting" || effectiveStatus === "confirmed";
-              // Buổi đã qua nhưng vẫn ở voting/confirmed → admin chưa chốt sổ.
-              // Tách visual khỏi "đang vote" để LED xanh chỉ giữ cho buổi sắp/đang
-              // diễn ra (yêu cầu UX), còn buổi này hiện amber + badge "Cần xác nhận".
-              // Badge derivation shared with session-card + session-detail.
+              // Badge derivation shared with AdminSessionCard + session-detail.
               const badge = deriveSessionBadge(
                 effectiveStatus,
                 session.date,
@@ -872,679 +807,104 @@ export function SessionList({
               // Future session vẫn block — chốt sớm thì lỗi thiếu attendees thật.
               const canFinalize = isActive && session.date <= todayYmd;
               const isFinalizing = finalizingSessions.has(session.id);
-              // Cần xác nhận (buổi quá hạn chưa chốt sổ): border VÀNG.
-              const cardBgClass = isPastPending
-                ? "bg-card border-amber-400 border-2 ring-2 ring-amber-200/50 dark:border-amber-500 dark:ring-amber-900/30"
-                : status.cardBg;
-              const badgeVariant = badge.variant;
-              const badgeText = isPastPending
-                ? tF("needsConfirm")
-                : t(status.labelKey);
+              const isExpanded = expandedId === session.id;
               const ag = getAdminGuests(session.id, session);
-              const totalGuestPlay =
-                session.guestPlayCount + ag.play - session.adminGuestPlayCount;
-              const totalGuestDine =
-                session.guestDineCount + ag.dine - session.adminGuestDineCount;
-
-              // Per-head & total — dùng cùng helper với cost-calculator để đồng bộ
-              // 3 trang admin (list / detail / dashboard).
-              const courtPriceVal = session.courtPrice ?? 0;
-              // Round-UP-tổng (đồng bộ calculateSessionCosts). Per-brand round
-              // rồi sum sẽ inflate 1-2k → preview lệch debt thực.
-              const shuttlecockCost = computeShuttlecockTotal(
-                session.shuttlecocks,
-              );
-              const totalPlayers = session.playerCount + totalGuestPlay;
-              const totalDiners = session.dinerCount + totalGuestDine;
-              const {
-                playCostPerHead,
-                adminGuestPlayCostPerHead,
-                dineCostPerHead,
-              } = computePerHeadCharges({
-                courtPrice: courtPriceVal,
-                shuttlecockCost,
-                diningBill: session.diningBill,
-                playerCount: totalPlayers,
-                dinerCount: totalDiners,
-                // Khách-của-admin trả sàn 60K → preview khớp finalize.
-                adminGuestPlayHeads: ag.play,
-              });
-              const totalExpense =
-                courtPriceVal + shuttlecockCost + session.diningBill;
-
-              const showLed = isActive && !isPastPending;
               return (
                 <div
                   key={session.id}
                   id={`session-${session.id}`}
                   className="min-w-0 scroll-mt-4"
                 >
-                  <LedBorder active={showLed} variant="pink">
-                    <Card className={cn("relative", cardBgClass)}>
-                      <CardContent className="space-y-2 p-4">
-                        {/* Header: Date + Status */}
-                        {/* Hàng 1: ngày + giờ (trái) · trạng thái + huỷ (phải). */}
-                        {/* Trạng thái + huỷ: ABSOLUTE góc phải trên → không
-                            chiếm 1 hàng riêng (tiết kiệm height). Header chừa
-                            pr-28 để ngày/giờ không chạy dưới badge. */}
-                        <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
-                          <StatusBadge variant={badgeVariant}>
-                            {badgeText}
-                          </StatusBadge>
-                          {isActive && (
-                            <Button
-                              variant="destructive"
-                              size="icon-sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setCancelTarget(session.id);
-                                setCancelPassed(true);
-                                setCancelPassRevenue(
-                                  String(session.courtPrice ?? 200000),
-                                );
-                              }}
-                              aria-label={t("ariaCancelSession")}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pr-28">
-                          <p className="flex items-center gap-2 text-base font-bold capitalize">
-                            <Calendar className="text-muted-foreground h-5 w-5 shrink-0" />
-                            {formatSessionDate(session.date)}
-                          </p>
-                          {(session.startTime || session.endTime) && (
-                            <span className="text-muted-foreground inline-flex items-center gap-1.5 text-sm whitespace-nowrap tabular-nums">
-                              <Clock className="h-4 w-4" />
-                              {session.startTime ?? "—"} –{" "}
-                              {session.endTime ?? "—"}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Dãy thứ — FULL WIDTH (7 ô chia đều 1 hàng). */}
-                        <WeekStrip
-                          sessionDate={session.date}
-                          className="w-full"
-                        />
-
-                        {/* Địa điểm — full width, "Chỉ đường" sát lề phải. */}
-                        {session.courtName && (
-                          <p className="text-muted-foreground flex items-center gap-2 text-sm">
-                            <MapPin className="h-4 w-4 shrink-0" />
-                            <span className="min-w-0 flex-1 truncate">
-                              {session.courtName}
-                            </span>
-                            {session.courtMapLink && (
-                              <span
-                                role="button"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  window.open(session.courtMapLink!, "_blank");
-                                }}
-                                className="text-primary ml-auto inline-flex shrink-0 items-center gap-1"
-                              >
-                                <Navigation className="h-4 w-4" />
-                                {t("directions")}
-                              </span>
-                            )}
-                          </p>
-                        )}
-
-                        {/* Past pending CTA giờ inline cùng hàng "Tổng chi" bên
-                      dưới (button trái, totals phải) — không tách block riêng
-                      full-width nữa để tiết kiệm không gian. */}
-
-                        {/* Court + Shuttlecock selectors — luôn hiện cho buổi active
-                      VÀ past pending. Past pending cần edit court/shuttle để
-                      finalize đúng (admin có thể chốt lại số quả thực dùng,
-                      thay sân nếu hôm đó đổi sân, v.v.). */}
-                        {isActive && (
-                          <div
-                            className="space-y-2"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <CourtSelector
-                              sessionId={session.id}
-                              courts={courts}
-                              currentCourtId={session.courtId}
-                              currentCourtQuantity={session.courtQuantity}
-                              currentCourtPrice={session.courtPrice}
-                              isCourtPriceOverridden={
-                                session.courtPriceOverridden
-                              }
-                              sessionDate={session.date}
-                              defaultCourtId={defaultCourtId}
-                              sessionDays={sessionDays}
-                            />
-                            <ShuttlecockSelector
-                              sessionId={session.id}
-                              brands={brands}
-                              currentShuttlecocks={session.shuttlecocks}
-                            />
-                            {(session.status === "voting" ||
-                              session.status === "confirmed") && (
-                              <div className="flex flex-nowrap items-center gap-1.5 pt-1">
-                                <span className="min-w-0 flex-1 truncate">
-                                  <VoteCountdown
-                                    deadline={session.voteDeadline}
-                                    variant="inline"
-                                  />
-                                </span>
-                                <VoteDeadlineEdit
-                                  sessionId={session.id}
-                                  current={session.voteDeadline}
-                                />
-                                <MaxPlayersToggle
-                                  sessionId={session.id}
-                                  current={session.maxPlayers}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Admin guest stepper đã chuyển vào trong AdminVoteManager
-                      (hiện ở khu mở rộng danh sách thành viên, trên search box). */}
-
-                        {/* Tóm tắt Chi vs Thu vs Lãi/Lỗ — 3-column stat tile
-                          để admin dễ so sánh. Logic Thu:
-                          - completed: session.totalDebt (actual)
-                          - past-pending: predicted Thu = totalPlayers × playPerHead
-                            + totalDiners × dinePerHead (giả định tất cả attendees
-                            là member-trả; admin's share không trừ ra trong preview)
-                          - voting/confirmed future: skip Thu, chỉ show Chi
-                          Lãi = Thu − Chi. Âm = lỗ (đỏ). */}
-                        {effectiveStatus !== "cancelled" &&
-                          (totalExpense > 0 ||
-                            playCostPerHead > 0 ||
-                            dineCostPerHead > 0 ||
-                            canFinalize) &&
-                          (() => {
-                            const showRevenue =
-                              effectiveStatus === "completed" || isPastPending;
-                            // Predicted revenue MUST include min-60K penalty
-                            // surplus (members below playPerHead get floored to
-                            // 60K, admin captures the difference). Plain
-                            // `players × playPerHead` understates "Tổng thu".
-                            const predictedPenaltySurplus =
-                              session.useMinDeduction
-                                ? computePredictedMinDeductionSurplus({
-                                    playingMemberIds: session.votes
-                                      .filter((v) => v.willPlay)
-                                      .map((v) => v.member.id),
-                                    memberBalances,
-                                    exemptMemberIds: session.exemptMemberIds,
-                                    playCostPerHead,
-                                  })
-                                : 0;
-                            // Nhóm chia đều trả splitRate; khách-của-admin trả sàn
-                            // 60K riêng (qua helper chung để không drift).
-                            const predictedRevenue =
-                              computePredictedPlayRevenue({
-                                totalPlayHeads: totalPlayers,
-                                adminGuestPlayHeads: ag.play,
-                                playCostPerHead,
-                                adminGuestPlayCostPerHead,
-                              }) +
-                              totalDiners * dineCostPerHead +
-                              predictedPenaltySurplus;
-                            const revenue =
-                              effectiveStatus === "completed"
-                                ? session.totalDebt
-                                : predictedRevenue;
-                            return (
-                              <div className="pt-1">
-                                <SessionCostStats
-                                  totalExpense={totalExpense}
-                                  playCostPerHead={playCostPerHead}
-                                  dineCostPerHead={dineCostPerHead}
-                                  revenue={showRevenue ? revenue : null}
-                                  revenueLabel={
-                                    effectiveStatus === "completed"
-                                      ? "actual"
-                                      : "predicted"
-                                  }
-                                  canFinalize={canFinalize}
-                                  isFinalizing={isFinalizing}
-                                  onFinalize={() => {
-                                    finalizing.addOptimistically(
-                                      session.id,
-                                      () => finalizeSessionAuto(session.id),
-                                      { successMsg: t("confirmedSuccess") },
-                                    );
-                                  }}
-                                  confirmLabel={t("confirmSession")}
-                                  confirmingLabel={t("confirming")}
-                                />
-                              </div>
-                            );
-                          })()}
-
-                        {/* Members block — toggle + danh sách trong CÙNG 1 card chung,
-                      border chung. Toggle collapsed = thấy stat tổng; expanded =
-                      mở rộng AdminVoteManager (member list) ngay bên dưới với
-                      `border-t` divider. Không tách block ra ngoài Card nữa. */}
-                        {isActive && (
-                          <div
-                            className={`border-primary/25 bg-primary/[0.04] overflow-hidden rounded-xl border transition-colors ${
-                              isExpanded
-                                ? "border-primary/50"
-                                : "hover:border-primary/40"
-                            }`}
-                          >
-                            <button
-                              type="button"
-                              onClick={(e) => toggleExpand(e, session.id)}
-                              className="flex w-full items-center justify-between p-3 text-base"
-                            >
-                              <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-left">
-                                <span className="text-primary">
-                                  🏸 {tVoting("badmintonShort")}:{" "}
-                                  <strong>
-                                    {session.playerCount + totalGuestPlay}
-                                  </strong>{" "}
-                                  <span className="text-foreground/80">
-                                    {t("people")}
-                                  </span>
-                                  {totalGuestPlay > 0 && (
-                                    <span className="tabular-nums">
-                                      {" "}
-                                      <span className="text-foreground/80">
-                                        ({t("including")}{" "}
-                                      </span>
-                                      {totalGuestPlay}{" "}
-                                      <span className="text-foreground/80">
-                                        {t("guest")})
-                                      </span>
-                                    </span>
-                                  )}
-                                </span>
-                                <span className="text-orange-500 dark:text-orange-400">
-                                  🍻 {tVoting("diningShort")}:{" "}
-                                  <strong>
-                                    {session.dinerCount + totalGuestDine}
-                                  </strong>{" "}
-                                  <span className="text-foreground/80">
-                                    {t("people")}
-                                  </span>
-                                  {totalGuestDine > 0 && (
-                                    <span className="tabular-nums">
-                                      {" "}
-                                      <span className="text-foreground/80">
-                                        ({t("including")}{" "}
-                                      </span>
-                                      {totalGuestDine}{" "}
-                                      <span className="text-foreground/80">
-                                        {t("guest")})
-                                      </span>
-                                    </span>
-                                  )}
-                                </span>
-                              </div>
-                              <ChevronDown
-                                className={`text-muted-foreground h-5 w-5 shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                              />
-                            </button>
-
-                            {isExpanded && (
-                              <div
-                                className="bg-background/40 border-t p-3"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <AdminVoteManager
-                                  sessionId={session.id}
-                                  votes={session.votes}
-                                  members={members}
-                                  debtMap={session.debtMap}
-                                  readOnly={false}
-                                  adminGuestPlayCount={ag.play}
-                                  adminGuestDineCount={ag.dine}
-                                  onAdminGuestChange={(play, dine) => {
-                                    // Optimistic local update + revert on server fail.
-                                    // Cùng path với handleAdminGuestChange cũ — chỉ
-                                    // hợp nhất 2 field thành 1 callback.
-                                    const prev = getAdminGuests(
-                                      session.id,
-                                      session,
-                                    );
-                                    const next = { play, dine };
-                                    setLocalAdminGuests((s) => ({
-                                      ...s,
-                                      [session.id]: next,
-                                    }));
-                                    fireAction(
-                                      () =>
-                                        setAdminGuestCount(
-                                          session.id,
-                                          next.play,
-                                          next.dine,
-                                        ),
-                                      () =>
-                                        setLocalAdminGuests((s) => ({
-                                          ...s,
-                                          [session.id]: prev,
-                                        })),
-                                    );
-                                  }}
-                                  minDeductionEnabled={session.useMinDeduction}
-                                  exemptMemberIds={session.exemptMemberIds}
-                                  memberBalances={memberBalances}
-                                  sessionCosts={{
-                                    courtPrice: session.courtPrice ?? 0,
-                                    courtName: session.courtName,
-                                    diningBill: session.diningBill,
-                                    shuttlecocks: session.shuttlecocks.map(
-                                      (s) => ({
-                                        brandName: s.brand?.name ?? "",
-                                        quantity: s.quantityUsed,
-                                        pricePerTube: s.pricePerTube,
-                                      }),
-                                    ),
-                                    startTime: session.startTime ?? "20:30",
-                                    endTime: session.endTime ?? "22:30",
-                                    isCompleted: false,
-                                  }}
-                                  hideCostSummary
-                                />
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Completed: counts (CLICK to expand attendee list) + payment status */}
-                        {effectiveStatus === "completed" && (
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setExpandedId(isExpanded ? null : session.id);
-                              }}
-                              className="hover:bg-muted/40 inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5"
-                            >
-                              <span className="text-primary">
-                                🏸{" "}
-                                <strong>
-                                  {session.playerCount + session.guestPlayCount}
-                                </strong>{" "}
-                                <span className="text-foreground/80">
-                                  {t("people")}
-                                </span>
-                              </span>
-                              <span className="text-orange-500 dark:text-orange-400">
-                                🍻{" "}
-                                <strong>
-                                  {session.dinerCount + session.guestDineCount}
-                                </strong>{" "}
-                                <span className="text-foreground/80">
-                                  {t("people")}
-                                </span>
-                              </span>
-                              <ChevronDown
-                                className={`text-muted-foreground h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                              />
-                            </button>
-                            {/* Trong optimistic-finalize window, server chưa
-                          insert sessionDebts → totalDebt=0, allPaid lừa user
-                          thấy "✓ 0đ" tưởng đã trả hết. Hiện spinner "Đang
-                          chốt sổ..." cho tới khi server revalidate trả về
-                          totalDebt thật. */}
-                            {/* Thu/Lãi đã hiện trong stat card Tổng thu ở trên — không
-                          lặp ở đây. Chỉ giữ:
-                          - spinner khi đang chốt sổ
-                          - cảnh báo "còn nợ" nếu có debt chưa thanh toán */}
-                            {finalizingSessions.has(session.id) ? (
-                              <span className="text-muted-foreground ml-auto inline-flex items-center gap-1.5 text-sm">
-                                <span className="border-muted-foreground/40 border-t-primary inline-block h-3 w-3 animate-spin rounded-full border-2" />
-                                {t("closingBooks")}
-                              </span>
-                            ) : !allPaid ? (
-                              <button
-                                onClick={() =>
-                                  setExpandedId(isExpanded ? null : session.id)
-                                }
-                                className="ml-auto inline-flex items-center gap-2 py-1 text-sm font-medium text-amber-600 dark:text-amber-400"
-                              >
-                                <AlertTriangle className="h-4 w-4" />
-                                {t("stillOwingAmount", {
-                                  amount: formatK(unpaidAmount),
-                                })}
-                                <ChevronDown
-                                  className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                                />
-                              </button>
-                            ) : null}
-                            {/* Mở lại để sửa — reverse fund_deductions, xóa attendees
-                          + debts, trả về voting. Confirm trước vì ảnh hưởng
-                          balance của member. ml-auto đẩy về phải khi Thu/Lãi
-                          đã chuyển vào stat card phía trên. */}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="ml-auto gap-1.5 border-yellow-500/40 bg-yellow-500/10 text-yellow-700 hover:bg-yellow-500/20 dark:text-yellow-300"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setUnlockTarget(session.id);
-                              }}
-                            >
-                              <RotateCcw className="h-3.5 w-3.5" />
-                              {t("reopen")}
-                            </Button>
-                          </div>
-                        )}
-
-                        {effectiveStatus === "cancelled" && (
-                          <div className="flex flex-wrap items-center gap-3 text-sm">
-                            <span className="text-muted-foreground">
-                              🏸 {session.playerCount + session.guestPlayCount}{" "}
-                              {t("people")}
-                            </span>
-                            <span className="text-muted-foreground">
-                              🍻 {session.dinerCount + session.guestDineCount}{" "}
-                              {t("people")}
-                            </span>
-                            {/* Mở lại — đưa buổi về voting để admin sửa lại config.
-                          Nếu đã có pass-sân, server reverse fund_contribution
-                          qua reversalOfId (audit trail đầy đủ). */}
-                            <Button
-                              variant="success"
-                              size="sm"
-                              className="ml-auto gap-1.5"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // Optimistic: bỏ khỏi cancelledSessions set để hiện
-                                // lại như active (sau revalidate sẽ về voting thật).
-                                setCancelledSessions((prev) => {
-                                  const n = new Set(prev);
-                                  n.delete(session.id);
-                                  return n;
-                                });
-                                fireAction(
-                                  () => reopenSession(session.id),
-                                  () =>
-                                    setCancelledSessions((prev) =>
-                                      new Set(prev).add(session.id),
-                                    ),
-                                );
-                              }}
-                            >
-                              <RotateCcw className="h-3.5 w-3.5" />
-                              {t("reopen")}
-                            </Button>
-                          </div>
-                        )}
-
-                        {/* Expanded — attendee list + unpaid debts. Inline trong
-                          cùng CardContent (border-t divider) để không tạo ra
-                          card thứ 2 tách rời. */}
-                        {isExpanded && effectiveStatus === "completed" && (
-                          <div className="space-y-3 border-t pt-3">
-                            {(() => {
-                              const players = session.attendees.filter(
-                                (a) => a.attendsPlay,
-                              );
-                              const diners = session.attendees.filter(
-                                (a) => a.attendsDine,
-                              );
-                              const renderAttendee = (
-                                a: AttendeeInfo,
-                                idx: number,
-                              ) => {
-                                const isAdminGuest =
-                                  a.isGuest &&
-                                  adminMemberId !== null &&
-                                  a.invitedById === adminMemberId;
-                                return (
-                                  <div
-                                    key={`${a.memberId ?? "g"}-${a.guestName ?? ""}-${idx}`}
-                                    className="bg-muted/30 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm"
-                                  >
-                                    {a.isGuest ? (
-                                      <span
-                                        className={cn(
-                                          "inline-flex h-7 w-7 items-center justify-center rounded-full text-xs",
-                                          isAdminGuest
-                                            ? "bg-blue-500/20"
-                                            : "bg-amber-500/20",
-                                        )}
-                                      >
-                                        {isAdminGuest ? "🎟" : "👤"}
-                                      </span>
-                                    ) : (
-                                      <MemberAvatar
-                                        memberId={a.memberId ?? 0}
-                                        avatarKey={a.memberAvatarKey}
-                                        avatarUrl={a.memberAvatarUrl}
-                                        size={28}
-                                      />
-                                    )}
-                                    <div className="min-w-0 flex-1">
-                                      <p className="truncate font-medium">
-                                        {a.isGuest
-                                          ? isAdminGuest
-                                            ? t("guestAdmin")
-                                            : (a.guestName ?? t("guestLabel"))
-                                          : (a.memberName ?? `#${a.memberId}`)}
-                                      </p>
-                                      {a.isGuest &&
-                                        !isAdminGuest &&
-                                        a.invitedByName && (
-                                          <p className="text-muted-foreground truncate text-xs">
-                                            {t("guestOf", {
-                                              name: a.invitedByName,
-                                            })}
-                                          </p>
-                                        )}
-                                    </div>
-                                  </div>
-                                );
-                              };
-                              return (
-                                <>
-                                  {players.length > 0 && (
-                                    <div>
-                                      <p className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
-                                        🏸{" "}
-                                        {t("attendeePlay", {
-                                          count: players.length,
-                                        })}
-                                      </p>
-                                      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                                        {players.map(renderAttendee)}
-                                      </div>
-                                    </div>
-                                  )}
-                                  {diners.length > 0 && (
-                                    <div>
-                                      <p className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
-                                        🍻{" "}
-                                        {t("attendeeDine", {
-                                          count: diners.length,
-                                        })}
-                                      </p>
-                                      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                                        {diners.map(renderAttendee)}
-                                      </div>
-                                    </div>
-                                  )}
-                                </>
-                              );
-                            })()}
-
-                            {optimisticUnpaidDebts.length > 0 && (
-                              <div className="space-y-2 border-t pt-3">
-                                <p className="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
-                                  {t("stillOwing")}
-                                </p>
-                                {optimisticUnpaidDebts.map((d) => (
-                                  <div
-                                    key={d.memberId}
-                                    className="flex items-center justify-between py-2 text-sm"
-                                  >
-                                    <div className="flex items-center gap-3">
-                                      <MemberAvatar
-                                        memberId={d.memberId}
-                                        avatarKey={d.memberAvatarKey}
-                                        avatarUrl={d.memberAvatarUrl}
-                                        size={28}
-                                      />
-                                      <span>{d.memberName}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                      <span className="text-destructive font-medium">
-                                        {formatK(d.amount)}
-                                      </span>
-                                      <Button
-                                        size="sm"
-                                        variant="success"
-                                        className="gap-1"
-                                        onClick={() => {
-                                          const debtId = d.debtId;
-                                          const memberName = d.memberName;
-                                          const idempotencyKey =
-                                            crypto.randomUUID();
-                                          // Wrap action để toast lỗi gắn member name
-                                          // — admin click nhiều row liên tiếp vẫn
-                                          // biết row nào fail.
-                                          paidDebts.addOptimistically(
-                                            debtId,
-                                            async () => {
-                                              const r =
-                                                await confirmPaymentByAdmin(
-                                                  debtId,
-                                                  idempotencyKey,
-                                                );
-                                              if (
-                                                r &&
-                                                "error" in r &&
-                                                r.error
-                                              ) {
-                                                return {
-                                                  error: `${memberName}: ${r.error}`,
-                                                };
-                                              }
-                                              return r;
-                                            },
-                                          );
-                                        }}
-                                      >
-                                        <Check className="h-4 w-4" />
-                                        {tF("received")}
-                                      </Button>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </LedBorder>
+                  <AdminSessionCard
+                    session={session}
+                    effectiveStatus={effectiveStatus}
+                    isPastPending={isPastPending}
+                    badge={badge}
+                    courts={courts}
+                    brands={brands}
+                    members={members}
+                    memberBalances={memberBalances}
+                    defaultCourtId={defaultCourtId}
+                    sessionDays={sessionDays}
+                    adminMemberId={adminMemberId}
+                    adminGuestPlay={ag.play}
+                    adminGuestDine={ag.dine}
+                    onAdminGuestChange={(play, dine) => {
+                      // Optimistic local update + revert on server fail. Cùng
+                      // path với handleAdminGuestChange cũ — hợp nhất 2 field
+                      // thành 1 callback.
+                      const prev = getAdminGuests(session.id, session);
+                      const next = { play, dine };
+                      setLocalAdminGuests((s) => ({
+                        ...s,
+                        [session.id]: next,
+                      }));
+                      fireAction(
+                        () =>
+                          setAdminGuestCount(session.id, next.play, next.dine),
+                        () =>
+                          setLocalAdminGuests((s) => ({
+                            ...s,
+                            [session.id]: prev,
+                          })),
+                      );
+                    }}
+                    paidDebtIds={paidDebtIds}
+                    onConfirmPayment={(debtId, memberName) => {
+                      const idempotencyKey = crypto.randomUUID();
+                      // Wrap action để toast lỗi gắn member name — admin click
+                      // nhiều row liên tiếp vẫn biết row nào fail.
+                      paidDebts.addOptimistically(debtId, async () => {
+                        const r = await confirmPaymentByAdmin(
+                          debtId,
+                          idempotencyKey,
+                        );
+                        if (r && "error" in r && r.error) {
+                          return { error: `${memberName}: ${r.error}` };
+                        }
+                        return r;
+                      });
+                    }}
+                    onCancel={() => {
+                      setCancelTarget(session.id);
+                      setCancelPassed(true);
+                      setCancelPassRevenue(
+                        String(session.courtPrice ?? 200000),
+                      );
+                    }}
+                    canFinalize={canFinalize}
+                    isFinalizing={isFinalizing}
+                    onFinalize={() => {
+                      finalizing.addOptimistically(
+                        session.id,
+                        () => finalizeSessionAuto(session.id),
+                        { successMsg: t("confirmedSuccess") },
+                      );
+                    }}
+                    onReopenCompleted={() => setUnlockTarget(session.id)}
+                    onReopenCancelled={() => {
+                      // Optimistic: bỏ khỏi cancelledSessions set để hiện lại
+                      // như active (sau revalidate về voting thật).
+                      setCancelledSessions((prev) => {
+                        const n = new Set(prev);
+                        n.delete(session.id);
+                        return n;
+                      });
+                      fireAction(
+                        () => reopenSession(session.id),
+                        () =>
+                          setCancelledSessions((prev) =>
+                            new Set(prev).add(session.id),
+                          ),
+                      );
+                    }}
+                    membersCollapsible
+                    expanded={isExpanded}
+                    onToggleExpand={(e) => toggleExpand(e, session.id)}
+                    onExpandedChange={(next) =>
+                      setExpandedId(next ? session.id : null)
+                    }
+                  />
                 </div>
               );
             })}
