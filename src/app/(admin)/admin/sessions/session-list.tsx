@@ -61,7 +61,7 @@ import {
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { TabSegment } from "@/components/shared/tab-segment";
-import { DateRangeFilter } from "@/components/shared/date-range-filter";
+import { DateRangePicker } from "@/components/shared/date-range-picker";
 import { LedBorder } from "@/components/shared/led-border";
 import { usePolling } from "@/lib/use-polling";
 import {
@@ -511,21 +511,12 @@ export function SessionList({
             card; chip CHƯA có (dashed +): mở dialog tạo buổi prefill đúng ngày. */}
         {weekDays.length > 0 && (
           <div className="bg-card/60 mb-3 rounded-xl border p-3">
-            {/* Header box: tiêu đề "Tuần này" (trái) + nút tạo buổi mới (phải). */}
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <p className="text-muted-foreground text-xs font-medium">
-                {t("thisWeek")}
-              </p>
-              <Button
-                size="sm"
-                className="shrink-0 gap-1 px-3"
-                onClick={() => openCreateFor(DEFAULT_DATE)}
-              >
-                <Plus className="h-4 w-4" />
-                {t("createSession")}
-              </Button>
-            </div>
-            <div className="flex flex-wrap gap-2">
+            <p className="text-muted-foreground mb-2 text-xs font-medium">
+              {t("thisWeek")}
+            </p>
+            {/* Chips ngày + nút "Tạo buổi" cùng hàng (nút dồn phải, xuống dòng
+                khi hẹp) — tiết kiệm 1 hàng riêng cho nút. */}
+            <div className="flex flex-wrap items-center gap-2">
               {weekDays.map((d) => {
                 const has = d.sessionId !== null;
                 const done =
@@ -553,6 +544,14 @@ export function SessionList({
                   </button>
                 );
               })}
+              <Button
+                size="sm"
+                className="ml-auto shrink-0 gap-1 px-3"
+                onClick={() => openCreateFor(DEFAULT_DATE)}
+              >
+                <Plus className="h-4 w-4" />
+                {t("createSession")}
+              </Button>
             </div>
           </div>
         )}
@@ -579,12 +578,10 @@ export function SessionList({
           <div className="flex flex-wrap items-end gap-2">
             {/* Khoảng ngày — bỏ label chữ (theo yêu cầu), chỉ còn control ngày. */}
             <div className="min-w-0 flex-1">
-              <DateRangeFilter
+              <DateRangePicker
                 from={currentFrom}
                 to={currentTo}
-                fromAriaLabel={t("filterFrom")}
-                toAriaLabel={t("filterTo")}
-                clearAriaLabel={t("filterClearDates")}
+                placeholder={t("filterDateRange")}
                 onFromChange={(v) => {
                   setPage(1);
                   setFrom(v);
@@ -823,44 +820,44 @@ export function SessionList({
                       <CardContent className="space-y-2 p-4">
                         {/* Header: Date + Status */}
                         {/* Hàng 1: ngày + giờ (trái) · trạng thái + huỷ (phải). */}
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
-                            <p className="flex items-center gap-2 text-base font-bold capitalize">
-                              <Calendar className="text-muted-foreground h-5 w-5 shrink-0" />
-                              {formatSessionDate(session.date)}
-                            </p>
-                            {(session.startTime || session.endTime) && (
-                              <span className="text-muted-foreground inline-flex items-center gap-1.5 text-sm whitespace-nowrap tabular-nums">
-                                <Clock className="h-4 w-4" />
-                                {session.startTime ?? "—"} –{" "}
-                                {session.endTime ?? "—"}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex shrink-0 items-center gap-2">
-                            <div className="inline-flex">
-                              <StatusBadge variant={badgeVariant}>
-                                {badgeText}
-                              </StatusBadge>
-                            </div>
-                            {isActive && (
-                              <Button
-                                variant="destructive"
-                                size="icon-sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setCancelTarget(session.id);
-                                  setCancelPassed(true);
-                                  setCancelPassRevenue(
-                                    String(session.courtPrice ?? 200000),
-                                  );
-                                }}
-                                aria-label={t("ariaCancelSession")}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
+                        {/* Trạng thái + huỷ: ABSOLUTE góc phải trên → không
+                            chiếm 1 hàng riêng (tiết kiệm height). Header chừa
+                            pr-28 để ngày/giờ không chạy dưới badge. */}
+                        <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
+                          <StatusBadge variant={badgeVariant}>
+                            {badgeText}
+                          </StatusBadge>
+                          {isActive && (
+                            <Button
+                              variant="destructive"
+                              size="icon-sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCancelTarget(session.id);
+                                setCancelPassed(true);
+                                setCancelPassRevenue(
+                                  String(session.courtPrice ?? 200000),
+                                );
+                              }}
+                              aria-label={t("ariaCancelSession")}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pr-28">
+                          <p className="flex items-center gap-2 text-base font-bold capitalize">
+                            <Calendar className="text-muted-foreground h-5 w-5 shrink-0" />
+                            {formatSessionDate(session.date)}
+                          </p>
+                          {(session.startTime || session.endTime) && (
+                            <span className="text-muted-foreground inline-flex items-center gap-1.5 text-sm whitespace-nowrap tabular-nums">
+                              <Clock className="h-4 w-4" />
+                              {session.startTime ?? "—"} –{" "}
+                              {session.endTime ?? "—"}
+                            </span>
+                          )}
                         </div>
 
                         {/* Dãy thứ — FULL WIDTH (7 ô chia đều 1 hàng). */}
