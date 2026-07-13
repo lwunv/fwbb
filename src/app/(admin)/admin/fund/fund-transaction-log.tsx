@@ -369,7 +369,7 @@ function TxCard({
           (tx.isReversal || tx.isReversed) && "opacity-60",
         )}
       >
-        <CardContent className="flex items-center gap-3 p-3">
+        <CardContent className="flex items-start gap-3 p-3">
           {/* Avatar + direction badge overlay (↑ green in / ↓ rose out) */}
           <div className="relative shrink-0">
             {tx.memberId !== null ? (
@@ -377,33 +377,39 @@ function TxCard({
                 memberId={tx.memberId}
                 avatarKey={tx.memberAvatarKey}
                 avatarUrl={tx.memberAvatarUrl}
-                size={40}
+                size={32}
               />
             ) : (
-              <div className="bg-muted flex h-10 w-10 items-center justify-center rounded-full">
-                <Icon className={cn("h-5 w-5", meta.iconClass)} />
+              <div className="bg-muted flex h-8 w-8 items-center justify-center rounded-full">
+                <Icon className={cn("h-4 w-4", meta.iconClass)} />
               </div>
             )}
             {tx.direction !== "neutral" && (
               <span
                 aria-hidden
                 className={cn(
-                  "ring-card absolute -right-0.5 -bottom-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full ring-2",
+                  "ring-card absolute -right-0.5 -bottom-0.5 flex h-4 w-4 items-center justify-center rounded-full ring-2",
                   tx.direction === "in" ? "bg-green-500" : "bg-rose-500",
                 )}
               >
                 {tx.direction === "in" ? (
-                  <ArrowUp className="h-3 w-3 text-white" strokeWidth={3} />
+                  <ArrowUp className="h-2.5 w-2.5 text-white" strokeWidth={3} />
                 ) : (
-                  <ArrowDown className="h-3 w-3 text-white" strokeWidth={3} />
+                  <ArrowDown
+                    className="h-2.5 w-2.5 text-white"
+                    strokeWidth={3}
+                  />
                 )}
               </span>
             )}
           </div>
 
-          <div className="min-w-0 flex-1 space-y-0.5">
-            {/* Name + ADMIN badge (admin/system tx only) + reversal badges */}
-            <div className="flex items-center gap-1.5">
+          {/* 2 dòng cân đối: (1) tên + badge ↔ số tiền; (2) loại · giờ ngày
+              ↔ nút hủy. Số tiền lên dòng 1 để tên có đủ chỗ (không cụt), giờ
+              gộp cùng loại 1 dòng. Mô tả chỉ hiện khi KHÁC nhãn loại (tránh
+              lặp "Đóng quỹ / Đóng quỹ" như bản cũ). */}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
               <span
                 className={cn(
                   "min-w-0 flex-1 truncate text-base font-semibold",
@@ -412,78 +418,62 @@ function TxCard({
               >
                 {tx.memberName ?? t("logSystem")}
               </span>
+              <span
+                className={cn(
+                  "shrink-0 text-base font-bold tabular-nums",
+                  amountColor,
+                  tx.isReversed && "line-through",
+                )}
+              >
+                {sign}
+                {formatK(tx.amount)}
+              </span>
+            </div>
+
+            <div className="mt-1 flex items-center gap-1.5">
+              <Icon className={cn("h-3.5 w-3.5 shrink-0", meta.iconClass)} />
               {!isAuto && (
-                <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-600 uppercase dark:text-amber-400">
+                <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600 uppercase dark:text-amber-400">
                   Admin
                 </span>
               )}
               {tx.isReversal && (
-                <span className="shrink-0 rounded-full bg-rose-500/15 px-2 py-0.5 text-xs font-semibold text-rose-700 uppercase dark:text-rose-300">
+                <span className="shrink-0 rounded-full bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700 uppercase dark:text-rose-300">
                   Reversal
                 </span>
               )}
               {tx.isReversed && (
-                <span className="bg-muted text-muted-foreground shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold uppercase">
+                <span className="bg-muted text-muted-foreground shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase">
                   Đã hủy
                 </span>
               )}
-            </div>
-
-            {/* Transaction type label */}
-            <div className="flex items-center gap-1.5">
-              <Icon className={cn("h-3.5 w-3.5 shrink-0", meta.iconClass)} />
               <span
                 className={cn(
-                  "text-muted-foreground truncate text-sm",
+                  "text-muted-foreground min-w-0 flex-1 truncate text-sm",
                   tx.isReversed && "line-through",
                 )}
               >
                 {label}
+                {" · "}
+                {fmtDateTime(tx.createdAt, locale)}
+                {tx.sessionDate &&
+                  ` · ${t("logSession", { date: tx.sessionDate })}`}
+                {tx.description &&
+                  tx.description !== label &&
+                  ` · ${tx.description}`}
               </span>
-            </div>
-
-            {tx.description && (
-              <p
-                className={cn(
-                  "text-muted-foreground truncate text-sm",
-                  tx.isReversed && "line-through",
-                )}
-              >
-                {tx.description}
-              </p>
-            )}
-
-            {/* Time · date (+ optional session) */}
-            <div className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 text-sm">
-              <span>{fmtDateTime(tx.createdAt, locale)}</span>
-              {tx.sessionDate && (
-                <span>· {t("logSession", { date: tx.sessionDate })}</span>
+              {canReverse && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmOpen(true)}
+                  className="border-destructive/30 text-destructive hover:bg-destructive/10 -my-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors disabled:opacity-50"
+                  aria-label={t("ariaUndoTransaction")}
+                  title={t("ariaUndoTransaction")}
+                >
+                  <X className="h-4 w-4" />
+                </button>
               )}
             </div>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-2">
-            <span
-              className={cn(
-                "text-lg font-bold tabular-nums",
-                amountColor,
-                tx.isReversed && "line-through",
-              )}
-            >
-              {sign}
-              {formatK(tx.amount)}
-            </span>
-            {canReverse && (
-              <button
-                type="button"
-                onClick={() => setConfirmOpen(true)}
-                className="border-destructive/30 text-destructive hover:bg-destructive/10 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors disabled:opacity-50"
-                aria-label={t("ariaUndoTransaction")}
-                title={t("ariaUndoTransaction")}
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
           </div>
         </CardContent>
       </Card>
