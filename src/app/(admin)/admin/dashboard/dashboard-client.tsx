@@ -772,11 +772,15 @@ export function DashboardClient({
                             }) as SessionShuttlecock,
                         )}
                       />
-                      <div className="flex flex-wrap items-center gap-2 pt-1">
-                        <VoteCountdown
-                          deadline={upcomingSession.voteDeadline}
-                          variant="inline"
-                        />
+                      {/* Deadline + max: GIỮ 1 HÀNG trên mobile (tiết kiệm
+                          height). Countdown co lại/truncate, 2 nút shrink-0. */}
+                      <div className="flex flex-nowrap items-center gap-1.5 pt-1">
+                        <span className="min-w-0 flex-1 truncate">
+                          <VoteCountdown
+                            deadline={upcomingSession.voteDeadline}
+                            variant="inline"
+                          />
+                        </span>
                         <VoteDeadlineEdit
                           sessionId={upcomingSession.id}
                           current={upcomingSession.voteDeadline}
@@ -811,15 +815,19 @@ export function DashboardClient({
                       }}
                       confirmLabel={ts("confirmSession")}
                       confirmingLabel={ts("confirming")}
+                      confirmShortLabel="Xác nhận"
                       extraAction={
                         <Link href="/admin/sessions">
                           <Button
                             size="lg"
                             variant={canFinalize ? "outline" : "default"}
-                            className="h-10 w-full"
+                            className="min-h-11 w-full px-3 whitespace-nowrap"
                           >
-                            {td("manageSession")}
-                            <ArrowRight className="ml-1 h-4 w-4" />
+                            <span className="sm:hidden">Quản lý</span>
+                            <span className="hidden sm:inline">
+                              {td("manageSession")}
+                            </span>
+                            <ArrowRight className="ml-1 h-4 w-4 shrink-0" />
                           </Button>
                         </Link>
                       }

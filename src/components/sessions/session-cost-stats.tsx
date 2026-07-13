@@ -18,6 +18,9 @@ export interface SessionCostStatsProps {
   /** i18n labels — caller pass từ useTranslations để tránh client/server boundary. */
   confirmLabel?: string;
   confirmingLabel?: string;
+  /** Nhãn NGẮN cho mobile khi finalize nằm CÙNG HÀNG với extraAction (tiết kiệm
+   *  chiều rộng). vd "Xác nhận". Không set → dùng confirmLabel ở mọi breakpoint. */
+  confirmShortLabel?: string;
   /** Optional secondary action (vd nút "Quản lý buổi chơi" trên dashboard).
    *  Hiện cùng hàng với Xác nhận khi có cả 2 (flex-1 cạnh nhau); hiện
    *  full-width khi chỉ có extraAction. */
@@ -45,6 +48,7 @@ export function SessionCostStats({
   onFinalize,
   confirmLabel = "Xác nhận buổi chơi",
   confirmingLabel = "Đang xác nhận...",
+  confirmShortLabel,
   extraAction,
 }: SessionCostStatsProps) {
   const profit = revenue !== null ? revenue - totalExpense : null;
@@ -145,7 +149,7 @@ export function SessionCostStats({
       {/* Action row — Xác nhận + extraAction cùng hàng khi có cả 2,
           ngược lại render cái nào có sẵn full-width. */}
       {(canFinalize && onFinalize) || extraAction ? (
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex flex-row gap-2">
           {canFinalize && onFinalize && (
             <button
               type="button"
@@ -154,14 +158,23 @@ export function SessionCostStats({
                 e.stopPropagation();
                 onFinalize();
               }}
-              className="bg-primary hover:bg-primary/90 active:bg-primary/95 shadow-primary/30 hover:shadow-primary/40 inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-semibold whitespace-nowrap text-white shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 sm:flex-1"
+              className="bg-primary hover:bg-primary/90 active:bg-primary/95 shadow-primary/30 hover:shadow-primary/40 inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-semibold whitespace-nowrap text-white shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <Check className="h-4 w-4" />
-              {isFinalizing ? confirmingLabel : confirmLabel}
+              <Check className="h-4 w-4 shrink-0" />
+              {isFinalizing ? (
+                confirmingLabel
+              ) : confirmShortLabel ? (
+                <>
+                  <span className="sm:hidden">{confirmShortLabel}</span>
+                  <span className="hidden sm:inline">{confirmLabel}</span>
+                </>
+              ) : (
+                confirmLabel
+              )}
             </button>
           )}
           {extraAction && (
-            <div className="flex w-full sm:flex-1 [&>*]:w-full">
+            <div className="flex min-w-0 flex-1 [&>*]:w-full">
               {extraAction}
             </div>
           )}
