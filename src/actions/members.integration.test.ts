@@ -26,7 +26,7 @@ vi.mock("@/lib/auth", () => ({
 const { db: testDb, client } = await createTestDb();
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { toggleMemberActive, findDuplicateMembers, updateMember } =
+const { toggleMemberActive, findDuplicateMembers, updateMember, createMember } =
   await import("./members");
 const { getFundBalance } = await import("@/lib/fund-calculator");
 
@@ -443,5 +443,101 @@ describe("updateMember — dialog Sửa thông tin (2026-07-06)", () => {
     expect(m?.email).toBe("keep@example.com");
     expect(m?.phoneNumber).toBe("0911");
     expect(m?.nickname).toBe("Đổi biệt danh");
+  });
+});
+
+describe("username khi admin tạo/sửa member (2026-07-13)", () => {
+  beforeEach(reset);
+
+  function fd(fields: Record<string, string>) {
+    const f = new FormData();
+    for (const [k, v] of Object.entries(fields)) f.set(k, v);
+    return f;
+  }
+  function byName(name: string) {
+    return testDb.query.members.findFirst({ where: eq(members.name, name) });
+  }
+
+  it("createMember: lưu username (chuẩn hoá lowercase)", async () => {
+    const r = await createMember(fd({ name: "Cún", username: "CunCon" }));
+    expect(r).toEqual({ success: true });
+    expect((await byName("Cún"))?.username).toBe("cuncon");
+  });
+
+  it("createMember: không gửi username → null", async () => {
+    await createMember(fd({ name: "Trống ĐN" }));
+    expect((await byName("Trống ĐN"))?.username).toBeNull();
+  });
+
+  it("createMember: username sai định dạng → error, KHÔNG tạo", async () => {
+    const r = await createMember(fd({ name: "Sai", username: "a b!" }));
+    expect(r).toHaveProperty("error");
+    expect(await byName("Sai")).toBeUndefined();
+  });
+
+  it("createMember: username trùng → error", async () => {
+    await createMember(fd({ name: "Một", username: "trung" }));
+    const r = await createMember(fd({ name: "Hai", username: "TRUNG" }));
+    expect(r).toHaveProperty("error");
+    expect(await byName("Hai")).toBeUndefined();
+  });
+
+  it("updateMember: set username", async () => {
+    const id = await seedMember("Sửa ĐN");
+    const r = await updateMember(
+      id,
+      fd({ name: "Sửa ĐN", username: "newname" }),
+    );
+    expect(r).toEqual({ success: true });
+    const m = await testDb.query.members.findFirst({
+      where: eq(members.id, id),
+    });
+    expect(m?.username).toBe("newname");
+  });
+
+  it("updateMember: username rỗng → xoá (null)", async () => {
+    const id = await seedMember("Xoá ĐN");
+    await updateMember(id, fd({ name: "Xoá ĐN", username: "willclear" }));
+    const r = await updateMember(id, fd({ name: "Xoá ĐN", username: "" }));
+    expect(r).toEqual({ success: true });
+    const m = await testDb.query.members.findFirst({
+      where: eq(members.id, id),
+    });
+    expect(m?.username).toBeNull();
+  });
+
+  it("updateMember: username trùng member khác → error, không lưu", async () => {
+    const idA = await seedMember("AAA", "fb-aaa");
+    await updateMember(idA, fd({ name: "AAA", username: "taken" }));
+    const idB = await seedMember("BBB", "fb-bbb");
+    const r = await updateMember(idB, fd({ name: "BBB", username: "TAKEN" }));
+    expect(r).toHaveProperty("error");
+    const mB = await testDb.query.members.findFirst({
+      where: eq(members.id, idB),
+    });
+    expect(mB?.username).toBeNull();
+  });
+
+  it("updateMember: giữ username của CHÍNH mình → không tự conflict", async () => {
+    const id = await seedMember("Tự giữ");
+    await updateMember(id, fd({ name: "Tự giữ", username: "mine" }));
+    const r = await updateMember(
+      id,
+      fd({ name: "Tự giữ", nickname: "x", username: "mine" }),
+    );
+    expect(r).toEqual({ success: true });
+  });
+
+  it("updateMember: form KHÔNG gửi username → giữ nguyên", async () => {
+    const id = await seedMember("Giữ ĐN");
+    await updateMember(id, fd({ name: "Giữ ĐN", username: "stay" }));
+    const noUser = new FormData();
+    noUser.set("name", "Giữ ĐN");
+    noUser.set("nickname", "abc");
+    await updateMember(id, noUser);
+    const m = await testDb.query.members.findFirst({
+      where: eq(members.id, id),
+    });
+    expect(m?.username).toBe("stay");
   });
 });

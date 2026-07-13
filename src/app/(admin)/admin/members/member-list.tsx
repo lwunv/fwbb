@@ -466,6 +466,7 @@ export function MemberList({
       nickname: string;
       email: string;
       phoneNumber: string;
+      username: string;
     },
   ) {
     const formData = new FormData();
@@ -473,6 +474,7 @@ export function MemberList({
     formData.set("nickname", values.nickname);
     formData.set("email", values.email);
     formData.set("phoneNumber", values.phoneNumber);
+    formData.set("username", values.username);
     const prev = infoOverrides[memberId];
     setInfoOverrides((o) => ({
       ...o,
@@ -573,6 +575,17 @@ export function MemberList({
             <div className="space-y-2">
               <Label htmlFor="nickname">{t("nickname")}</Label>
               <Input id="nickname" name="nickname" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="username">{t("username")}</Label>
+              <Input
+                id="username"
+                name="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                placeholder={t("usernamePlaceholder")}
+              />
             </div>
             <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
               <input
@@ -1113,6 +1126,7 @@ function MemberInfoDialog({
       nickname: string;
       email: string;
       phoneNumber: string;
+      username: string;
     },
   ) => void;
 }) {
@@ -1145,6 +1159,7 @@ function MemberInfoForm({
       nickname: string;
       email: string;
       phoneNumber: string;
+      username: string;
     },
   ) => void;
 }) {
@@ -1154,11 +1169,18 @@ function MemberInfoForm({
   const [nickname, setNickname] = useState(member.nickname ?? "");
   const [email, setEmail] = useState(member.email ?? "");
   const [phoneNumber, setPhoneNumber] = useState(member.phoneNumber ?? "");
+  const [username, setUsername] = useState(member.username ?? "");
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
-    onSave(member.id, { name: name.trim(), nickname, email, phoneNumber });
+    onSave(member.id, {
+      name: name.trim(),
+      nickname,
+      email,
+      phoneNumber,
+      username,
+    });
   }
 
   return (
@@ -1198,6 +1220,18 @@ function MemberInfoForm({
           value={phoneNumber}
           onChange={(e) => setPhoneNumber(e.target.value)}
           placeholder={t("phonePlaceholder")}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="info-username">{t("username")}</Label>
+        <Input
+          id="info-username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          placeholder={t("usernamePlaceholder")}
         />
       </div>
       <Button type="submit" className="w-full">

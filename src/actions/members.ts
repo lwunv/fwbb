@@ -115,6 +115,30 @@ async function isDuplicateName(name: string, excludeId?: number) {
   return !!dup;
 }
 
+/**
+ * Chuẩn hoá + validate username (login đa kênh): lowercase, 3-32 ký tự
+ * [a-z0-9._], unique (trừ chính mình khi có `excludeId`). Rỗng → null (xoá).
+ * Dùng chung cho admin createMember/updateMember và self-edit updateMyProfile.
+ * Trả `code` để caller tự map sang message theo namespace của nó (serverErrors
+ * cho admin, me cho self-edit).
+ */
+async function resolveUsername(
+  raw: string,
+  excludeId: number | null,
+): Promise<{ value: string | null } | { code: "invalid" | "taken" }> {
+  const norm = raw.trim().toLowerCase();
+  if (!norm) return { value: null };
+  if (!/^[a-z0-9._]{3,32}$/.test(norm)) return { code: "invalid" };
+  const dup = await db.query.members.findFirst({
+    where: excludeId
+      ? and(eq(members.username, norm), ne(members.id, excludeId))
+      : eq(members.username, norm),
+    columns: { id: true },
+  });
+  if (dup) return { code: "taken" };
+  return { value: norm };
+}
+
 export async function createMember(formData: FormData) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
@@ -132,6 +156,19 @@ export async function createMember(formData: FormData) {
       error: t("memberNameTaken", { name: parsed.data.name.trim() }),
     };
   }
+  let username: string | null = null;
+  if (formData.has("username")) {
+    const u = await resolveUsername(
+      String(formData.get("username") ?? ""),
+      null,
+    );
+    if ("code" in u) {
+      return {
+        error: t(u.code === "invalid" ? "usernameInvalid" : "usernameTaken"),
+      };
+    }
+    username = u.value;
+  }
   const nickname = (formData.get("nickname") as string)?.trim() || null;
   // KHÔNG set facebookId placeholder. Member admin tạo phải để facebookId +
   // googleId = NULL thì merge flow mới nhận diện được: getNameMatches lọc
@@ -141,9 +178,17 @@ export async function createMember(formData: FormData) {
   // merge khi chính chủ signup (FB login tra theo id thật, không replace fake).
   // Member email+password cũng đã insert với facebookId NULL — đồng nhất.
   const defaultWithPartner = formData.get("withPartner") === "1";
-  await db
-    .insert(members)
-    .values({ ...parsed.data, nickname, defaultWithPartner });
+  // username UNIQUE: pre-check ở trên có race window → bọc write, map lỗi
+  // UNIQUE về message localized thay vì ném lỗi DB thô.
+  try {
+    await db
+      .insert(members)
+      .values({ ...parsed.data, nickname, username, defaultWithPartner });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (/username/i.test(msg)) return { error: t("usernameTaken") };
+    throw e;
+  }
   revalidatePath("/admin/members");
   return { success: true };
 }
@@ -232,24 +277,19 @@ export async function updateMyProfile(
   };
 
   // Username (login đa kênh): tùy chọn, lowercase, 3-32 ký tự [a-z0-9._],
-  // unique (trừ chính mình). Chỉ đụng khi form gửi field.
+  // unique (trừ chính mình). Chỉ đụng khi form gửi field. Dùng chung helper với
+  // admin create/updateMember.
   if (formData.has("username")) {
-    const raw = String(formData.get("username") ?? "")
-      .trim()
-      .toLowerCase();
-    if (raw) {
-      if (!/^[a-z0-9._]{3,32}$/.test(raw)) {
-        return { error: t("usernameInvalid") };
-      }
-      const dup = await db.query.members.findFirst({
-        where: and(eq(members.username, raw), ne(members.id, user.memberId)),
-        columns: { id: true },
-      });
-      if (dup) return { error: t("usernameTaken") };
-      setValues.username = raw;
-    } else {
-      setValues.username = null;
+    const u = await resolveUsername(
+      String(formData.get("username") ?? ""),
+      user.memberId,
+    );
+    if ("code" in u) {
+      return {
+        error: t(u.code === "invalid" ? "usernameInvalid" : "usernameTaken"),
+      };
     }
+    setValues.username = u.value;
   }
 
   // Số điện thoại: tùy chọn, chỉ giữ chữ số.
@@ -360,7 +400,23 @@ export async function updateMember(id: number, formData: FormData) {
     const phoneRaw = (formData.get("phoneNumber") as string)?.trim() || "";
     setValues.phoneNumber = phoneRaw || null;
   }
-  await db.update(members).set(setValues).where(eq(members.id, id));
+  if (formData.has("username")) {
+    const u = await resolveUsername(String(formData.get("username") ?? ""), id);
+    if ("code" in u) {
+      return {
+        error: t(u.code === "invalid" ? "usernameInvalid" : "usernameTaken"),
+      };
+    }
+    setValues.username = u.value;
+  }
+  // username UNIQUE: bọc write, map lỗi UNIQUE (race) về message localized.
+  try {
+    await db.update(members).set(setValues).where(eq(members.id, id));
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (/username/i.test(msg)) return { error: t("usernameTaken") };
+    throw e;
+  }
   revalidatePath("/admin/members");
   return { success: true };
 }
