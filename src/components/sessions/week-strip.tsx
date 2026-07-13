@@ -15,14 +15,16 @@ export function WeekStrip({
   const [y, m, d] = sessionDate.split("-").map(Number);
   const session = new Date(y, m - 1, d);
   const dayIdx = session.getDay() === 0 ? 6 : session.getDay() - 1;
-  const labels = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "CN"];
+  // Nhãn NGẮN (T2..CN) + chip flex-1 → 7 ngày vừa 1 HÀNG (thay vì w-14 cố định
+  // wrap 3 dòng trên mobile).
+  const labels = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
   return (
-    <div className={cn("flex flex-wrap items-center gap-1", className)}>
+    <div className={cn("flex items-center gap-1", className)}>
       {labels.map((label, i) => (
         <span
           key={i}
           className={cn(
-            "inline-flex w-14 items-center justify-center rounded-md border px-1 py-0.5 text-xs font-medium whitespace-nowrap transition-colors",
+            "inline-flex min-w-0 flex-1 items-center justify-center rounded-md border px-1 py-1 text-xs font-medium whitespace-nowrap transition-colors",
             i === dayIdx
               ? "border-primary bg-primary text-primary-foreground shadow-sm"
               : "border-border bg-muted/30 text-muted-foreground",

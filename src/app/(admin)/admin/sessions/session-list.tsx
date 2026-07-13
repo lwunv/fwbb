@@ -511,9 +511,20 @@ export function SessionList({
             card; chip CHƯA có (dashed +): mở dialog tạo buổi prefill đúng ngày. */}
         {weekDays.length > 0 && (
           <div className="bg-card/60 mb-3 rounded-xl border p-3">
-            <p className="text-muted-foreground mb-2 text-xs font-medium">
-              {t("thisWeek")}
-            </p>
+            {/* Header box: tiêu đề "Tuần này" (trái) + nút tạo buổi mới (phải). */}
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="text-muted-foreground text-xs font-medium">
+                {t("thisWeek")}
+              </p>
+              <Button
+                size="sm"
+                className="shrink-0 gap-1 px-3"
+                onClick={() => openCreateFor(DEFAULT_DATE)}
+              >
+                <Plus className="h-4 w-4" />
+                {t("createSession")}
+              </Button>
+            </div>
             <div className="flex flex-wrap gap-2">
               {weekDays.map((d) => {
                 const has = d.sessionId !== null;
@@ -566,11 +577,9 @@ export function SessionList({
             ]}
           />
           <div className="flex flex-wrap items-end gap-2">
-            {/* Khoảng ngày — component chung DateRangeFilter. State ở URL (nuqs);
-                đổi ngày reset về trang 1. */}
+            {/* Khoảng ngày — bỏ label chữ (theo yêu cầu), chỉ còn control ngày. */}
             <div className="min-w-0 flex-1">
               <DateRangeFilter
-                label={t("filterDateRange")}
                 from={currentFrom}
                 to={currentTo}
                 fromAriaLabel={t("filterFrom")}
@@ -629,14 +638,6 @@ export function SessionList({
                   <List className="h-4 w-4" />
                 </button>
               </div>
-              <Button
-                size="sm"
-                className="min-h-11 shrink-0 gap-1 px-3 text-sm"
-                onClick={() => openCreateFor(DEFAULT_DATE)}
-              >
-                <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">{t("createSession")}</span>
-              </Button>
             </div>
           </div>
         </div>
@@ -845,7 +846,7 @@ export function SessionList({
                             {session.courtName && (
                               <p className="text-muted-foreground mt-2 flex min-w-0 flex-nowrap items-center gap-2 text-sm">
                                 <MapPin className="h-4 w-4 shrink-0" />
-                                <span className="truncate">
+                                <span className="min-w-0 flex-1 truncate">
                                   {session.courtName}
                                 </span>
                                 {session.courtMapLink && (
@@ -859,7 +860,7 @@ export function SessionList({
                                         "_blank",
                                       );
                                     }}
-                                    className="text-primary inline-flex shrink-0 items-center gap-1"
+                                    className="text-primary ml-auto inline-flex shrink-0 items-center gap-1"
                                   >
                                     <Navigation className="h-4 w-4" />
                                     {t("directions")}
