@@ -596,9 +596,11 @@ export function MemberList({
         containerClassName="mb-3"
       />
 
-      {/* Status filter (kèm số lượng mỗi bucket) + sort — cùng 1 row từ sm: */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="min-w-0 flex-1">
+      {/* Status filter (kèm số lượng mỗi bucket) + sort. Mobile: xếp DỌC 2 hàng
+          — pills full-width (cuộn ngang thoải mái, không bị dropdown bóp), sort
+          full-width dễ bấm. Từ sm: mới chung 1 hàng. */}
+      <div className="mb-4 space-y-3 sm:flex sm:flex-wrap sm:items-center sm:gap-3 sm:space-y-0">
+        <div className="min-w-0 sm:flex-1">
           <TabSegment<StatusFilter>
             variant="pills"
             value={statusFilter}
@@ -625,7 +627,7 @@ export function MemberList({
               setPage(1);
             }}
             options={SORT_OPTIONS}
-            className="w-56"
+            className="min-w-0 flex-1 sm:w-56 sm:flex-none"
           />
         </div>
       </div>

@@ -55,6 +55,8 @@ import {
   X,
   Check,
   RotateCcw,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -544,69 +546,96 @@ export function SessionList({
           </div>
         )}
 
-        {/* Top bar — filter chips (left, scroll-x trên mobile) + Tạo buổi chơi
-            (right, không bị filter đẩy ra ngoài viewport). */}
-        <div className="mb-3 flex items-center gap-2">
-          <div className="min-w-0 flex-1">
-            <TabSegment<StatusFilter>
-              variant="pills"
-              value={currentStatusFilter}
-              onChange={(v) => setStatusFilter(v === "all" ? null : v)}
-              options={[
-                { value: "all", label: t("filterAll") },
-                { value: "voting", label: t("filterUpcoming") },
-                { value: "needsConfirm", label: tF("needsConfirm") },
-                { value: "completed", label: t("completed") },
-                { value: "cancelled", label: t("cancelled") },
-              ]}
-            />
-          </div>
-          <Button
-            size="sm"
-            className="min-h-11 shrink-0 gap-1 px-3 text-sm"
-            onClick={() => openCreateFor(DEFAULT_DATE)}
-          >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">{t("createSession")}</span>
-          </Button>
-        </div>
-
-        {/* Hàng lọc phụ: khoảng ngày + đổi kiểu xem (thẻ / danh sách gọn). */}
-        <div className="mb-3 flex flex-wrap items-end gap-2">
-          {/* Khoảng ngày — dùng component chung DateRangeFilter (gộp từ/đến làm
-              một control). State from/to vẫn ở URL (nuqs); đổi ngày reset về
-              trang 1. */}
-          <DateRangeFilter
-            label={t("filterDateRange")}
-            from={currentFrom}
-            to={currentTo}
-            fromAriaLabel={t("filterFrom")}
-            toAriaLabel={t("filterTo")}
-            clearAriaLabel={t("filterClearDates")}
-            onFromChange={(v) => {
-              setPage(1);
-              setFrom(v);
-            }}
-            onToChange={(v) => {
-              setPage(1);
-              setTo(v);
-            }}
-            onClear={() => {
-              setPage(1);
-              setFrom(null);
-              setTo(null);
-            }}
+        {/* Bộ lọc + công cụ. Chips trạng thái ở HÀNG RIÊNG full-width (cuộn
+            ngang sạch); tách khỏi nút "+" để dải chip không bị nút đè lên +
+            cắt mất như bản cũ. Hàng dưới: khoảng ngày + đổi kiểu xem (icon
+            lưới/danh sách) + tạo buổi. */}
+        <div className="mb-3 space-y-3">
+          <TabSegment<StatusFilter>
+            variant="pills"
+            value={currentStatusFilter}
+            onChange={(v) => setStatusFilter(v === "all" ? null : v)}
+            options={[
+              { value: "all", label: t("filterAll") },
+              { value: "voting", label: t("filterUpcoming") },
+              { value: "needsConfirm", label: tF("needsConfirm") },
+              { value: "completed", label: t("completed") },
+              { value: "cancelled", label: t("cancelled") },
+            ]}
           />
-          <div className="ml-auto">
-            <TabSegment<"cards" | "list">
-              variant="pills"
-              value={viewMode}
-              onChange={(v) => setView(v === "cards" ? null : v)}
-              options={[
-                { value: "cards", label: t("viewCards") },
-                { value: "list", label: t("viewList") },
-              ]}
-            />
+          <div className="flex flex-wrap items-end gap-2">
+            {/* Khoảng ngày — component chung DateRangeFilter. State ở URL (nuqs);
+                đổi ngày reset về trang 1. */}
+            <div className="min-w-0 flex-1">
+              <DateRangeFilter
+                label={t("filterDateRange")}
+                from={currentFrom}
+                to={currentTo}
+                fromAriaLabel={t("filterFrom")}
+                toAriaLabel={t("filterTo")}
+                clearAriaLabel={t("filterClearDates")}
+                onFromChange={(v) => {
+                  setPage(1);
+                  setFrom(v);
+                }}
+                onToChange={(v) => {
+                  setPage(1);
+                  setTo(v);
+                }}
+                onClear={() => {
+                  setPage(1);
+                  setFrom(null);
+                  setTo(null);
+                }}
+              />
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              {/* Đổi kiểu xem: 2 nút icon (lưới = thẻ, danh sách = list gọn). */}
+              <div
+                role="group"
+                aria-label={`${t("viewCards")} / ${t("viewList")}`}
+                className="bg-muted inline-flex shrink-0 items-center gap-1 rounded-full p-1"
+              >
+                <button
+                  type="button"
+                  aria-label={t("viewCards")}
+                  title={t("viewCards")}
+                  aria-pressed={viewMode === "cards"}
+                  onClick={() => setView(null)}
+                  className={cn(
+                    "inline-flex h-11 w-11 items-center justify-center rounded-full transition-colors",
+                    viewMode === "cards"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  aria-label={t("viewList")}
+                  title={t("viewList")}
+                  aria-pressed={viewMode === "list"}
+                  onClick={() => setView("list")}
+                  className={cn(
+                    "inline-flex h-11 w-11 items-center justify-center rounded-full transition-colors",
+                    viewMode === "list"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <List className="h-4 w-4" />
+                </button>
+              </div>
+              <Button
+                size="sm"
+                className="min-h-11 shrink-0 gap-1 px-3 text-sm"
+                onClick={() => openCreateFor(DEFAULT_DATE)}
+              >
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">{t("createSession")}</span>
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -787,8 +816,8 @@ export function SessionList({
                     <Card className={cn("relative", cardBgClass)}>
                       <CardContent className="space-y-2 p-4">
                         {/* Header: Date + Status */}
-                        <div className="flex items-start justify-between">
-                          <div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
                             <div className="space-y-1.5">
                               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                                 <p className="flex items-center gap-2 text-base font-bold capitalize">
@@ -834,7 +863,7 @@ export function SessionList({
                               </p>
                             )}
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex shrink-0 items-center gap-2">
                             <div className="inline-flex">
                               <StatusBadge variant={badgeVariant}>
                                 {badgeText}
@@ -893,11 +922,13 @@ export function SessionList({
                             />
                             {(session.status === "voting" ||
                               session.status === "confirmed") && (
-                              <div className="flex flex-wrap items-center gap-2 pt-1">
-                                <VoteCountdown
-                                  deadline={session.voteDeadline}
-                                  variant="inline"
-                                />
+                              <div className="flex flex-nowrap items-center gap-1.5 pt-1">
+                                <span className="min-w-0 flex-1 truncate">
+                                  <VoteCountdown
+                                    deadline={session.voteDeadline}
+                                    variant="inline"
+                                  />
+                                </span>
                                 <VoteDeadlineEdit
                                   sessionId={session.id}
                                   current={session.voteDeadline}

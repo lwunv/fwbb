@@ -73,8 +73,10 @@ export function AdminMobileNav({
   return (
     <div className="bg-sidebar text-sidebar-foreground border-sidebar-border flex items-center justify-between border-b p-4 lg:hidden">
       <div className="flex items-center gap-2">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/fwbb.svg" alt={appName} className="h-7 w-auto" />
+        <Link href="/admin/dashboard" className="inline-flex items-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/fwbb.svg" alt={appName} className="h-7 w-auto" />
+        </Link>
         <h1 className="text-lg font-bold">{appName} Admin</h1>
       </div>
       <Sheet open={open} onOpenChange={setOpen}>
@@ -83,8 +85,14 @@ export function AdminMobileNav({
         </SheetTrigger>
         <SheetContent side="left" className="w-64 p-0">
           <div className="flex items-center gap-2 border-b p-6">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/fwbb.svg" alt={appName} className="h-8 w-auto" />
+            <Link
+              href="/admin/dashboard"
+              onClick={() => setOpen(false)}
+              className="inline-flex items-center"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/fwbb.svg" alt={appName} className="h-8 w-auto" />
+            </Link>
             <h2 className="text-lg font-bold">{appName} Admin</h2>
           </div>
           <nav className="flex-1 space-y-1 px-3 py-4">

@@ -1149,28 +1149,34 @@ export function DashboardClient({
                     avatarUrl={m.memberAvatarUrl}
                     size={32}
                   />
-                  <div className="flex min-w-0 flex-1 items-baseline gap-2">
-                    <span className="truncate text-sm font-medium">
-                      {m.memberName}
-                    </span>
-                    <span className="text-destructive shrink-0 text-base font-bold tabular-nums">
-                      −{formatK(m.amount)}
-                    </span>
-                  </div>
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                    {m.memberName}
+                  </span>
+                  <span className="text-destructive shrink-0 text-base font-bold tabular-nums">
+                    −{formatK(m.amount)}
+                  </span>
                   <button
                     type="button"
                     onClick={() => setContribFor(m)}
-                    className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex min-h-11 shrink-0 items-center justify-center gap-1 rounded-lg px-3 text-sm font-semibold shadow-sm transition-colors"
+                    aria-label={td("contributeButton")}
+                    className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1 rounded-lg px-0 text-sm font-semibold shadow-sm transition-colors sm:min-w-0 sm:px-3"
                   >
-                    <Plus className="h-3.5 w-3.5" /> {td("contributeButton")}
+                    <Plus className="h-4 w-4" />
+                    <span className="hidden sm:inline">
+                      {td("contributeButton")}
+                    </span>
                   </button>
                   <button
                     type="button"
                     onClick={() => handleClearDebt(m.memberId, m.amount)}
                     disabled={isClearing}
-                    className="border-primary bg-card text-primary hover:bg-primary/10 inline-flex min-h-11 shrink-0 items-center justify-center gap-1 rounded-lg border-2 px-3 text-sm font-semibold shadow-sm transition-colors disabled:opacity-50"
+                    aria-label={td("markPaidButton")}
+                    className="border-primary bg-card text-primary hover:bg-primary/10 inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1 rounded-lg border-2 px-0 text-sm font-semibold shadow-sm transition-colors disabled:opacity-50 sm:min-w-0 sm:px-3"
                   >
-                    <Check className="h-3.5 w-3.5" /> {td("markPaidButton")}
+                    <Check className="h-4 w-4" />
+                    <span className="hidden sm:inline">
+                      {td("markPaidButton")}
+                    </span>
                   </button>
                 </li>
               );

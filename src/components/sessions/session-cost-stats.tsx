@@ -65,7 +65,7 @@ export function SessionCostStats({
     <div className="space-y-2">
       <div className="grid grid-cols-2 gap-2">
         {/* Card 1 — Tổng chi + per-head */}
-        <div className="bg-primary/[0.06] border-primary/20 rounded-lg border px-3 py-2">
+        <div className="bg-primary/[0.06] border-primary/20 min-w-0 rounded-lg border px-3 py-2">
           <div className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
             💰 Tổng chi
           </div>
@@ -98,7 +98,7 @@ export function SessionCostStats({
         {revenue !== null ? (
           <div
             className={cn(
-              "rounded-lg border px-3 py-2",
+              "min-w-0 rounded-lg border px-3 py-2",
               profit! > 0
                 ? "border-green-500/25 bg-green-500/[0.06]"
                 : profit! < 0
@@ -128,7 +128,7 @@ export function SessionCostStats({
             </div>
           </div>
         ) : (
-          <div className="border-border/40 bg-muted/30 rounded-lg border border-dashed px-3 py-2">
+          <div className="border-border/40 bg-muted/30 min-w-0 rounded-lg border border-dashed px-3 py-2">
             <div className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
               💵 Tổng thu
             </div>
@@ -145,7 +145,7 @@ export function SessionCostStats({
       {/* Action row — Xác nhận + extraAction cùng hàng khi có cả 2,
           ngược lại render cái nào có sẵn full-width. */}
       {(canFinalize && onFinalize) || extraAction ? (
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           {canFinalize && onFinalize && (
             <button
               type="button"
@@ -154,14 +154,16 @@ export function SessionCostStats({
                 e.stopPropagation();
                 onFinalize();
               }}
-              className="bg-primary hover:bg-primary/90 active:bg-primary/95 shadow-primary/30 hover:shadow-primary/40 inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+              className="bg-primary hover:bg-primary/90 active:bg-primary/95 shadow-primary/30 hover:shadow-primary/40 inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-semibold whitespace-nowrap text-white shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 sm:flex-1"
             >
               <Check className="h-4 w-4" />
               {isFinalizing ? confirmingLabel : confirmLabel}
             </button>
           )}
           {extraAction && (
-            <div className="flex flex-1 [&>*]:w-full">{extraAction}</div>
+            <div className="flex w-full sm:flex-1 [&>*]:w-full">
+              {extraAction}
+            </div>
           )}
         </div>
       ) : null}
