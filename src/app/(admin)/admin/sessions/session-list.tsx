@@ -671,11 +671,63 @@ export function SessionList({
               const unpaidCount = session.unpaidDebts.filter(
                 (d) => !paidDebtIds.has(d.debtId),
               ).length;
-              // Tổng chi hiển thị gọn (sân + cầu + ăn) — cùng công thức card view.
+              // Tiền cho list (tổng chi + /người + Lãi/Lỗ) — DÙNG CÙNG helper
+              // với card view để số KHÔNG lệch.
+              const listAg = getAdminGuests(session.id, session);
+              const listGuestPlay =
+                session.guestPlayCount +
+                listAg.play -
+                session.adminGuestPlayCount;
+              const listGuestDine =
+                session.guestDineCount +
+                listAg.dine -
+                session.adminGuestDineCount;
+              const listShuttleCost = computeShuttlecockTotal(
+                session.shuttlecocks,
+              );
+              const listPlayers = session.playerCount + listGuestPlay;
+              const listDiners = session.dinerCount + listGuestDine;
+              const {
+                playCostPerHead: listPlayPerHead,
+                adminGuestPlayCostPerHead: listAgPlayPerHead,
+                dineCostPerHead: listDinePerHead,
+              } = computePerHeadCharges({
+                courtPrice: session.courtPrice ?? 0,
+                shuttlecockCost: listShuttleCost,
+                diningBill: session.diningBill,
+                playerCount: listPlayers,
+                dinerCount: listDiners,
+                adminGuestPlayHeads: listAg.play,
+              });
               const listTotalExpense =
                 (session.courtPrice ?? 0) +
-                computeShuttlecockTotal(session.shuttlecocks) +
+                listShuttleCost +
                 session.diningBill;
+              const listShowRevenue =
+                rawStatus === "completed" || isPastPending;
+              const listRevenue =
+                rawStatus === "completed"
+                  ? session.totalDebt
+                  : computePredictedPlayRevenue({
+                      totalPlayHeads: listPlayers,
+                      adminGuestPlayHeads: listAg.play,
+                      playCostPerHead: listPlayPerHead,
+                      adminGuestPlayCostPerHead: listAgPlayPerHead,
+                    }) +
+                    listDiners * listDinePerHead +
+                    (session.useMinDeduction
+                      ? computePredictedMinDeductionSurplus({
+                          playingMemberIds: session.votes
+                            .filter((v) => v.willPlay)
+                            .map((v) => v.member.id),
+                          memberBalances,
+                          exemptMemberIds: session.exemptMemberIds,
+                          playCostPerHead: listPlayPerHead,
+                        })
+                      : 0);
+              const listProfit = listShowRevenue
+                ? listRevenue - listTotalExpense
+                : null;
               return (
                 <Link
                   key={session.id}
@@ -709,6 +761,39 @@ export function SessionList({
                       {session.courtName && (
                         <span className="min-w-0 truncate">
                           · {session.courtName}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+                      {listPlayPerHead > 0 && (
+                        <span className="text-primary tabular-nums">
+                          🏸 {formatK(listPlayPerHead)}/ng
+                        </span>
+                      )}
+                      {listDinePerHead > 0 && (
+                        <span className="text-orange-600 tabular-nums dark:text-orange-400">
+                          🍻 {formatK(listDinePerHead)}/ng
+                        </span>
+                      )}
+                      {listProfit !== null && (
+                        <span
+                          className={cn(
+                            "font-semibold tabular-nums",
+                            listProfit > 0
+                              ? "text-green-600 dark:text-green-400"
+                              : listProfit < 0
+                                ? "text-rose-600 dark:text-rose-400"
+                                : "text-muted-foreground",
+                          )}
+                        >
+                          📊{" "}
+                          {listProfit > 0
+                            ? "Lãi"
+                            : listProfit < 0
+                              ? "Lỗ"
+                              : "Hòa"}{" "}
+                          {listProfit > 0 ? "+" : listProfit < 0 ? "−" : ""}
+                          {formatK(Math.abs(listProfit))}
                         </span>
                       )}
                     </div>
