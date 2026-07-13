@@ -197,7 +197,6 @@ export function SessionList({
   currentStatusFilter = "all",
   currentFrom = null,
   currentTo = null,
-  viewMode = "cards",
   defaultCourtId = null,
   sessionDays,
   memberBalances = {},
@@ -244,7 +243,7 @@ export function SessionList({
     shallow: false,
     clearOnDefault: true,
   });
-  // Date-range + view mode — cùng shallow:false để server fetch lại slice.
+  // Date-range — shallow:false để server fetch lại slice theo filter.
   const [, setFrom] = useQueryState("from", {
     defaultValue: "",
     shallow: false,
@@ -255,11 +254,14 @@ export function SessionList({
     shallow: false,
     clearOnDefault: true,
   });
-  const [, setView] = useQueryState("view", {
+  // View (thẻ/list) chỉ là cách RENDER cùng data → shallow (client-side, KHÔNG
+  // refetch server) nên đổi TỨC THÌ, mượt, không cần loading. Đọc value từ
+  // nuqs để render (thay cho prop server trước đây phải round-trip).
+  const [viewParam, setView] = useQueryState("view", {
     defaultValue: "cards",
-    shallow: false,
     clearOnDefault: true,
   });
+  const viewMode: "cards" | "list" = viewParam === "list" ? "list" : "cards";
   const [dialogOpen, setDialogOpen] = useState(false);
   const [error, setError] = useState("");
   const [cancelledSessions, setCancelledSessions] = useState<Set<number>>(
@@ -669,6 +671,11 @@ export function SessionList({
               const unpaidCount = session.unpaidDebts.filter(
                 (d) => !paidDebtIds.has(d.debtId),
               ).length;
+              // Tổng chi hiển thị gọn (sân + cầu + ăn) — cùng công thức card view.
+              const listTotalExpense =
+                (session.courtPrice ?? 0) +
+                computeShuttlecockTotal(session.shuttlecocks) +
+                session.diningBill;
               return (
                 <Link
                   key={session.id}
@@ -676,23 +683,33 @@ export function SessionList({
                   className="hover:bg-muted/40 flex min-h-[3.25rem] items-center gap-3 border-b px-3 py-2.5 transition-colors last:border-b-0"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                       <span className="text-sm font-semibold capitalize">
                         {fmtSessionDate(session.date, "weekdayName")}
                       </span>
                       <span className="text-muted-foreground text-xs tabular-nums">
                         {fmtSessionDate(session.date, "short")}
                       </span>
+                      {(session.startTime || session.endTime) && (
+                        <span className="text-muted-foreground text-xs tabular-nums">
+                          · {session.startTime ?? "—"}–{session.endTime ?? "—"}
+                        </span>
+                      )}
                     </div>
-                    <div className="text-muted-foreground mt-0.5 flex items-center gap-2 text-xs">
+                    <div className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
                       <span className="tabular-nums">
                         🏸 {session.playerCount + session.guestPlayCount}
                       </span>
                       <span className="tabular-nums">
                         🍻 {session.dinerCount + session.guestDineCount}
                       </span>
+                      <span className="tabular-nums">
+                        💰 {formatK(listTotalExpense)}
+                      </span>
                       {session.courtName && (
-                        <span className="truncate">· {session.courtName}</span>
+                        <span className="min-w-0 truncate">
+                          · {session.courtName}
+                        </span>
                       )}
                     </div>
                   </div>
