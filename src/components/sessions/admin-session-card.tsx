@@ -306,15 +306,19 @@ export function AdminSessionCard({
   const isExpanded = expanded;
   const isActive =
     effectiveStatus === "voting" || effectiveStatus === "confirmed";
-  // Cần xác nhận (buổi quá hạn chưa chốt sổ): border VÀNG.
-  const cardBgClass = isPastPending
-    ? "bg-card border-amber-400 border-2 ring-2 ring-amber-200/50 dark:border-amber-500 dark:ring-amber-900/30"
-    : status.cardBg;
-  // Vote đã đóng (voting + hết hạn, chưa quá ngày): badge trung tính "Đã đóng
-  // vote" thay vì "Đang vote" xanh nhấp nháy (khỏi mâu thuẫn với countdown).
+  // Vote đã đóng (voting + hết hạn, chưa quá ngày): buổi CHỜ ADMIN CHỐT SỔ →
+  // coi như "cần xác nhận" như buổi quá ngày. Badge amber "Đã đóng vote", KHÔNG
+  // LED. Khớp đúng thời điểm VoteCountdown báo đóng.
   const voteClosedPending =
     voteClosed && effectiveStatus === "voting" && !isPastPending;
-  const badgeVariant = voteClosedPending ? "neutral" : badge.variant;
+  // Cần xác nhận (quá hạn ngày HOẶC vote đã đóng, chưa chốt sổ): border VÀNG.
+  const cardBgClass =
+    isPastPending || voteClosedPending
+      ? "bg-card border-amber-400 border-2 ring-2 ring-amber-200/50 dark:border-amber-500 dark:ring-amber-900/30"
+      : status.cardBg;
+  // vote đã đóng → badge amber "needsConfirm" (đồng bộ border vàng) nhưng giữ
+  // chữ "Đã đóng vote"; past-pending giữ badge.variant (đã là needsConfirm).
+  const badgeVariant = voteClosedPending ? "needsConfirm" : badge.variant;
   const badgeText = isPastPending
     ? tF("needsConfirm")
     : voteClosedPending

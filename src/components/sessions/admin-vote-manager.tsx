@@ -694,7 +694,7 @@ export function AdminVoteManager({
             return (
               <div
                 key={member.id}
-                className="bg-card border-primary/30 rounded-xl border px-2 py-1.5 shadow-sm"
+                className="bg-card border-primary/30 relative rounded-xl border px-2 py-1.5 shadow-sm"
               >
                 {/* Mobile: xếp DỌC (dòng 1 = avatar+tên+tiền full width, dòng 2
                     = cụm nút vote/thanh toán tự xuống dòng). Desktop (sm:) gộp
@@ -714,7 +714,7 @@ export function AdminVoteManager({
                         currentBalance: memberBalances[member.id],
                       });
                     }}
-                    className="hover:bg-muted/30 -m-1 flex w-full min-w-0 items-center gap-2 rounded-lg p-1 text-left transition-colors sm:flex-1"
+                    className="hover:bg-muted/30 -m-1 flex w-full min-w-0 items-center gap-2 rounded-lg py-1 pr-12 pl-1 text-left transition-colors sm:flex-1 sm:pr-1"
                   >
                     <MemberAvatar
                       memberId={member.id}
@@ -822,7 +822,7 @@ export function AdminVoteManager({
                           title={t("badmintonShort")}
                           disabled={readOnly}
                           onClick={() => toggleTag(member.id, "play")}
-                          className="border-primary text-primary inline-flex h-12 w-12 cursor-pointer items-center justify-center border-2 bg-violet-50 text-lg transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 dark:bg-violet-950"
+                          className="border-primary text-primary inline-flex h-11 w-11 cursor-pointer items-center justify-center border-2 bg-violet-50 text-lg transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 dark:bg-violet-950"
                         >
                           🏸
                         </button>
@@ -833,7 +833,7 @@ export function AdminVoteManager({
                         title={t("badmintonShort")}
                         disabled={readOnly}
                         onClick={() => toggleTag(member.id, "play")}
-                        className="border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed text-lg opacity-50 grayscale transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50"
+                        className="border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed text-lg opacity-50 grayscale transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50"
                       >
                         🏸
                       </button>
@@ -850,7 +850,7 @@ export function AdminVoteManager({
                             title={t("withPartner")}
                             disabled={readOnly}
                             onClick={() => togglePartner(member.id)}
-                            className="border-primary text-primary inline-flex h-12 w-12 cursor-pointer items-center justify-center border-2 bg-violet-50 text-lg transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 dark:bg-violet-950"
+                            className="border-primary text-primary inline-flex h-11 w-11 cursor-pointer items-center justify-center border-2 bg-violet-50 text-lg transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 dark:bg-violet-950"
                           >
                             👫
                           </button>
@@ -861,7 +861,7 @@ export function AdminVoteManager({
                           title={t("withPartner")}
                           disabled={readOnly}
                           onClick={() => togglePartner(member.id)}
-                          className="border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed text-lg opacity-50 grayscale transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50"
+                          className="border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed text-lg opacity-50 grayscale transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50"
                         >
                           👫
                         </button>
@@ -875,7 +875,7 @@ export function AdminVoteManager({
                           title={t("diningShort")}
                           disabled={readOnly}
                           onClick={() => toggleTag(member.id, "dine")}
-                          className="inline-flex h-12 w-12 cursor-pointer items-center justify-center border-2 border-orange-500 bg-orange-50 text-lg text-orange-700 transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 dark:border-orange-400 dark:bg-orange-950 dark:text-orange-300"
+                          className="inline-flex h-11 w-11 cursor-pointer items-center justify-center border-2 border-orange-500 bg-orange-50 text-lg text-orange-700 transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 dark:border-orange-400 dark:bg-orange-950 dark:text-orange-300"
                         >
                           🍻
                         </button>
@@ -886,7 +886,7 @@ export function AdminVoteManager({
                         title={t("diningShort")}
                         disabled={readOnly}
                         onClick={() => toggleTag(member.id, "dine")}
-                        className="border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed text-lg opacity-50 grayscale transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50"
+                        className="border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed text-lg opacity-50 grayscale transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50"
                       >
                         🍻
                       </button>
@@ -911,7 +911,7 @@ export function AdminVoteManager({
                               type="button"
                               title={t("addGuestShort")}
                               onClick={onClick}
-                              className="border-primary text-primary inline-flex h-12 w-12 cursor-pointer items-center justify-center border-2 bg-violet-50 transition-all hover:opacity-80 dark:bg-violet-950"
+                              className="border-primary text-primary inline-flex h-11 w-11 cursor-pointer items-center justify-center border-2 bg-violet-50 transition-all hover:opacity-80 dark:bg-violet-950"
                             >
                               <Users className="h-5 w-5" />
                             </button>
@@ -921,7 +921,7 @@ export function AdminVoteManager({
                             type="button"
                             title={t("addGuestShort")}
                             onClick={onClick}
-                            className="border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed opacity-50 grayscale transition-all hover:opacity-80"
+                            className="border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed opacity-50 grayscale transition-all hover:opacity-80"
                           >
                             <Users className="h-5 w-5" />
                           </button>
@@ -934,7 +934,7 @@ export function AdminVoteManager({
                         type="button"
                         title={isConfirmed ? tA("paid") : tA("unpaid")}
                         onClick={() => togglePayment(member.id)}
-                        className={`inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border text-lg transition-all hover:opacity-80 ${
+                        className={`inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border text-lg transition-all hover:opacity-80 ${
                           isConfirmed
                             ? "border-green-300 bg-green-100 text-green-700 dark:border-green-700 dark:bg-green-900/40 dark:text-green-300"
                             : "bg-muted text-muted-foreground border-transparent opacity-40"
@@ -991,7 +991,7 @@ export function AdminVoteManager({
                             name: member.name,
                           })
                         }
-                        className="border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors"
+                        className="border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 absolute top-2 right-2 z-10 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors sm:static sm:z-auto"
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -1156,7 +1156,7 @@ export function AdminVoteManager({
                         <button
                           type="button"
                           onClick={() => handleAddMember(m.id, true, false)}
-                          className="border-primary hover:bg-primary/20 bg-muted/30 relative inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-dashed transition-all"
+                          className="border-primary hover:bg-primary/20 bg-muted/30 relative inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-dashed transition-all"
                           title={t("addPlayer")}
                         >
                           <span className="text-lg opacity-30">🏸</span>
@@ -1167,7 +1167,7 @@ export function AdminVoteManager({
                         <button
                           type="button"
                           onClick={() => handleAddMember(m.id, false, true)}
-                          className="bg-muted/30 relative inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-dashed border-orange-500 transition-all hover:bg-orange-900/30 dark:border-orange-400"
+                          className="bg-muted/30 relative inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-dashed border-orange-500 transition-all hover:bg-orange-900/30 dark:border-orange-400"
                           title={t("addDiner")}
                         >
                           <span className="text-lg opacity-30">🍻</span>
