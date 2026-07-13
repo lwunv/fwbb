@@ -204,12 +204,14 @@ export function MemberList({
     return "border-l-4 border-l-transparent";
   }
 
+  // Khối số dư: số tiền (đậm, có màu theo trạng thái) trên, nhãn trạng thái
+  // dưới. Căn trái để lắp vào bên trái tầng hành động của card (tap → sửa quỹ).
   function fundStatusInfoFor(balance: number) {
     const status = getFundStatus(balance);
     const balanceColor = balanceColorFor(balance);
     return (
-      <div className="text-right">
-        <p className={cn("text-base font-bold tabular-nums", balanceColor)}>
+      <div>
+        <p className={cn("text-lg font-bold tabular-nums", balanceColor)}>
           {formatK(balance)}
         </p>
         <p className={cn("text-sm", balanceColor)}>{tFs(status)}</p>
@@ -673,11 +675,13 @@ export function MemberList({
                   )}
                 >
                   <CardContent className="space-y-3 p-4">
-                    {/* Info row: avatar+tên+trạng thái bên trái, số dư+action bên
-                        phải. flex-wrap để cụm bên phải rớt xuống dòng riêng khi
-                        màn hẹp thay vì bị cắt (thay cho hàng dồn 9 phần tử cũ). */}
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="flex min-w-0 flex-1 items-start gap-3">
+                    {/* Card 2 tầng: (1) avatar + tên + switch "đi 2 người" pin
+                        góc phải; (2) khối số dư (trái) + nút hành động (phải),
+                        ngăn bởi 1 đường kẻ. Row 1 KHÔNG wrap — min-w-0/truncate/
+                        shrink-0 giữ khỏi tràn ngang ở 320-390px. */}
+                    <div>
+                      {/* ROW 1: avatar + tên/biệt danh/badge + switch đi-2-người */}
+                      <div className="flex items-center gap-3">
                         <button
                           type="button"
                           onClick={() => setInfoEditTarget(member)}
@@ -691,22 +695,24 @@ export function MemberList({
                             size={44}
                           />
                         </button>
-                        <div className="min-w-0 flex-1 space-y-1.5">
+                        <div className="min-w-0 flex-1">
                           <button
                             type="button"
                             onClick={() => setInfoEditTarget(member)}
                             title={t("menuEditInfo")}
-                            className="flex flex-wrap items-center gap-1.5 text-left text-base font-semibold hover:underline"
+                            className="flex w-full min-w-0 items-center gap-1.5 text-left hover:underline"
                           >
-                            {displayName}
+                            <span className="truncate text-base font-semibold">
+                              {displayName}
+                            </span>
                             {displayNickname && (
-                              <span className="text-muted-foreground text-sm font-normal">
+                              <span className="text-muted-foreground shrink-0 text-sm font-normal">
                                 ({displayNickname})
                               </span>
                             )}
                             {adminMemberId === member.id && (
                               <span
-                                className="bg-primary/15 text-primary inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+                                className="bg-primary/15 text-primary inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
                                 title={t("thisIsAdminBadge")}
                               >
                                 <Crown className="h-3 w-3" />
@@ -714,8 +720,10 @@ export function MemberList({
                               </span>
                             )}
                           </button>
-                          <div className="flex flex-wrap items-center gap-3 text-sm">
-                            <span className="text-muted-foreground inline-flex items-center gap-1.5">
+                          {/* SUBROW: chấm + trạng thái quỹ · số người. Switch đã
+                              lên góc phải row 1 — ở đây chỉ HIỂN THỊ số người. */}
+                          <div className="text-muted-foreground mt-0.5 flex items-center gap-1.5 text-sm">
+                            <span className="inline-flex items-center gap-1.5">
                               <span
                                 className={cn(
                                   "size-1.5 shrink-0 rounded-full",
@@ -728,34 +736,33 @@ export function MemberList({
                                 ? t("inFund")
                                 : t("notInFund")}
                             </span>
-                            <label
-                              className="text-muted-foreground inline-flex items-center gap-2"
-                              title={t("memberWithPartner")}
-                            >
+                            <span aria-hidden>·</span>
+                            <span>
                               {(partnerOverrides[member.id] ??
                               member.defaultWithPartner)
                                 ? t("partnerOn")
                                 : t("partnerOff")}
-                              <Switch
-                                checked={
-                                  partnerOverrides[member.id] ??
-                                  member.defaultWithPartner
-                                }
-                                onCheckedChange={() =>
-                                  handleTogglePartner(member)
-                                }
-                              />
-                            </label>
+                            </span>
                           </div>
                         </div>
+                        {/* Switch "đi 2 người" pin góc trên bên phải */}
+                        <Switch
+                          className="shrink-0"
+                          aria-label={t("memberWithPartner")}
+                          title={t("memberWithPartner")}
+                          checked={
+                            partnerOverrides[member.id] ??
+                            member.defaultWithPartner
+                          }
+                          onCheckedChange={() => handleTogglePartner(member)}
+                        />
                       </div>
 
-                      {/* flex-1/min-w-0 ở cụm avatar+tên có flex-basis 0 nên
-                          KHÔNG tự tràn dòng theo flex-wrap của cha (spec
-                          flexbox tính wrap theo hypothetical size, bằng 0 ở
-                          đây) — ép cụm action xuống hàng riêng bằng basis-full
-                          tường minh trên mobile, chỉ chung hàng từ sm: trở lên. */}
-                      <div className="flex w-full shrink-0 items-center justify-between gap-2 sm:w-auto sm:justify-normal">
+                      {/* Đường kẻ ngăn 2 tầng */}
+                      <div className="border-border my-3 border-t" />
+
+                      {/* ROW 2: khối số dư (trái, tap → sửa quỹ) + hành động (phải) */}
+                      <div className="flex items-center justify-between gap-2">
                         <button
                           type="button"
                           onClick={() => {
@@ -769,90 +776,92 @@ export function MemberList({
                               currentBalance: bal,
                             });
                           }}
-                          className="hover:bg-muted/50 -m-1 rounded-md p-1 transition-colors"
+                          className="hover:bg-muted/50 -m-1 min-w-0 rounded-md p-1 text-left transition-colors"
                           title="Click để cộng/trừ/sửa quỹ"
                         >
                           {fundStatusInfoFor(memberBalances[member.id] ?? 0)}
                         </button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="min-h-11 min-w-11"
-                          onClick={() => setHistoryTarget(member)}
-                          title={tHistory("openHistory")}
-                          aria-label={tHistory("openHistory")}
-                        >
-                          <History className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant={memberIsActive ? "destructive" : "default"}
-                          size="sm"
-                          className="min-h-11"
-                          onClick={() =>
-                            handleToggle(member.id, memberIsActive)
-                          }
-                        >
-                          {memberIsActive ? (
-                            <>
-                              <Lock className="mr-1.5 h-4 w-4" />
-                              {t("lock")}
-                            </>
-                          ) : (
-                            <>
-                              <LockOpen className="mr-1.5 h-4 w-4" />
-                              {t("unlock")}
-                            </>
-                          )}
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger
-                            render={
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="min-h-11 min-w-11"
-                                aria-label={tCommon("more")}
-                              />
+                        <div className="flex shrink-0 items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="min-h-11 min-w-11"
+                            onClick={() => setHistoryTarget(member)}
+                            title={tHistory("openHistory")}
+                            aria-label={tHistory("openHistory")}
+                          >
+                            <History className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant={memberIsActive ? "destructive" : "default"}
+                            size="sm"
+                            className="min-h-11"
+                            onClick={() =>
+                              handleToggle(member.id, memberIsActive)
                             }
                           >
-                            <MoreVertical className="h-4 w-4" />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent>
-                            <DropdownMenuItem
-                              onClick={() => setInfoEditTarget(member)}
-                            >
-                              <Edit className="h-4 w-4" />
-                              {t("menuEditInfo")}
-                            </DropdownMenuItem>
-                            {adminMemberId === member.id ? (
-                              <DropdownMenuItem onClick={handleUnlinkAdmin}>
-                                <Crown className="h-4 w-4" />
-                                {t("menuUnlinkAdmin")}
-                              </DropdownMenuItem>
+                            {memberIsActive ? (
+                              <>
+                                <Lock className="mr-1.5 h-4 w-4" />
+                                {t("lock")}
+                              </>
                             ) : (
-                              <DropdownMenuItem
-                                onClick={() => handleLinkAdmin(member)}
-                              >
-                                <Crown className="h-4 w-4" />
-                                {t("menuSetAdmin")}
-                              </DropdownMenuItem>
+                              <>
+                                <LockOpen className="mr-1.5 h-4 w-4" />
+                                {t("unlock")}
+                              </>
                             )}
-                            <DropdownMenuItem
-                              onClick={() => handleResetPassword(member)}
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger
+                              render={
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="min-h-11 min-w-11"
+                                  aria-label={tCommon("more")}
+                                />
+                              }
                             >
-                              <KeyRound className="h-4 w-4" />
-                              {t("menuResetPassword")}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              variant="destructive"
-                              onClick={() => setDeleteTarget(member)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              {t("menuDelete")}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                              <MoreVertical className="h-4 w-4" />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                              <DropdownMenuItem
+                                onClick={() => setInfoEditTarget(member)}
+                              >
+                                <Edit className="h-4 w-4" />
+                                {t("menuEditInfo")}
+                              </DropdownMenuItem>
+                              {adminMemberId === member.id ? (
+                                <DropdownMenuItem onClick={handleUnlinkAdmin}>
+                                  <Crown className="h-4 w-4" />
+                                  {t("menuUnlinkAdmin")}
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem
+                                  onClick={() => handleLinkAdmin(member)}
+                                >
+                                  <Crown className="h-4 w-4" />
+                                  {t("menuSetAdmin")}
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem
+                                onClick={() => handleResetPassword(member)}
+                              >
+                                <KeyRound className="h-4 w-4" />
+                                {t("menuResetPassword")}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                variant="destructive"
+                                onClick={() => setDeleteTarget(member)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                {t("menuDelete")}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
                     </div>
 

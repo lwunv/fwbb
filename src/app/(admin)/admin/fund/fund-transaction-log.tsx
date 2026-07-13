@@ -2,7 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowUpCircle, ArrowDownCircle, RotateCcw, X } from "lucide-react";
+import {
+  ArrowUpCircle,
+  ArrowDownCircle,
+  ArrowUp,
+  ArrowDown,
+  RotateCcw,
+  X,
+} from "lucide-react";
 import { useTranslations, useLocale } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { CustomSelect } from "@/components/ui/custom-select";
@@ -119,17 +126,24 @@ const TX_TYPE_META: Record<
   },
 };
 
+// "HH:MM · DD/MM/YYYY" — time first, then date (per mockup). Ordering within
+// each part still respects locale (vi-VN → DD/MM/YYYY, 24h).
 function fmtDateTime(iso: string, locale: string) {
   if (!iso) return "";
   try {
     const d = new Date(iso);
-    return d.toLocaleString(locale === "en" ? "en-US" : locale, {
+    const loc = locale === "en" ? "en-US" : locale;
+    const time = d.toLocaleTimeString(loc, {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const date = d.toLocaleDateString(loc, {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
     });
+    return `${time} · ${date}`;
   } catch {
     return iso;
   }
@@ -295,12 +309,20 @@ function TxCard({
   const Icon = meta.icon;
   const isAuto = tx.paymentNotificationId !== null;
   const sign = tx.direction === "in" ? "+" : tx.direction === "out" ? "−" : "";
+  // Green = money in, rose = money out (per mockup). Neutral keeps foreground.
   const amountColor =
     tx.direction === "in"
-      ? "text-blue-600 dark:text-blue-400"
+      ? "text-green-600 dark:text-green-400"
       : tx.direction === "out"
-        ? "text-red-600 dark:text-red-400"
+        ? "text-rose-600 dark:text-rose-400"
         : "text-foreground";
+  // Left accent stripe mirrors the amount color.
+  const accentClass =
+    tx.direction === "in"
+      ? "border-l-green-500"
+      : tx.direction === "out"
+        ? "border-l-rose-500"
+        : "border-l-border";
 
   // Cancel button chỉ hiện khi:
   //   - type ∈ {fund_contribution, fund_refund} (chuẩn fintech: không cho
@@ -338,46 +360,59 @@ function TxCard({
       <Card
         size="sm"
         className={cn(
-          "transition-opacity",
+          "border-l-4 transition-opacity",
+          accentClass,
           (tx.isReversal || tx.isReversed) && "opacity-60",
         )}
       >
         <CardContent className="flex items-center gap-3 p-3">
-          {tx.memberId !== null ? (
-            <MemberAvatar
-              memberId={tx.memberId}
-              avatarKey={tx.memberAvatarKey}
-              avatarUrl={tx.memberAvatarUrl}
-              size={40}
-            />
-          ) : (
-            <div className="bg-muted flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
-              <Icon className={`h-5 w-5 ${meta.iconClass}`} />
-            </div>
-          )}
-          <div className="min-w-0 flex-1 space-y-1">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <Icon className={`h-4 w-4 shrink-0 ${meta.iconClass}`} />
+          {/* Avatar + direction badge overlay (↑ green in / ↓ rose out) */}
+          <div className="relative shrink-0">
+            {tx.memberId !== null ? (
+              <MemberAvatar
+                memberId={tx.memberId}
+                avatarKey={tx.memberAvatarKey}
+                avatarUrl={tx.memberAvatarUrl}
+                size={40}
+              />
+            ) : (
+              <div className="bg-muted flex h-10 w-10 items-center justify-center rounded-full">
+                <Icon className={cn("h-5 w-5", meta.iconClass)} />
+              </div>
+            )}
+            {tx.direction !== "neutral" && (
+              <span
+                aria-hidden
+                className={cn(
+                  "ring-card absolute -right-0.5 -bottom-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full ring-2",
+                  tx.direction === "in" ? "bg-green-500" : "bg-rose-500",
+                )}
+              >
+                {tx.direction === "in" ? (
+                  <ArrowUp className="h-3 w-3 text-white" strokeWidth={3} />
+                ) : (
+                  <ArrowDown className="h-3 w-3 text-white" strokeWidth={3} />
+                )}
+              </span>
+            )}
+          </div>
+
+          <div className="min-w-0 flex-1 space-y-0.5">
+            {/* Name + ADMIN badge (admin/system tx only) + reversal badges */}
+            <div className="flex items-center gap-1.5">
               <span
                 className={cn(
-                  "truncate text-base font-semibold",
+                  "min-w-0 flex-1 truncate text-base font-semibold",
                   tx.isReversed && "line-through",
                 )}
               >
                 {tx.memberName ?? t("logSystem")}
               </span>
-              <span className="text-muted-foreground shrink-0 text-sm">
-                · {label}
-              </span>
-              <span
-                className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${
-                  isAuto
-                    ? "bg-blue-500/15 text-blue-600 dark:text-blue-400"
-                    : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                }`}
-              >
-                {isAuto ? "QR" : "Admin"}
-              </span>
+              {!isAuto && (
+                <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-600 uppercase dark:text-amber-400">
+                  Admin
+                </span>
+              )}
               {tx.isReversal && (
                 <span className="shrink-0 rounded-full bg-rose-500/15 px-2 py-0.5 text-xs font-semibold text-rose-700 uppercase dark:text-rose-300">
                   Reversal
@@ -389,44 +424,63 @@ function TxCard({
                 </span>
               )}
             </div>
+
+            {/* Transaction type label */}
+            <div className="flex items-center gap-1.5">
+              <Icon className={cn("h-3.5 w-3.5 shrink-0", meta.iconClass)} />
+              <span
+                className={cn(
+                  "text-muted-foreground truncate text-sm",
+                  tx.isReversed && "line-through",
+                )}
+              >
+                {label}
+              </span>
+            </div>
+
             {tx.description && (
               <p
                 className={cn(
-                  "text-foreground truncate text-sm font-medium",
+                  "text-muted-foreground truncate text-sm",
                   tx.isReversed && "line-through",
                 )}
               >
                 {tx.description}
               </p>
             )}
-            <div className="text-muted-foreground flex flex-wrap gap-x-2 text-sm">
+
+            {/* Time · date (+ optional session) */}
+            <div className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 text-sm">
               <span>{fmtDateTime(tx.createdAt, locale)}</span>
               {tx.sessionDate && (
                 <span>· {t("logSession", { date: tx.sessionDate })}</span>
               )}
             </div>
           </div>
-          <span
-            className={cn(
-              "shrink-0 text-lg font-bold tabular-nums",
-              amountColor,
-              tx.isReversed && "line-through",
-            )}
-          >
-            {sign}
-            {formatK(tx.amount)}
-          </span>
-          {canReverse && (
-            <button
-              type="button"
-              onClick={() => setConfirmOpen(true)}
-              className="border-destructive/30 text-destructive hover:bg-destructive/10 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors disabled:opacity-50"
-              aria-label={t("ariaUndoTransaction")}
-              title={t("ariaUndoTransaction")}
+
+          <div className="flex shrink-0 items-center gap-2">
+            <span
+              className={cn(
+                "text-lg font-bold tabular-nums",
+                amountColor,
+                tx.isReversed && "line-through",
+              )}
             >
-              <X className="h-4 w-4" />
-            </button>
-          )}
+              {sign}
+              {formatK(tx.amount)}
+            </span>
+            {canReverse && (
+              <button
+                type="button"
+                onClick={() => setConfirmOpen(true)}
+                className="border-destructive/30 text-destructive hover:bg-destructive/10 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors disabled:opacity-50"
+                aria-label={t("ariaUndoTransaction")}
+                title={t("ariaUndoTransaction")}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </CardContent>
       </Card>
 

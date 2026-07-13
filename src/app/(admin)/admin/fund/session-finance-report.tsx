@@ -142,15 +142,16 @@ export function SessionFinanceReport({
           )}
         </div>
 
-        {/* Granularity tabs */}
-        <div className="flex flex-wrap gap-1.5">
+        {/* Granularity tabs — LUÔN 1 hàng (cuộn ngang nếu hẹp) thay vì wrap
+            xuống 2 dòng. scrollbar-none + full-bleed để dải cuộn chạm mép card. */}
+        <div className="scrollbar-none -mx-4 flex flex-nowrap gap-1.5 overflow-x-auto px-4">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               type="button"
               onClick={() => setG(tab.key)}
               className={cn(
-                "inline-flex min-h-11 items-center rounded-full border px-3 text-sm font-medium transition-colors",
+                "inline-flex min-h-11 shrink-0 items-center rounded-full border px-3 text-sm font-medium transition-colors",
                 g === tab.key
                   ? "bg-primary text-primary-foreground border-primary"
                   : "bg-background text-muted-foreground hover:bg-muted/80",
