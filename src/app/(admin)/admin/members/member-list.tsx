@@ -605,6 +605,8 @@ export function MemberList({
         <div className="min-w-0 sm:flex-1">
           <TabSegment<StatusFilter>
             variant="pills"
+            scrollable={false}
+            className="flex-wrap"
             value={statusFilter}
             onChange={(v) => handleFilter(v)}
             options={filterButtons.map(({ key, label }) => ({
