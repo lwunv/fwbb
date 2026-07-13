@@ -514,9 +514,9 @@ export function SessionList({
             <p className="text-muted-foreground mb-2 text-xs font-medium">
               {t("thisWeek")}
             </p>
-            {/* Chips ngày + nút "Tạo buổi" cùng hàng (nút dồn phải, xuống dòng
-                khi hẹp) — tiết kiệm 1 hàng riêng cho nút. */}
-            <div className="flex flex-wrap items-center gap-2">
+            {/* Chips ngày + nút "Tạo buổi" CÙNG 1 hàng. Nút icon-only trên
+                mobile (chữ hiện từ sm:) để không bị đẩy xuống dòng. */}
+            <div className="flex flex-wrap items-center gap-1.5">
               {weekDays.map((d) => {
                 const has = d.sessionId !== null;
                 const done =
@@ -548,9 +548,11 @@ export function SessionList({
                 size="sm"
                 className="ml-auto shrink-0 gap-1 px-3"
                 onClick={() => openCreateFor(DEFAULT_DATE)}
+                title={t("createSession")}
+                aria-label={t("createSession")}
               >
                 <Plus className="h-4 w-4" />
-                {t("createSession")}
+                <span className="hidden sm:inline">{t("createSession")}</span>
               </Button>
             </div>
           </div>
@@ -611,7 +613,7 @@ export function SessionList({
                   aria-pressed={viewMode === "cards"}
                   onClick={() => setView(null)}
                   className={cn(
-                    "inline-flex h-11 w-11 items-center justify-center rounded-full transition-colors",
+                    "inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors",
                     viewMode === "cards"
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground",
@@ -626,7 +628,7 @@ export function SessionList({
                   aria-pressed={viewMode === "list"}
                   onClick={() => setView("list")}
                   className={cn(
-                    "inline-flex h-11 w-11 items-center justify-center rounded-full transition-colors",
+                    "inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors",
                     viewMode === "list"
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground",

@@ -172,7 +172,7 @@ export function DateRangePicker({
         type="button"
         onClick={() => (open ? setOpen(false) : openPanel())}
         className={cn(
-          "border-input bg-background flex h-11 w-full items-center gap-2 rounded-md border px-3 text-sm transition-colors",
+          "border-input bg-card flex h-11 w-full items-center gap-2 rounded-xl border px-4 text-sm shadow-sm transition-colors",
           "hover:border-primary/50 focus-visible:border-ring focus-visible:ring-ring/40 outline-none focus-visible:ring-2",
           open && "border-primary",
         )}
