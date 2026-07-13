@@ -201,7 +201,7 @@ export function SessionDetail({
   };
 
   return (
-    <div className="space-y-3 pb-28">
+    <div className="mx-auto max-w-3xl space-y-3 pb-28">
       {/* Điều hướng trang — back về danh sách (grid card không có, detail cần). */}
       <div className="flex items-center">
         <Link href="/admin/sessions">

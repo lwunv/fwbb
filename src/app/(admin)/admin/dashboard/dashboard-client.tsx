@@ -681,7 +681,7 @@ export function DashboardClient({
           maxPlayers: upcomingSession.maxPlayers,
         };
         return (
-          <div className="space-y-2">
+          <div className="max-w-3xl space-y-2">
             {/* Section title giữ nhịp dashboard; thẻ dùng CHUNG AdminSessionCard
                 với grid /admin/sessions + trang chi tiết để trông giống hệt.
                 LED viền + badge + selector + cost + members đều do card render. */}

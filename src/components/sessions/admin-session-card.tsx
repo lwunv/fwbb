@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { formatK, cn } from "@/lib/utils";
 import {
@@ -270,6 +271,27 @@ export function AdminSessionCard({
 
   const status = statusStyles[effectiveStatus];
 
+  // "Đã đóng vote": deadline đã qua nhưng buổi VẪN ở status voting (admin chưa
+  // confirm/finalize). Tính client-side (giống VoteCountdown) để tránh hydration
+  // mismatch: pre-hydration coi như còn mở (LED sáng), sau mount mới flip. Dùng
+  // cùng `new Date()` với VoteCountdown → khớp đúng lúc nó hiện "Đã đóng vote".
+  const [voteClosed, setVoteClosed] = useState(false);
+  useEffect(() => {
+    const dl = session.voteDeadline;
+    // Gộp điều kiện + reset vào 1 hàm rồi gọi gián tiếp (giống VoteCountdown) để
+    // tránh setState trực tiếp trong thân effect (react-hooks/set-state-in-effect).
+    const sync = () =>
+      setVoteClosed(
+        !!dl &&
+          effectiveStatus === "voting" &&
+          new Date(dl).getTime() - Date.now() <= 0,
+      );
+    sync();
+    if (!dl || effectiveStatus !== "voting") return;
+    const id = setInterval(sync, 1000);
+    return () => clearInterval(id);
+  }, [session.voteDeadline, effectiveStatus]);
+
   // Filter unpaid debts đã optimistically paid → list rút ngắn ngay
   // khi admin bấm "Đã nhận", không chờ revalidate.
   const optimisticUnpaidDebts = session.unpaidDebts.filter(
@@ -288,8 +310,16 @@ export function AdminSessionCard({
   const cardBgClass = isPastPending
     ? "bg-card border-amber-400 border-2 ring-2 ring-amber-200/50 dark:border-amber-500 dark:ring-amber-900/30"
     : status.cardBg;
-  const badgeVariant = badge.variant;
-  const badgeText = isPastPending ? tF("needsConfirm") : t(status.labelKey);
+  // Vote đã đóng (voting + hết hạn, chưa quá ngày): badge trung tính "Đã đóng
+  // vote" thay vì "Đang vote" xanh nhấp nháy (khỏi mâu thuẫn với countdown).
+  const voteClosedPending =
+    voteClosed && effectiveStatus === "voting" && !isPastPending;
+  const badgeVariant = voteClosedPending ? "neutral" : badge.variant;
+  const badgeText = isPastPending
+    ? tF("needsConfirm")
+    : voteClosedPending
+      ? tVoting("voteClosedLabel")
+      : t(status.labelKey);
   const ag = { play: adminGuestPlay, dine: adminGuestDine };
   const totalGuestPlay =
     session.guestPlayCount + ag.play - session.adminGuestPlayCount;
@@ -324,7 +354,7 @@ export function AdminSessionCard({
     });
   const totalExpense = courtPriceVal + shuttlecockCost + session.diningBill;
 
-  const showLed = isActive && !isPastPending;
+  const showLed = isActive && !isPastPending && !voteClosed;
 
   // AdminVoteManager readOnly khi buổi đã chốt/hủy. Ở grid, block members chỉ
   // render khi isActive nên readOnly luôn = false (giữ nguyên props cũ); ở detail
