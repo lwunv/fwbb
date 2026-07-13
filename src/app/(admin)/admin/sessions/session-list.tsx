@@ -553,6 +553,8 @@ export function SessionList({
         <div className="mb-3 space-y-3">
           <TabSegment<StatusFilter>
             variant="pills"
+            scrollable={false}
+            className="flex-wrap"
             value={currentStatusFilter}
             onChange={(v) => setStatusFilter(v === "all" ? null : v)}
             options={[
@@ -708,7 +710,10 @@ export function SessionList({
         )}
 
         {viewMode === "cards" && (
-          <div className="grid gap-3">
+          // grid-cols-1 = minmax(0,1fr) cho phép cột CO dưới content: nếu
+          // 1 thẻ có child rộng (vd hàng deadline) sẽ tự truncate/wrap trong
+          // thẻ thay vì kéo cả grid rộng hơn viewport → hết cắt bên phải.
+          <div className="grid grid-cols-1 gap-3">
             {sessions.map((session) => {
               // Optimistic status overrides — priority order matters:
               // 1. cancelledSessions: cancel optimistic (pending server)
@@ -810,7 +815,7 @@ export function SessionList({
                 <div
                   key={session.id}
                   id={`session-${session.id}`}
-                  className="scroll-mt-4"
+                  className="min-w-0 scroll-mt-4"
                 >
                   <LedBorder active={showLed} variant="pink">
                     <Card className={cn("relative", cardBgClass)}>

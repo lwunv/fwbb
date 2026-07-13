@@ -71,14 +71,13 @@ export function AdminMobileNav({
   const t = useTranslations("adminNav");
 
   return (
-    <div className="bg-sidebar text-sidebar-foreground border-sidebar-border flex items-center justify-between border-b p-4 lg:hidden">
-      <div className="flex items-center gap-2">
-        <Link href="/admin/dashboard" className="inline-flex items-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/fwbb.svg" alt={appName} className="h-7 w-auto" />
-        </Link>
-        <h1 className="text-lg font-bold">{appName} Admin</h1>
-      </div>
+    <div className="bg-sidebar text-sidebar-foreground border-sidebar-border flex items-center justify-between border-b px-4 py-1.5 lg:hidden">
+      {/* Logo + tên gộp 1 Link → click cả 2 đều về trang chủ admin. */}
+      <Link href="/admin/dashboard" className="flex min-w-0 items-center gap-2">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/fwbb.svg" alt={appName} className="h-6 w-auto" />
+        <h1 className="truncate text-base font-bold">{appName} Admin</h1>
+      </Link>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger render={<Button variant="ghost" size="icon" />}>
           <Menu className="h-5 w-5" />
