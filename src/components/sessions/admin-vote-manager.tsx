@@ -6,6 +6,7 @@ import {
   adminSetVote,
   adminRemoveVote,
   adminSetGuestCount,
+  adminSetPartner,
 } from "@/actions/votes";
 import { setMemberMinDeductionExempt } from "@/actions/sessions";
 import { MemberAvatar } from "@/components/shared/member-avatar";
@@ -117,6 +118,8 @@ export function AdminVoteManager({
   const [localGuests, setLocalGuests] = useState<
     Record<number, { play: number; dine: number }>
   >({});
+  // Optimistic "đi 2 người" (withPartner) per member — mirror server row.
+  const [localPartner, setLocalPartner] = useState<Record<number, boolean>>({});
   const [removedMembers, setRemovedMembers] = useState<Set<number>>(new Set());
   const [addedMembers, setAddedMembers] = useState<Set<number>>(new Set());
   const [expandedGuest, setExpandedGuest] = useState<number | null>(null);
@@ -142,6 +145,7 @@ export function AdminVoteManager({
     setPrevVoteSnapshot(voteSnapshot);
     setLocalVotes({});
     setLocalGuests({});
+    setLocalPartner({});
     setRemovedMembers(new Set());
     setAddedMembers(new Set());
   }
@@ -199,11 +203,29 @@ export function AdminVoteManager({
     return votes.find((v) => v.memberId === memberId);
   }
 
-  /** Số đầu member này đại diện ("đi 2 người" → 2). Admin không đổi withPartner
-   *  ở đây nên lấy từ server row; finalize dùng đúng số này (finance.ts headcount
-   *  = withPartner ? 2 : 1). */
+  /** "Đi 2 người" (withPartner) HIỆU LỰC: ưu tiên optimistic local, fallback
+   *  server row. Admin bật/tắt qua togglePartner → cost cập nhật ngay. */
+  function getWithPartner(memberId: number): boolean {
+    const local = localPartner[memberId];
+    if (local !== undefined) return local;
+    return !!getVoteRow(memberId)?.withPartner;
+  }
+
+  /** Số đầu member này đại diện ("đi 2 người" → 2). finalize dùng đúng số này
+   *  (finance.ts headcount = withPartner ? 2 : 1). */
   function memberHeadcount(memberId: number): number {
-    return getVoteRow(memberId)?.withPartner ? 2 : 1;
+    return getWithPartner(memberId) ? 2 : 1;
+  }
+
+  function togglePartner(memberId: number) {
+    if (readOnly) return;
+    const current = getWithPartner(memberId);
+    const next = !current;
+    setLocalPartner((s) => ({ ...s, [memberId]: next }));
+    fireAsync(
+      () => adminSetPartner(sessionId, memberId, next),
+      () => setLocalPartner((s) => ({ ...s, [memberId]: current })),
+    );
   }
 
   function getGuestCounts(memberId: number): { play: number; dine: number } {
@@ -816,6 +838,34 @@ export function AdminVoteManager({
                         🏸
                       </button>
                     )}
+
+                    {/* Đi 2 người (👫) — chỉ hiện khi member đi cầu; đổi
+                        headcount 1↔2 ("1 mình"/"2 mình"). Bật: LED primary;
+                        tắt: dashed mờ. Optimistic đồng bộ cost per-head. */}
+                    {v.willPlay &&
+                      (getWithPartner(member.id) ? (
+                        <div className="led-border-sm primary inline-flex">
+                          <button
+                            type="button"
+                            title={t("withPartner")}
+                            disabled={readOnly}
+                            onClick={() => togglePartner(member.id)}
+                            className="border-primary text-primary inline-flex h-12 w-12 cursor-pointer items-center justify-center border-2 bg-violet-50 text-lg transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50 dark:bg-violet-950"
+                          >
+                            👫
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          title={t("withPartner")}
+                          disabled={readOnly}
+                          onClick={() => togglePartner(member.id)}
+                          className="border-muted-foreground/25 bg-muted/30 text-muted-foreground/60 inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed text-lg opacity-50 grayscale transition-all hover:opacity-80 disabled:pointer-events-none disabled:opacity-50"
+                        >
+                          👫
+                        </button>
+                      ))}
 
                     {/* Nhậu — đã vote: LED border + border tĩnh cam; chưa vote: dashed mờ */}
                     {v.willDine ? (

@@ -209,6 +209,46 @@ export async function adminSetVote(
   return { success: true };
 }
 
+// Admin: bật/tắt "đi 2 người" (withPartner) cho vote của 1 member. withPartner
+// đổi headcount 1↔2 → đổi mẫu số chia đầu người + phần chính member tự trả (đúng
+// field finalize dùng: finance.ts headcount = withPartner ? 2 : 1). Chỉ hợp lệ
+// khi member đã có vote row. KHÔNG enforce cap sức chứa — admin được override,
+// giống adminSetVote (member đang có slot không bị đá ra dù admin vượt số).
+export async function adminSetPartner(
+  sessionId: number,
+  memberId: number,
+  withPartner: boolean,
+) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
+  const t = await getTranslations("serverErrors");
+  if (!Number.isInteger(sessionId) || sessionId <= 0)
+    return { error: t("invalidSessionId") };
+  if (!Number.isInteger(memberId) || memberId <= 0)
+    return { error: t("invalidMemberId") };
+  if (typeof withPartner !== "boolean")
+    return { error: t("invalidData", { detail: "withPartner" }) };
+
+  const allow = await assertSessionAllowsVoteEdits(sessionId);
+  if ("error" in allow) return allow;
+
+  const existing = await db.query.votes.findFirst({
+    where: (v, { and, eq: e }) =>
+      and(e(v.sessionId, sessionId), e(v.memberId, memberId)),
+  });
+  if (!existing) return { error: "Vote not found" };
+
+  await db
+    .update(votes)
+    .set({ withPartner, updatedAt: new Date().toISOString() })
+    .where(eq(votes.id, existing.id));
+
+  revalidatePath(`/admin/sessions/${sessionId}`);
+  revalidatePath("/");
+  return { success: true };
+}
+
 // Admin: update guest counts for a member's vote
 export async function adminSetGuestCount(
   sessionId: number,
