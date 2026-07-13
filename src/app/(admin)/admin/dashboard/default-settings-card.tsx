@@ -110,7 +110,12 @@ export function DefaultSettingsCard({
   if (courts.length === 0 && brands.length === 0) return null;
 
   return (
-    <SectionCard tone="primary" icon={Settings2} title={td("defaultsTitle")}>
+    <SectionCard
+      tone="primary"
+      icon={Settings2}
+      title={td("defaultsTitle")}
+      className="h-full"
+    >
       <div className="space-y-3">
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
