@@ -282,7 +282,7 @@ function HistoryCalendar({
   ).length;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div className="flex items-center justify-between">
         <Button
           variant="outline"
@@ -316,7 +316,7 @@ function HistoryCalendar({
         {days.slice(0, 7).map((d) => (
           <div
             key={`h-${d.toISOString()}`}
-            className="text-muted-foreground py-1 text-center text-xs font-medium"
+            className="text-muted-foreground text-center text-xs font-medium"
           >
             {format(d, "EEEEEE", { locale: dfLocale })}
           </div>
@@ -333,7 +333,7 @@ function HistoryCalendar({
               onClick={() => entry && setSelected(entry)}
               onMouseEnter={() => entry && setSelected(entry)}
               className={cn(
-                "relative flex min-h-11 flex-col items-center justify-center rounded-lg text-sm",
+                "relative flex min-h-9 flex-col items-center justify-center rounded-lg text-sm",
                 !inMonth && "text-muted-foreground/40",
                 entry && "bg-card/80 border font-semibold",
                 selected?.date === ymd && "ring-primary ring-2",
