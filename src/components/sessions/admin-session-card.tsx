@@ -395,7 +395,7 @@ export function AdminSessionCard({
   return (
     <LedBorder active={showLed} variant="pink">
       <Card className={cn("relative", cardBgClass)}>
-        <CardContent className="space-y-2 p-4">
+        <CardContent className="space-y-2 p-4 sm:space-y-4">
           {/* Header: Date + Status */}
           {/* Hàng 1: ngày + giờ (trái) · trạng thái + huỷ (phải). */}
           {/* Trạng thái + huỷ: ABSOLUTE góc phải trên → không
@@ -418,7 +418,7 @@ export function AdminSessionCard({
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pr-28">
+          <div className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 pr-28">
             <p className="flex items-center gap-2 text-base font-bold capitalize">
               <Calendar className="text-muted-foreground h-5 w-5 shrink-0" />
               {fmtSessionDate(session.date, "weekdayLong")}
