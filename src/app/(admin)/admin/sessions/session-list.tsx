@@ -822,51 +822,19 @@ export function SessionList({
                     <Card className={cn("relative", cardBgClass)}>
                       <CardContent className="space-y-2 p-4">
                         {/* Header: Date + Status */}
+                        {/* Hàng 1: ngày + giờ (trái) · trạng thái + huỷ (phải). */}
                         <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="space-y-1.5">
-                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                                <p className="flex items-center gap-2 text-base font-bold capitalize">
-                                  <Calendar className="text-muted-foreground h-5 w-5" />
-                                  {formatSessionDate(session.date)}
-                                </p>
-                                {(session.startTime || session.endTime) && (
-                                  <span className="text-muted-foreground inline-flex items-center gap-1.5 text-sm whitespace-nowrap tabular-nums">
-                                    <Clock className="h-4 w-4" />
-                                    {session.startTime ?? "—"} –{" "}
-                                    {session.endTime ?? "—"}
-                                  </span>
-                                )}
-                              </div>
-                              <WeekStrip
-                                sessionDate={session.date}
-                                className="justify-center"
-                              />
-                            </div>
-                            {session.courtName && (
-                              <p className="text-muted-foreground mt-2 flex min-w-0 flex-nowrap items-center gap-2 text-sm">
-                                <MapPin className="h-4 w-4 shrink-0" />
-                                <span className="min-w-0 flex-1 truncate">
-                                  {session.courtName}
-                                </span>
-                                {session.courtMapLink && (
-                                  <span
-                                    role="button"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      window.open(
-                                        session.courtMapLink!,
-                                        "_blank",
-                                      );
-                                    }}
-                                    className="text-primary ml-auto inline-flex shrink-0 items-center gap-1"
-                                  >
-                                    <Navigation className="h-4 w-4" />
-                                    {t("directions")}
-                                  </span>
-                                )}
-                              </p>
+                          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+                            <p className="flex items-center gap-2 text-base font-bold capitalize">
+                              <Calendar className="text-muted-foreground h-5 w-5 shrink-0" />
+                              {formatSessionDate(session.date)}
+                            </p>
+                            {(session.startTime || session.endTime) && (
+                              <span className="text-muted-foreground inline-flex items-center gap-1.5 text-sm whitespace-nowrap tabular-nums">
+                                <Clock className="h-4 w-4" />
+                                {session.startTime ?? "—"} –{" "}
+                                {session.endTime ?? "—"}
+                              </span>
                             )}
                           </div>
                           <div className="flex shrink-0 items-center gap-2">
@@ -894,6 +862,36 @@ export function SessionList({
                             )}
                           </div>
                         </div>
+
+                        {/* Dãy thứ — FULL WIDTH (7 ô chia đều 1 hàng). */}
+                        <WeekStrip
+                          sessionDate={session.date}
+                          className="w-full"
+                        />
+
+                        {/* Địa điểm — full width, "Chỉ đường" sát lề phải. */}
+                        {session.courtName && (
+                          <p className="text-muted-foreground flex items-center gap-2 text-sm">
+                            <MapPin className="h-4 w-4 shrink-0" />
+                            <span className="min-w-0 flex-1 truncate">
+                              {session.courtName}
+                            </span>
+                            {session.courtMapLink && (
+                              <span
+                                role="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  window.open(session.courtMapLink!, "_blank");
+                                }}
+                                className="text-primary ml-auto inline-flex shrink-0 items-center gap-1"
+                              >
+                                <Navigation className="h-4 w-4" />
+                                {t("directions")}
+                              </span>
+                            )}
+                          </p>
+                        )}
 
                         {/* Past pending CTA giờ inline cùng hàng "Tổng chi" bên
                       dưới (button trái, totals phải) — không tách block riêng
