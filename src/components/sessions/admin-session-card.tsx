@@ -158,6 +158,14 @@ export interface AdminSessionCardProps {
   onCourtChange?: (price: number, name: string | null) => void;
   onItemsChange?: (items: SessionShuttlecock[]) => void;
 
+  /**
+   * Optional secondary action rendered inside `SessionCostStats` (via its
+   * `extraAction` slot) — vd nút "Quản lý buổi chơi" của dashboard trỏ sang
+   * /admin/sessions. Grid/detail bỏ qua → cost stats chỉ render nút Xác nhận.
+   * Additive + backward-compatible: khi vắng, hành vi y hệt trước.
+   */
+  costExtraAction?: React.ReactNode;
+
   // Payment (grid footer)
   paidDebtIds: Set<number>;
   /** "Đã nhận" trên unpaid debt row (grid). Caller giữ optimistic + idempotencyKey. */
@@ -242,6 +250,7 @@ export function AdminSessionCard({
   costShuttlecocks,
   onCourtChange,
   onItemsChange,
+  costExtraAction,
   paidDebtIds,
   onConfirmPayment,
   onCancel,
@@ -524,6 +533,7 @@ export function AdminSessionCard({
                     onFinalize={onFinalize}
                     confirmLabel={t("confirmSession")}
                     confirmingLabel={t("confirming")}
+                    extraAction={costExtraAction}
                   />
                 </div>
               );

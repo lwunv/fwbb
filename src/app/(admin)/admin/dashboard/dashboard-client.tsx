@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useLocale } from "next-intl";
-import { formatSessionDate, ymdInVN } from "@/lib/date-format";
+import { ymdInVN } from "@/lib/date-format";
 import type { AppLocale } from "@/lib/date-fns-locale";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -12,37 +12,25 @@ import { StatTile } from "@/components/shared/stat-tile";
 import { SectionCard } from "@/components/shared/section-card";
 import { InlineNotice } from "@/components/shared/inline-notice";
 import { EmptyState } from "@/components/shared/empty-state";
-import { LedBorder } from "@/components/shared/led-border";
-import {
-  StatusBadge,
-  type StatusVariant,
-} from "@/components/shared/status-badge";
+import { StatusBadge } from "@/components/shared/status-badge";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { DefaultSettingsCard } from "./default-settings-card";
 import { Input } from "@/components/ui/input";
 import { formatK, cn } from "@/lib/utils";
 import { getMonthLabels } from "@/lib/i18n-labels";
-import {
-  computeShuttlecockTotal,
-  computePerHeadCharges,
-  computePredictedPlayRevenue,
-  computePredictedMinDeductionSurplus,
-} from "@/lib/cost-calculator";
+import { deriveSessionBadge, type SessionStatus } from "@/lib/session-status";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { updateAppName } from "@/actions/settings";
-import { setAdminGuestCount } from "@/actions/sessions";
+import { setAdminGuestCount, cancelSession } from "@/actions/sessions";
 import { finalizeSessionAuto } from "@/actions/finance";
 import { recordContribution } from "@/actions/fund";
 import { fireAction } from "@/lib/optimistic-action";
 import { useOptimisticSet } from "@/lib/optimistic-ui";
 import { usePolling } from "@/lib/use-polling";
-import { CourtSelector } from "@/components/sessions/court-selector";
-import { ShuttlecockSelector } from "@/components/sessions/shuttlecock-selector";
-import { AdminVoteManager } from "@/components/sessions/admin-vote-manager";
-import { WeekStrip } from "@/components/sessions/week-strip";
-import { VoteCountdown } from "@/components/sessions/vote-countdown";
-import { VoteDeadlineEdit } from "@/components/sessions/vote-deadline-edit";
-import { MaxPlayersToggle } from "@/components/sessions/max-players-toggle";
-import { SessionCostStats } from "@/components/sessions/session-cost-stats";
+import {
+  AdminSessionCard,
+  type AdminSessionCardSession,
+} from "@/components/sessions/admin-session-card";
 import { RecordContributionDialog } from "@/components/fund/record-contribution-dialog";
 import type { InferSelectModel } from "drizzle-orm";
 import type {
@@ -58,9 +46,6 @@ import {
   Users,
   CalendarDays,
   ArrowRight,
-  Clock,
-  MapPin,
-  Navigation,
   Package,
   Pencil,
   Check,
@@ -75,7 +60,6 @@ import {
   ArrowUpCircle,
   RotateCcw,
   PiggyBank,
-  ChevronDown,
   Plus,
 } from "lucide-react";
 
@@ -265,6 +249,7 @@ export function DashboardClient({
   editorBrands,
   editorMembers,
   memberBalances,
+  adminMemberId,
   defaultCourtId,
   defaultBrandId,
   sessionDays,
@@ -275,8 +260,6 @@ export function DashboardClient({
   const tInv = useTranslations("inventory");
   const tFs = useTranslations("fundStatus");
   const locale = useLocale() as AppLocale;
-  const formatDateFull = (d: string) =>
-    formatSessionDate(d, "weekdayLong", locale);
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(appName);
   const [saved, setSaved] = useState(false);
@@ -347,6 +330,30 @@ export function DashboardClient({
   // Expand/collapse cho khu danh sách thành viên (chứa Khách stepper + search +
   // AdminVoteManager). Mặc định collapsed để dashboard không quá dài.
   const [membersExpanded, setMembersExpanded] = useState(false);
+  // Hủy buổi từ dashboard — confirm dialog + optimistic HIDE (buổi đã hủy không
+  // còn là "sắp tới" → ẩn card ngay, hiện empty state; rollback nếu server fail).
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [locallyCancelled, setLocallyCancelled] = useState(false);
+  // Reset optimistic-cancel khi server đổi sang buổi khác (id đổi hoặc về null).
+  // Dùng snapshot-in-render (pattern giống clearingDebt) để tránh set-state-in-effect.
+  const [prevUpcomingCancelId, setPrevUpcomingCancelId] = useState(
+    upcomingSession?.id ?? null,
+  );
+  if ((upcomingSession?.id ?? null) !== prevUpcomingCancelId) {
+    setPrevUpcomingCancelId(upcomingSession?.id ?? null);
+    if (locallyCancelled) setLocallyCancelled(false);
+  }
+
+  function handleCancelUpcoming() {
+    if (!upcomingSession) return;
+    const id = upcomingSession.id;
+    setCancelDialogOpen(false);
+    setLocallyCancelled(true);
+    fireAction(
+      () => cancelSession(id),
+      () => setLocallyCancelled(false),
+    );
+  }
   usePolling();
 
   // Auto-prune finalizing set khi server đã chuyển status sang "completed".
@@ -558,57 +565,58 @@ export function DashboardClient({
         const todayYmd = ymdInVN();
         const isOptimisticFinalizing =
           !!upcomingSession && finalizing.set.has(upcomingSession.id);
-        // Optimistic override: vừa bấm "Xác nhận" → coi như completed cho tới
-        // khi server revalidate trả về status thật.
-        const status = isOptimisticFinalizing
+
+        // Không có buổi sắp tới HOẶC vừa optimistic-hủy → empty state. Buổi đã
+        // hủy không còn là "sắp tới"; server revalidate sẽ đưa buổi kế/null vào.
+        if (!upcomingSession || locallyCancelled) {
+          return (
+            <SectionCard
+              tone="neutral"
+              icon={CalendarDays}
+              title={td("upcomingSession")}
+            >
+              <EmptyState variant="inline" title={td("noUpcoming")} />
+            </SectionCard>
+          );
+        }
+
+        // Optimistic finalize override: vừa bấm "Xác nhận" → coi như completed
+        // cho tới khi server revalidate. Cùng AdminSessionCard với grid nên
+        // transient hiển thị (spinner "Đang chốt sổ...") giống hệt.
+        const rawStatus = isOptimisticFinalizing
           ? "completed"
-          : upcomingSession?.status;
-        const isUpcomingActive = status === "voting" || status === "confirmed";
-        const isPastPending =
-          isUpcomingActive &&
-          !!upcomingSession &&
-          upcomingSession.date < todayYmd;
+          : upcomingSession.status;
+        const effectiveStatus: SessionStatus = (
+          ["voting", "confirmed", "completed", "cancelled"].includes(rawStatus)
+            ? rawStatus
+            : "voting"
+        ) as SessionStatus;
+        // Badge derivation dùng CHUNG với grid + detail (deriveSessionBadge).
+        const badge = deriveSessionBadge(
+          effectiveStatus,
+          upcomingSession.date,
+          todayYmd,
+        );
+        const isPastPending = badge.isPastPending;
+        const isUpcomingActive =
+          effectiveStatus === "voting" || effectiveStatus === "confirmed";
         // Cho phép finalize từ HÔM NAY trở đi (đồng bộ với /admin/sessions).
         const canFinalize =
-          isUpcomingActive &&
-          !!upcomingSession &&
-          upcomingSession.date <= todayYmd;
-        const showLed = isUpcomingActive && !isPastPending;
-        const badgeVariant: StatusVariant = isPastPending
-          ? "needsConfirm"
-          : (status as StatusVariant) || "neutral";
-        const badgeText = isPastPending
-          ? tf("needsConfirm")
-          : ts(
-              (status ?? "voting") as
-                | "voting"
-                | "confirmed"
-                | "completed"
-                | "cancelled",
-            );
+          isUpcomingActive && upcomingSession.date <= todayYmd;
+        // Title đổi theo state — "sắp tới" cho buổi đang vote/confirmed, "cần
+        // xác nhận" cho buổi past pending (đã qua nhưng chưa chốt sổ).
+        const sectionTitle = isPastPending
+          ? td("sessionNeedsConfirm")
+          : td("upcomingSession");
+
+        // Khách-của-admin HIỆU LỰC (optimistic override + server fallback).
         const adminGuestPlay =
-          localAdminGuests?.play ?? upcomingSession?.adminGuestPlayCount ?? 0;
+          localAdminGuests?.play ?? upcomingSession.adminGuestPlayCount;
         const adminGuestDine =
-          localAdminGuests?.dine ?? upcomingSession?.adminGuestDineCount ?? 0;
-        // Optimistic guest totals — fold the local admin-guest delta into the
-        // server prop count (which already bakes in the SERVER adminGuest
-        // count). Khớp session-list.tsx:748-751 để collapsed header + cost
-        // summary di chuyển ngay khi stepper đổi, không chờ revalidate.
-        const optimGuestPlay =
-          (upcomingSession?.guestPlayCount ?? 0) +
-          adminGuestPlay -
-          (upcomingSession?.adminGuestPlayCount ?? 0);
-        const optimGuestDine =
-          (upcomingSession?.guestDineCount ?? 0) +
-          adminGuestDine -
-          (upcomingSession?.adminGuestDineCount ?? 0);
+          localAdminGuests?.dine ?? upcomingSession.adminGuestDineCount;
         const handleAdminGuestSet = (play: number, dine: number) => {
-          if (!upcomingSession) return;
           const sessionId = upcomingSession.id;
-          const prev = {
-            play: adminGuestPlay,
-            dine: adminGuestDine,
-          };
+          const prev = { play: adminGuestPlay, dine: adminGuestDine };
           const next = { play, dine };
           setLocalAdminGuests(next);
           fireAction(
@@ -616,334 +624,122 @@ export function DashboardClient({
             () => setLocalAdminGuests(prev),
           );
         };
-        // Title đổi theo state — "sắp tới" cho buổi đang vote/confirmed,
-        // "cần xác nhận" cho buổi past pending (đã qua nhưng chưa chốt sổ).
-        const sectionTitle = isPastPending
-          ? td("sessionNeedsConfirm")
-          : td("upcomingSession");
-        // Cost summary — tính cùng helper với cost-calculator để đồng bộ với
-        // /admin/sessions list/detail. Khách của admin (adminGuestPlay/Dine)
-        // được tính vào divisor → người thật bớt phải gánh.
-        const courtPriceVal = upcomingSession?.courtPrice ?? 0;
-        // Round-UP-tổng (đồng bộ calculateSessionCosts) để preview khớp debt
-        // thực; per-brand round rồi sum sẽ inflate 1-2k.
-        const shuttlecockCost = upcomingSession
-          ? computeShuttlecockTotal(upcomingSession.shuttlecocks)
-          : 0;
-        const diningBillVal = upcomingSession?.diningBill ?? 0;
-        const totalExpense = courtPriceVal + shuttlecockCost + diningBillVal;
-        const totalPlayers = upcomingSession
-          ? upcomingSession.playerCount + optimGuestPlay
-          : 0;
-        const totalDiners = upcomingSession
-          ? upcomingSession.dinerCount + optimGuestDine
-          : 0;
-        const adminGuestPlayHeads = adminGuestPlay;
-        const { playCostPerHead, adminGuestPlayCostPerHead, dineCostPerHead } =
-          computePerHeadCharges({
-            courtPrice: courtPriceVal,
-            shuttlecockCost,
-            diningBill: diningBillVal,
-            playerCount: totalPlayers,
-            dinerCount: totalDiners,
-            // Khách-của-admin trả sàn 60K → preview khớp finalize.
-            adminGuestPlayHeads,
-          });
-        const showCostSummary =
-          !!upcomingSession &&
-          (totalExpense > 0 ||
-            playCostPerHead > 0 ||
-            dineCostPerHead > 0 ||
-            canFinalize);
-        // Predicted revenue includes min-60K penalty surplus: members with
-        // balance < playPerHead get floored to 60K when finalize fires, and
-        // the (60K − playPerHead) difference flows to admin's fund. Plain
-        // `totalPlayers × playPerHead` would understate "Tổng thu (dự kiến)".
-        const predictedPenaltySurplus = upcomingSession?.useMinDeduction
-          ? computePredictedMinDeductionSurplus({
-              playingMemberIds: upcomingSession.votes
-                .filter((v) => v.willPlay)
-                .map((v) => v.member.id),
-              memberBalances,
-              exemptMemberIds: upcomingSession.exemptMemberIds,
-              playCostPerHead,
-            })
-          : 0;
-        // Nhóm chia đều trả splitRate; khách-của-admin trả sàn 60K riêng (helper
-        // chung với session-list để không drift).
-        const predictedRevenue =
-          computePredictedPlayRevenue({
-            totalPlayHeads: totalPlayers,
-            adminGuestPlayHeads,
-            playCostPerHead,
-            adminGuestPlayCostPerHead,
-          }) +
-          totalDiners * dineCostPerHead +
-          predictedPenaltySurplus;
+
+        // Map shuttlecock (shape page.tsx) → SessionShuttlecock để
+        // AdminSessionCard render selector + tính cost. Brand lấy từ
+        // editorBrands, fallback dựng tối thiểu từ snapshot; `as` cast vì
+        // object literal thiếu vài cột schema không dùng tới ở đây.
+        const cardShuttlecocks: SessionShuttlecock[] =
+          upcomingSession.shuttlecocks.map(
+            (s) =>
+              ({
+                id: s.id,
+                sessionId: upcomingSession.id,
+                brandId: s.brandId,
+                quantityUsed: s.quantityUsed,
+                pricePerTube: s.pricePerTube,
+                brand:
+                  editorBrands.find((b) => b.id === s.brandId) ??
+                  ({
+                    id: s.brandId,
+                    name: s.brandName,
+                    pricePerTube: s.pricePerTube,
+                  } as Brand),
+              }) as SessionShuttlecock,
+          );
+
+        // Dashboard's upcoming = voting/confirmed → chưa có debt/attendee.
+        const cardSession: AdminSessionCardSession = {
+          id: upcomingSession.id,
+          date: upcomingSession.date,
+          startTime: upcomingSession.startTime,
+          endTime: upcomingSession.endTime,
+          status: upcomingSession.status,
+          courtId: upcomingSession.courtId,
+          courtQuantity: upcomingSession.courtQuantity,
+          courtName: upcomingSession.courtName,
+          courtMapLink: upcomingSession.courtMapLink,
+          courtPrice: upcomingSession.courtPrice,
+          courtPriceOverridden: upcomingSession.courtPriceOverridden,
+          diningBill: upcomingSession.diningBill,
+          adminGuestPlayCount: upcomingSession.adminGuestPlayCount,
+          adminGuestDineCount: upcomingSession.adminGuestDineCount,
+          useMinDeduction: upcomingSession.useMinDeduction,
+          exemptMemberIds: upcomingSession.exemptMemberIds,
+          playerCount: upcomingSession.playerCount,
+          dinerCount: upcomingSession.dinerCount,
+          guestPlayCount: upcomingSession.guestPlayCount,
+          guestDineCount: upcomingSession.guestDineCount,
+          totalDebt: 0,
+          paidDebt: 0,
+          unpaidDebts: [],
+          votes: upcomingSession.votes,
+          shuttlecocks: cardShuttlecocks,
+          debtMap: {},
+          attendees: [],
+          voteDeadline: upcomingSession.voteDeadline,
+          maxPlayers: upcomingSession.maxPlayers,
+        };
         return (
-          <LedBorder active={showLed} variant="pink">
-            <SectionCard
-              tone="neutral"
-              icon={CalendarDays}
-              title={sectionTitle}
-              action={
-                upcomingSession && (
-                  <StatusBadge variant={badgeVariant}>{badgeText}</StatusBadge>
+          <div className="space-y-2">
+            {/* Section title giữ nhịp dashboard; thẻ dùng CHUNG AdminSessionCard
+                với grid /admin/sessions + trang chi tiết để trông giống hệt.
+                LED viền + badge + selector + cost + members đều do card render. */}
+            <div className="font-heading text-muted-foreground flex items-center gap-2 text-base font-medium">
+              <CalendarDays className="h-5 w-5 shrink-0" />
+              <span>{sectionTitle}</span>
+            </div>
+            <AdminSessionCard
+              session={cardSession}
+              effectiveStatus={effectiveStatus}
+              isPastPending={isPastPending}
+              badge={badge}
+              courts={editorCourts}
+              brands={editorBrands}
+              members={editorMembers}
+              memberBalances={memberBalances}
+              defaultCourtId={defaultCourtId}
+              sessionDays={sessionDays}
+              adminMemberId={adminMemberId}
+              adminGuestPlay={adminGuestPlay}
+              adminGuestDine={adminGuestDine}
+              onAdminGuestChange={handleAdminGuestSet}
+              paidDebtIds={new Set<number>()}
+              onCancel={() => setCancelDialogOpen(true)}
+              canFinalize={canFinalize}
+              isFinalizing={isOptimisticFinalizing}
+              onFinalize={() =>
+                finalizing.addOptimistically(
+                  upcomingSession.id,
+                  () => finalizeSessionAuto(upcomingSession.id),
+                  { successMsg: ts("confirmedSuccess") },
                 )
               }
-            >
-              {upcomingSession ? (
-                <div className="space-y-3">
-                  <div className="space-y-3">
-                    {/* Ngày trên, week strip dưới, strip căn giữa ngang —
-                        đồng bộ với /admin/sessions card. */}
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <div className="flex items-center gap-2">
-                          <CalendarDays className="text-primary h-6 w-6" />
-                          <span className="text-2xl font-bold capitalize sm:text-3xl">
-                            {formatDateFull(upcomingSession.date)}
-                          </span>
-                        </div>
-                        <span className="text-muted-foreground inline-flex items-center gap-1.5 text-base tabular-nums">
-                          <Clock className="h-4 w-4" />
-                          {upcomingSession.startTime} -{" "}
-                          {upcomingSession.endTime}
-                        </span>
-                      </div>
-                      <WeekStrip sessionDate={upcomingSession.date} />
-                    </div>
-
-                    <div className="flex items-center gap-3 text-base">
-                      <MapPin className="text-muted-foreground h-5 w-5" />
-                      <span>
-                        {upcomingSession.courtName || td("courtNotSelected")}
-                      </span>
-                      {upcomingSession.courtMapLink && (
-                        <a
-                          href={upcomingSession.courtMapLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary inline-flex items-center gap-1 text-sm hover:underline"
-                        >
-                          <Navigation className="h-4 w-4" /> {ts("directions")}
-                        </a>
-                      )}
-                    </div>
-                    {/* Số người chơi/nhậu đã hiển thị trong khu mở rộng danh sách
-                        thành viên bên dưới — không lặp ở header. */}
-                  </div>
-
-                  {/* Inline editor — sửa sân + cầu (Khách stepper đã chuyển vào
-                      khu mở rộng danh sách thành viên bên dưới). */}
-                  {isUpcomingActive && (
-                    <div className="space-y-2 pt-0">
-                      <CourtSelector
-                        sessionId={upcomingSession.id}
-                        courts={editorCourts}
-                        currentCourtId={upcomingSession.courtId}
-                        currentCourtQuantity={upcomingSession.courtQuantity}
-                        currentCourtPrice={upcomingSession.courtPrice}
-                        isCourtPriceOverridden={
-                          upcomingSession.courtPriceOverridden
-                        }
-                        sessionDate={upcomingSession.date}
-                        defaultCourtId={defaultCourtId}
-                        sessionDays={sessionDays}
-                      />
-                      <ShuttlecockSelector
-                        sessionId={upcomingSession.id}
-                        brands={editorBrands}
-                        currentShuttlecocks={upcomingSession.shuttlecocks.map(
-                          (s) =>
-                            ({
-                              id: s.id,
-                              sessionId: upcomingSession.id,
-                              brandId: s.brandId,
-                              quantityUsed: s.quantityUsed,
-                              pricePerTube: s.pricePerTube,
-                              brand:
-                                editorBrands.find((b) => b.id === s.brandId) ??
-                                ({
-                                  id: s.brandId,
-                                  name: s.brandName,
-                                  pricePerTube: s.pricePerTube,
-                                } as Brand),
-                            }) as SessionShuttlecock,
-                        )}
-                      />
-                      {/* Deadline + max: GIỮ 1 HÀNG trên mobile (tiết kiệm
-                          height). Countdown co lại/truncate, 2 nút shrink-0. */}
-                      <div className="flex flex-nowrap items-center gap-1.5 pt-1">
-                        <span className="min-w-0 flex-1 truncate">
-                          <VoteCountdown
-                            deadline={upcomingSession.voteDeadline}
-                            variant="inline"
-                          />
-                        </span>
-                        <VoteDeadlineEdit
-                          sessionId={upcomingSession.id}
-                          current={upcomingSession.voteDeadline}
-                        />
-                        <MaxPlayersToggle
-                          sessionId={upcomingSession.id}
-                          current={upcomingSession.maxPlayers}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Cost summary — shared component đồng bộ với /admin/sessions list.
-                      extraAction = nút "Quản lý buổi chơi" → render cùng hàng
-                      với Xác nhận khi canFinalize, hoặc full-width khi không. */}
-                  {showCostSummary && (
-                    <SessionCostStats
-                      totalExpense={totalExpense}
-                      playCostPerHead={playCostPerHead}
-                      dineCostPerHead={dineCostPerHead}
-                      revenue={canFinalize ? predictedRevenue : null}
-                      revenueLabel="predicted"
-                      canFinalize={canFinalize}
-                      isFinalizing={isOptimisticFinalizing}
-                      onFinalize={() => {
-                        if (!upcomingSession) return;
-                        finalizing.addOptimistically(
-                          upcomingSession.id,
-                          () => finalizeSessionAuto(upcomingSession.id),
-                          { successMsg: ts("confirmedSuccess") },
-                        );
-                      }}
-                      confirmLabel={ts("confirmSession")}
-                      confirmingLabel={ts("confirming")}
-                      confirmShortLabel="Xác nhận"
-                      extraAction={
-                        <Link href="/admin/sessions">
-                          <Button
-                            size="lg"
-                            variant={canFinalize ? "outline" : "default"}
-                            className="min-h-11 w-full px-3 whitespace-nowrap"
-                          >
-                            <span className="sm:hidden">Quản lý</span>
-                            <span className="hidden sm:inline">
-                              {td("manageSession")}
-                            </span>
-                            <ArrowRight className="ml-1 h-4 w-4 shrink-0" />
-                          </Button>
-                        </Link>
-                      }
-                    />
-                  )}
-
-                  {/* Members block — toggle counts + expandable AdminVoteManager
-                      (chứa Khách stepper + search + member rows). Đồng bộ pattern
-                      /admin/sessions list card. */}
-                  {isUpcomingActive && (
-                    <div
-                      className={`border-primary/25 bg-primary/[0.04] overflow-hidden rounded-xl border transition-colors ${
-                        membersExpanded
-                          ? "border-primary/50"
-                          : "hover:border-primary/40"
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setMembersExpanded((v) => !v)}
-                        className="flex w-full items-center justify-between p-3 text-base"
-                      >
-                        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-left">
-                          <span className="text-primary">
-                            🏸{" "}
-                            <strong>
-                              {upcomingSession.playerCount + optimGuestPlay}
-                            </strong>{" "}
-                            <span className="text-foreground/80">
-                              {ts("people")}
-                            </span>
-                            {optimGuestPlay > 0 && (
-                              <span className="tabular-nums">
-                                {" "}
-                                <span className="text-foreground/80">
-                                  ({ts("including")}{" "}
-                                </span>
-                                {optimGuestPlay}{" "}
-                                <span className="text-foreground/80">
-                                  {ts("guest")})
-                                </span>
-                              </span>
-                            )}
-                          </span>
-                          <span className="text-orange-500 dark:text-orange-400">
-                            🍻{" "}
-                            <strong>
-                              {upcomingSession.dinerCount + optimGuestDine}
-                            </strong>{" "}
-                            <span className="text-foreground/80">
-                              {ts("people")}
-                            </span>
-                            {optimGuestDine > 0 && (
-                              <span className="tabular-nums">
-                                {" "}
-                                <span className="text-foreground/80">
-                                  ({ts("including")}{" "}
-                                </span>
-                                {optimGuestDine}{" "}
-                                <span className="text-foreground/80">
-                                  {ts("guest")})
-                                </span>
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                        <ChevronDown
-                          className={`text-muted-foreground h-5 w-5 shrink-0 transition-transform ${membersExpanded ? "rotate-180" : ""}`}
-                        />
-                      </button>
-                      {membersExpanded && (
-                        <div className="bg-background/40 border-t p-3">
-                          <AdminVoteManager
-                            sessionId={upcomingSession.id}
-                            votes={upcomingSession.votes}
-                            members={editorMembers}
-                            readOnly={false}
-                            adminGuestPlayCount={adminGuestPlay}
-                            adminGuestDineCount={adminGuestDine}
-                            onAdminGuestChange={handleAdminGuestSet}
-                            minDeductionEnabled={
-                              upcomingSession.useMinDeduction
-                            }
-                            exemptMemberIds={upcomingSession.exemptMemberIds}
-                            memberBalances={memberBalances}
-                            sessionCosts={{
-                              courtPrice: upcomingSession.courtPrice ?? 0,
-                              courtName: upcomingSession.courtName,
-                              diningBill: upcomingSession.diningBill,
-                              shuttlecocks: upcomingSession.shuttlecocks.map(
-                                (s) => ({
-                                  brandName: s.brandName,
-                                  quantity: s.quantityUsed,
-                                  pricePerTube: s.pricePerTube,
-                                }),
-                              ),
-                              startTime: upcomingSession.startTime,
-                              endTime: upcomingSession.endTime,
-                              isCompleted: false,
-                            }}
-                            hideCostSummary
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Cả Xác nhận + Quản lý buổi chơi đã render trong
-                      <SessionCostStats extraAction={...}> phía trên — không
-                      lặp ở đây. */}
-                </div>
-              ) : (
-                <EmptyState variant="inline" title={td("noUpcoming")} />
-              )}
-            </SectionCard>
-          </LedBorder>
+              membersCollapsible
+              expanded={membersExpanded}
+              onToggleExpand={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setMembersExpanded((v) => !v);
+              }}
+              onExpandedChange={(next) => setMembersExpanded(next)}
+              costExtraAction={
+                <Link href="/admin/sessions">
+                  <Button
+                    size="lg"
+                    variant={canFinalize ? "outline" : "default"}
+                    className="min-h-11 w-full px-3 whitespace-nowrap"
+                  >
+                    <span className="sm:hidden">Quản lý</span>
+                    <span className="hidden sm:inline">
+                      {td("manageSession")}
+                    </span>
+                    <ArrowRight className="ml-1 h-4 w-4 shrink-0" />
+                  </Button>
+                </Link>
+              }
+            />
+          </div>
         );
       })()}
 
@@ -1342,6 +1138,16 @@ export function DashboardClient({
             : null
         }
         submitting={contribSubmitting}
+      />
+
+      {/* Hủy buổi sắp tới — confirm trước (AdminSessionCard hiện nút X hủy cho
+          buổi active, giống grid/detail). Hủy đơn giản, không pass-sân. */}
+      <ConfirmDialog
+        open={cancelDialogOpen}
+        onOpenChange={setCancelDialogOpen}
+        title={ts("cancelSession")}
+        description={ts("cancelConfirm")}
+        onConfirm={handleCancelUpcoming}
       />
     </div>
   );
