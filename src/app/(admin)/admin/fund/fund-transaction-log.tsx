@@ -241,8 +241,12 @@ export function FundTransactionLog({ transactions }: Props) {
           />
         </div>
 
+        {/* Lọc nguồn: KHÔNG cuộn ngang (scrollable=false) + flex-wrap để 3 chip
+            gọn 1 hàng, rớt xuống dòng thay vì cắt/cuộn khi quá hẹp. */}
         <TabSegment<"all" | "auto" | "admin">
           variant="pills"
+          scrollable={false}
+          className="flex-wrap"
           value={sourceFilter}
           onChange={(v) => setSourceFilter(v)}
           options={[
