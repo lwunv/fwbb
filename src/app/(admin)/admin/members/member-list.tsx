@@ -176,6 +176,11 @@ export function MemberList({
     const r = restDaysFrom(playStats[memberId]?.lastPlayedDate, today);
     return r === null || r > LOW_INTERACTION_DAYS;
   };
+  // "Ghost": chưa từng đi chơi VÀ chưa vào quỹ (acc rác / chưa tham gia gì).
+  // Không tính vào bất kỳ count filter nào + luôn dồn xuống cuối danh sách,
+  // chỉ hiện ở tab "Tất cả" (ẩn khỏi các filter cụ thể).
+  const isGhost = (memberId: number) =>
+    playStats[memberId]?.lastPlayedDate == null && !fundMemberSet.has(memberId);
 
   const t = useTranslations("adminMembers");
   const tHistory = useTranslations("memberHistory");
@@ -341,6 +346,9 @@ export function MemberList({
       // ẩn member đã optimistic-delete; nếu server reject (vd còn nợ),
       // fireAction rollback set → member xuất hiện lại.
       if (deletedIds.has(m.id)) return false;
+      // Ghost chỉ hiện ở "Tất cả" (dồn cuối); ẩn khỏi mọi filter cụ thể để
+      // khớp với count (count cũng loại ghost — xem statusCounts).
+      if (statusFilter !== "all" && isGhost(m.id)) return false;
       // status filter
       if (statusFilter === "active" && !m.isActive) return false;
       if (statusFilter === "locked" && m.isActive) return false;
@@ -380,6 +388,10 @@ export function MemberList({
         ? Number.POSITIVE_INFINITY
         : (playStats[id]?.missedSessions ?? 0);
     return list.sort((a, b) => {
+      // Ghost luôn xuống cuối, bất kể sort đang chọn.
+      const ga = isGhost(a.id);
+      const gb = isGhost(b.id);
+      if (ga !== gb) return ga ? 1 : -1;
       switch (sortMode) {
         case "balanceDesc":
           return bal(b.id) - bal(a.id) || a.name.localeCompare(b.name);
@@ -411,7 +423,8 @@ export function MemberList({
         }
       }
     });
-    // isLowInteraction là closure của playStats+today (đã có trong deps).
+    // isLowInteraction/isGhost là closure của playStats+today+fundMemberSet
+    // (đã có trong deps).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     members,
@@ -423,6 +436,7 @@ export function MemberList({
     memberBalances,
     playStats,
     today,
+    fundMemberSet,
   ]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -557,22 +571,23 @@ export function MemberList({
     () => [...addedMembers, ...members].filter((m) => !deletedIds.has(m.id)),
     [addedMembers, members, deletedIds],
   );
-  const statusCounts = useMemo(
-    () => ({
-      all: liveMembers.length,
-      active: liveMembers.filter((m) => m.isActive).length,
-      locked: liveMembers.filter((m) => !m.isActive).length,
-      hasDebt: liveMembers.filter(
+  const statusCounts = useMemo(() => {
+    // Ghost (chưa từng đi + chưa vào quỹ) KHÔNG tính vào bất kỳ count nào.
+    const countable = liveMembers.filter((m) => !isGhost(m.id));
+    return {
+      all: countable.length,
+      active: countable.filter((m) => m.isActive).length,
+      locked: countable.filter((m) => !m.isActive).length,
+      hasDebt: countable.filter(
         (m) => getFundStatus(memberBalances[m.id] ?? 0) === "owing",
       ).length,
-      lowFund: liveMembers.filter(
+      lowFund: countable.filter(
         (m) => getFundStatus(memberBalances[m.id] ?? 0) === "lowFund",
       ).length,
-      lowInteraction: liveMembers.filter((m) => isLowInteraction(m.id)).length,
-    }),
+      lowInteraction: countable.filter((m) => isLowInteraction(m.id)).length,
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [liveMembers, memberBalances, playStats, today],
-  );
+  }, [liveMembers, memberBalances, playStats, today, fundMemberSet]);
 
   const filterButtons: { key: StatusFilter; label: string }[] = [
     { key: "all", label: t("all") },
