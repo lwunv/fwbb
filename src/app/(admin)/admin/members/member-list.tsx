@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { Fragment, useMemo, useState, type FormEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslations } from "next-intl";
 import {
@@ -64,11 +64,28 @@ import { confirmPaymentByAdmin } from "@/actions/finance";
 import { fireAction } from "@/lib/optimistic-action";
 import { getFundStatus } from "@/lib/fund-core";
 import { cn, formatK, normalizeVietnamese } from "@/lib/utils";
+import { ymdInVN } from "@/lib/date-format";
 import { usePolling } from "@/lib/use-polling";
+import type { MemberPlayStat } from "@/actions/stats";
 import type { InferSelectModel } from "drizzle-orm";
 import type { members as membersTable } from "@/db/schema";
 
 type Member = InferSelectModel<typeof membersTable>;
+
+/**
+ * Số ngày member đã "nghỉ" tính từ buổi chơi gần nhất đến hôm nay (giờ VN).
+ * null = chưa từng chơi. Neo cả 2 mốc ở 12:00 +07:00 để không lệch nửa ngày
+ * do DST/nửa đêm; server-render `today` và client dùng chung `ymdInVN`.
+ */
+function restDaysFrom(
+  lastPlayedDate: string | null | undefined,
+  todayYmd: string,
+): number | null {
+  if (!lastPlayedDate) return null;
+  const last = new Date(`${lastPlayedDate}T12:00:00+07:00`).getTime();
+  const now = new Date(`${todayYmd}T12:00:00+07:00`).getTime();
+  return Math.max(0, Math.round((now - last) / 86_400_000));
+}
 
 interface MemberDebt {
   id: number;
@@ -80,14 +97,25 @@ interface MemberDebt {
 
 const PAGE_SIZE = 20;
 
-type StatusFilter = "all" | "active" | "locked" | "hasDebt" | "lowFund";
+type StatusFilter =
+  | "all"
+  | "active"
+  | "locked"
+  | "hasDebt"
+  | "lowFund"
+  | "lowInteraction";
 type SortMode =
   | "smart"
   | "balanceDesc"
   | "balanceAsc"
   | "newest"
   | "oldest"
-  | "nameAsc";
+  | "nameAsc"
+  | "missedSessionsDesc"
+  | "yearPlayDesc";
+
+/** Ngưỡng "ít tương tác": quá 60 ngày không đi chơi (hoặc chưa từng đi). */
+const LOW_INTERACTION_DAYS = 60;
 
 export function MemberList({
   members,
@@ -95,6 +123,7 @@ export function MemberList({
   currentAdminMemberId = null,
   memberBalances = {},
   fundMemberIds = [],
+  playStats = {},
 }: {
   members: Member[];
   debtsByMember?: Record<number, MemberDebt[]>;
@@ -103,6 +132,8 @@ export function MemberList({
   memberBalances?: Record<number, number>;
   /** Danh sách memberId đang active trong quỹ — dùng để render chip "Đã vào quỹ". */
   fundMemberIds?: number[];
+  /** Thống kê buổi chơi/member: buổi tháng, buổi năm, ngày chơi gần nhất. */
+  playStats?: Record<number, MemberPlayStat>;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [infoEditTarget, setInfoEditTarget] = useState<Member | null>(null);
@@ -138,6 +169,13 @@ export function MemberList({
   }
 
   const fundMemberSet = useMemo(() => new Set(fundMemberIds), [fundMemberIds]);
+  // Hôm nay theo giờ VN — mốc chung để tính "nghỉ bao lâu" (khớp server render).
+  const today = useMemo(() => ymdInVN(), []);
+  // "Ít tương tác": nghỉ quá LOW_INTERACTION_DAYS ngày, hoặc chưa từng đi chơi.
+  const isLowInteraction = (memberId: number) => {
+    const r = restDaysFrom(playStats[memberId]?.lastPlayedDate, today);
+    return r === null || r > LOW_INTERACTION_DAYS;
+  };
 
   const t = useTranslations("adminMembers");
   const tHistory = useTranslations("memberHistory");
@@ -319,6 +357,8 @@ export function MemberList({
         getFundStatus(memberBalances[m.id] ?? 0) !== "lowFund"
       )
         return false;
+      if (statusFilter === "lowInteraction" && !isLowInteraction(m.id))
+        return false;
       // Search: tên/biệt danh khớp không phân biệt hoa thường + có/không dấu
       // (normalizeVietnamese); SĐT khớp theo chuỗi số (bỏ khoảng trắng/dấu).
       if (!q) return true;
@@ -333,6 +373,12 @@ export function MemberList({
     });
     const bal = (id: number) => memberBalances[id] ?? 0;
     const created = (m: Member) => m.createdAt ?? "";
+    const yearPlay = (id: number) => playStats[id]?.yearPlay ?? 0;
+    // Số buổi đã nghỉ để sort: chưa từng chơi → vô hạn (lên đầu).
+    const missed = (id: number) =>
+      playStats[id]?.lastPlayedDate == null
+        ? Number.POSITIVE_INFINITY
+        : (playStats[id]?.missedSessions ?? 0);
     return list.sort((a, b) => {
       switch (sortMode) {
         case "balanceDesc":
@@ -345,6 +391,12 @@ export function MemberList({
           return created(a).localeCompare(created(b));
         case "nameAsc":
           return a.name.localeCompare(b.name);
+        case "missedSessionsDesc": // nghỉ nhiều buổi nhất trước (chưa từng chơi lên đầu)
+          return missed(b.id) - missed(a.id) || a.name.localeCompare(b.name);
+        case "yearPlayDesc": // chơi nhiều nhất năm nay trước
+          return (
+            yearPlay(b.id) - yearPlay(a.id) || a.name.localeCompare(b.name)
+          );
         case "smart":
         default: {
           // Mặc định: ai đang NỢ (balance âm) lên trước, nợ nhiều nhất trên
@@ -359,6 +411,8 @@ export function MemberList({
         }
       }
     });
+    // isLowInteraction là closure của playStats+today (đã có trong deps).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     members,
     addedMembers,
@@ -367,6 +421,8 @@ export function MemberList({
     sortMode,
     deletedIds,
     memberBalances,
+    playStats,
+    today,
   ]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -512,8 +568,10 @@ export function MemberList({
       lowFund: liveMembers.filter(
         (m) => getFundStatus(memberBalances[m.id] ?? 0) === "lowFund",
       ).length,
+      lowInteraction: liveMembers.filter((m) => isLowInteraction(m.id)).length,
     }),
-    [liveMembers, memberBalances],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [liveMembers, memberBalances, playStats, today],
   );
 
   const filterButtons: { key: StatusFilter; label: string }[] = [
@@ -522,6 +580,7 @@ export function MemberList({
     { key: "locked", label: t("filterLocked") },
     { key: "hasDebt", label: t("filterHasDebt") },
     { key: "lowFund", label: t("filterLowFund") },
+    { key: "lowInteraction", label: t("filterLowInteraction") },
   ];
 
   const SORT_OPTIONS: { value: SortMode; label: string }[] = [
@@ -531,7 +590,174 @@ export function MemberList({
     { value: "newest", label: t("sortNewest") },
     { value: "oldest", label: t("sortOldest") },
     { value: "nameAsc", label: t("sortNameAsc") },
+    { value: "missedSessionsDesc", label: t("sortMissedSessions") },
+    { value: "yearPlayDesc", label: t("sortYearPlayDesc") },
   ];
+
+  // Nhãn "nghỉ bao lâu": null = chưa từng chơi, 0 = đi hôm nay, n = nghỉ n ngày.
+  const restLabel = (restDays: number | null) =>
+    restDays === null
+      ? t("restNever")
+      : restDays === 0
+        ? t("restToday")
+        : t("restDays", { days: restDays });
+  // Tô amber khi nghỉ lâu (≥30 ngày) hoặc chưa từng đi — kéo mắt admin.
+  const restClass = (restDays: number | null) =>
+    restDays === null || restDays >= 30
+      ? "text-amber-600 dark:text-amber-400"
+      : "text-muted-foreground";
+
+  // Gom các giá trị suy ra theo member — dùng chung card mobile lẫn hàng bảng
+  // desktop để 2 layout không lệch logic (nợ, optimistic active/tên, thống kê).
+  const derive = (member: Member) => {
+    const debts = debtsByMember[member.id] ?? [];
+    // Ẩn ngay khoản vừa xác nhận (optimistic); rollback sẽ đưa lại vào list.
+    const visibleDebts = debts.filter((d) => !confirmedDebts.has(d.id));
+    const totalDebt = visibleDebts.reduce((s, d) => s + d.totalAmount, 0);
+    const unpaidAmount = visibleDebts
+      .filter((d) => !d.memberConfirmed)
+      .reduce((s, d) => s + d.totalAmount, 0);
+    const waitingAmount = visibleDebts
+      .filter((d) => d.memberConfirmed)
+      .reduce((s, d) => s + d.totalAmount, 0);
+    const isExpanded = expandedId === member.id;
+    const memberIsActive = toggledMembers[member.id] ?? member.isActive;
+    const displayName = infoOverrides[member.id]?.name ?? member.name;
+    const displayNickname =
+      infoOverrides[member.id]?.nickname ?? member.nickname;
+    const balance = memberBalances[member.id] ?? 0;
+    const stat = playStats[member.id];
+    const rest = restDaysFrom(stat?.lastPlayedDate, today);
+    return {
+      visibleDebts,
+      totalDebt,
+      unpaidAmount,
+      waitingAmount,
+      isExpanded,
+      memberIsActive,
+      displayName,
+      displayNickname,
+      balance,
+      stat,
+      rest,
+    };
+  };
+
+  // Danh sách khoản nợ chi tiết (ngày · số tiền · nút "Đã nhận") — dùng chung
+  // cho card mobile (mở rộng) lẫn hàng bảng desktop (dòng colspan).
+  const renderDebtDetail = (debts: MemberDebt[]) =>
+    debts
+      .slice()
+      .sort((a, b) => a.sessionDate.localeCompare(b.sessionDate))
+      .map((debt) => {
+        const d = new Date(debt.sessionDate);
+        const dayNames = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+        const dateStr = `${String(d.getDate()).padStart(2, "0")}/${String(
+          d.getMonth() + 1,
+        ).padStart(2, "0")} (${dayNames[d.getDay()]})`;
+        return (
+          <div
+            key={debt.id}
+            className="bg-muted/50 flex flex-wrap items-center justify-between gap-2 rounded-md px-3 py-1.5 text-sm"
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="text-muted-foreground">{dateStr}</span>
+              <span className="font-medium">{formatK(debt.totalAmount)}</span>
+              {debt.memberConfirmed && (
+                <StatusBadge variant="waiting">
+                  {tF("waitingAdmin")}
+                </StatusBadge>
+              )}
+            </div>
+            <Button
+              size="sm"
+              className="min-h-11 gap-1 text-xs"
+              disabled={confirmedDebts.has(debt.id)}
+              onClick={() => handleConfirmPayment(debt.id)}
+            >
+              <Check className="h-3 w-3" />
+              {tF("received")}
+            </Button>
+          </div>
+        );
+      });
+
+  // Cụm hành động (Lịch sử · Khóa/Mở · menu ⋮) — dùng chung card lẫn hàng bảng.
+  const renderActions = (member: Member, memberIsActive: boolean) => (
+    <div className="flex shrink-0 items-center gap-1">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="min-h-11 min-w-11"
+        onClick={() => setHistoryTarget(member)}
+        title={tHistory("openHistory")}
+        aria-label={tHistory("openHistory")}
+      >
+        <History className="h-4 w-4" />
+      </Button>
+      <Button
+        variant={memberIsActive ? "destructive" : "default"}
+        size="sm"
+        className="min-h-11"
+        onClick={() => handleToggle(member.id, memberIsActive)}
+      >
+        {memberIsActive ? (
+          <>
+            <Lock className="mr-1.5 h-4 w-4" />
+            {t("lock")}
+          </>
+        ) : (
+          <>
+            <LockOpen className="mr-1.5 h-4 w-4" />
+            {t("unlock")}
+          </>
+        )}
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon"
+              className="min-h-11 min-w-11"
+              aria-label={tCommon("more")}
+            />
+          }
+        >
+          <MoreVertical className="h-4 w-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem onClick={() => setInfoEditTarget(member)}>
+            <Edit className="h-4 w-4" />
+            {t("menuEditInfo")}
+          </DropdownMenuItem>
+          {adminMemberId === member.id ? (
+            <DropdownMenuItem onClick={handleUnlinkAdmin}>
+              <Crown className="h-4 w-4" />
+              {t("menuUnlinkAdmin")}
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem onClick={() => handleLinkAdmin(member)}>
+              <Crown className="h-4 w-4" />
+              {t("menuSetAdmin")}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem onClick={() => handleResetPassword(member)}>
+            <KeyRound className="h-4 w-4" />
+            {t("menuResetPassword")}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={() => setDeleteTarget(member)}
+          >
+            <Trash2 className="h-4 w-4" />
+            {t("menuDelete")}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
 
   return (
     <div className="">
@@ -649,31 +875,243 @@ export function MemberList({
         </div>
       </div>
 
-      {/* Member cards */}
-      <div className="grid gap-3">
+      {/* Desktop: bảng thead/tbody (md+). Cuộn ngang trong container riêng khi
+          hẹp — không để body trang cuộn ngang. Mobile dùng card bên dưới. */}
+      <div className="border-border/60 hidden overflow-x-auto rounded-xl border md:block">
+        <table className="w-full min-w-[820px] border-collapse text-sm">
+          <thead>
+            <tr className="border-border/60 text-muted-foreground border-b text-left text-xs font-medium tracking-wide uppercase">
+              <th className="px-3 py-2.5 font-medium">{t("colMember")}</th>
+              <th className="px-3 py-2.5 font-medium">{t("colFund")}</th>
+              <th className="px-3 py-2.5 text-center font-medium">
+                {t("colMonth")}
+              </th>
+              <th className="px-3 py-2.5 text-center font-medium">
+                {t("colYear")}
+              </th>
+              <th className="px-3 py-2.5 font-medium">{t("colLastPlayed")}</th>
+              <th className="px-3 py-2.5 text-center font-medium">
+                {t("colPartner")}
+              </th>
+              <th className="px-3 py-2.5">
+                <span className="sr-only">{tCommon("more")}</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {paged.map((member) => {
+              const {
+                visibleDebts,
+                totalDebt,
+                unpaidAmount,
+                waitingAmount,
+                isExpanded,
+                memberIsActive,
+                displayName,
+                displayNickname,
+                balance,
+                stat,
+                rest,
+              } = derive(member);
+              return (
+                <Fragment key={member.id}>
+                  <tr className="border-border/40 hover:bg-muted/30 border-b last:border-0">
+                    {/* Thành viên */}
+                    <td
+                      className={cn(
+                        "px-3 py-2.5 align-middle",
+                        cardAccentClass(memberIsActive, balance),
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setInfoEditTarget(member)}
+                          className="shrink-0 rounded-full"
+                          title={t("menuEditInfo")}
+                        >
+                          <MemberAvatar
+                            memberId={member.id}
+                            avatarKey={member.avatarKey}
+                            avatarUrl={member.avatarUrl}
+                            size={36}
+                          />
+                        </button>
+                        <div className="min-w-0">
+                          <button
+                            type="button"
+                            onClick={() => setInfoEditTarget(member)}
+                            title={t("menuEditInfo")}
+                            className="flex min-w-0 items-center gap-1.5 text-left hover:underline"
+                          >
+                            <span className="truncate font-semibold">
+                              {displayName}
+                            </span>
+                            {displayNickname && (
+                              <span className="text-muted-foreground shrink-0 text-xs font-normal">
+                                ({displayNickname})
+                              </span>
+                            )}
+                            {adminMemberId === member.id && (
+                              <span
+                                className="bg-primary/15 text-primary inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+                                title={t("thisIsAdminBadge")}
+                              >
+                                <Crown className="h-3 w-3" />
+                                {t("adminBadge")}
+                              </span>
+                            )}
+                          </button>
+                          <div className="text-muted-foreground mt-0.5 flex items-center gap-1.5 text-sm">
+                            <span
+                              className={cn(
+                                "size-1.5 shrink-0 rounded-full",
+                                fundMemberSet.has(member.id)
+                                  ? "bg-blue-500"
+                                  : "bg-muted-foreground/50",
+                              )}
+                            />
+                            {fundMemberSet.has(member.id)
+                              ? t("inFund")
+                              : t("notInFund")}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    {/* Quỹ / Nợ */}
+                    <td className="px-3 py-2.5 align-middle">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFundAdjustTarget({
+                            memberId: member.id,
+                            memberName: member.name,
+                            memberNickname: member.nickname,
+                            memberAvatarKey: member.avatarKey ?? null,
+                            memberAvatarUrl: member.avatarUrl ?? null,
+                            currentBalance: balance,
+                          })
+                        }
+                        className="hover:bg-muted/50 -m-1 rounded-md p-1 text-left transition-colors"
+                        title="Click để cộng/trừ/sửa quỹ"
+                      >
+                        {fundStatusInfoFor(balance)}
+                      </button>
+                      {totalDebt > 0 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedId(isExpanded ? null : member.id)
+                          }
+                          className="mt-1 flex items-center gap-1 text-sm font-medium hover:underline"
+                        >
+                          {unpaidAmount > 0 && (
+                            <span className="text-destructive">
+                              {tF("owed")}: {formatK(unpaidAmount)}
+                            </span>
+                          )}
+                          {unpaidAmount > 0 && waitingAmount > 0 && (
+                            <span className="text-muted-foreground">·</span>
+                          )}
+                          {waitingAmount > 0 && (
+                            <span className="text-amber-600 dark:text-amber-400">
+                              {tF("waitingAdmin")}: {formatK(waitingAmount)}
+                            </span>
+                          )}
+                          {isExpanded ? (
+                            <ChevronUp className="text-muted-foreground h-3.5 w-3.5" />
+                          ) : (
+                            <ChevronDown className="text-muted-foreground h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      )}
+                    </td>
+                    {/* Tháng này */}
+                    <td className="px-3 py-2.5 text-center align-middle tabular-nums">
+                      <span
+                        className={cn(
+                          "font-semibold",
+                          (stat?.monthPlay ?? 0) === 0 &&
+                            "text-muted-foreground font-normal",
+                        )}
+                      >
+                        {stat?.monthPlay ?? 0}
+                      </span>
+                    </td>
+                    {/* Năm nay */}
+                    <td className="px-3 py-2.5 text-center align-middle tabular-nums">
+                      <span
+                        className={cn(
+                          "font-semibold",
+                          (stat?.yearPlay ?? 0) === 0 &&
+                            "text-muted-foreground font-normal",
+                        )}
+                      >
+                        {stat?.yearPlay ?? 0}
+                      </span>
+                    </td>
+                    {/* Nghỉ bao lâu */}
+                    <td
+                      className={cn(
+                        "px-3 py-2.5 align-middle whitespace-nowrap",
+                        restClass(rest),
+                      )}
+                    >
+                      {restLabel(rest)}
+                    </td>
+                    {/* Đi 2 mình */}
+                    <td className="px-3 py-2.5 align-middle">
+                      <div className="flex justify-center">
+                        <Switch
+                          aria-label={t("memberWithPartner")}
+                          title={t("memberWithPartner")}
+                          checked={
+                            partnerOverrides[member.id] ??
+                            member.defaultWithPartner
+                          }
+                          onCheckedChange={() => handleTogglePartner(member)}
+                        />
+                      </div>
+                    </td>
+                    {/* Hành động */}
+                    <td className="px-3 py-2.5 align-middle">
+                      <div className="flex justify-end">
+                        {renderActions(member, memberIsActive)}
+                      </div>
+                    </td>
+                  </tr>
+                  {isExpanded && totalDebt > 0 && (
+                    <tr className="border-border/40 border-b last:border-0">
+                      <td colSpan={7} className="bg-muted/20 px-3 py-2.5">
+                        <div className="ml-12 space-y-1.5">
+                          {renderDebtDetail(visibleDebts)}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile: card (dưới md). Rule mobile-first: né table + né cuộn ngang. */}
+      <div className="grid gap-3 md:hidden">
         <AnimatePresence initial={false}>
           {paged.map((member) => {
-            const debts = debtsByMember[member.id] ?? [];
-            // Ẩn ngay khoản vừa xác nhận (optimistic) khỏi tổng + danh sách; nếu
-            // server reject, fireAction rollback bỏ id khỏi confirmedDebts →
-            // khoản hiện lại và tổng quay về.
-            const visibleDebts = debts.filter((d) => !confirmedDebts.has(d.id));
-            const totalDebt = visibleDebts.reduce(
-              (s, d) => s + d.totalAmount,
-              0,
-            );
-            const unpaidAmount = visibleDebts
-              .filter((d) => !d.memberConfirmed)
-              .reduce((s, d) => s + d.totalAmount, 0);
-            const waitingAmount = visibleDebts
-              .filter((d) => d.memberConfirmed)
-              .reduce((s, d) => s + d.totalAmount, 0);
-            const isExpanded = expandedId === member.id;
-
-            const memberIsActive = toggledMembers[member.id] ?? member.isActive;
-            const displayName = infoOverrides[member.id]?.name ?? member.name;
-            const displayNickname =
-              infoOverrides[member.id]?.nickname ?? member.nickname;
+            const {
+              visibleDebts,
+              totalDebt,
+              unpaidAmount,
+              waitingAmount,
+              isExpanded,
+              memberIsActive,
+              displayName,
+              displayNickname,
+              stat,
+              rest,
+            } = derive(member);
             return (
               <motion.div
                 key={member.id}
@@ -796,87 +1234,28 @@ export function MemberList({
                         >
                           {fundStatusInfoFor(memberBalances[member.id] ?? 0)}
                         </button>
-                        <div className="flex shrink-0 items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="min-h-11 min-w-11"
-                            onClick={() => setHistoryTarget(member)}
-                            title={tHistory("openHistory")}
-                            aria-label={tHistory("openHistory")}
-                          >
-                            <History className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant={memberIsActive ? "destructive" : "default"}
-                            size="sm"
-                            className="min-h-11"
-                            onClick={() =>
-                              handleToggle(member.id, memberIsActive)
-                            }
-                          >
-                            {memberIsActive ? (
-                              <>
-                                <Lock className="mr-1.5 h-4 w-4" />
-                                {t("lock")}
-                              </>
-                            ) : (
-                              <>
-                                <LockOpen className="mr-1.5 h-4 w-4" />
-                                {t("unlock")}
-                              </>
-                            )}
-                          </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger
-                              render={
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="min-h-11 min-w-11"
-                                  aria-label={tCommon("more")}
-                                />
-                              }
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent>
-                              <DropdownMenuItem
-                                onClick={() => setInfoEditTarget(member)}
-                              >
-                                <Edit className="h-4 w-4" />
-                                {t("menuEditInfo")}
-                              </DropdownMenuItem>
-                              {adminMemberId === member.id ? (
-                                <DropdownMenuItem onClick={handleUnlinkAdmin}>
-                                  <Crown className="h-4 w-4" />
-                                  {t("menuUnlinkAdmin")}
-                                </DropdownMenuItem>
-                              ) : (
-                                <DropdownMenuItem
-                                  onClick={() => handleLinkAdmin(member)}
-                                >
-                                  <Crown className="h-4 w-4" />
-                                  {t("menuSetAdmin")}
-                                </DropdownMenuItem>
-                              )}
-                              <DropdownMenuItem
-                                onClick={() => handleResetPassword(member)}
-                              >
-                                <KeyRound className="h-4 w-4" />
-                                {t("menuResetPassword")}
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                variant="destructive"
-                                onClick={() => setDeleteTarget(member)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                {t("menuDelete")}
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
+                        {renderActions(member, memberIsActive)}
+                      </div>
+
+                      {/* Thống kê buổi chơi: tháng · năm · nghỉ bao lâu */}
+                      <div className="text-muted-foreground mt-3 flex flex-wrap items-center gap-x-2 gap-y-0.5 border-t pt-3 text-sm">
+                        <span>
+                          {t("colMonth")}:{" "}
+                          <span className="text-foreground font-medium tabular-nums">
+                            {stat?.monthPlay ?? 0}
+                          </span>
+                        </span>
+                        <span aria-hidden>·</span>
+                        <span>
+                          {t("colYear")}:{" "}
+                          <span className="text-foreground font-medium tabular-nums">
+                            {stat?.yearPlay ?? 0}
+                          </span>
+                        </span>
+                        <span aria-hidden>·</span>
+                        <span className={restClass(rest)}>
+                          {restLabel(rest)}
+                        </span>
                       </div>
                     </div>
 
@@ -915,55 +1294,7 @@ export function MemberList({
 
                         {isExpanded && (
                           <div className="mt-2 ml-12 space-y-1.5">
-                            {visibleDebts
-                              .sort((a, b) =>
-                                a.sessionDate.localeCompare(b.sessionDate),
-                              )
-                              .map((debt) => {
-                                const d = new Date(debt.sessionDate);
-                                const dayNames = [
-                                  "CN",
-                                  "T2",
-                                  "T3",
-                                  "T4",
-                                  "T5",
-                                  "T6",
-                                  "T7",
-                                ];
-                                const dateStr = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")} (${dayNames[d.getDay()]})`;
-
-                                return (
-                                  <div
-                                    key={debt.id}
-                                    className="bg-muted/50 flex items-center justify-between rounded-md px-3 py-1.5 text-sm"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-muted-foreground">
-                                        {dateStr}
-                                      </span>
-                                      <span className="font-medium">
-                                        {formatK(debt.totalAmount)}
-                                      </span>
-                                      {debt.memberConfirmed && (
-                                        <StatusBadge variant="waiting">
-                                          {tF("waitingAdmin")}
-                                        </StatusBadge>
-                                      )}
-                                    </div>
-                                    <Button
-                                      size="sm"
-                                      className="min-h-11 gap-1 text-xs"
-                                      disabled={confirmedDebts.has(debt.id)}
-                                      onClick={() =>
-                                        handleConfirmPayment(debt.id)
-                                      }
-                                    >
-                                      <Check className="h-3 w-3" />
-                                      {tF("received")}
-                                    </Button>
-                                  </div>
-                                );
-                              })}
+                            {renderDebtDetail(visibleDebts)}
                           </div>
                         )}
                       </>

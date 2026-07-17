@@ -7,6 +7,7 @@ import { calculateExactShuttlecockCost } from "@/lib/cost-calculator";
 import { roundToThousand } from "@/lib/utils";
 import { getUserFromCookie } from "@/lib/user-identity";
 import { getAdminFromCookie } from "@/lib/auth";
+import { ymdInVN } from "@/lib/date-format";
 
 /**
  * Date-range start cho biểu đồ chi phí, derive từ groupBy:
@@ -91,6 +92,78 @@ export async function getActiveMembersStats(
       ...counts,
     }))
     .sort((a, b) => b.playCount + b.dineCount - (a.playCount + a.dineCount));
+}
+
+export interface MemberPlayStat {
+  /** Số buổi CHƠI trong tháng lịch hiện tại (giờ VN). */
+  monthPlay: number;
+  /** Số buổi CHƠI trong năm lịch hiện tại (giờ VN). */
+  yearPlay: number;
+  /** Ngày buổi chơi gần nhất (YYYY-MM-DD), null nếu chưa từng chơi. */
+  lastPlayedDate: string | null;
+  /** Số buổi CLB đã hoàn thành SAU buổi chơi gần nhất = số buổi đã nghỉ. */
+  missedSessions: number;
+}
+
+/**
+ * Thống kê buổi CHƠI (attendsPlay) mỗi member cho bảng /admin/members: số buổi
+ * tháng này, năm nay, và ngày chơi gần nhất. Nguồn giống {@link getActiveMembersStats}
+ * — `session_attendees.attendsPlay` trên session `completed`, bỏ guest. Mốc
+ * tháng/năm lấy theo giờ VN (`ymdInVN`) để không lệch khi server chạy UTC.
+ * "Nghỉ bao lâu" tính ở client từ `lastPlayedDate` (dùng chung mốc `ymdInVN`).
+ */
+export async function getMemberPlayStats(): Promise<
+  Record<number, MemberPlayStat>
+> {
+  const admin = await getAdminFromCookie();
+  if (!admin || admin.role !== "admin") return {};
+
+  const today = ymdInVN();
+  const monthPrefix = today.slice(0, 7); // YYYY-MM
+  const yearPrefix = today.slice(0, 4); // YYYY
+
+  const completedSessions = await db.query.sessions.findMany({
+    where: eq(sessions.status, "completed"),
+    columns: { id: true, date: true },
+    with: {
+      attendees: {
+        columns: { memberId: true, isGuest: true, attendsPlay: true },
+      },
+    },
+  });
+
+  const stats: Record<number, MemberPlayStat> = {};
+  for (const s of completedSessions) {
+    const inMonth = s.date.startsWith(monthPrefix);
+    const inYear = s.date.startsWith(yearPrefix);
+    for (const a of s.attendees) {
+      if (!a.memberId || a.isGuest || !a.attendsPlay) continue;
+      const cur = stats[a.memberId] ?? {
+        monthPlay: 0,
+        yearPlay: 0,
+        lastPlayedDate: null,
+        missedSessions: 0,
+      };
+      if (inMonth) cur.monthPlay++;
+      if (inYear) cur.yearPlay++;
+      if (!cur.lastPlayedDate || s.date > cur.lastPlayedDate) {
+        cur.lastPlayedDate = s.date;
+      }
+      stats[a.memberId] = cur;
+    }
+  }
+
+  // Số buổi đã nghỉ = số buổi CLB đã hoàn thành SAU buổi chơi gần nhất của họ.
+  const completedDates = completedSessions.map((s) => s.date);
+  for (const id of Object.keys(stats)) {
+    const st = stats[Number(id)];
+    const last = st.lastPlayedDate;
+    st.missedSessions = last
+      ? completedDates.filter((d) => d > last).length
+      : 0;
+  }
+
+  return stats;
 }
 
 export interface MonthlyExpense {

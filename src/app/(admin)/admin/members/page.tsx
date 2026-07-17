@@ -4,6 +4,7 @@ import {
   findDuplicateMembers,
 } from "@/actions/members";
 import { getAllDebts } from "@/actions/finance";
+import { getMemberPlayStats } from "@/actions/stats";
 import { db } from "@/db";
 import { financialTransactions, members as membersTable } from "@/db/schema";
 import { eq, inArray, asc, and } from "drizzle-orm";
@@ -24,6 +25,7 @@ export default async function MembersPage() {
     dupGroups,
     fundMemberRows,
     pendingRows,
+    playStats,
   ] = await Promise.all([
     getMembers(),
     getAllDebts(),
@@ -40,6 +42,7 @@ export default async function MembersPage() {
       where: eq(membersTable.approvalStatus, "pending"),
       orderBy: [asc(membersTable.createdAt)],
     }),
+    getMemberPlayStats(),
   ]);
 
   // Build pending list with name-match suggestions per row.
@@ -138,6 +141,7 @@ export default async function MembersPage() {
         currentAdminMemberId={currentAdminMemberId}
         memberBalances={memberBalances}
         fundMemberIds={fundMemberIdList}
+        playStats={playStats}
       />
     </div>
   );
