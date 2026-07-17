@@ -636,7 +636,16 @@ export function MemberList({
     const isAsc = sortMode === ascMode;
     const isDesc = sortMode === descMode;
     const active = isAsc || isDesc;
-    const next = isDesc ? ascMode : isAsc ? descMode : firstMode;
+    // Cycle 3 trạng thái: chưa sort → firstMode → chiều còn lại → (lần 3) bỏ
+    // sort, về mặc định "smart".
+    const otherMode = firstMode === descMode ? ascMode : descMode;
+    const current: SortMode | null = isAsc ? ascMode : isDesc ? descMode : null;
+    const next: SortMode =
+      current === null
+        ? firstMode
+        : current === firstMode
+          ? otherMode
+          : "smart";
     const Icon = isAsc ? ChevronUp : isDesc ? ChevronDown : ChevronsUpDown;
     return (
       <button
