@@ -6,11 +6,17 @@ import {
   sessionDebts,
   financialTransactions,
   courts,
+  votes,
 } from "@/db/schema";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth", () => ({
   requireAdmin: vi.fn(async () => ({ admin: { role: "admin" } })),
+}));
+// Cố định "hôm nay" để lọc buổi pending (date <= today) tất định.
+vi.mock("@/lib/date-format", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/date-format")>()),
+  ymdInVN: () => "2026-07-17",
 }));
 
 const { db: testDb, client } = await createTestDb();
@@ -19,6 +25,7 @@ vi.mock("@/db", () => ({ db: testDb }));
 const { getMemberPlayHistory } = await import("./member-history");
 
 async function reset() {
+  await client.execute("DELETE FROM votes");
   await client.execute("DELETE FROM financial_transactions");
   await client.execute("DELETE FROM session_debts");
   await client.execute("DELETE FROM sessions");
@@ -111,6 +118,67 @@ describe("getMemberPlayHistory", () => {
     if ("error" in res) throw new Error(res.error);
     expect(res.entries).toEqual([]);
     expect(res.balance).toBe(100000);
+  });
+
+  it("hiện buổi CHƯA chốt (vote willPlay) như pending; bỏ future/cancelled; không trùng completed", async () => {
+    const [m] = await testDb
+      .insert(members)
+      .values({ name: "Bông" })
+      .returning({ id: members.id });
+    const [court] = await testDb
+      .insert(courts)
+      .values({ name: "Sân A", pricePerSession: 100000 })
+      .returning({ id: courts.id });
+    const mk = async (
+      date: string,
+      status: "voting" | "confirmed" | "completed" | "cancelled",
+    ) =>
+      (
+        await testDb
+          .insert(sessions)
+          .values({ date, status, courtId: court.id })
+          .returning({ id: sessions.id })
+      )[0].id;
+
+    // Hôm nay = 2026-07-17.
+    const sDone = await mk("2026-07-05", "completed");
+    const sConfirmed = await mk("2026-07-14", "confirmed"); // chưa chốt, đã diễn ra
+    const sVotingPast = await mk("2026-07-16", "voting"); // chưa chốt, đã diễn ra
+    const sFuture = await mk("2026-07-25", "confirmed"); // tương lai → loại
+    const sCancelled = await mk("2026-07-10", "cancelled"); // huỷ → loại
+
+    await testDb
+      .insert(sessionDebts)
+      .values([
+        {
+          sessionId: sDone,
+          memberId: m.id,
+          totalAmount: 30000,
+          playAmount: 30000,
+        },
+      ]);
+    await testDb.insert(votes).values([
+      { sessionId: sDone, memberId: m.id, willPlay: true }, // completed → KHÔNG tạo pending
+      { sessionId: sConfirmed, memberId: m.id, willPlay: true },
+      { sessionId: sVotingPast, memberId: m.id, willPlay: true },
+      { sessionId: sFuture, memberId: m.id, willPlay: true }, // future → loại
+      { sessionId: sCancelled, memberId: m.id, willPlay: true }, // huỷ → loại
+    ]);
+
+    const res = await getMemberPlayHistory(m.id);
+    if ("error" in res) throw new Error(res.error);
+    // desc: sVotingPast(07-16) → sConfirmed(07-14) → sDone(07-05)
+    expect(res.entries.map((e) => e.sessionId)).toEqual([
+      sVotingPast,
+      sConfirmed,
+      sDone,
+    ]);
+    const byId = Object.fromEntries(res.entries.map((e) => [e.sessionId, e]));
+    expect(byId[sConfirmed].pending).toBe(true);
+    expect(byId[sConfirmed].totalAmount).toBe(0);
+    expect(byId[sVotingPast].pending).toBe(true);
+    expect(byId[sDone].pending).toBe(false);
+    expect(byId[sDone].totalAmount).toBe(30000);
   });
 
   it("memberId không hợp lệ → error, không throw", async () => {

@@ -637,6 +637,8 @@
     "statusPaid": "Paid",
     "statusPartial": "Partially paid",
     "statusUnpaid": "Unpaid",
+    "statusPending": "Not settled",
+    "pendingNote": "Session not settled yet, amount pending.",
     "owingLine": "Owing {amount}đ",
     "fundLine": "Fund balance {amount}đ",
     "zeroLine": "Balance 0đ",

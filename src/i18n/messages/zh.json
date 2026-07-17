@@ -637,6 +637,8 @@
     "statusPaid": "已付",
     "statusPartial": "部分已付",
     "statusUnpaid": "未付",
+    "statusPending": "未结算",
+    "pendingNote": "本场尚未结算，金额待定。",
     "owingLine": "欠款 {amount}đ",
     "fundLine": "余额 {amount}đ",
     "zeroLine": "余额 0đ",

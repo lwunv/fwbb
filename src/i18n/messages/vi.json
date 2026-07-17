@@ -637,6 +637,8 @@
     "statusPaid": "Đã trả",
     "statusPartial": "Trả một phần",
     "statusUnpaid": "Chưa trả",
+    "statusPending": "Chưa chốt",
+    "pendingNote": "Buổi chưa chốt sổ, chưa tính tiền.",
     "owingLine": "Đang nợ {amount}đ",
     "fundLine": "Còn quỹ {amount}đ",
     "zeroLine": "Số dư 0đ",

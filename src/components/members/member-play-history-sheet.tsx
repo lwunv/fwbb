@@ -214,8 +214,24 @@ function CalendarSkeleton() {
   );
 }
 
-function StatusBadgeFor({ status }: { status: PaidStatus }) {
+function StatusBadgeFor({
+  status,
+  pending,
+}: {
+  status: PaidStatus;
+  pending?: boolean;
+}) {
   const t = useTranslations("memberHistory");
+  if (pending) {
+    return (
+      <Badge
+        variant="outline"
+        className="border-0 bg-sky-500/15 text-sky-600 dark:text-sky-400"
+      >
+        {t("statusPending")}
+      </Badge>
+    );
+  }
   const label =
     status === "paid"
       ? t("statusPaid")
@@ -240,12 +256,15 @@ function EntryDetail({
   const rows: Array<[string, string]> = [
     [t("detailTime"), `${entry.startTime} - ${entry.endTime}`],
     [t("detailCourt"), entry.courtName ?? "-"],
-    [t("detailTotal"), `${formatK(entry.totalAmount)}đ`],
   ];
-  if (entry.playAmount > 0)
-    rows.push([t("detailPlay"), `${formatK(entry.playAmount)}đ`]);
-  if (entry.dineAmount > 0)
-    rows.push([t("detailDine"), `${formatK(entry.dineAmount)}đ`]);
+  // Buổi chưa chốt sổ chưa có tiền → không hiện phần tiền, thay bằng ghi chú.
+  if (!entry.pending) {
+    rows.push([t("detailTotal"), `${formatK(entry.totalAmount)}đ`]);
+    if (entry.playAmount > 0)
+      rows.push([t("detailPlay"), `${formatK(entry.playAmount)}đ`]);
+    if (entry.dineAmount > 0)
+      rows.push([t("detailDine"), `${formatK(entry.dineAmount)}đ`]);
+  }
   return (
     <div className="text-muted-foreground space-y-1 pt-2 text-sm">
       <p className="text-foreground font-medium">
@@ -257,6 +276,9 @@ function EntryDetail({
           <span className="text-foreground font-medium">{v}</span>
         </div>
       ))}
+      {entry.pending && (
+        <p className="text-sky-600 dark:text-sky-400">{t("pendingNote")}</p>
+      )}
     </div>
   );
 }
@@ -351,7 +373,7 @@ function HistoryCalendar({
                 <span
                   className={cn(
                     "absolute bottom-1 size-1.5 rounded-full",
-                    DOT_CLASS[entry.paidStatus],
+                    entry.pending ? "bg-sky-500" : DOT_CLASS[entry.paidStatus],
                   )}
                 />
               )}
@@ -376,7 +398,10 @@ function HistoryCalendar({
           >
             <div className="bg-card/80 rounded-xl border p-3">
               <div className="flex items-center justify-between">
-                <StatusBadgeFor status={selected.paidStatus} />
+                <StatusBadgeFor
+                  status={selected.paidStatus}
+                  pending={selected.pending}
+                />
               </div>
               <EntryDetail entry={selected} locale={locale} />
             </div>
@@ -419,10 +444,11 @@ function HistoryList({
                 {formatSessionDate(e.date, "weekday", locale)}
               </p>
               <p className="text-muted-foreground text-sm">
-                {e.startTime} - {e.endTime} · {formatK(e.totalAmount)}đ
+                {e.startTime} - {e.endTime}
+                {!e.pending && ` · ${formatK(e.totalAmount)}đ`}
               </p>
             </div>
-            <StatusBadgeFor status={e.paidStatus} />
+            <StatusBadgeFor status={e.paidStatus} pending={e.pending} />
           </div>
           <AnimatePresence initial={false}>
             {expandedId === e.sessionId && (
