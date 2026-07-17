@@ -21,6 +21,7 @@ import { getUserFromCookie } from "@/lib/user-identity";
 import { requireAdmin } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { memberSchema } from "@/lib/validators";
+import { normalizeUsername } from "@/lib/username";
 import { AVATAR_BRAND_KEYS } from "@/lib/member-avatar-presets";
 import { AVATAR_EMOJI_COUNT } from "@/lib/member-avatar-emoji";
 import { computeBalanceFromTransactions } from "@/lib/fund-core";
@@ -127,17 +128,17 @@ async function resolveUsername(
   raw: string,
   excludeId: number | null,
 ): Promise<{ value: string | null } | { code: "invalid" | "taken" }> {
-  const norm = raw.trim().toLowerCase();
-  if (!norm) return { value: null };
-  if (!/^[a-z0-9._]{3,32}$/.test(norm)) return { code: "invalid" };
+  const fmt = normalizeUsername(raw);
+  if ("code" in fmt) return fmt;
+  if (fmt.value === null) return { value: null };
   const dup = await db.query.members.findFirst({
     where: excludeId
-      ? and(eq(members.username, norm), ne(members.id, excludeId))
-      : eq(members.username, norm),
+      ? and(eq(members.username, fmt.value), ne(members.id, excludeId))
+      : eq(members.username, fmt.value),
     columns: { id: true },
   });
   if (dup) return { code: "taken" };
-  return { value: norm };
+  return { value: fmt.value };
 }
 
 export async function createMember(formData: FormData) {
