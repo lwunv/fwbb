@@ -19,6 +19,11 @@ export const admins = sqliteTable(
     // index riêng (KHÔNG .unique() inline → tránh recreate-table trên Turso).
     email: text("email"),
     phoneNumber: text("phone_number"),
+    // Google `sub` (user id) — set khi admin liên kết Google để đăng nhập SSO
+    // (Phase 4). Nullable; unique qua index riêng (KHÔNG .unique() inline →
+    // tránh recreate-table trên Turso). Admin SSO tự chứa (không dùng
+    // member_oauth_identities), login tra `admins.google_id`, KHÔNG match email.
+    googleId: text("google_id"),
     // Explicit pointer to the admin's own member record. Replaces the fragile
     // `members.name === admins.username` matching previously used to identify
     // admin's debts. Nullable so admins without a member row don't break.
@@ -29,7 +34,10 @@ export const admins = sqliteTable(
     }),
     createdAt: text("created_at").default(sql`(current_timestamp)`),
   },
-  (table) => [uniqueIndex("admins_email_unique").on(table.email)],
+  (table) => [
+    uniqueIndex("admins_email_unique").on(table.email),
+    uniqueIndex("admins_google_id_unique").on(table.googleId),
+  ],
 );
 
 export const members = sqliteTable(
