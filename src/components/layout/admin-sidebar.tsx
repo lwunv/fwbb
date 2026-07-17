@@ -15,6 +15,7 @@ import {
   BarChart3,
   LogOut,
   Receipt,
+  UserCog,
 } from "lucide-react";
 import { logout } from "@/actions/auth";
 import { LanguageSelector } from "@/components/shared/language-selector";
@@ -53,6 +54,7 @@ const navItems = [
     icon: CircleDot,
   },
   { href: "/admin/stats", labelKey: "stats" as const, icon: BarChart3 },
+  { href: "/admin/account", labelKey: "account" as const, icon: UserCog },
 ];
 
 export function AdminSidebar({

@@ -69,7 +69,7 @@ export function PasswordChangeForm() {
                   name="newPassword"
                   type={showNew ? "text" : "password"}
                   required
-                  minLength={6}
+                  minLength={8}
                   autoComplete="new-password"
                 />
                 <button
@@ -93,7 +93,7 @@ export function PasswordChangeForm() {
                 name="confirmPassword"
                 type="password"
                 required
-                minLength={6}
+                minLength={8}
                 autoComplete="new-password"
               />
             </div>

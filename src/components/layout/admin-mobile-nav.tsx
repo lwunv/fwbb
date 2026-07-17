@@ -17,6 +17,7 @@ import {
   BarChart3,
   LogOut,
   Receipt,
+  UserCog,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -57,6 +58,7 @@ const navItems = [
     icon: CircleDot,
   },
   { href: "/admin/stats", labelKey: "stats" as const, icon: BarChart3 },
+  { href: "/admin/account", labelKey: "account" as const, icon: UserCog },
 ];
 
 export function AdminMobileNav({
