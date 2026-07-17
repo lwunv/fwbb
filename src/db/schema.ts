@@ -102,6 +102,28 @@ export const members = sqliteTable(
   ],
 );
 
+// Single-use token cho luồng quên mật khẩu, dùng chung cho cả member và admin.
+// Đúng 1 trong memberId/adminId được set (invariant ở app layer, không CHECK
+// constraint). FK ON DELETE CASCADE: xóa member/admin thì token liên quan
+// cũng mất theo, không để lại token mồ côi.
+export const passwordResetTokens = sqliteTable(
+  "password_reset_tokens",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    memberId: integer("member_id").references(() => members.id, {
+      onDelete: "cascade",
+    }),
+    adminId: integer("admin_id").references(() => admins.id, {
+      onDelete: "cascade",
+    }),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: text("expires_at").notNull(),
+    usedAt: text("used_at"),
+    createdAt: text("created_at").default(sql`(current_timestamp)`),
+  },
+  (table) => [uniqueIndex("prt_token_hash_unique").on(table.tokenHash)],
+);
+
 /**
  * Nhiều tài khoản đăng nhập ngoài (Google/Facebook) trỏ về CÙNG 1 member —
  * cho phép 1 người dùng 2+ tài khoản Google (hoặc thêm Facebook) cùng vào 1
