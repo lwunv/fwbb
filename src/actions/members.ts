@@ -12,6 +12,7 @@ import {
   memberOauthIdentities,
   sessionMinDeductionExemptions,
   paymentNotifications,
+  dupIgnoredPairs,
 } from "@/db/schema";
 import { eq, sql, or, ne, and, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -633,7 +634,28 @@ export async function findDuplicateMembers() {
     groups.set(r.normalized, list);
   }
 
-  const dupGroups = Array.from(groups.values()).filter((g) => g.length > 1);
+  const rawGroups = Array.from(groups.values()).filter((g) => g.length > 1);
+  if (rawGroups.length === 0) return [];
+
+  // Loại các cặp admin đã "Bỏ qua" (xác nhận KHÁC người dù trùng tên). Trong
+  // mỗi nhóm, giữ member nếu còn ÍT NHẤT 1 partner CHƯA bị bỏ qua; nhóm còn < 2
+  // member thì biến mất khỏi banner. Trường hợp phổ biến (nhóm 2 người): bỏ qua
+  // cặp đó → cả 2 mất partner → nhóm ẩn hẳn.
+  const ignoredRows = await db
+    .select({
+      low: dupIgnoredPairs.memberIdLow,
+      high: dupIgnoredPairs.memberIdHigh,
+    })
+    .from(dupIgnoredPairs);
+  const ignoredSet = new Set(ignoredRows.map((r) => `${r.low}-${r.high}`));
+  const isIgnored = (a: number, b: number) =>
+    ignoredSet.has(`${Math.min(a, b)}-${Math.max(a, b)}`);
+
+  const dupGroups = rawGroups
+    .map((g) =>
+      g.filter((m) => g.some((n) => n.id !== m.id && !isIgnored(m.id, n.id))),
+    )
+    .filter((g) => g.length > 1);
   if (dupGroups.length === 0) return [];
 
   // Pre-compute balance + ledger count cho từng member trong các nhóm dupe.
@@ -687,6 +709,38 @@ export async function findDuplicateMembers() {
       ledgerCount: balanceById.get(m.id)?.count ?? 0,
     })),
   }));
+}
+
+/**
+ * Đánh dấu tất cả cặp trong 1 nhóm trùng tên là "KHÁC người" → ẩn nhóm khỏi
+ * banner. Chèn mọi cặp (chuẩn hoá low < high) vào dup_ignored_pairs, bỏ qua cặp
+ * đã có (unique index). Không đụng dữ liệu member, chỉ ghi bảng ignore. Idempotent.
+ */
+export async function ignoreDuplicateGroup(memberIds: number[]) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
+  const parsed = z
+    .array(z.number().int().positive())
+    .min(2)
+    .safeParse(memberIds);
+  if (!parsed.success) return { error: "Danh sách member không hợp lệ" };
+
+  // Dedupe + sort tăng dần: cặp (i<j) luôn có ids[i] < ids[j] = low < high.
+  const ids = [...new Set(parsed.data)].sort((a, b) => a - b);
+  if (ids.length < 2) return { error: "Cần ít nhất 2 member" };
+
+  const pairs: { memberIdLow: number; memberIdHigh: number }[] = [];
+  for (let i = 0; i < ids.length; i++) {
+    for (let j = i + 1; j < ids.length; j++) {
+      pairs.push({ memberIdLow: ids[i], memberIdHigh: ids[j] });
+    }
+  }
+
+  await db.insert(dupIgnoredPairs).values(pairs).onConflictDoNothing();
+
+  revalidatePath("/admin/members");
+  return { success: true };
 }
 
 /**

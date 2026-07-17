@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { AlertTriangle, ArrowRight } from "lucide-react";
-import { mergeMember } from "@/actions/members";
+import { AlertTriangle, ArrowRight, X } from "lucide-react";
+import { mergeMember, ignoreDuplicateGroup } from "@/actions/members";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -49,6 +49,27 @@ export function DuplicateMembersBanner({ groups }: { groups: DupGroup[] }) {
   // Optimistic: id của các source members đang được merge → fade-out + disable
   // ngay khi user confirm. Rollback (set lại empty) nếu server fail.
   const [mergingIds, setMergingIds] = useState<Set<number>>(new Set());
+  // Optimistic "Bỏ qua": ẩn nhóm NGAY khi bấm; rollback nếu server fail.
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+
+  function handleIgnore(group: DupGroup) {
+    setDismissed((prev) => new Set(prev).add(group.name));
+    const ids = group.members.map((m) => m.id);
+    startTransition(async () => {
+      const res = await ignoreDuplicateGroup(ids);
+      if (res && "error" in res && res.error) {
+        toast.error(`Không bỏ qua được nhóm "${group.name}": ${res.error}`);
+        setDismissed((prev) => {
+          const next = new Set(prev);
+          next.delete(group.name);
+          return next;
+        });
+        return;
+      }
+      toast.success(`Đã bỏ qua nhóm "${group.name}"`);
+      // Giữ ẩn: revalidate sẽ loại nhóm khỏi findDuplicateMembers.
+    });
+  }
 
   function openConfirm(group: DupGroup) {
     const keepId = keepIds[group.name];
@@ -91,6 +112,10 @@ export function DuplicateMembersBanner({ groups }: { groups: DupGroup[] }) {
     });
   }
 
+  // Ẩn ngay các nhóm vừa "Bỏ qua" (optimistic); hết nhóm thì ẩn cả banner.
+  const visibleGroups = groups.filter((g) => !dismissed.has(g.name));
+  if (visibleGroups.length === 0) return null;
+
   return (
     <>
       <Card className="border-amber-300/60 bg-amber-50/40 dark:border-amber-800/40 dark:bg-amber-950/20">
@@ -98,15 +123,16 @@ export function DuplicateMembersBanner({ groups }: { groups: DupGroup[] }) {
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             <h3 className="text-base font-bold">
-              Phát hiện thành viên trùng tên ({groups.length})
+              Phát hiện thành viên trùng tên ({visibleGroups.length})
             </h3>
           </div>
           <p className="text-muted-foreground text-sm">
-            Chọn ID giữ lại cho mỗi nhóm — các bản còn lại sẽ được gộp toàn bộ
-            vote / nợ / quỹ / giao dịch vào bản giữ lại, rồi xóa.
+            Chọn ID giữ lại rồi Gộp để dồn vote / nợ / quỹ / giao dịch vào 1 bản
+            (xóa các bản kia). Nếu đây là những người KHÁC nhau chỉ trùng tên,
+            bấm Bỏ qua để không cảnh báo nữa.
           </p>
 
-          {groups.map((group) => {
+          {visibleGroups.map((group) => {
             const keepId = keepIds[group.name];
             return (
               <div
@@ -181,7 +207,16 @@ export function DuplicateMembersBanner({ groups }: { groups: DupGroup[] }) {
                     );
                   })}
                 </ul>
-                <div className="flex justify-end pt-1">
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleIgnore(group)}
+                    disabled={pending}
+                  >
+                    <X className="mr-1 h-4 w-4" />
+                    Bỏ qua
+                  </Button>
                   <Button
                     size="sm"
                     onClick={() => openConfirm(group)}

@@ -382,6 +382,32 @@ export const sessionDebts = sqliteTable(
   ],
 );
 
+/**
+ * Cặp member trùng tên đã được admin xác nhận KHÁC người → ẩn khỏi banner
+ * "Phát hiện thành viên trùng tên". Lưu chuẩn hoá memberIdLow < memberIdHigh
+ * nên mỗi cặp chỉ 1 dòng; unique index chặn ghi trùng. Xoá member nào thì
+ * cascade xoá các cặp liên quan (không để lại FK trơ sau merge/delete).
+ */
+export const dupIgnoredPairs = sqliteTable(
+  "dup_ignored_pairs",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    memberIdLow: integer("member_id_low")
+      .notNull()
+      .references(() => members.id, { onDelete: "cascade" }),
+    memberIdHigh: integer("member_id_high")
+      .notNull()
+      .references(() => members.id, { onDelete: "cascade" }),
+    createdAt: text("created_at").default(sql`(current_timestamp)`),
+  },
+  (table) => [
+    uniqueIndex("dup_ignored_pairs_low_high_idx").on(
+      table.memberIdLow,
+      table.memberIdHigh,
+    ),
+  ],
+);
+
 // Relations
 
 export const sessionsRelations = relations(sessions, ({ one, many }) => ({
