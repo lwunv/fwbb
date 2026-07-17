@@ -178,7 +178,8 @@
     "slotsFull": "Hết slot",
     "slotsLeft": "Còn {count} slot",
     "maxPlayersLabel": "Tối đa {max}",
-    "maxPlayersHint": "Đổi sức chứa chơi cầu tối đa (16 ⇄ 8)"
+    "maxPlayersHint": "Đổi sức chứa chơi cầu tối đa (16 ⇄ 8)",
+    "peopleCount": "{count} người"
   },
   "finance": {
     "debts": "Công nợ",

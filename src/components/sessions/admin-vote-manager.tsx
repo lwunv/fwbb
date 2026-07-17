@@ -731,6 +731,13 @@ export function AdminVoteManager({
                         {memberBalances[member.id] !== undefined && (
                           <FundStatusIcon balance={memberBalances[member.id]} />
                         )}
+                        {/* Đi 2 người → chip status cạnh tên (glanceable, khỏi
+                            phải suy từ trạng thái nút toggle 👫). */}
+                        {getWithPartner(member.id) && (
+                          <span className="border-primary/40 bg-primary/10 text-primary inline-flex shrink-0 items-center gap-0.5 rounded border px-1.5 text-xs font-semibold">
+                            👫 {t("withPartner")}
+                          </span>
+                        )}
                       </span>
                       {(() => {
                         if (memberBalances[member.id] === undefined)

@@ -178,7 +178,8 @@
     "slotsFull": "已满",
     "slotsLeft": "剩 {count} 个名额",
     "maxPlayersLabel": "最多 {max}",
-    "maxPlayersHint": "切换打球最大容量（16 ⇄ 8）"
+    "maxPlayersHint": "切换打球最大容量（16 ⇄ 8）",
+    "peopleCount": "{count} 人"
   },
   "finance": {
     "debts": "债务",
