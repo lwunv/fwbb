@@ -2,14 +2,16 @@
 
 import { db } from "@/db";
 import { admins } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { setAdminCookie, clearAdminCookie, requireAdmin } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { loginSchema } from "@/lib/validators";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getTrustedClientIp } from "@/lib/client-ip";
 import { getTranslations } from "next-intl/server";
+import { normalizeUsername } from "@/lib/username";
 
 export async function login(
   _prevState: { error: string } | null,
@@ -150,5 +152,102 @@ export async function changePassword(
     .set({ passwordHash: newHash })
     .where(eq(admins.id, admin.id));
 
+  return { success: true };
+}
+
+/** Hồ sơ admin hiện tại (theo cookie.sub). Không bao giờ trả passwordHash. */
+export async function getCurrentAdmin() {
+  const auth = await requireAdmin();
+  if ("error" in auth) return null;
+  const adminIdNum = parseInt(String(auth.admin.sub ?? ""), 10);
+  if (!Number.isFinite(adminIdNum)) return null;
+  const admin = await db.query.admins.findFirst({
+    where: eq(admins.id, adminIdNum),
+    columns: { id: true, username: true, email: true, phoneNumber: true },
+  });
+  return admin ?? null;
+}
+
+/**
+ * Admin tự sửa hồ sơ đăng nhập: username / email / phone. Chỉ đụng field khi
+ * form CÓ gửi (formData.has). Unique tra trong phạm vi bảng admins (excludeId =
+ * chính admin). Bọc write map lỗi UNIQUE (race) về message localized.
+ */
+export async function updateAdminProfile(
+  _prevState: { error?: string; success?: boolean } | null,
+  formData: FormData,
+): Promise<{ error?: string; success?: boolean }> {
+  const t = await getTranslations("serverErrors");
+  const auth = await requireAdmin();
+  if ("error" in auth) return { error: auth.error };
+
+  const ip = await getTrustedClientIp();
+  const rl = await checkRateLimit(`admin-profile:${ip}`, 20, 60_000);
+  if (!rl.ok) {
+    return { error: t("tooManyActions", { seconds: rl.retryAfter ?? 60 }) };
+  }
+
+  const adminIdNum = parseInt(String(auth.admin.sub ?? ""), 10);
+  if (!Number.isFinite(adminIdNum)) return { error: t("invalidAdminSession") };
+  const admin = await db.query.admins.findFirst({
+    where: eq(admins.id, adminIdNum),
+  });
+  if (!admin) return { error: t("adminAccountNotFound") };
+
+  const setValues: Partial<typeof admins.$inferInsert> = {};
+
+  if (formData.has("username")) {
+    const fmt = normalizeUsername(String(formData.get("username") ?? ""));
+    // admins.username NOT NULL → rỗng hoặc sai format đều từ chối.
+    if ("code" in fmt || fmt.value === null) {
+      return { error: t("usernameInvalid") };
+    }
+    const dup = await db.query.admins.findFirst({
+      where: and(eq(admins.username, fmt.value), ne(admins.id, admin.id)),
+      columns: { id: true },
+    });
+    if (dup) return { error: t("usernameTaken") };
+    setValues.username = fmt.value;
+  }
+
+  if (formData.has("email")) {
+    const raw = String(formData.get("email") ?? "")
+      .trim()
+      .toLowerCase();
+    if (raw) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) {
+        return { error: t("emailInvalid") };
+      }
+      const dup = await db.query.admins.findFirst({
+        where: and(eq(admins.email, raw), ne(admins.id, admin.id)),
+        columns: { id: true },
+      });
+      if (dup) return { error: t("emailTaken") };
+      setValues.email = raw;
+    } else {
+      setValues.email = null;
+    }
+  }
+
+  if (formData.has("phoneNumber")) {
+    const digits = String(formData.get("phoneNumber") ?? "").replace(
+      /[^\d]/g,
+      "",
+    );
+    setValues.phoneNumber = digits || null;
+  }
+
+  if (Object.keys(setValues).length === 0) return { success: true };
+
+  try {
+    await db.update(admins).set(setValues).where(eq(admins.id, admin.id));
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (/username/i.test(msg)) return { error: t("usernameTaken") };
+    if (/email/i.test(msg)) return { error: t("emailTaken") };
+    throw e;
+  }
+
+  revalidatePath("/admin/account");
   return { success: true };
 }
