@@ -8,7 +8,6 @@ import { useTranslations } from "next-intl";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Users, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { votePlayHeads, voteDineHeads } from "@/lib/partner-core";
 import type { InferSelectModel } from "drizzle-orm";
 import type { votes as votesTable, members as membersTable } from "@/db/schema";
 
@@ -87,10 +86,6 @@ export function VoteList({
                           className="h-7 px-3 py-1 text-sm font-semibold"
                         >
                           🏸 {t("badmintonShort")}
-                          {/* Đi 2 người → gộp SỐ ĐẦU NGƯỜI vào badge (·2 người)
-                              để 1 dòng thể hiện đúng 2 người, khớp tổng ở trên. */}
-                          {votePlayHeads(vote) > 1 &&
-                            ` · ${t("peopleCount", { count: votePlayHeads(vote) })}`}
                           {(vote.guestPlayCount ?? 0) > 0 &&
                             ` ${t("plusGuest", { count: vote.guestPlayCount ?? 0 })}`}
                         </Badge>
@@ -101,17 +96,14 @@ export function VoteList({
                           className="h-7 px-3 py-1 text-sm font-semibold"
                         >
                           🍻 {t("diningShort")}
-                          {voteDineHeads(vote) > 1 &&
-                            ` · ${t("peopleCount", { count: voteDineHeads(vote) })}`}
                           {(vote.guestDineCount ?? 0) > 0 &&
                             ` ${t("plusGuest", { count: vote.guestDineCount ?? 0 })}`}
                         </Badge>
                       )}
-                      {/* Chip riêng "👫 Đi 2 mình" cho member đi đôi — nổi bật
-                          hơn, khỏi hiểu nhầm là 1 người. */}
+                      {/* Đi 2 người → 1 chip gọn "👫 +2" (badge Cầu/Nhậu giữ sạch). */}
                       {vote.withPartner && (vote.willPlay || vote.willDine) && (
                         <span className="border-primary/40 bg-primary/10 text-primary inline-flex h-7 items-center gap-1 rounded-md border px-2.5 text-sm font-semibold">
-                          👫 {t("withPartner")}
+                          👫 +2
                         </span>
                       )}
                     </div>

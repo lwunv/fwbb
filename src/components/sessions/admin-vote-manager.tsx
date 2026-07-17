@@ -735,7 +735,7 @@ export function AdminVoteManager({
                             phải suy từ trạng thái nút toggle 👫). */}
                         {getWithPartner(member.id) && (
                           <span className="border-primary/40 bg-primary/10 text-primary inline-flex shrink-0 items-center gap-0.5 rounded border px-1.5 text-xs font-semibold">
-                            👫 {t("withPartner")}
+                            👫 +2
                           </span>
                         )}
                       </span>

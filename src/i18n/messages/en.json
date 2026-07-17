@@ -178,8 +178,7 @@
     "slotsFull": "Full",
     "slotsLeft": "{count} slot(s) left",
     "maxPlayersLabel": "Max {max}",
-    "maxPlayersHint": "Toggle max court capacity (16 ⇄ 8)",
-    "peopleCount": "{count} people"
+    "maxPlayersHint": "Toggle max court capacity (16 ⇄ 8)"
   },
   "finance": {
     "debts": "Debts",
