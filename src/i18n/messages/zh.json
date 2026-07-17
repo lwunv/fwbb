@@ -740,9 +740,9 @@
     "toastMemberAdded": "已添加成员",
     "colMember": "成员",
     "colFund": "基金 / 欠款",
-    "colMonth": "本月",
-    "colYear": "本年",
-    "colLastPlayed": "未打",
+    "colMonth": "本月场次",
+    "colYear": "本年场次",
+    "colLastPlayed": "多久没打",
     "colPartner": "带一人",
     "colActions": "",
     "restDays": "已 {days} 天未打",
@@ -750,7 +750,7 @@
     "restNever": "从未打过",
     "playCountShort": "{count} 场",
     "filterLowInteraction": "低活跃",
-    "sortMissedSessions": "缺席最多",
+    "sortRestLongest": "最久未打",
     "sortYearPlayDesc": "本年最活跃"
   },
   "pendingApproval": {

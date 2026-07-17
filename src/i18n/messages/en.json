@@ -740,9 +740,9 @@
     "toastMemberAdded": "Member added",
     "colMember": "Member",
     "colFund": "Fund / Debt",
-    "colMonth": "This month",
-    "colYear": "This year",
-    "colLastPlayed": "Away",
+    "colMonth": "Games/mo",
+    "colYear": "Games/yr",
+    "colLastPlayed": "Time away",
     "colPartner": "Plus one",
     "colActions": "",
     "restDays": "away {days} days",
@@ -750,7 +750,7 @@
     "restNever": "never played",
     "playCountShort": "{count}",
     "filterLowInteraction": "Low activity",
-    "sortMissedSessions": "Most sessions missed",
+    "sortRestLongest": "Away the longest",
     "sortYearPlayDesc": "Most active (year)"
   },
   "pendingApproval": {

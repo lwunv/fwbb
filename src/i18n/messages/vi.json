@@ -740,9 +740,9 @@
     "toastMemberAdded": "Đã thêm thành viên",
     "colMember": "Thành viên",
     "colFund": "Quỹ / Nợ",
-    "colMonth": "Tháng này",
-    "colYear": "Năm nay",
-    "colLastPlayed": "Nghỉ",
+    "colMonth": "Buổi đi tháng",
+    "colYear": "Buổi đi 1 năm",
+    "colLastPlayed": "Bao lâu k đi",
     "colPartner": "Đi 2 mình",
     "colActions": "",
     "restDays": "nghỉ {days} ngày rồi",
@@ -750,7 +750,7 @@
     "restNever": "chưa từng đi",
     "playCountShort": "{count} buổi",
     "filterLowInteraction": "Ít tương tác",
-    "sortMissedSessions": "Nghỉ nhiều buổi nhất",
+    "sortRestLongest": "Nghỉ lâu nhất",
     "sortYearPlayDesc": "Chơi nhiều nhất (năm)"
   },
   "pendingApproval": {

@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { sessions, sessionShuttlecocks, sessionDebts } from "@/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, ne, and, lte } from "drizzle-orm";
 import { calculateExactShuttlecockCost } from "@/lib/cost-calculator";
 import { roundToThousand } from "@/lib/utils";
 import { getUserFromCookie } from "@/lib/user-identity";
@@ -101,16 +101,18 @@ export interface MemberPlayStat {
   yearPlay: number;
   /** Ngày buổi chơi gần nhất (YYYY-MM-DD), null nếu chưa từng chơi. */
   lastPlayedDate: string | null;
-  /** Số buổi CLB đã hoàn thành SAU buổi chơi gần nhất = số buổi đã nghỉ. */
-  missedSessions: number;
 }
 
 /**
- * Thống kê buổi CHƠI (attendsPlay) mỗi member cho bảng /admin/members: số buổi
- * tháng này, năm nay, và ngày chơi gần nhất. Nguồn giống {@link getActiveMembersStats}
- * — `session_attendees.attendsPlay` trên session `completed`, bỏ guest. Mốc
- * tháng/năm lấy theo giờ VN (`ymdInVN`) để không lệch khi server chạy UTC.
- * "Nghỉ bao lâu" tính ở client từ `lastPlayedDate` (dùng chung mốc `ymdInVN`).
+ * Thống kê buổi CHƠI mỗi member cho bảng /admin/members: số buổi tháng này, năm
+ * nay, và ngày chơi gần nhất. TÍNH CẢ BUỔI ADMIN CHƯA CHỐT SỔ (chưa xác nhận):
+ *  - buổi `completed` → nguồn là `session_attendees.attendsPlay` (đã admin chỉnh,
+ *    chuẩn nhất; bỏ guest);
+ *  - buổi CHƯA `completed` (voting/confirmed) → chưa có attendees, lấy từ
+ *    `votes.willPlay` (ý định chơi).
+ * Chỉ đếm buổi ĐÃ DIỄN RA (`date <= hôm nay VN`) và KHÔNG huỷ, để không tính
+ * nhầm buổi tương lai. Mốc tháng/năm theo giờ VN. "Nghỉ bao lâu" tính ở client
+ * từ `lastPlayedDate` (dùng chung mốc `ymdInVN`).
  */
 export async function getMemberPlayStats(): Promise<
   Record<number, MemberPlayStat>
@@ -122,45 +124,49 @@ export async function getMemberPlayStats(): Promise<
   const monthPrefix = today.slice(0, 7); // YYYY-MM
   const yearPrefix = today.slice(0, 4); // YYYY
 
-  const completedSessions = await db.query.sessions.findMany({
-    where: eq(sessions.status, "completed"),
-    columns: { id: true, date: true },
+  // Buổi đã diễn ra, chưa huỷ. Nạp cả attendees (buổi completed) lẫn votes
+  // (buổi chưa chốt sổ) rồi chọn nguồn theo status.
+  const playedSessions = await db.query.sessions.findMany({
+    where: and(ne(sessions.status, "cancelled"), lte(sessions.date, today)),
+    columns: { id: true, date: true, status: true },
     with: {
       attendees: {
         columns: { memberId: true, isGuest: true, attendsPlay: true },
       },
+      votes: { columns: { memberId: true, willPlay: true } },
     },
   });
 
   const stats: Record<number, MemberPlayStat> = {};
-  for (const s of completedSessions) {
+  for (const s of playedSessions) {
     const inMonth = s.date.startsWith(monthPrefix);
     const inYear = s.date.startsWith(yearPrefix);
-    for (const a of s.attendees) {
-      if (!a.memberId || a.isGuest || !a.attendsPlay) continue;
-      const cur = stats[a.memberId] ?? {
+    // Ai CHƠI buổi này: completed → attendees.attendsPlay (bỏ guest); chưa
+    // completed → votes.willPlay (chưa có attendees).
+    const playerIds = new Set<number>();
+    if (s.status === "completed") {
+      for (const a of s.attendees) {
+        if (a.memberId && !a.isGuest && a.attendsPlay)
+          playerIds.add(a.memberId);
+      }
+    } else {
+      for (const v of s.votes) {
+        if (v.memberId && v.willPlay) playerIds.add(v.memberId);
+      }
+    }
+    for (const id of playerIds) {
+      const cur = stats[id] ?? {
         monthPlay: 0,
         yearPlay: 0,
         lastPlayedDate: null,
-        missedSessions: 0,
       };
       if (inMonth) cur.monthPlay++;
       if (inYear) cur.yearPlay++;
       if (!cur.lastPlayedDate || s.date > cur.lastPlayedDate) {
         cur.lastPlayedDate = s.date;
       }
-      stats[a.memberId] = cur;
+      stats[id] = cur;
     }
-  }
-
-  // Số buổi đã nghỉ = số buổi CLB đã hoàn thành SAU buổi chơi gần nhất của họ.
-  const completedDates = completedSessions.map((s) => s.date);
-  for (const id of Object.keys(stats)) {
-    const st = stats[Number(id)];
-    const last = st.lastPlayedDate;
-    st.missedSessions = last
-      ? completedDates.filter((d) => d > last).length
-      : 0;
   }
 
   return stats;

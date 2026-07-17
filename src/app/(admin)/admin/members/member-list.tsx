@@ -35,6 +35,7 @@ import {
   ChevronUp,
   ChevronLeft,
   ChevronRight,
+  ChevronsUpDown,
   Check,
   Trash2,
   Crown,
@@ -106,13 +107,18 @@ type StatusFilter =
   | "lowInteraction";
 type SortMode =
   | "smart"
+  | "nameAsc"
+  | "nameDesc"
   | "balanceDesc"
   | "balanceAsc"
+  | "monthDesc"
+  | "monthAsc"
+  | "yearDesc"
+  | "yearAsc"
+  | "restDesc"
+  | "restAsc"
   | "newest"
-  | "oldest"
-  | "nameAsc"
-  | "missedSessionsDesc"
-  | "yearPlayDesc";
+  | "oldest";
 
 /** Ngưỡng "ít tương tác": quá 60 ngày không đi chơi (hoặc chưa từng đi). */
 const LOW_INTERACTION_DAYS = 60;
@@ -381,34 +387,44 @@ export function MemberList({
     });
     const bal = (id: number) => memberBalances[id] ?? 0;
     const created = (m: Member) => m.createdAt ?? "";
+    const monthPlay = (id: number) => playStats[id]?.monthPlay ?? 0;
     const yearPlay = (id: number) => playStats[id]?.yearPlay ?? 0;
-    // Số buổi đã nghỉ để sort: chưa từng chơi → vô hạn (lên đầu).
-    const missed = (id: number) =>
-      playStats[id]?.lastPlayedDate == null
-        ? Number.POSITIVE_INFINITY
-        : (playStats[id]?.missedSessions ?? 0);
+    // Số ngày nghỉ để sort: chưa từng chơi → sentinel lớn (nghỉ lâu nhất).
+    // Dùng số hữu hạn (không Infinity) để 2 người "chưa từng" trừ nhau ra 0
+    // thay vì NaN → tie-break bằng tên ổn định.
+    const rest = (id: number) =>
+      restDaysFrom(playStats[id]?.lastPlayedDate, today) ?? 1e9;
     return list.sort((a, b) => {
       // Ghost luôn xuống cuối, bất kể sort đang chọn.
       const ga = isGhost(a.id);
       const gb = isGhost(b.id);
       if (ga !== gb) return ga ? 1 : -1;
+      const byName = a.name.localeCompare(b.name);
       switch (sortMode) {
+        case "nameAsc":
+          return byName;
+        case "nameDesc":
+          return b.name.localeCompare(a.name);
         case "balanceDesc":
-          return bal(b.id) - bal(a.id) || a.name.localeCompare(b.name);
+          return bal(b.id) - bal(a.id) || byName;
         case "balanceAsc": // ít quỹ / nợ nhiều nhất trước
-          return bal(a.id) - bal(b.id) || a.name.localeCompare(b.name);
+          return bal(a.id) - bal(b.id) || byName;
+        case "monthDesc":
+          return monthPlay(b.id) - monthPlay(a.id) || byName;
+        case "monthAsc":
+          return monthPlay(a.id) - monthPlay(b.id) || byName;
+        case "yearDesc": // chơi nhiều nhất năm nay trước
+          return yearPlay(b.id) - yearPlay(a.id) || byName;
+        case "yearAsc":
+          return yearPlay(a.id) - yearPlay(b.id) || byName;
+        case "restDesc": // nghỉ lâu nhất trước (chưa từng chơi lên đầu)
+          return rest(b.id) - rest(a.id) || byName;
+        case "restAsc": // mới đi gần đây nhất trước
+          return rest(a.id) - rest(b.id) || byName;
         case "newest": // ngày đăng ký mới → cũ (createdAt ISO so lexicographic)
           return created(b).localeCompare(created(a));
         case "oldest":
           return created(a).localeCompare(created(b));
-        case "nameAsc":
-          return a.name.localeCompare(b.name);
-        case "missedSessionsDesc": // nghỉ nhiều buổi nhất trước (chưa từng chơi lên đầu)
-          return missed(b.id) - missed(a.id) || a.name.localeCompare(b.name);
-        case "yearPlayDesc": // chơi nhiều nhất năm nay trước
-          return (
-            yearPlay(b.id) - yearPlay(a.id) || a.name.localeCompare(b.name)
-          );
         case "smart":
         default: {
           // Mặc định: ai đang NỢ (balance âm) lên trước, nợ nhiều nhất trên
@@ -602,12 +618,43 @@ export function MemberList({
     { value: "smart", label: t("sortSmart") },
     { value: "balanceDesc", label: t("sortBalanceDesc") },
     { value: "balanceAsc", label: t("sortBalanceAsc") },
+    { value: "restDesc", label: t("sortRestLongest") },
+    { value: "yearDesc", label: t("sortYearPlayDesc") },
+    { value: "nameAsc", label: t("sortNameAsc") },
     { value: "newest", label: t("sortNewest") },
     { value: "oldest", label: t("sortOldest") },
-    { value: "nameAsc", label: t("sortNameAsc") },
-    { value: "missedSessionsDesc", label: t("sortMissedSessions") },
-    { value: "yearPlayDesc", label: t("sortYearPlayDesc") },
   ];
+
+  // Header cột bảng bấm để sort: icon phản ánh ASC (▲) / DESC (▼) / chưa sort.
+  // firstMode = chiều bấm lần đầu (số liệu → desc lớn trước; tên → A→Z).
+  const sortHeader = (
+    label: string,
+    ascMode: SortMode,
+    descMode: SortMode,
+    firstMode: SortMode,
+  ) => {
+    const isAsc = sortMode === ascMode;
+    const isDesc = sortMode === descMode;
+    const active = isAsc || isDesc;
+    const next = isDesc ? ascMode : isAsc ? descMode : firstMode;
+    const Icon = isAsc ? ChevronUp : isDesc ? ChevronDown : ChevronsUpDown;
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setSortMode(next);
+          setPage(1);
+        }}
+        className={cn(
+          "hover:text-foreground inline-flex items-center gap-1 transition-colors",
+          active && "text-foreground",
+        )}
+      >
+        {label}
+        <Icon className={cn("h-3.5 w-3.5", !active && "opacity-40")} />
+      </button>
+    );
+  };
 
   // Nhãn "nghỉ bao lâu": null = chưa từng chơi, 0 = đi hôm nay, n = nghỉ n ngày.
   const restLabel = (restDays: number | null) =>
@@ -701,7 +748,7 @@ export function MemberList({
   const renderActions = (member: Member, memberIsActive: boolean) => (
     <div className="flex shrink-0 items-center gap-1">
       <Button
-        variant="ghost"
+        variant="outline"
         size="sm"
         className="min-h-11 min-w-11"
         onClick={() => setHistoryTarget(member)}
@@ -892,19 +939,40 @@ export function MemberList({
 
       {/* Desktop: bảng thead/tbody (md+). Cuộn ngang trong container riêng khi
           hẹp — không để body trang cuộn ngang. Mobile dùng card bên dưới. */}
-      <div className="border-border/60 hidden overflow-x-auto rounded-xl border md:block">
+      <div className="bg-card border-border/60 hidden overflow-x-auto rounded-xl border shadow-sm md:block">
         <table className="w-full min-w-[820px] border-collapse text-sm">
           <thead>
-            <tr className="border-border/60 text-muted-foreground border-b text-left text-xs font-medium tracking-wide uppercase">
-              <th className="px-3 py-2.5 font-medium">{t("colMember")}</th>
-              <th className="px-3 py-2.5 font-medium">{t("colFund")}</th>
-              <th className="px-3 py-2.5 text-center font-medium">
-                {t("colMonth")}
+            <tr className="bg-muted/40 border-border/60 text-muted-foreground border-b text-left text-xs font-medium tracking-wide uppercase">
+              <th className="px-3 py-2.5">
+                {sortHeader(t("colMember"), "nameAsc", "nameDesc", "nameAsc")}
               </th>
-              <th className="px-3 py-2.5 text-center font-medium">
-                {t("colYear")}
+              <th className="px-3 py-2.5">
+                {sortHeader(
+                  t("colFund"),
+                  "balanceAsc",
+                  "balanceDesc",
+                  "balanceDesc",
+                )}
               </th>
-              <th className="px-3 py-2.5 font-medium">{t("colLastPlayed")}</th>
+              <th className="px-3 py-2.5 text-center">
+                {sortHeader(
+                  t("colMonth"),
+                  "monthAsc",
+                  "monthDesc",
+                  "monthDesc",
+                )}
+              </th>
+              <th className="px-3 py-2.5 text-center">
+                {sortHeader(t("colYear"), "yearAsc", "yearDesc", "yearDesc")}
+              </th>
+              <th className="px-3 py-2.5">
+                {sortHeader(
+                  t("colLastPlayed"),
+                  "restAsc",
+                  "restDesc",
+                  "restDesc",
+                )}
+              </th>
               <th className="px-3 py-2.5 text-center font-medium">
                 {t("colPartner")}
               </th>
