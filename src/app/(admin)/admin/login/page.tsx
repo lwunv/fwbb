@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AdminGoogleSignin } from "./admin-google-signin";
 
 export default function LoginPage() {
   const [state, formAction, pending] = useActionState(login, null);
@@ -66,6 +67,7 @@ export default function LoginPage() {
               {pending ? t("loggingIn") : t("login")}
             </Button>
           </form>
+          <AdminGoogleSignin />
         </CardContent>
       </Card>
     </div>
