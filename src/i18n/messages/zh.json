@@ -59,8 +59,7 @@
     "loggingIn": "登录中...",
     "showPassword": "显示密码",
     "hidePassword": "隐藏密码",
-    "orDivider": "或",
-    "googleError": "Google 登录失败，请重试。"
+    "orDivider": "或"
   },
   "sessions": {
     "voting": "投票中",

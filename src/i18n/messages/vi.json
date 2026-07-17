@@ -59,8 +59,7 @@
     "loggingIn": "Đang nhập...",
     "showPassword": "Hiện mật khẩu",
     "hidePassword": "Ẩn mật khẩu",
-    "orDivider": "hoặc",
-    "googleError": "Đăng nhập Google thất bại. Thử lại."
+    "orDivider": "hoặc"
   },
   "sessions": {
     "voting": "Đang vote",

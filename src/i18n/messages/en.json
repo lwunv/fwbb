@@ -59,8 +59,7 @@
     "loggingIn": "Logging in...",
     "showPassword": "Show password",
     "hidePassword": "Hide password",
-    "orDivider": "or",
-    "googleError": "Google sign-in failed. Try again."
+    "orDivider": "or"
   },
   "sessions": {
     "voting": "Voting",
