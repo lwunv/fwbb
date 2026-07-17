@@ -12,6 +12,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { getTrustedClientIp } from "@/lib/client-ip";
 import { getTranslations } from "next-intl/server";
 import { normalizeUsername } from "@/lib/username";
+import { verifyGoogleIdToken } from "@/lib/google-verify";
 
 export async function login(
   _prevState: { error: string } | null,
@@ -163,7 +164,13 @@ export async function getCurrentAdmin() {
   if (!Number.isFinite(adminIdNum)) return null;
   const admin = await db.query.admins.findFirst({
     where: eq(admins.id, adminIdNum),
-    columns: { id: true, username: true, email: true, phoneNumber: true },
+    columns: {
+      id: true,
+      username: true,
+      email: true,
+      phoneNumber: true,
+      googleId: true,
+    },
   });
   return admin ?? null;
 }
@@ -250,4 +257,102 @@ export async function updateAdminProfile(
 
   revalidatePath("/admin/account");
   return { success: true };
+}
+
+/** Token Google hợp lệ về độ dài (giống googleLogin của member). */
+function isValidGoogleToken(t: unknown): t is string {
+  return typeof t === "string" && t.length >= 16 && t.length <= 4096;
+}
+
+/**
+ * Đăng nhập admin bằng Google SSO (Phase 4, tự chứa). Verify idToken → tra
+ * `admins.google_id = sub`. CHỈ cấp cookie admin nếu google_id đã được LIÊN KẾT
+ * sẵn với 1 admin — KHÔNG tự tạo admin, KHÔNG match theo email (giữ chính sách
+ * chống chiếm tài khoản như member SSO). Client tự điều hướng /admin/dashboard.
+ */
+export async function adminGoogleLogin(idToken: string) {
+  const t = await getTranslations("serverErrors");
+  if (!isValidGoogleToken(idToken)) return { error: t("googleVerifyFailed") };
+
+  const ip = await getTrustedClientIp();
+  const rl = await checkRateLimit(`admin-google-login:${ip}`, 10, 5 * 60_000);
+  if (!rl.ok) {
+    return {
+      error: t("tooManyLoginAttempts", { seconds: rl.retryAfter ?? 60 }),
+    };
+  }
+
+  const claims = await verifyGoogleIdToken(idToken);
+  if (!claims) return { error: t("googleVerifyFailed") };
+
+  const admin = await db.query.admins.findFirst({
+    where: eq(admins.googleId, claims.sub),
+    columns: { id: true },
+  });
+  if (!admin) return { error: t("adminGoogleNotLinked") };
+
+  await setAdminCookie(admin.id);
+  return { success: true as const };
+}
+
+/**
+ * Admin ĐANG đăng nhập liên kết tài khoản Google để lần sau đăng nhập bằng
+ * Google. Verify idToken → gán `admins.google_id = sub`. Chặn nếu Google này đã
+ * thuộc admin khác. Bọc write map lỗi UNIQUE (race) về message localized.
+ */
+export async function linkAdminGoogle(idToken: string) {
+  const t = await getTranslations("serverErrors");
+  const auth = await requireAdmin();
+  if ("error" in auth) return { error: auth.error };
+  if (!isValidGoogleToken(idToken)) return { error: t("googleVerifyFailed") };
+
+  const ip = await getTrustedClientIp();
+  const rl = await checkRateLimit(`admin-google-link:${ip}`, 10, 5 * 60_000);
+  if (!rl.ok) {
+    return { error: t("tooManyActions", { seconds: rl.retryAfter ?? 60 }) };
+  }
+
+  const adminIdNum = parseInt(String(auth.admin.sub ?? ""), 10);
+  if (!Number.isFinite(adminIdNum)) return { error: t("invalidAdminSession") };
+
+  const claims = await verifyGoogleIdToken(idToken);
+  if (!claims) return { error: t("googleVerifyFailed") };
+
+  const taken = await db.query.admins.findFirst({
+    where: and(eq(admins.googleId, claims.sub), ne(admins.id, adminIdNum)),
+    columns: { id: true },
+  });
+  if (taken) return { error: t("adminGoogleTaken") };
+
+  try {
+    await db
+      .update(admins)
+      .set({ googleId: claims.sub })
+      .where(eq(admins.id, adminIdNum));
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (/google/i.test(msg)) return { error: t("adminGoogleTaken") };
+    throw e;
+  }
+  revalidatePath("/admin/account");
+  return { success: true as const };
+}
+
+/**
+ * Admin gỡ liên kết Google. An toàn: admin luôn còn username/password để đăng
+ * nhập nên không sợ mất phương thức cuối.
+ */
+export async function unlinkAdminGoogle() {
+  const t = await getTranslations("serverErrors");
+  const auth = await requireAdmin();
+  if ("error" in auth) return { error: auth.error };
+  const adminIdNum = parseInt(String(auth.admin.sub ?? ""), 10);
+  if (!Number.isFinite(adminIdNum)) return { error: t("invalidAdminSession") };
+
+  await db
+    .update(admins)
+    .set({ googleId: null })
+    .where(eq(admins.id, adminIdNum));
+  revalidatePath("/admin/account");
+  return { success: true as const };
 }
