@@ -58,7 +58,9 @@
     "password": "Mật khẩu",
     "loggingIn": "Đang nhập...",
     "showPassword": "Hiện mật khẩu",
-    "hidePassword": "Ẩn mật khẩu"
+    "hidePassword": "Ẩn mật khẩu",
+    "orDivider": "hoặc",
+    "googleError": "Đăng nhập Google thất bại. Thử lại."
   },
   "sessions": {
     "voting": "Đang vote",
@@ -766,7 +768,13 @@
     "phonePlaceholder": "VD: 0912345678",
     "save": "Lưu",
     "saving": "Đang lưu...",
-    "saved": "Đã lưu"
+    "saved": "Đã lưu",
+    "googleCardTitle": "Đăng nhập Google",
+    "googleLinked": "Đã liên kết Google — có thể đăng nhập bằng Google.",
+    "googleNotLinked": "Chưa liên kết. Liên kết để đăng nhập admin bằng Google.",
+    "unlinkGoogle": "Gỡ liên kết Google",
+    "googleLinkedToast": "Đã liên kết Google",
+    "googleUnlinkedToast": "Đã gỡ liên kết Google"
   },
   "pendingApproval": {
     "title": "Đang chờ admin duyệt",
@@ -1152,6 +1160,9 @@
     "usernameTaken": "Tên đăng nhập đã có người dùng.",
     "emailInvalid": "Email không hợp lệ.",
     "emailTaken": "Email này đã được dùng.",
+    "googleVerifyFailed": "Xác thực Google thất bại.",
+    "adminGoogleNotLinked": "Tài khoản Google này chưa liên kết với admin nào.",
+    "adminGoogleTaken": "Tài khoản Google này đã liên kết với admin khác.",
     "memberInUse": "Không xóa được — còn {refs}. Hãy \"Vô hiệu hóa\" thay vì xóa.",
     "refVote": "{count} vote",
     "refAttendance": "{count} buổi tham gia",

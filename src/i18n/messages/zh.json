@@ -58,7 +58,9 @@
     "password": "密码",
     "loggingIn": "登录中...",
     "showPassword": "显示密码",
-    "hidePassword": "隐藏密码"
+    "hidePassword": "隐藏密码",
+    "orDivider": "或",
+    "googleError": "Google 登录失败，请重试。"
   },
   "sessions": {
     "voting": "投票中",
@@ -766,7 +768,13 @@
     "phonePlaceholder": "例如 0912345678",
     "save": "保存",
     "saving": "保存中...",
-    "saved": "已保存"
+    "saved": "已保存",
+    "googleCardTitle": "Google 登录",
+    "googleLinked": "已关联 Google，可用 Google 登录。",
+    "googleNotLinked": "尚未关联。关联后可用 Google 登录管理后台。",
+    "unlinkGoogle": "取消关联 Google",
+    "googleLinkedToast": "已关联 Google",
+    "googleUnlinkedToast": "已取消关联 Google"
   },
   "pendingApproval": {
     "title": "等待管理员批准",
@@ -1152,6 +1160,9 @@
     "usernameTaken": "该用户名已被占用。",
     "emailInvalid": "邮箱格式不正确。",
     "emailTaken": "该邮箱已被使用。",
+    "googleVerifyFailed": "Google 验证失败。",
+    "adminGoogleNotLinked": "该 Google 账号未关联任何管理员。",
+    "adminGoogleTaken": "该 Google 账号已关联其他管理员。",
     "memberInUse": "无法删除 — 仍有 {refs}。请改用「停用」。",
     "refVote": "{count} 个投票",
     "refAttendance": "{count} 个出席记录",

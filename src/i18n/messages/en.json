@@ -58,7 +58,9 @@
     "password": "Password",
     "loggingIn": "Logging in...",
     "showPassword": "Show password",
-    "hidePassword": "Hide password"
+    "hidePassword": "Hide password",
+    "orDivider": "or",
+    "googleError": "Google sign-in failed. Try again."
   },
   "sessions": {
     "voting": "Voting",
@@ -766,7 +768,13 @@
     "phonePlaceholder": "e.g. 0912345678",
     "save": "Save",
     "saving": "Saving...",
-    "saved": "Saved"
+    "saved": "Saved",
+    "googleCardTitle": "Google sign-in",
+    "googleLinked": "Google linked — you can sign in with Google.",
+    "googleNotLinked": "Not linked. Link to sign in as admin with Google.",
+    "unlinkGoogle": "Unlink Google",
+    "googleLinkedToast": "Google linked",
+    "googleUnlinkedToast": "Google unlinked"
   },
   "pendingApproval": {
     "title": "Awaiting admin approval",
@@ -1152,6 +1160,9 @@
     "usernameTaken": "That username is taken.",
     "emailInvalid": "Invalid email.",
     "emailTaken": "That email is already in use.",
+    "googleVerifyFailed": "Google verification failed.",
+    "adminGoogleNotLinked": "This Google account isn't linked to any admin.",
+    "adminGoogleTaken": "This Google account is already linked to another admin.",
     "memberInUse": "Cannot delete — has {refs}. Use \"Disable\" instead.",
     "refVote": "{count} votes",
     "refAttendance": "{count} sessions attended",
