@@ -9,20 +9,28 @@ import {
 } from "drizzle-orm/sqlite-core";
 import { sql, relations } from "drizzle-orm";
 
-export const admins = sqliteTable("admins", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  username: text("username").notNull().unique(),
-  passwordHash: text("password_hash").notNull(),
-  // Explicit pointer to the admin's own member record. Replaces the fragile
-  // `members.name === admins.username` matching previously used to identify
-  // admin's debts. Nullable so admins without a member row don't break.
-  // FK ON DELETE SET NULL: if the linked member row is removed, the admin
-  // row stays (admin auth lives on username/password, not memberId).
-  memberId: integer("member_id").references(() => members.id, {
-    onDelete: "set null",
-  }),
-  createdAt: text("created_at").default(sql`(current_timestamp)`),
-});
+export const admins = sqliteTable(
+  "admins",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    username: text("username").notNull().unique(),
+    passwordHash: text("password_hash").notNull(),
+    // Email đăng nhập/khôi phục (Phase 3 forgot-password). Nullable; unique qua
+    // index riêng (KHÔNG .unique() inline → tránh recreate-table trên Turso).
+    email: text("email"),
+    phoneNumber: text("phone_number"),
+    // Explicit pointer to the admin's own member record. Replaces the fragile
+    // `members.name === admins.username` matching previously used to identify
+    // admin's debts. Nullable so admins without a member row don't break.
+    // FK ON DELETE SET NULL: if the linked member row is removed, the admin
+    // row stays (admin auth lives on username/password, not memberId).
+    memberId: integer("member_id").references(() => members.id, {
+      onDelete: "set null",
+    }),
+    createdAt: text("created_at").default(sql`(current_timestamp)`),
+  },
+  (table) => [uniqueIndex("admins_email_unique").on(table.email)],
+);
 
 export const members = sqliteTable(
   "members",

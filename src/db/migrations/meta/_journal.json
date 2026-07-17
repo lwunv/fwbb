@@ -141,6 +141,13 @@
       "when": 1784266027241,
       "tag": "0019_watery_millenium_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1784267920632,
+      "tag": "0020_admin_profile_fields",
+      "breakpoints": true
     }
   ]
 }
