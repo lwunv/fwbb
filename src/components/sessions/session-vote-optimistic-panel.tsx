@@ -215,9 +215,8 @@ export function SessionVoteOptimisticPanel({
                   <span className="text-primary text-2xl leading-none font-extrabold tabular-nums sm:text-3xl">
                     {listHeadCount}
                   </span>
-                  <span className="text-muted-foreground tabular-nums">/</span>
-                  <span className="text-muted-foreground tabular-nums">
-                    {members.length}
+                  <span className="text-muted-foreground pl-1 text-base font-normal">
+                    {tv("headUnit")}
                   </span>
                   <span className="text-muted-foreground">)</span>
                 </span>

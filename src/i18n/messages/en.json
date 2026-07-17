@@ -178,7 +178,8 @@
     "slotsFull": "Full",
     "slotsLeft": "{count} slot(s) left",
     "maxPlayersLabel": "Max {max}",
-    "maxPlayersHint": "Toggle max court capacity (16 ⇄ 8)"
+    "maxPlayersHint": "Toggle max court capacity (16 ⇄ 8)",
+    "headUnit": "players"
   },
   "finance": {
     "debts": "Debts",
@@ -736,7 +737,21 @@
     "partnerOn": "2 people",
     "partnerOff": "1 person",
     "toastSaved": "Saved",
-    "toastMemberAdded": "Member added"
+    "toastMemberAdded": "Member added",
+    "colMember": "Member",
+    "colFund": "Fund / Debt",
+    "colMonth": "This month",
+    "colYear": "This year",
+    "colLastPlayed": "Away",
+    "colPartner": "Plus one",
+    "colActions": "",
+    "restDays": "away {days} days",
+    "restToday": "played today",
+    "restNever": "never played",
+    "playCountShort": "{count}",
+    "filterLowInteraction": "Low activity",
+    "sortMissedSessions": "Most sessions missed",
+    "sortYearPlayDesc": "Most active (year)"
   },
   "pendingApproval": {
     "title": "Awaiting admin approval",

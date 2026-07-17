@@ -178,7 +178,8 @@
     "slotsFull": "已满",
     "slotsLeft": "剩 {count} 个名额",
     "maxPlayersLabel": "最多 {max}",
-    "maxPlayersHint": "切换打球最大容量（16 ⇄ 8）"
+    "maxPlayersHint": "切换打球最大容量（16 ⇄ 8）",
+    "headUnit": "人"
   },
   "finance": {
     "debts": "债务",
@@ -736,7 +737,21 @@
     "partnerOn": "两人",
     "partnerOff": "一人",
     "toastSaved": "已保存",
-    "toastMemberAdded": "已添加成员"
+    "toastMemberAdded": "已添加成员",
+    "colMember": "成员",
+    "colFund": "基金 / 欠款",
+    "colMonth": "本月",
+    "colYear": "本年",
+    "colLastPlayed": "未打",
+    "colPartner": "带一人",
+    "colActions": "",
+    "restDays": "已 {days} 天未打",
+    "restToday": "今天打过",
+    "restNever": "从未打过",
+    "playCountShort": "{count} 场",
+    "filterLowInteraction": "低活跃",
+    "sortMissedSessions": "缺席最多",
+    "sortYearPlayDesc": "本年最活跃"
   },
   "pendingApproval": {
     "title": "等待管理员批准",
