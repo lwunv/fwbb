@@ -127,13 +127,20 @@ export function MemberPlayHistorySheet({
   if (isMobile) {
     return (
       <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-        <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto">
-          <SheetHeader>
+        {/* Mobile: full màn hình. Header (kèm nút X built-in ở góc phải) cố
+            định trên cùng, body cuộn riêng bên dưới. */}
+        <SheetContent
+          side="bottom"
+          className="flex max-h-dvh min-h-dvh flex-col gap-0 overflow-hidden p-0"
+        >
+          <SheetHeader className="border-b pr-12">
             <SheetTitle>
               {t("title")} · {memberName}
             </SheetTitle>
           </SheetHeader>
-          {body}
+          <div className="flex-1 overflow-y-auto px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+            {body}
+          </div>
         </SheetContent>
       </Sheet>
     );
@@ -333,7 +340,7 @@ function HistoryCalendar({
               onClick={() => entry && setSelected(entry)}
               onMouseEnter={() => entry && setSelected(entry)}
               className={cn(
-                "relative flex min-h-9 flex-col items-center justify-center rounded-lg text-sm",
+                "relative flex min-h-11 flex-col items-center justify-center rounded-lg text-sm",
                 !inMonth && "text-muted-foreground/40",
                 entry && "bg-card/80 border font-semibold",
                 selected?.date === ymd && "ring-primary ring-2",
