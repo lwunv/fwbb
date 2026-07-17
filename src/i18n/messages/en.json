@@ -24,7 +24,8 @@
     "stats": "Stats",
     "logout": "Log out",
     "pendingMembersTitle": "New members awaiting approval",
-    "pendingMembersBanner": "{count} new members awaiting approval"
+    "pendingMembersBanner": "{count} new members awaiting approval",
+    "account": "Account"
   },
   "adminMisc": {
     "minDeductionAria": "Toggle 60K minimum rule for members with low fund",
@@ -755,6 +756,18 @@
     "sortRestLongest": "Away the longest",
     "sortYearPlayDesc": "Most active (year)"
   },
+  "adminAccount": {
+    "title": "Account",
+    "profileCardTitle": "Login info",
+    "usernameLabel": "Username",
+    "emailLabel": "Email",
+    "phoneLabel": "Phone number",
+    "emailPlaceholder": "email@example.com",
+    "phonePlaceholder": "e.g. 0912345678",
+    "save": "Save",
+    "saving": "Saving...",
+    "saved": "Saved"
+  },
   "pendingApproval": {
     "title": "Awaiting admin approval",
     "subtitle": "Hi {name}!",
@@ -1137,6 +1150,8 @@
     "memberNameTaken": "A member named \"{name}\" already exists",
     "usernameInvalid": "Username: a-z, 0-9, . _ only (3-32 chars).",
     "usernameTaken": "That username is taken.",
+    "emailInvalid": "Invalid email.",
+    "emailTaken": "That email is already in use.",
     "memberInUse": "Cannot delete — has {refs}. Use \"Disable\" instead.",
     "refVote": "{count} votes",
     "refAttendance": "{count} sessions attended",

@@ -24,7 +24,8 @@
     "stats": "Thống kê",
     "logout": "Đăng xuất",
     "pendingMembersTitle": "Có thành viên mới chờ duyệt",
-    "pendingMembersBanner": "{count} thành viên mới đang chờ duyệt"
+    "pendingMembersBanner": "{count} thành viên mới đang chờ duyệt",
+    "account": "Tài khoản"
   },
   "adminMisc": {
     "minDeductionAria": "Bật/tắt rule tối thiểu 60K cho member thiếu quỹ",
@@ -755,6 +756,18 @@
     "sortRestLongest": "Nghỉ lâu nhất",
     "sortYearPlayDesc": "Chơi nhiều nhất (năm)"
   },
+  "adminAccount": {
+    "title": "Tài khoản",
+    "profileCardTitle": "Thông tin đăng nhập",
+    "usernameLabel": "Tên đăng nhập",
+    "emailLabel": "Email",
+    "phoneLabel": "Số điện thoại",
+    "emailPlaceholder": "email@example.com",
+    "phonePlaceholder": "VD: 0912345678",
+    "save": "Lưu",
+    "saving": "Đang lưu...",
+    "saved": "Đã lưu"
+  },
   "pendingApproval": {
     "title": "Đang chờ admin duyệt",
     "subtitle": "Chào {name}!",
@@ -1137,6 +1150,8 @@
     "memberNameTaken": "Đã có thành viên tên \"{name}\"",
     "usernameInvalid": "Tên đăng nhập chỉ gồm a-z, 0-9, . _ (3-32 ký tự).",
     "usernameTaken": "Tên đăng nhập đã có người dùng.",
+    "emailInvalid": "Email không hợp lệ.",
+    "emailTaken": "Email này đã được dùng.",
     "memberInUse": "Không xóa được — còn {refs}. Hãy \"Vô hiệu hóa\" thay vì xóa.",
     "refVote": "{count} vote",
     "refAttendance": "{count} buổi tham gia",

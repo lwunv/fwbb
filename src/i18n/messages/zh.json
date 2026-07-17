@@ -24,7 +24,8 @@
     "stats": "统计",
     "logout": "退出登录",
     "pendingMembersTitle": "有新成员等待审核",
-    "pendingMembersBanner": "{count} 名新成员等待审核"
+    "pendingMembersBanner": "{count} 名新成员等待审核",
+    "account": "账户"
   },
   "adminMisc": {
     "minDeductionAria": "为资金不足的成员开启/关闭 60K 最低扣费规则",
@@ -755,6 +756,18 @@
     "sortRestLongest": "最久未打",
     "sortYearPlayDesc": "本年最活跃"
   },
+  "adminAccount": {
+    "title": "账户",
+    "profileCardTitle": "登录信息",
+    "usernameLabel": "用户名",
+    "emailLabel": "邮箱",
+    "phoneLabel": "电话号码",
+    "emailPlaceholder": "email@example.com",
+    "phonePlaceholder": "例如 0912345678",
+    "save": "保存",
+    "saving": "保存中...",
+    "saved": "已保存"
+  },
   "pendingApproval": {
     "title": "等待管理员批准",
     "subtitle": "你好,{name}!",
@@ -1137,6 +1150,8 @@
     "memberNameTaken": "已存在名为「{name}」的成员",
     "usernameInvalid": "用户名只能含 a-z、0-9、. _（3-32 位）。",
     "usernameTaken": "该用户名已被占用。",
+    "emailInvalid": "邮箱格式不正确。",
+    "emailTaken": "该邮箱已被使用。",
     "memberInUse": "无法删除 — 仍有 {refs}。请改用「停用」。",
     "refVote": "{count} 个投票",
     "refAttendance": "{count} 个出席记录",
