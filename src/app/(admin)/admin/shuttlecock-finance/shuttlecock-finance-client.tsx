@@ -15,6 +15,7 @@ import {
   Plus,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { tubesToQua } from "@/lib/inventory-core";
@@ -375,20 +376,20 @@ export function ShuttlecockFinanceClient({
         </ul>
       )}
 
-      {/* Fixed bottom CTA — full-width bar bám sát đáy (bottom = 0). Khi
-          modal mở thì ẩn hẳn để tránh đè lên overlay. */}
+      {/* Fixed bottom CTA — khung sticky chuẩn (giống trang chi tiết buổi):
+          nền mờ + border-t + padding, nút <Button> bo góc bên trong. Ẩn khi
+          modal mở để không đè overlay. */}
       {!showBuy && (
-        <motion.button
-          type="button"
-          onClick={() => setShowBuy(true)}
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          whileTap={{ scale: 0.98 }}
-          className="bg-primary text-primary-foreground fixed right-0 bottom-0 left-0 z-30 inline-flex h-14 items-center justify-center gap-2 text-base font-semibold shadow-lg transition-opacity hover:opacity-90 lg:left-60"
-        >
-          <Plus className="h-5 w-5" />
-          {t("buyButton")}
-        </motion.button>
+        <div className="bg-background/95 supports-[backdrop-filter]:bg-background/85 fixed inset-x-0 bottom-0 z-30 border-t p-4 backdrop-blur lg:left-60">
+          <Button
+            size="lg"
+            onClick={() => setShowBuy(true)}
+            className="h-13 w-full rounded-xl text-base"
+          >
+            <Plus className="mr-2 h-5 w-5" />
+            {t("buyButton")}
+          </Button>
+        </div>
       )}
 
       {/* Mua cầu — chi quỹ chung; tăng stock + ghi ledger inventory_purchase. */}
