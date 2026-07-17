@@ -25,6 +25,13 @@ export async function createTestDb() {
   const dir = mkdtempSync(join(tmpdir(), "fwbb-test-"));
   const dbPath = join(dir, "test.db");
   const client = createClient({ url: `file:${dbPath.replace(/\\/g, "/")}` });
+  // Without this, two genuinely-concurrent writers on this file (e.g. a
+  // double-submit CAS test) can throw SQLITE_BUSY immediately instead of
+  // waiting for the lock to free — sqlite's default busy behavior is to
+  // fail fast, not queue. Production Turso is a separate server process
+  // with its own retry/queueing, so this only matters for this local file
+  // client used by tests.
+  await client.execute("PRAGMA busy_timeout = 5000");
   const db = drizzle(client, { schema });
   // Best-effort: remove the dir at process exit (in-memory was already best-effort).
   process.once("exit", () => {
