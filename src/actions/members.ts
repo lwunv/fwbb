@@ -171,6 +171,25 @@ export async function createMember(formData: FormData) {
     }
     username = u.value;
   }
+  // Email (optional): validate + lowercase + unique. Dùng để gửi mail mời /
+  // quên mật khẩu sau này. Chỉ đụng khi form gửi field.
+  let email: string | null = null;
+  if (formData.has("email")) {
+    const raw = String(formData.get("email") ?? "")
+      .trim()
+      .toLowerCase();
+    if (raw) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) {
+        return { error: t("emailInvalid") };
+      }
+      const dup = await db.query.members.findFirst({
+        where: eq(members.email, raw),
+        columns: { id: true },
+      });
+      if (dup) return { error: t("emailTaken") };
+      email = raw;
+    }
+  }
   const nickname = (formData.get("nickname") as string)?.trim() || null;
   // KHÔNG set facebookId placeholder. Member admin tạo phải để facebookId +
   // googleId = NULL thì merge flow mới nhận diện được: getNameMatches lọc
@@ -185,10 +204,17 @@ export async function createMember(formData: FormData) {
   try {
     await db
       .insert(members)
-      .values({ ...parsed.data, nickname, username, defaultWithPartner });
+      .values({
+        ...parsed.data,
+        nickname,
+        username,
+        email,
+        defaultWithPartner,
+      });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
     if (/username/i.test(msg)) return { error: t("usernameTaken") };
+    if (/email/i.test(msg)) return { error: t("emailTaken") };
     throw e;
   }
   revalidatePath("/admin/members");

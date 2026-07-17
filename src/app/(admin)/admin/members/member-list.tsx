@@ -884,6 +884,19 @@ export function MemberList({
                 placeholder={t("usernamePlaceholder")}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">{t("email")}</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                inputMode="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                placeholder={t("emailPlaceholder")}
+              />
+            </div>
             <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
               <input
                 type="checkbox"

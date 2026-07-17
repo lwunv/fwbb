@@ -540,4 +540,28 @@ describe("username khi admin tạo/sửa member (2026-07-13)", () => {
     });
     expect(m?.username).toBe("stay");
   });
+
+  it("createMember: lưu email (chuẩn hoá lowercase)", async () => {
+    const r = await createMember(fd({ name: "Có Mail", email: "A@Ex.Com" }));
+    expect(r).toEqual({ success: true });
+    expect((await byName("Có Mail"))?.email).toBe("a@ex.com");
+  });
+
+  it("createMember: không gửi email → null", async () => {
+    await createMember(fd({ name: "Không Mail" }));
+    expect((await byName("Không Mail"))?.email).toBeNull();
+  });
+
+  it("createMember: email sai định dạng → error, KHÔNG tạo", async () => {
+    const r = await createMember(fd({ name: "Mail Sai", email: "not-mail" }));
+    expect(r).toHaveProperty("error");
+    expect(await byName("Mail Sai")).toBeUndefined();
+  });
+
+  it("createMember: email trùng → error", async () => {
+    await createMember(fd({ name: "Mail 1", email: "dup@ex.com" }));
+    const r = await createMember(fd({ name: "Mail 2", email: "DUP@ex.com" }));
+    expect(r).toHaveProperty("error");
+    expect(await byName("Mail 2")).toBeUndefined();
+  });
 });
