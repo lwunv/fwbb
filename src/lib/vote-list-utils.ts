@@ -7,6 +7,21 @@ export function attendingVotesCount(
   return votes.filter((v) => !!(v.willPlay || v.willDine)).length;
 }
 
+/** Số ĐẦU NGƯỜI đã vote tham gia (cầu hoặc nhậu): "đi 2 người" tính 2, không
+ *  phải 1 như đếm account. Dùng cho header "Danh sách (N)" để N = số người thật. */
+export function attendingHeadCount(
+  votes: {
+    willPlay?: boolean | null;
+    willDine?: boolean | null;
+    withPartner?: boolean | null;
+  }[],
+): number {
+  return votes.reduce(
+    (n, v) => (v.willPlay || v.willDine ? n + (v.withPartner ? 2 : 1) : n),
+    0,
+  );
+}
+
 /** Vote tối thiểu cần để đếm tham gia chơi/nhậu (member + khách). */
 export interface ParticipationVote {
   willPlay?: boolean | null;

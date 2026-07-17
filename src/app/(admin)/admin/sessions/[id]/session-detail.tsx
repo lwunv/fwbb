@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { cancelSession } from "@/actions/sessions";
 import { fireAction } from "@/lib/optimistic-action";
+import { countVoteParticipation } from "@/lib/vote-list-utils";
 import { Button } from "@/components/ui/button";
 import {
   AdminSessionCard,
@@ -185,8 +186,8 @@ export function SessionDetail({
     adminGuestDineCount: adminGuestDine,
     useMinDeduction: session.useMinDeduction ?? false,
     exemptMemberIds,
-    playerCount: votes.filter((v) => v.willPlay).length,
-    dinerCount: votes.filter((v) => v.willDine).length,
+    playerCount: countVoteParticipation(votes).memberPlay,
+    dinerCount: countVoteParticipation(votes).memberDine,
     guestPlayCount: memberGuestPlay + adminGuestPlay,
     guestDineCount: memberGuestDine + adminGuestDine,
     totalDebt,

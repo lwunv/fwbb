@@ -10,6 +10,7 @@ import {
 } from "@/db/schema";
 import { and, asc, desc, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
 import { computeBalancesForMembers } from "@/lib/fund-core";
+import { countVoteParticipation } from "@/lib/vote-list-utils";
 import { ymdInVN } from "@/lib/date-format";
 import { getDefaultCourt, getSessionDaysOfWeek } from "@/actions/settings";
 import { getWeekBadmintonDays } from "@/actions/sessions";
@@ -234,12 +235,14 @@ export default async function SessionsPage({
     let guestPlayCount: number;
     let guestDineCount: number;
     if (s.status === "completed") {
-      playerCount = s.attendees.filter(
-        (a) => !a.isGuest && a.attendsPlay,
-      ).length;
-      dinerCount = s.attendees.filter(
-        (a) => !a.isGuest && a.attendsDine,
-      ).length;
+      // "đi 2 người" = 1 attendee row với headcount 2 → SUM headcount (không
+      // phải .length) để đếm đúng số người.
+      playerCount = s.attendees
+        .filter((a) => !a.isGuest && a.attendsPlay)
+        .reduce((n, a) => n + (a.headcount ?? 1), 0);
+      dinerCount = s.attendees
+        .filter((a) => !a.isGuest && a.attendsDine)
+        .reduce((n, a) => n + (a.headcount ?? 1), 0);
       guestPlayCount = s.attendees.filter(
         (a) => a.isGuest && a.attendsPlay,
       ).length;
@@ -247,8 +250,8 @@ export default async function SessionsPage({
         (a) => a.isGuest && a.attendsDine,
       ).length;
     } else {
-      playerCount = s.votes.filter((v) => v.willPlay).length;
-      dinerCount = s.votes.filter((v) => v.willDine).length;
+      playerCount = countVoteParticipation(s.votes).memberPlay;
+      dinerCount = countVoteParticipation(s.votes).memberDine;
       guestPlayCount =
         s.votes.reduce((sum, v) => sum + (v.guestPlayCount ?? 0), 0) +
         (s.adminGuestPlayCount ?? 0);

@@ -21,6 +21,7 @@ import {
 import { getSessionVotes } from "@/actions/votes";
 import { getCourtRentReport } from "@/actions/court-rent";
 import { bucketMonthlyTransactions } from "@/lib/finance-summary";
+import { countVoteParticipation } from "@/lib/vote-list-utils";
 import { DashboardClient } from "./dashboard-client";
 import {
   getAppName,
@@ -254,8 +255,8 @@ export default async function DashboardPage() {
       diningBill: nextSession.diningBill ?? 0,
       startTime: nextSession.startTime || "20:30",
       endTime: nextSession.endTime || "22:30",
-      playerCount: sessionVotes.filter((v) => v.willPlay).length,
-      dinerCount: sessionVotes.filter((v) => v.willDine).length,
+      playerCount: countVoteParticipation(sessionVotes).memberPlay,
+      dinerCount: countVoteParticipation(sessionVotes).memberDine,
       guestPlayCount:
         sessionVotes.reduce((s, v) => s + (v.guestPlayCount ?? 0), 0) +
         (nextSession.adminGuestPlayCount ?? 0),

@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { attendingVotesCount, countVoteParticipation } from "./vote-list-utils";
+import {
+  attendingVotesCount,
+  attendingHeadCount,
+  countVoteParticipation,
+} from "./vote-list-utils";
 
 describe("attendingVotesCount", () => {
   it("counts votes that attend at least one activity", () => {
@@ -11,6 +15,25 @@ describe("attendingVotesCount", () => {
         { willPlay: true, willDine: true },
       ]),
     ).toBe(3);
+  });
+});
+
+describe("attendingHeadCount", () => {
+  it("counts đi-2-người as 2, solo as 1, non-attending as 0", () => {
+    expect(
+      attendingHeadCount([
+        { willPlay: true, willDine: false, withPartner: true }, // 2
+        { willPlay: false, willDine: true, withPartner: true }, // 2 (dine + partner)
+        { willPlay: true, willDine: false, withPartner: false }, // 1
+        { willPlay: false, willDine: false, withPartner: true }, // 0 (không tham gia)
+      ]),
+    ).toBe(5);
+  });
+
+  it("treats missing withPartner as solo (1)", () => {
+    expect(attendingHeadCount([{ willPlay: true }, { willDine: true }])).toBe(
+      2,
+    );
   });
 });
 

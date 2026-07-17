@@ -16,7 +16,7 @@ import {
   type VoteTotalsPatch,
 } from "@/lib/optimistic-votes";
 import {
-  attendingVotesCount,
+  attendingHeadCount,
   countVoteParticipation,
 } from "@/lib/vote-list-utils";
 import { isPlayFull, remainingPlaySlots } from "@/lib/vote-capacity";
@@ -154,7 +154,7 @@ export function SessionVoteOptimisticPanel({
     maxPlayers,
   );
   const listHeadCount = useMemo(
-    () => attendingVotesCount(optimisticVotes),
+    () => attendingHeadCount(optimisticVotes),
     [optimisticVotes],
   );
 
