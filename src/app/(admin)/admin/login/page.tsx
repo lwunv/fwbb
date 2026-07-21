@@ -15,6 +15,9 @@ export default function LoginPage() {
   const [state, formAction, pending] = useActionState(login, null);
   const [showPassword, setShowPassword] = useState(false);
   const t = useTranslations("auth");
+  // "forgotPassword" sống ở namespace passwordAuth (dùng chung với form
+  // login/signup email) — reuse thay vì trùng lặp key trong "auth".
+  const tPasswordAuth = useTranslations("passwordAuth");
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
@@ -73,7 +76,7 @@ export default function LoginPage() {
               href="/admin-forgot-password"
               className="text-primary inline-flex min-h-11 items-center justify-center text-sm underline underline-offset-2"
             >
-              {t("forgotPassword")}
+              {tPasswordAuth("forgotPassword")}
             </Link>
           </div>
           <AdminGoogleSignin />
