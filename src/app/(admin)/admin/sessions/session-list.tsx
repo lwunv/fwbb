@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { parseAsInteger, useQueryState } from "nuqs";
 import {
@@ -219,6 +220,7 @@ export function SessionList({
     clearOnDefault: true,
   });
   const viewMode: "cards" | "list" = viewParam === "list" ? "list" : "cards";
+  const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [error, setError] = useState("");
   const [cancelledSessions, setCancelledSessions] = useState<Set<number>>(
@@ -409,7 +411,7 @@ export function SessionList({
         if (!open) setError("");
       }}
     >
-      <div className="mx-auto max-w-3xl">
+      <div className={viewMode === "list" ? "w-full" : "mx-auto max-w-3xl"}>
         {/* max-w-3xl mx-auto — desktop không rải card full width (dễ đọc,
             vibes mobile-first). "Tạo buổi chơi" giờ inline với filter chips,
             không còn fixed bottom bar nữa. */}
@@ -602,8 +604,9 @@ export function SessionList({
         )}
 
         {/* Chế độ danh sách gọn: 1 dòng/buổi, bấm mở trang quản lý chi tiết. */}
+        {/* Mobile (dưới md): dòng gọn 1 buổi. Desktop dùng bảng bên dưới. */}
         {viewMode === "list" && sessions.length > 0 && (
-          <div className="divide-border/60 bg-card overflow-hidden rounded-xl border">
+          <div className="divide-border/60 bg-card overflow-hidden rounded-xl border md:hidden">
             {sessions.map((session) => {
               const rawStatus = cancelledSessions.has(session.id)
                 ? "cancelled"
@@ -760,6 +763,189 @@ export function SessionList({
                 </Link>
               );
             })}
+          </div>
+        )}
+
+        {/* Desktop (md+): bảng full-width giống /admin/members. Cuộn ngang
+            trong container riêng khi hẹp. Compute tiền MIRROR block mobile trên
+            (cùng helper cost-calculator → số không lệch). */}
+        {viewMode === "list" && sessions.length > 0 && (
+          <div className="bg-card border-border/60 hidden overflow-x-auto rounded-xl border shadow-sm md:block">
+            <table className="w-full min-w-[720px] border-collapse text-sm">
+              <thead>
+                <tr className="bg-muted/40 border-border/60 text-muted-foreground border-b text-left text-xs font-medium tracking-wide uppercase">
+                  <th className="px-3 py-2.5">{t("date")}</th>
+                  <th className="px-3 py-2.5">{t("court")}</th>
+                  <th className="px-3 py-2.5 text-center">🏸</th>
+                  <th className="px-3 py-2.5 text-center">🍻</th>
+                  <th className="px-3 py-2.5 text-right">💰</th>
+                  <th className="px-3 py-2.5 text-right">/ng</th>
+                  <th className="px-3 py-2.5 text-right">📊</th>
+                  <th className="px-3 py-2.5 text-right" />
+                </tr>
+              </thead>
+              <tbody>
+                {sessions.map((session) => {
+                  const rawStatus = cancelledSessions.has(session.id)
+                    ? "cancelled"
+                    : finalizingSessions.has(session.id)
+                      ? "completed"
+                      : unlockedSessions.has(session.id)
+                        ? "voting"
+                        : (session.status ?? "voting");
+                  const {
+                    variant: badgeVariant,
+                    labelKey,
+                    isPastPending,
+                  } = deriveSessionBadge(rawStatus, session.date, todayYmd);
+                  const badgeText = isPastPending
+                    ? tF("needsConfirm")
+                    : t(labelKey);
+                  const unpaidCount = session.unpaidDebts.filter(
+                    (d) => !paidDebtIds.has(d.debtId),
+                  ).length;
+                  const listAg = getAdminGuests(session.id, session);
+                  const listGuestPlay =
+                    session.guestPlayCount +
+                    listAg.play -
+                    session.adminGuestPlayCount;
+                  const listGuestDine =
+                    session.guestDineCount +
+                    listAg.dine -
+                    session.adminGuestDineCount;
+                  const listShuttleCost = computeShuttlecockTotal(
+                    session.shuttlecocks,
+                  );
+                  const listPlayers = session.playerCount + listGuestPlay;
+                  const listDiners = session.dinerCount + listGuestDine;
+                  const {
+                    playCostPerHead: listPlayPerHead,
+                    adminGuestPlayCostPerHead: listAgPlayPerHead,
+                    dineCostPerHead: listDinePerHead,
+                  } = computePerHeadCharges({
+                    courtPrice: session.courtPrice ?? 0,
+                    shuttlecockCost: listShuttleCost,
+                    diningBill: session.diningBill,
+                    playerCount: listPlayers,
+                    dinerCount: listDiners,
+                    adminGuestPlayHeads: listAg.play,
+                  });
+                  const listTotalExpense =
+                    (session.courtPrice ?? 0) +
+                    listShuttleCost +
+                    session.diningBill;
+                  const listShowRevenue =
+                    rawStatus === "completed" || isPastPending;
+                  const listRevenue =
+                    rawStatus === "completed"
+                      ? session.totalDebt
+                      : computePredictedPlayRevenue({
+                          totalPlayHeads: listPlayers,
+                          adminGuestPlayHeads: listAg.play,
+                          playCostPerHead: listPlayPerHead,
+                          adminGuestPlayCostPerHead: listAgPlayPerHead,
+                        }) +
+                        listDiners * listDinePerHead +
+                        (session.useMinDeduction
+                          ? computePredictedMinDeductionSurplus({
+                              playingMemberIds: session.votes
+                                .filter((v) => v.willPlay)
+                                .map((v) => v.member.id),
+                              memberBalances,
+                              exemptMemberIds: session.exemptMemberIds,
+                              playCostPerHead: listPlayPerHead,
+                            })
+                          : 0);
+                  const listProfit = listShowRevenue
+                    ? listRevenue - listTotalExpense
+                    : null;
+                  return (
+                    <tr
+                      key={session.id}
+                      onClick={() =>
+                        router.push(`/admin/sessions/${session.id}`)
+                      }
+                      className="border-border/40 hover:bg-muted/30 cursor-pointer border-b align-middle tabular-nums last:border-0"
+                    >
+                      <td className="px-3 py-2.5">
+                        <div className="font-semibold capitalize">
+                          {fmtSessionDate(session.date, "weekdayName")}
+                        </div>
+                        <div className="text-muted-foreground text-xs">
+                          {fmtSessionDate(session.date, "short")}
+                          {(session.startTime || session.endTime) &&
+                            ` · ${session.startTime ?? "—"}–${session.endTime ?? "—"}`}
+                        </div>
+                      </td>
+                      <td className="text-muted-foreground max-w-[200px] truncate px-3 py-2.5">
+                        {session.courtName ?? "—"}
+                      </td>
+                      <td className="text-primary px-3 py-2.5 text-center font-medium">
+                        {session.playerCount + session.guestPlayCount}
+                      </td>
+                      <td className="px-3 py-2.5 text-center font-medium text-orange-600 dark:text-orange-400">
+                        {session.dinerCount + session.guestDineCount}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-medium">
+                        {formatK(listTotalExpense)}
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <div className="flex flex-col items-end gap-0.5">
+                          {listPlayPerHead > 0 && (
+                            <span className="text-primary">
+                              🏸 {formatK(listPlayPerHead)}
+                            </span>
+                          )}
+                          {listDinePerHead > 0 && (
+                            <span className="text-orange-600 dark:text-orange-400">
+                              🍻 {formatK(listDinePerHead)}
+                            </span>
+                          )}
+                          {listPlayPerHead <= 0 && listDinePerHead <= 0 && (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        {listProfit === null ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : (
+                          <span
+                            className={cn(
+                              "font-semibold",
+                              listProfit > 0
+                                ? "text-green-600 dark:text-green-400"
+                                : listProfit < 0
+                                  ? "text-rose-600 dark:text-rose-400"
+                                  : "text-muted-foreground",
+                            )}
+                          >
+                            {listProfit > 0
+                              ? "Lãi +"
+                              : listProfit < 0
+                                ? "Lỗ −"
+                                : "Hòa "}
+                            {formatK(Math.abs(listProfit))}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center justify-end gap-2">
+                          {unpaidCount > 0 && (
+                            <span className="bg-destructive/15 text-destructive shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold">
+                              {t("unpaidCountShort", { count: unpaidCount })}
+                            </span>
+                          )}
+                          <StatusBadge variant={badgeVariant}>
+                            {badgeText}
+                          </StatusBadge>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
 
