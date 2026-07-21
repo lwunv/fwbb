@@ -234,19 +234,26 @@ export async function createMember(formData: FormData) {
   // member vừa tạo (mailer.sendInviteEmail đã non-throwing, .catch() ở đây chỉ
   // để phòng hờ, mirror pattern issueTokenAndSend trong password-reset.ts).
   if (email && formData.get("sendInvite") === "1") {
-    const { rawToken, tokenHash } = generateResetToken();
-    await db.insert(passwordResetTokens).values({
-      memberId: newMemberId,
-      tokenHash,
-      expiresAt: inviteTokenExpiryIso(),
-    });
-    const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
-    const setupUrl = `${base}/reset-password/${rawToken}`;
-    after(() => {
-      sendInviteEmail(email, setupUrl).catch((err) => {
-        console.error("[Members] invite mail send failed:", err);
+    // Member đã insert xong ở trên. Bọc toàn bộ invite (token insert + mail) để
+    // 1 lỗi DB hi hữu KHÔNG ném ra client làm admin tưởng tạo member thất bại
+    // (rồi retry → "tên/email đã dùng"). Invite là best-effort; member vẫn tạo.
+    try {
+      const { rawToken, tokenHash } = generateResetToken();
+      await db.insert(passwordResetTokens).values({
+        memberId: newMemberId,
+        tokenHash,
+        expiresAt: inviteTokenExpiryIso(),
       });
-    });
+      const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
+      const setupUrl = `${base}/reset-password/${rawToken}`;
+      after(() => {
+        sendInviteEmail(email, setupUrl).catch((err) => {
+          console.error("[Members] invite mail send failed:", err);
+        });
+      });
+    } catch (err) {
+      console.error("[Members] invite token insert failed:", err);
+    }
   }
 
   revalidatePath("/admin/members");
