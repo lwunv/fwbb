@@ -563,7 +563,10 @@
     "successReset": "密码修改成功，请重新登录",
     "expiredTitle": "链接已过期",
     "expiredBody": "此重置链接无效或已过期，请重新申请。",
-    "btnRequestAgain": "重新发送链接"
+    "btnRequestAgain": "重新发送链接",
+    "neutralConfirm": "如果该邮箱存在于系统中，我们已发送密码重置邮件。",
+    "tokenError": "此密码重置链接无效或已过期。",
+    "passwordTooShort": "新密码长度需为 8 至 128 个字符"
   },
   "history": {
     "completed": "已完成",
@@ -1104,6 +1107,7 @@
   "serverErrors": {
     "missingFields": "请填写完整信息",
     "tooManyLoginAttempts": "登录尝试次数过多,{seconds} 秒后重试",
+    "tooManyResetRequests": "重置请求次数过多,{seconds} 秒后重试",
     "tooManyChangePassword": "修改密码次数过多,{seconds} 秒后重试",
     "tooManyActions": "操作过于频繁,{seconds} 秒后重试",
     "invalidCredentials": "用户名或密码错误",

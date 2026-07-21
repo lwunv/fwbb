@@ -563,7 +563,10 @@
     "successReset": "Đổi mật khẩu thành công, mời đăng nhập lại",
     "expiredTitle": "Link đã hết hạn",
     "expiredBody": "Link đặt lại mật khẩu này không hợp lệ hoặc đã hết hạn. Vui lòng gửi lại yêu cầu mới.",
-    "btnRequestAgain": "Gửi lại link"
+    "btnRequestAgain": "Gửi lại link",
+    "neutralConfirm": "Nếu email tồn tại trong hệ thống, chúng tôi đã gửi email hướng dẫn đặt lại mật khẩu.",
+    "tokenError": "Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.",
+    "passwordTooShort": "Mật khẩu mới phải từ 8 đến 128 ký tự"
   },
   "history": {
     "completed": "Đã hoàn thành",
@@ -1104,6 +1107,7 @@
   "serverErrors": {
     "missingFields": "Vui lòng nhập đầy đủ thông tin",
     "tooManyLoginAttempts": "Quá nhiều lần đăng nhập, thử lại sau {seconds}s",
+    "tooManyResetRequests": "Bạn đã yêu cầu quá nhiều lần. Thử lại sau {seconds} giây.",
     "tooManyChangePassword": "Quá nhiều lần đổi mật khẩu, thử lại sau {seconds}s",
     "tooManyActions": "Quá nhiều thao tác, thử lại sau {seconds}s",
     "invalidCredentials": "Sai tên đăng nhập hoặc mật khẩu",

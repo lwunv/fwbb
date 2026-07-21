@@ -563,7 +563,10 @@
     "successReset": "Password changed, please sign in again",
     "expiredTitle": "Link expired",
     "expiredBody": "This reset link is invalid or has expired. Please request a new one.",
-    "btnRequestAgain": "Send another link"
+    "btnRequestAgain": "Send another link",
+    "neutralConfirm": "If the email exists in our system, we've sent a password reset email.",
+    "tokenError": "This password reset link is invalid or has expired.",
+    "passwordTooShort": "New password must be 8 to 128 characters"
   },
   "history": {
     "completed": "Done",
@@ -1104,6 +1107,7 @@
   "serverErrors": {
     "missingFields": "Please fill in all required fields",
     "tooManyLoginAttempts": "Too many login attempts, try again in {seconds}s",
+    "tooManyResetRequests": "Too many reset requests, try again in {seconds}s",
     "tooManyChangePassword": "Too many password change attempts, try again in {seconds}s",
     "tooManyActions": "Too many actions, try again in {seconds}s",
     "invalidCredentials": "Invalid username or password",

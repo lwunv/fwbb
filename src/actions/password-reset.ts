@@ -86,12 +86,6 @@ async function withBusyRetry<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-const NEUTRAL_MESSAGE =
-  "Nếu email tồn tại trong hệ thống, chúng tôi đã gửi email hướng dẫn đặt lại mật khẩu.";
-const TOKEN_ERROR_MESSAGE =
-  "Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.";
-const PASSWORD_ERROR_MESSAGE = "Mật khẩu mới phải từ 8 đến 128 ký tự";
-
 type Scope = "member" | "admin";
 
 /** Invalidate the subject's old unused tokens + insert a new one, then send
@@ -156,7 +150,11 @@ export async function requestPasswordReset(input: {
   email: string;
   scope: Scope;
 }): Promise<{ ok: true; message: string }> {
-  const NEUTRAL = { ok: true as const, message: NEUTRAL_MESSAGE };
+  const tPasswordReset = await getTranslations("passwordReset");
+  const NEUTRAL = {
+    ok: true as const,
+    message: tPasswordReset("neutralConfirm"),
+  };
   try {
     const scope: Scope = input.scope === "admin" ? "admin" : "member";
     const emailNorm = normalizeEmail(
@@ -226,23 +224,25 @@ export async function resetPasswordWithToken(input: {
   | { tokenError: string }
   | { passwordError: string }
 > {
+  const tPasswordReset = await getTranslations("passwordReset");
+
   const ip = await getTrustedClientIp();
   const rl = await checkRateLimit(`pw-reset:${ip}`, 10, 10 * 60_000);
   if (!rl.ok) {
     const t = await getTranslations("serverErrors");
     return {
-      tokenError: t("tooManyLoginAttempts", { seconds: rl.retryAfter ?? 60 }),
+      tokenError: t("tooManyResetRequests", { seconds: rl.retryAfter ?? 60 }),
     };
   }
 
   // Password validated BEFORE the token is consumed — a weak password must
   // leave the token untouched so the user can retry on the same link.
   if (!isValidPassword(input.newPassword)) {
-    return { passwordError: PASSWORD_ERROR_MESSAGE };
+    return { passwordError: tPasswordReset("passwordTooShort") };
   }
 
   const token = typeof input.token === "string" ? input.token : "";
-  if (!token) return { tokenError: TOKEN_ERROR_MESSAGE };
+  if (!token) return { tokenError: tPasswordReset("tokenError") };
 
   const tokenHash = hashResetToken(token);
   const nowIso = new Date().toISOString();
@@ -261,7 +261,7 @@ export async function resetPasswordWithToken(input: {
   );
 
   if (casResult.rowsAffected !== 1) {
-    return { tokenError: TOKEN_ERROR_MESSAGE };
+    return { tokenError: tPasswordReset("tokenError") };
   }
 
   // CAS đã thắng — an toàn đọc lại để biết token thuộc member hay admin
@@ -319,7 +319,7 @@ export async function resetPasswordWithToken(input: {
   }
 
   // Không nên xảy ra (CAS khớp 1 row nhưng cả 2 FK đều null) — fail closed.
-  return { tokenError: TOKEN_ERROR_MESSAGE };
+  return { tokenError: tPasswordReset("tokenError") };
 }
 
 /**
