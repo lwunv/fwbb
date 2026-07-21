@@ -545,7 +545,25 @@
     "hidePassword": "Hide password",
     "errMissingFields": "Please enter email and password",
     "errMissingName": "Please enter your name",
-    "signupWithPartner": "Two-person account (partner comes along)"
+    "signupWithPartner": "Two-person account (partner comes along)",
+    "forgotPassword": "Forgot password?"
+  },
+  "passwordReset": {
+    "forgotTitle": "Forgot password",
+    "forgotIntro": "Enter your registered email and we'll send you a reset link.",
+    "emailPlaceholder": "Email",
+    "btnSend": "Send reset link",
+    "backToLogin": "Back to login",
+    "noEmailHint": "Signed in with Facebook/Google and have no email yet? Sign in with FB/Google, then set a password from your profile (/me).",
+    "resetTitle": "Set a new password",
+    "newPassword": "New password (≥ 8 chars)",
+    "confirmPassword": "Confirm new password",
+    "btnReset": "Change password",
+    "errMismatch": "Passwords don't match",
+    "successReset": "Password changed, please sign in again",
+    "expiredTitle": "Link expired",
+    "expiredBody": "This reset link is invalid or has expired. Please request a new one.",
+    "btnRequestAgain": "Send another link"
   },
   "history": {
     "completed": "Done",

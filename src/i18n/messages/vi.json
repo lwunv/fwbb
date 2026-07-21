@@ -545,7 +545,25 @@
     "hidePassword": "Ẩn mật khẩu",
     "errMissingFields": "Vui lòng nhập email và mật khẩu",
     "errMissingName": "Vui lòng nhập họ tên",
-    "signupWithPartner": "Tài khoản đi 2 người (vợ/chồng/bạn đi cùng)"
+    "signupWithPartner": "Tài khoản đi 2 người (vợ/chồng/bạn đi cùng)",
+    "forgotPassword": "Quên mật khẩu?"
+  },
+  "passwordReset": {
+    "forgotTitle": "Quên mật khẩu",
+    "forgotIntro": "Nhập email đã đăng ký, chúng tôi sẽ gửi link đặt lại mật khẩu.",
+    "emailPlaceholder": "Email",
+    "btnSend": "Gửi link đặt lại",
+    "backToLogin": "Quay lại đăng nhập",
+    "noEmailHint": "Đăng nhập bằng Facebook/Google mà chưa có email? Đăng nhập bằng FB/Google rồi vào mục Cá nhân (/me) để đặt mật khẩu.",
+    "resetTitle": "Đặt mật khẩu mới",
+    "newPassword": "Mật khẩu mới (≥ 8 ký tự)",
+    "confirmPassword": "Xác nhận mật khẩu mới",
+    "btnReset": "Đổi mật khẩu",
+    "errMismatch": "Mật khẩu xác nhận không khớp",
+    "successReset": "Đổi mật khẩu thành công, mời đăng nhập lại",
+    "expiredTitle": "Link đã hết hạn",
+    "expiredBody": "Link đặt lại mật khẩu này không hợp lệ hoặc đã hết hạn. Vui lòng gửi lại yêu cầu mới.",
+    "btnRequestAgain": "Gửi lại link"
   },
   "history": {
     "completed": "Đã hoàn thành",

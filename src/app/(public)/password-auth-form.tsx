@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -165,6 +166,15 @@ export function PasswordAuthForm() {
             )}
           </button>
         </div>
+
+        {mode === "login" && (
+          <Link
+            href="/forgot-password"
+            className="text-primary flex min-h-11 items-center justify-end text-sm underline underline-offset-2"
+          >
+            {t("forgotPassword")}
+          </Link>
+        )}
 
         {mode === "signup" && (
           <>

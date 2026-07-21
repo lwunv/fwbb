@@ -545,7 +545,25 @@
     "hidePassword": "隐藏密码",
     "errMissingFields": "请输入邮箱和密码",
     "errMissingName": "请输入姓名",
-    "signupWithPartner": "两人账户（配偶/朋友同行）"
+    "signupWithPartner": "两人账户（配偶/朋友同行）",
+    "forgotPassword": "忘记密码？"
+  },
+  "passwordReset": {
+    "forgotTitle": "忘记密码",
+    "forgotIntro": "输入已注册的邮箱，我们会发送重置密码的链接。",
+    "emailPlaceholder": "邮箱",
+    "btnSend": "发送重置链接",
+    "backToLogin": "返回登录",
+    "noEmailHint": "用 Facebook/Google 登录但还没有邮箱？请先用 FB/Google 登录，再到个人页面 (/me) 设置密码。",
+    "resetTitle": "设置新密码",
+    "newPassword": "新密码 (≥8 字符)",
+    "confirmPassword": "确认新密码",
+    "btnReset": "修改密码",
+    "errMismatch": "两次输入的密码不一致",
+    "successReset": "密码修改成功，请重新登录",
+    "expiredTitle": "链接已过期",
+    "expiredBody": "此重置链接无效或已过期，请重新申请。",
+    "btnRequestAgain": "重新发送链接"
   },
   "history": {
     "completed": "已完成",

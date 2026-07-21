@@ -49,6 +49,15 @@ const nextConfig: NextConfig = {
           // (connect.facebook.net) + Next inline script trước khi enforce.
         ],
       },
+      {
+        // Reset-password link chứa token trong URL. Global header ở trên đã
+        // là "strict-origin-when-cross-origin" (chặn rò cross-origin); route
+        // này cần chặt hơn để triệt luôn rủi ro same-origin (Referer tới
+        // subresource, browser history) làm rò rỉ token — no-referrer không
+        // gửi Referer trong mọi trường hợp, kể cả same-origin.
+        source: "/reset-password/:path*",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      },
     ];
   },
 };
