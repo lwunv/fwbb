@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { login } from "@/actions/auth";
@@ -67,6 +68,14 @@ export default function LoginPage() {
               {pending ? t("loggingIn") : t("login")}
             </Button>
           </form>
+          <div className="mt-3 text-center">
+            <Link
+              href="/admin-forgot-password"
+              className="text-primary inline-flex min-h-11 items-center justify-center text-sm underline underline-offset-2"
+            >
+              {t("forgotPassword")}
+            </Link>
+          </div>
           <AdminGoogleSignin />
         </CardContent>
       </Card>
