@@ -738,6 +738,8 @@
     "toastRejected": "已拒绝",
     "toastMerged": "已合并到 {name}",
     "memberWithPartner": "两人同行",
+    "sendInvite": "发送设置密码邀请邮件",
+    "sendInviteHint": "仅在填写邮箱时发送",
     "partnerOn": "两人",
     "partnerOff": "一人",
     "toastSaved": "已保存",

@@ -738,6 +738,8 @@
     "toastRejected": "Đã từ chối",
     "toastMerged": "Đã gộp vào {name}",
     "memberWithPartner": "Đi 2 mình",
+    "sendInvite": "Gửi mail mời đặt mật khẩu",
+    "sendInviteHint": "Chỉ gửi khi đã nhập email",
     "partnerOn": "2 người",
     "partnerOff": "1 người",
     "toastSaved": "Đã lưu",

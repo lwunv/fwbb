@@ -13,9 +13,11 @@ import {
   sessionMinDeductionExemptions,
   paymentNotifications,
   dupIgnoredPairs,
+  passwordResetTokens,
 } from "@/db/schema";
 import { eq, sql, or, ne, and, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { getTranslations } from "next-intl/server";
 import { getUserFromCookie } from "@/lib/user-identity";
 import { requireAdmin } from "@/lib/auth";
@@ -31,6 +33,11 @@ import {
   countLoginMethods,
   isUsablePassword,
 } from "@/lib/oauth-identity";
+import { sendInviteEmail } from "@/lib/mailer";
+import {
+  generateResetToken,
+  inviteTokenExpiryIso,
+} from "@/lib/password-reset-token";
 import { z } from "zod";
 
 export type UpdateMyProfileState = null | { success: true } | { error: string };
@@ -201,8 +208,9 @@ export async function createMember(formData: FormData) {
   const defaultWithPartner = formData.get("withPartner") === "1";
   // username UNIQUE: pre-check ở trên có race window → bọc write, map lỗi
   // UNIQUE về message localized thay vì ném lỗi DB thô.
+  let newMemberId: number;
   try {
-    await db
+    const [inserted] = await db
       .insert(members)
       .values({
         ...parsed.data,
@@ -210,13 +218,37 @@ export async function createMember(formData: FormData) {
         username,
         email,
         defaultWithPartner,
-      });
+      })
+      .returning({ id: members.id });
+    newMemberId = inserted.id;
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
     if (/username/i.test(msg)) return { error: t("usernameTaken") };
     if (/email/i.test(msg)) return { error: t("emailTaken") };
     throw e;
   }
+
+  // Mail mời đặt mật khẩu (Task 4): chỉ khi có email VÀ admin tick checkbox.
+  // Token insert được await inline (nhanh, cùng request); gửi mail qua after()
+  // để round-trip SMTP không chặn response — lỗi mail KHÔNG được rollback
+  // member vừa tạo (mailer.sendInviteEmail đã non-throwing, .catch() ở đây chỉ
+  // để phòng hờ, mirror pattern issueTokenAndSend trong password-reset.ts).
+  if (email && formData.get("sendInvite") === "1") {
+    const { rawToken, tokenHash } = generateResetToken();
+    await db.insert(passwordResetTokens).values({
+      memberId: newMemberId,
+      tokenHash,
+      expiresAt: inviteTokenExpiryIso(),
+    });
+    const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
+    const setupUrl = `${base}/reset-password/${rawToken}`;
+    after(() => {
+      sendInviteEmail(email, setupUrl).catch((err) => {
+        console.error("[Members] invite mail send failed:", err);
+      });
+    });
+  }
+
   revalidatePath("/admin/members");
   return { success: true };
 }

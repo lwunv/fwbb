@@ -906,6 +906,20 @@ export function MemberList({
               />
               👫 {t("memberWithPartner")}
             </label>
+            <div className="space-y-1">
+              <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  name="sendInvite"
+                  value="1"
+                  className="accent-primary h-5 w-5 rounded"
+                />
+                {t("sendInvite")}
+              </label>
+              <p className="text-muted-foreground pl-1 text-xs">
+                {t("sendInviteHint")}
+              </p>
+            </div>
             <Button type="submit" className="w-full">
               {tCommon("add")}
             </Button>

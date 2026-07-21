@@ -15,13 +15,26 @@
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
-import { admins, members, financialTransactions } from "@/db/schema";
+import {
+  admins,
+  members,
+  financialTransactions,
+  passwordResetTokens,
+} from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+// after() thực thi ngay trong test — mail phải "xong" trước khi assert, cùng
+// pattern password-reset.integration.test.ts.
+vi.mock("next/server", () => ({ after: (fn: () => unknown) => fn() }));
 vi.mock("@/lib/auth", () => ({
   requireAdmin: vi.fn(async () => ({ admin: { sub: "1", role: "admin" } })),
 }));
+
+const mailerMock = vi.hoisted(() => ({
+  sendInviteEmail: vi.fn(async () => ({ success: true })),
+}));
+vi.mock("@/lib/mailer", () => mailerMock);
 
 const { db: testDb, client } = await createTestDb();
 vi.mock("@/db", () => ({ db: testDb }));
@@ -31,9 +44,11 @@ const { toggleMemberActive, findDuplicateMembers, updateMember, createMember } =
 const { getFundBalance } = await import("@/lib/fund-calculator");
 
 async function reset() {
+  await client.execute("DELETE FROM password_reset_tokens");
   await client.execute("DELETE FROM financial_transactions");
   await client.execute("DELETE FROM admins");
   await client.execute("DELETE FROM members");
+  mailerMock.sendInviteEmail.mockClear();
 }
 
 async function seedMember(name: string, fid = `fb-${name}-${Date.now()}`) {
@@ -563,5 +578,66 @@ describe("username khi admin tạo/sửa member (2026-07-13)", () => {
     const r = await createMember(fd({ name: "Mail 2", email: "DUP@ex.com" }));
     expect(r).toHaveProperty("error");
     expect(await byName("Mail 2")).toBeUndefined();
+  });
+});
+
+describe("createMember: gửi mail mời đặt mật khẩu (2026-07-21)", () => {
+  beforeEach(reset);
+
+  function fd(fields: Record<string, string>) {
+    const f = new FormData();
+    for (const [k, v] of Object.entries(fields)) f.set(k, v);
+    return f;
+  }
+  function byName(name: string) {
+    return testDb.query.members.findFirst({ where: eq(members.name, name) });
+  }
+  function tokensFor(memberId: number) {
+    return testDb.query.passwordResetTokens.findMany({
+      where: eq(passwordResetTokens.memberId, memberId),
+    });
+  }
+
+  it("có email + sendInvite=1 → tạo member + đúng 1 token (memberId=newId, adminId null) + gọi mailer 1 lần", async () => {
+    const r = await createMember(
+      fd({ name: "Mời Mail", email: "invite@ex.com", sendInvite: "1" }),
+    );
+    expect(r).toEqual({ success: true });
+
+    const m = await byName("Mời Mail");
+    expect(m).toBeDefined();
+
+    const rows = await tokensFor(m!.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].memberId).toBe(m!.id);
+    expect(rows[0].adminId).toBeNull();
+
+    expect(mailerMock.sendInviteEmail).toHaveBeenCalledTimes(1);
+    expect(mailerMock.sendInviteEmail).toHaveBeenCalledWith(
+      "invite@ex.com",
+      expect.stringContaining("/reset-password/"),
+    );
+  });
+
+  it("có email nhưng KHÔNG tick sendInvite → không tạo token, không gọi mailer", async () => {
+    const r = await createMember(
+      fd({ name: "Không Mời", email: "noinvite@ex.com" }),
+    );
+    expect(r).toEqual({ success: true });
+
+    const m = await byName("Không Mời");
+    expect(await tokensFor(m!.id)).toHaveLength(0);
+    expect(mailerMock.sendInviteEmail).not.toHaveBeenCalled();
+  });
+
+  it("sendInvite=1 nhưng KHÔNG có email → không tạo token, không gọi mailer", async () => {
+    const r = await createMember(
+      fd({ name: "Không Mail Mời", sendInvite: "1" }),
+    );
+    expect(r).toEqual({ success: true });
+
+    const m = await byName("Không Mail Mời");
+    expect(await tokensFor(m!.id)).toHaveLength(0);
+    expect(mailerMock.sendInviteEmail).not.toHaveBeenCalled();
   });
 });

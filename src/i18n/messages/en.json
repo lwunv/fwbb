@@ -738,6 +738,8 @@
     "toastRejected": "Rejected",
     "toastMerged": "Merged into {name}",
     "memberWithPartner": "Two people",
+    "sendInvite": "Send set-password invite email",
+    "sendInviteHint": "Only sent if an email is entered",
     "partnerOn": "2 people",
     "partnerOff": "1 person",
     "toastSaved": "Saved",
