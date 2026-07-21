@@ -81,26 +81,31 @@ test.describe("selector thứ cầu lông + countdown trong card (e2e)", () => {
   test("login member → ĐỦ 3 chip thứ (kể cả ngày trống), countdown trong card, empty-state", async ({
     page,
   }) => {
-    await page.goto("/", { waitUntil: "domcontentloaded" });
-    await expect(page.locator('input[type="email"]')).toBeVisible({
-      timeout: 20_000,
-    });
-    await page.locator('input[type="email"]').fill(EMAIL);
-    await page.locator('input[type="password"]').fill(PASSWORD);
+    await page.goto("/login", { waitUntil: "domcontentloaded" });
+    // Mode mặc định = login — ô định danh đa kênh (username/sđt/email), không
+    // phải input[type=email] (chỉ có ở mode đăng ký).
+    const identifier = page.getByPlaceholder("Username / SĐT / Email");
+    await expect(identifier).toBeVisible({ timeout: 20_000 });
+    await identifier.fill(EMAIL);
+    await page.getByPlaceholder("Mật khẩu (≥ 8 ký tự)").fill(PASSWORD);
     await page.locator('button[type="submit"]').click();
 
     // ĐỦ 3 chip thứ cầu lông (T2/T4/T6) — kể cả T4 chưa có buổi.
     const chips = page.getByRole("button", { name: /Thứ/ });
     await expect(chips).toHaveCount(3, { timeout: 15_000 });
 
-    // Countdown gọn "còn HH:MM:SS" (scoped, không khớp giờ buổi 20:30) + copy-link.
+    // Countdown gọn "còn HH:MM:SS" (scoped, không khớp giờ buổi 20:30). Nút
+    // copy-link đã bị bỏ khỏi trang chủ từ commit f060275 ("drop ... copy-link")
+    // — giờ chỉ còn ở header của /vote/[id] — nên page chủ KHÔNG BAO GIỜ có
+    // nút này, dù buổi có hay không.
     const countdown = page.getByText(/còn \d{1,2}:\d{2}:\d{2}/);
     const copyLink = page.getByRole("button", { name: /Sao chép/i });
 
     // Mặc định chọn buổi sắp tới có sẵn (T2) → countdown TRONG card.
     await expect(countdown.first()).toBeVisible({ timeout: 10_000 });
+    await expect(copyLink).toHaveCount(0);
 
-    // Click chip giữa (T4, chưa có buổi) → empty state; KHÔNG countdown/copy-link.
+    // Click chip giữa (T4, chưa có buổi) → empty state; KHÔNG countdown.
     await chips.nth(1).click();
     await expect(page.getByText(/Chưa có buổi/)).toBeVisible({
       timeout: 10_000,
@@ -108,9 +113,9 @@ test.describe("selector thứ cầu lông + countdown trong card (e2e)", () => {
     await expect(countdown).toHaveCount(0);
     await expect(copyLink).toHaveCount(0);
 
-    // Quay lại chip T2 (có buổi) → countdown + copy-link lại hiện.
+    // Quay lại chip T2 (có buổi) → countdown lại hiện (vẫn không có copy-link).
     await chips.nth(0).click();
     await expect(countdown.first()).toBeVisible({ timeout: 10_000 });
-    await expect(copyLink).toBeVisible();
+    await expect(copyLink).toHaveCount(0);
   });
 });

@@ -13,23 +13,45 @@ test.beforeEach(async ({ page }) => {
 });
 
 async function gotoLoginGate(page: Page) {
-  await page.goto("/", { waitUntil: "domcontentloaded" });
-  // Form email/mật khẩu là primary — hiện sau khi SDK init xong/fail.
-  await expect(page.locator('input[type="email"]')).toBeVisible({
+  // Form login giờ ở /login (route "/" là lịch công khai cho khách).
+  await page.goto("/login", { waitUntil: "domcontentloaded" });
+  // Mode mặc định = login — ô định danh đa kênh (username/sđt/email), KHÔNG
+  // phải input[type=email] (chỉ tồn tại ở mode đăng ký).
+  await expect(page.getByPlaceholder("Username / SĐT / Email")).toBeVisible({
     timeout: 20_000,
   });
 }
 
 async function fillAndSubmit(
   page: Page,
-  opts: { email: string; password: string; name?: string },
+  opts: {
+    email: string;
+    password: string;
+    name?: string;
+    mode?: "login" | "signup";
+  },
 ) {
-  if (opts.name) {
-    await page.getByPlaceholder("Họ tên").fill(opts.name);
+  const mode = opts.mode ?? "login";
+  if (mode === "signup") {
+    if (opts.name) {
+      await page.getByPlaceholder("Họ tên").fill(opts.name);
+    }
+    // Signup: ô email riêng (type=email).
+    await page.locator('input[type="email"]').fill(opts.email);
+  } else {
+    // Login: 1 ô định danh đa kênh (username/sđt/email) — type=text.
+    await page.getByPlaceholder("Username / SĐT / Email").fill(opts.email);
   }
-  await page.locator('input[type="email"]').fill(opts.email);
-  await page.locator('input[type="password"]').fill(opts.password);
+  await page.getByPlaceholder("Mật khẩu (≥ 8 ký tự)").fill(opts.password);
   await page.locator('button[type="submit"]').click();
+}
+
+/** Rời gate hẳn (đăng nhập/đăng ký thành công) → không còn form nào, bất kể mode. */
+async function assertLeftGate(page: Page) {
+  await expect(page.getByPlaceholder("Username / SĐT / Email")).toHaveCount(0, {
+    timeout: 15_000,
+  });
+  await expect(page.locator('input[type="email"]')).toHaveCount(0);
 }
 
 test.describe("đăng ký + đăng nhập email/mật khẩu (e2e)", () => {
@@ -45,13 +67,12 @@ test.describe("đăng ký + đăng nhập email/mật khẩu (e2e)", () => {
       email,
       password: "supersecret123",
       name: "E2E Tester",
+      mode: "signup",
     });
 
     // Thành công → revalidate → layout re-render sang PendingApprovalGate:
-    // form email biến mất (đã đăng nhập, không còn ở gate).
-    await expect(page.locator('input[type="email"]')).toHaveCount(0, {
-      timeout: 15_000,
-    });
+    // form biến mất (đã đăng nhập, không còn ở gate).
+    await assertLeftGate(page);
   });
 
   test("đăng nhập tài khoản đã đăng ký → vào trạng thái đã xác thực", async ({
@@ -63,21 +84,22 @@ test.describe("đăng ký + đăng nhập email/mật khẩu (e2e)", () => {
     await page.getByRole("button", { name: "Đăng ký", exact: true }).click();
     const email = `e2e-login-${Date.now()}@example.com`;
     const password = "supersecret123";
-    await fillAndSubmit(page, { email, password, name: "E2E Login" });
-    await expect(page.locator('input[type="email"]')).toHaveCount(0, {
-      timeout: 15_000,
+    await fillAndSubmit(page, {
+      email,
+      password,
+      name: "E2E Login",
+      mode: "signup",
     });
+    await assertLeftGate(page);
 
     // Đăng xuất (xóa cookie) rồi đăng nhập lại bằng email/mật khẩu.
     await context.clearCookies();
     await gotoLoginGate(page);
     // Mode mặc định = login.
-    await fillAndSubmit(page, { email, password });
+    await fillAndSubmit(page, { email, password, mode: "login" });
 
     // Login thành công → rời gate (form biến mất).
-    await expect(page.locator('input[type="email"]')).toHaveCount(0, {
-      timeout: 15_000,
-    });
+    await assertLeftGate(page);
   });
 
   test("đăng nhập sai mật khẩu → ở lại gate + báo lỗi", async ({ page }) => {
@@ -85,8 +107,9 @@ test.describe("đăng ký + đăng nhập email/mật khẩu (e2e)", () => {
     await fillAndSubmit(page, {
       email: "nobody@example.com",
       password: "wrongpassword",
+      mode: "login",
     });
-    // Vẫn ở gate (form còn) — không đăng nhập được.
-    await expect(page.locator('input[type="email"]')).toBeVisible();
+    // Vẫn ở gate (ô định danh còn) — không đăng nhập được.
+    await expect(page.getByPlaceholder("Username / SĐT / Email")).toBeVisible();
   });
 });
