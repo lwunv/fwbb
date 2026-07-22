@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { formatK, cn } from "@/lib/utils";
+import { LOW_FUND_THRESHOLD } from "@/lib/fund-core";
 import { fireAction } from "@/lib/optimistic-action";
 import { recordContribution, recordRefund } from "@/actions/fund";
 import { toast } from "sonner";
@@ -155,7 +156,7 @@ export function FundAdjustDialog({
       ? "text-rose-500 dark:text-rose-400"
       : target.currentBalance === 0
         ? "text-foreground"
-        : target.currentBalance < 50_000
+        : target.currentBalance < LOW_FUND_THRESHOLD
           ? "text-yellow-500 dark:text-yellow-400"
           : "text-blue-600 dark:text-blue-400";
 

@@ -18,16 +18,18 @@ describe("getFundStatus", () => {
 
   it("returns 'lowFund' for 0 < balance < threshold", () => {
     expect(getFundStatus(1)).toBe<FundStatus>("lowFund");
+    expect(getFundStatus(50_000)).toBe<FundStatus>("lowFund");
     expect(getFundStatus(LOW_FUND_THRESHOLD - 1)).toBe<FundStatus>("lowFund");
   });
 
   it("returns 'hasFund' for balance >= threshold", () => {
     expect(getFundStatus(LOW_FUND_THRESHOLD)).toBe<FundStatus>("hasFund");
     expect(getFundStatus(100_000)).toBe<FundStatus>("hasFund");
+    expect(getFundStatus(200_000)).toBe<FundStatus>("hasFund");
   });
 
-  it("LOW_FUND_THRESHOLD is 50_000 VND", () => {
-    expect(LOW_FUND_THRESHOLD).toBe(50_000);
+  it("LOW_FUND_THRESHOLD is 100_000 VND", () => {
+    expect(LOW_FUND_THRESHOLD).toBe(100_000);
   });
 });
 

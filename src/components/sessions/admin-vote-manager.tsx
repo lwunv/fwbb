@@ -752,8 +752,8 @@ export function AdminVoteManager({
                         const ded = after.totalAmount;
 
                         // "Tiền hiện có" theo status:
-                        //   hasFund (≥50K) → xanh dương
-                        //   lowFund (<50K)  → vàng
+                        //   hasFund (≥100K) → xanh dương
+                        //   lowFund (<100K) → vàng
                         //   depleted (=0)   → foreground (trắng trong dark mode)
                         //   owing (<0)      → đỏ rose
                         const balStatus = getFundStatus(bal);

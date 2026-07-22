@@ -128,10 +128,10 @@ export function calculateFundDeduction(
 
 /**
  * Ngưỡng "gần hết quỹ" — balance dương nhưng dưới mức này được coi là cảnh báo.
- * 50K xấp xỉ 1 buổi play share, nên member dưới mức này có nguy cơ thiếu quỹ
- * cho buổi tiếp theo.
+ * 100K xấp xỉ 2 buổi play share, cảnh báo sớm để member kịp nạp thêm trước khi
+ * quỹ về 0.
  */
-export const LOW_FUND_THRESHOLD = 50_000;
+export const LOW_FUND_THRESHOLD = 100_000;
 
 /**
  * Ngưỡng nợ chặn vote ở trang chủ — member nợ DƯỚI mức này vẫn được vote bình

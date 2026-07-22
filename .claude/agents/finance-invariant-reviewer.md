@@ -91,8 +91,8 @@ gone — do not reintroduce it.
   itself instead of calling this, flag it.
 - Status buckets (`src/lib/fund-core.ts`, `getFundStatus`, lines 136-148) — single
   source of truth, never inline the comparison at a callsite:
-  `< 0 → owing`, `=== 0 → depleted`, `0 < x < 50_000 → lowFund`
-  (`LOW_FUND_THRESHOLD = 50_000`), `>= 50_000 → hasFund`.
+  `< 0 → owing`, `=== 0 → depleted`, `0 < x < 100_000 → lowFund`
+  (`LOW_FUND_THRESHOLD = 100_000`), `>= 100_000 → hasFund`.
 - `finalizeSession` writes a `fund_deduction` per member AND sets
   `sessionDebts.memberConfirmed=true, adminConfirmed=true` in the same flow; those
   flags now mean only "đã ghi vào ledger". **Never** set `memberConfirmed=true`
