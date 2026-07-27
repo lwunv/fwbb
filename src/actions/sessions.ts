@@ -33,6 +33,7 @@ import { revalidatePath } from "next/cache";
 import {
   computeDefaultDeadline,
   formatLocalDeadline,
+  nowDeadlineVN,
   DEFAULT_PLAY_START_TIME,
 } from "@/lib/vote-deadline";
 import {
@@ -1660,6 +1661,41 @@ export async function setVoteDeadline(
       voteDeadline: deadline,
       updatedAt: new Date().toISOString(),
     })
+    .where(eq(sessions.id, sessionId));
+
+  revalidatePath("/");
+  revalidatePath(`/vote/${sessionId}`);
+  revalidatePath("/admin/sessions");
+  revalidatePath(`/admin/sessions/${sessionId}`);
+  return { success: true };
+}
+
+/**
+ * Khóa vote NGAY: đặt `voteDeadline` = giờ VN hiện tại → `now >= deadline` đóng
+ * vote tức thì. Tách khỏi {@link setVoteDeadline} (vốn chặn deadline quá khứ với
+ * `deadlineMustBeFuture`) vì đây CHỦ Ý đặt deadline = hiện tại để đóng. Reversible:
+ * admin mở lại bằng setVoteDeadline (đặt tương lai) hoặc clear (null).
+ */
+export async function lockVoteNow(sessionId: number) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
+
+  if (!Number.isInteger(sessionId) || sessionId <= 0) {
+    return { error: t("invalidSessionId") };
+  }
+
+  const session = await db.query.sessions.findFirst({
+    where: eq(sessions.id, sessionId),
+    columns: { status: true },
+  });
+  if (!session) return { error: t("sessionNotFound") };
+  const guard = assertEditable(session.status as SessionStatus);
+  if (!guard.ok) return { error: guard.error };
+
+  await db
+    .update(sessions)
+    .set({ voteDeadline: nowDeadlineVN(), updatedAt: new Date().toISOString() })
     .where(eq(sessions.id, sessionId));
 
   revalidatePath("/");

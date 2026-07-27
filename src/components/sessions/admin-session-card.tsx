@@ -19,6 +19,7 @@ import { WeekStrip } from "@/components/sessions/week-strip";
 import { SessionCostStats } from "@/components/sessions/session-cost-stats";
 import { VoteCountdown } from "@/components/sessions/vote-countdown";
 import { VoteDeadlineEdit } from "@/components/sessions/vote-deadline-edit";
+import { VoteLockButton } from "@/components/sessions/vote-lock-button";
 import { MaxPlayersToggle } from "@/components/sessions/max-players-toggle";
 import { LedBorder } from "@/components/shared/led-border";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -488,8 +489,8 @@ export function AdminSessionCard({
               />
               {(session.status === "voting" ||
                 session.status === "confirmed") && (
-                <div className="flex flex-nowrap items-center gap-1.5 pt-1">
-                  <span className="min-w-0 flex-1 truncate">
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  <span className="min-w-0 flex-1 basis-full truncate sm:basis-auto">
                     <VoteCountdown
                       deadline={session.voteDeadline}
                       variant="inline"
@@ -499,6 +500,7 @@ export function AdminSessionCard({
                     sessionId={session.id}
                     current={session.voteDeadline}
                   />
+                  <VoteLockButton sessionId={session.id} />
                   <MaxPlayersToggle
                     sessionId={session.id}
                     current={session.maxPlayers}
