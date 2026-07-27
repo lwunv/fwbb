@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
 import { members, sessions } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { formatLocalDeadline } from "@/lib/vote-deadline";
+import { formatLocalDeadline, parseVoteDeadline } from "@/lib/vote-deadline";
 
 const userMock = vi.hoisted(() => ({
   getUserFromCookie:
@@ -30,7 +30,8 @@ const { db: testDb, client } = await createTestDb();
 vi.mock("@/db", () => ({ db: testDb }));
 
 const { submitVote } = await import("./votes");
-const { setVoteDeadline, extendVoteDeadline } = await import("./sessions");
+const { setVoteDeadline, extendVoteDeadline, lockVoteNow } =
+  await import("./sessions");
 
 async function reset() {
   await client.execute("DELETE FROM rate_limit_buckets");
@@ -223,6 +224,44 @@ describe("extendVoteDeadline — quick buttons", () => {
   it("rejects hours other than 2 or 24", async () => {
     const sessionId = await seedSession({ voteDeadline: null });
     const r = await extendVoteDeadline(sessionId, 5 as 2 | 24);
+    expect("error" in r).toBe(true);
+  });
+});
+
+describe("lockVoteNow — khóa vote ngay", () => {
+  beforeEach(reset);
+
+  it("đặt deadline = bây giờ → đóng vote ngay (submitVote bị từ chối)", async () => {
+    const aliceId = await seedMember();
+    const sessionId = await seedSession({ voteDeadline: futureIso() }); // đang mở
+    userMock.getUserFromCookie.mockResolvedValue({
+      memberId: aliceId,
+      externalId: "fb-a",
+    });
+
+    const r = await lockVoteNow(sessionId);
+    expect("error" in r).toBe(false);
+
+    const s = await testDb.query.sessions.findFirst({
+      where: eq(sessions.id, sessionId),
+    });
+    expect(s?.voteDeadline).toBeTruthy();
+    // Deadline đã <= bây giờ (đóng).
+    expect(parseVoteDeadline(s!.voteDeadline!).getTime()).toBeLessThanOrEqual(
+      Date.now() + 1000,
+    );
+
+    // Vote mới bị chặn vì đã quá hạn.
+    const rv = await submitVote(sessionId, true, false, 0, 0, false);
+    expect("error" in rv).toBe(true);
+  });
+
+  it("từ chối khi buổi đã completed (không editable)", async () => {
+    const sessionId = await seedSession({
+      status: "completed",
+      voteDeadline: null,
+    });
+    const r = await lockVoteNow(sessionId);
     expect("error" in r).toBe(true);
   });
 });

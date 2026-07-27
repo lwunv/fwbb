@@ -387,7 +387,7 @@ export function MemberList({
     });
     const bal = (id: number) => memberBalances[id] ?? 0;
     const created = (m: Member) => m.createdAt ?? "";
-    const monthPlay = (id: number) => playStats[id]?.monthPlay ?? 0;
+    const recent30 = (id: number) => playStats[id]?.recent30Play ?? 0;
     const yearPlay = (id: number) => playStats[id]?.yearPlay ?? 0;
     // Số ngày nghỉ để sort: chưa từng chơi → sentinel lớn (nghỉ lâu nhất).
     // Dùng số hữu hạn (không Infinity) để 2 người "chưa từng" trừ nhau ra 0
@@ -410,9 +410,9 @@ export function MemberList({
         case "balanceAsc": // ít quỹ / nợ nhiều nhất trước
           return bal(a.id) - bal(b.id) || byName;
         case "monthDesc":
-          return monthPlay(b.id) - monthPlay(a.id) || byName;
+          return recent30(b.id) - recent30(a.id) || byName;
         case "monthAsc":
-          return monthPlay(a.id) - monthPlay(b.id) || byName;
+          return recent30(a.id) - recent30(b.id) || byName;
         case "yearDesc": // chơi nhiều nhất năm nay trước
           return yearPlay(b.id) - yearPlay(a.id) || byName;
         case "yearAsc":
@@ -1150,11 +1150,11 @@ export function MemberList({
                       <span
                         className={cn(
                           "font-semibold",
-                          (stat?.monthPlay ?? 0) === 0 &&
+                          (stat?.recent30Play ?? 0) === 0 &&
                             "text-muted-foreground font-normal",
                         )}
                       >
-                        {stat?.monthPlay ?? 0}
+                        {stat?.recent30Play ?? 0}
                       </span>
                     </td>
                     {/* Năm nay */}
@@ -1361,7 +1361,7 @@ export function MemberList({
                         <span>
                           {t("colMonth")}:{" "}
                           <span className="text-foreground font-medium tabular-nums">
-                            {stat?.monthPlay ?? 0}
+                            {stat?.recent30Play ?? 0}
                           </span>
                         </span>
                         <span aria-hidden>·</span>

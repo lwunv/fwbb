@@ -47,9 +47,9 @@ describe("getMemberPlayStats", () => {
       .values({ name: "Mèo" }) // không chơi buổi nào → không có entry
       .returning({ id: members.id });
 
-    // Hôm nay = 2026-07-17. monthPrefix=2026-07, yearPrefix=2026.
-    const sC1 = await mkSession("2026-07-05", "completed"); // tháng+năm (attendees)
-    const sC2 = await mkSession("2026-06-20", "completed"); // năm (attendees)
+    // Hôm nay = 2026-07-17 → cửa sổ 30 ngày: date >= 2026-06-17. yearPrefix=2026.
+    const sC1 = await mkSession("2026-07-05", "completed"); // 30 ngày + năm (attendees)
+    const sC2 = await mkSession("2026-05-10", "completed"); // trong NĂM nhưng NGOÀI 30 ngày
     const s2025 = await mkSession("2025-11-10", "completed"); // năm trước
     const sConfirmed = await mkSession("2026-07-14", "confirmed"); // CHƯA chốt → votes
     const sVoting = await mkSession("2026-07-16", "voting"); // CHƯA chốt → votes (lần cuối)
@@ -90,9 +90,9 @@ describe("getMemberPlayStats", () => {
     const stats = await getMemberPlayStats();
 
     expect(stats[m1.id]).toEqual({
-      // tháng 2026-07: sC1(05) + sConfirmed(14) + sVoting(16) = 3
-      monthPlay: 3,
-      // năm 2026: + sC2(06-20) = 4 (s2025 là năm trước; sC3 attendsPlay=false)
+      // 30 ngày gần đây (>= 2026-06-17): sC1(07-05) + sConfirmed(07-14) + sVoting(07-16) = 3
+      recent30Play: 3,
+      // năm 2026: + sC2(05-10) = 4 (s2025 năm trước; sC3 attendsPlay=false)
       yearPlay: 4,
       // lần cuối = sVoting 2026-07-16 (buổi chưa chốt vẫn tính)
       lastPlayedDate: "2026-07-16",

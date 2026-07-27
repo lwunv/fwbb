@@ -28,6 +28,28 @@ export function formatLocalDeadline(d: Date): string {
 }
 
 /**
+ * Giờ VN hiện tại theo định dạng deadline (`YYYY-MM-DDTHH:MM:SS`, wall-clock VN,
+ * không offset). Dùng Intl với `Asia/Ho_Chi_Minh` nên đúng trên cả server (UTC)
+ * lẫn browser. Dùng cho "khóa vote ngay": đặt deadline = bây giờ → `now >=
+ * deadline` đóng vote tức thì. KHÁC `formatLocalDeadline` (theo timezone runtime,
+ * sai trên server UTC).
+ */
+export function nowDeadlineVN(ref: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(ref);
+  const g = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
+  return `${g("year")}-${g("month")}-${g("day")}T${g("hour")}:${g("minute")}:${g("second")}`;
+}
+
+/**
  * Parse a stored vote-deadline (VN local wall-clock, no offset) into a real
  * instant by pinning it to Vietnam time (+07:00). TZ-independent: gives the
  * same instant whether it runs on the UTC server or a VN-local browser, so the

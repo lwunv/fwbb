@@ -7,7 +7,7 @@ import { calculateExactShuttlecockCost } from "@/lib/cost-calculator";
 import { roundToThousand } from "@/lib/utils";
 import { getUserFromCookie } from "@/lib/user-identity";
 import { getAdminFromCookie } from "@/lib/auth";
-import { ymdInVN } from "@/lib/date-format";
+import { ymdInVN, ymdInVNAddDays } from "@/lib/date-format";
 
 /**
  * Date-range start cho biểu đồ chi phí, derive từ groupBy:
@@ -95,8 +95,9 @@ export async function getActiveMembersStats(
 }
 
 export interface MemberPlayStat {
-  /** Số buổi CHƠI trong tháng lịch hiện tại (giờ VN). */
-  monthPlay: number;
+  /** Số buổi CHƠI trong 30 NGÀY GẦN ĐÂY (cửa sổ cuộn: date >= hôm nay − 30,
+   *  giờ VN) — KHÔNG phải tháng lịch. */
+  recent30Play: number;
   /** Số buổi CHƠI trong năm lịch hiện tại (giờ VN). */
   yearPlay: number;
   /** Ngày buổi chơi gần nhất (YYYY-MM-DD), null nếu chưa từng chơi. */
@@ -121,7 +122,9 @@ export async function getMemberPlayStats(): Promise<
   if (!admin || admin.role !== "admin") return {};
 
   const today = ymdInVN();
-  const monthPrefix = today.slice(0, 7); // YYYY-MM
+  // "30 ngày gần đây" = cửa sổ cuộn (date >= hôm nay − 30), KHÔNG phải tháng
+  // lịch. Neo theo `today` (đã giờ VN) để tất định + test được.
+  const from30 = ymdInVNAddDays(-30, new Date(`${today}T12:00:00+07:00`));
   const yearPrefix = today.slice(0, 4); // YYYY
 
   // Buổi đã diễn ra, chưa huỷ. Nạp cả attendees (buổi completed) lẫn votes
@@ -139,7 +142,7 @@ export async function getMemberPlayStats(): Promise<
 
   const stats: Record<number, MemberPlayStat> = {};
   for (const s of playedSessions) {
-    const inMonth = s.date.startsWith(monthPrefix);
+    const inRecent30 = s.date >= from30;
     const inYear = s.date.startsWith(yearPrefix);
     // Ai CHƠI buổi này: completed → attendees.attendsPlay (bỏ guest); chưa
     // completed → votes.willPlay (chưa có attendees).
@@ -156,11 +159,11 @@ export async function getMemberPlayStats(): Promise<
     }
     for (const id of playerIds) {
       const cur = stats[id] ?? {
-        monthPlay: 0,
+        recent30Play: 0,
         yearPlay: 0,
         lastPlayedDate: null,
       };
-      if (inMonth) cur.monthPlay++;
+      if (inRecent30) cur.recent30Play++;
       if (inYear) cur.yearPlay++;
       if (!cur.lastPlayedDate || s.date > cur.lastPlayedDate) {
         cur.lastPlayedDate = s.date;
