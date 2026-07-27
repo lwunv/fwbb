@@ -119,6 +119,22 @@ describe("GET /api/cron/create-session", () => {
     expect(await sessionDates()).toEqual([]);
   });
 
+  it("Admin tắt tự động tạo buổi (autoCreateSessions=false) → không tạo gì", async () => {
+    await testDb.insert((await import("@/db/schema")).appSettings).values({
+      key: "autoCreateSessions",
+      value: "false",
+    });
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-11T10:00:00+07:00"));
+
+    const res = await GET(makeRequest());
+    const body = await res.json();
+
+    expect(await sessionDates()).toEqual([]);
+    expect(body.skipped).toBe("autoCreateSessions is off");
+  });
+
   it("Buổi mở theo Thứ Bảy có kèm shuttlecock brand mặc định", async () => {
     await testDb
       .insert((await import("@/db/schema")).shuttlecockBrands)

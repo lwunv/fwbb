@@ -44,7 +44,10 @@
     "lowFund": "Cảnh báo quỹ thấp dưới",
     "voteBlockDebt": "Chặn vote khi nợ từ",
     "lowStock": "Cảnh báo cầu còn dưới",
-    "quaUnit": "quả"
+    "quaUnit": "quả",
+    "autoCreate": "Tự động tạo buổi",
+    "autoCreateHint": "Cron tự tạo buổi vote vào các ngày đã chọn",
+    "appName": "Tên nhóm"
   },
   "adminMisc": {
     "minDeductionAria": "Bật/tắt rule tối thiểu 60K cho member thiếu quỹ",

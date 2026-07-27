@@ -14,7 +14,6 @@ import { InlineNotice } from "@/components/shared/inline-notice";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { DefaultSettingsCard } from "./default-settings-card";
 import { Input } from "@/components/ui/input";
 import { formatK, cn } from "@/lib/utils";
 import { getMonthLabels } from "@/lib/i18n-labels";
@@ -141,17 +140,6 @@ interface RecentTx {
   memberAvatarUrl: string | null;
 }
 
-interface CourtOpt {
-  id: number;
-  name: string;
-  pricePerSession: number;
-}
-interface BrandOpt {
-  id: number;
-  name: string;
-  pricePerTube: number;
-}
-
 type Court = InferSelectModel<typeof courtsTable>;
 type Brand = InferSelectModel<typeof brandsTable>;
 type SessionShuttlecock = InferSelectModel<typeof sessionShuttlecocksTable> & {
@@ -181,8 +169,6 @@ interface DashboardClientProps {
   recentTransactions: RecentTx[];
   currentMonth: number;
   currentYear: number;
-  settingsCourts: CourtOpt[];
-  settingsBrands: BrandOpt[];
   editorCourts: Court[];
   editorBrands: Brand[];
   editorMembers: InferSelectModel<typeof membersTable>[];
@@ -190,7 +176,6 @@ interface DashboardClientProps {
   /** memberId của admin — loại khách admin khỏi forecast floor (khớp finalize). */
   adminMemberId: number | null;
   defaultCourtId: number | null;
-  defaultBrandId: number | null;
   sessionDays: number[];
 }
 
@@ -243,15 +228,12 @@ export function DashboardClient({
   recentTransactions,
   currentMonth,
   currentYear,
-  settingsCourts,
-  settingsBrands,
   editorCourts,
   editorBrands,
   editorMembers,
   memberBalances,
   adminMemberId,
   defaultCourtId,
-  defaultBrandId,
   sessionDays,
 }: DashboardClientProps) {
   const tf = useTranslations("finance");
@@ -734,17 +716,6 @@ export function DashboardClient({
               />
             );
           })()}
-        </div>
-
-        {/* Cột phải (desktop): mặc định khi tạo buổi (auto-tạo/pre-fill). */}
-        <div className="lg:col-span-2">
-          <DefaultSettingsCard
-            courts={settingsCourts}
-            brands={settingsBrands}
-            currentCourtId={defaultCourtId}
-            currentBrandId={defaultBrandId}
-            currentSessionDays={sessionDays}
-          />
         </div>
       </div>
 

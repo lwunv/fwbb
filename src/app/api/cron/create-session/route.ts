@@ -12,11 +12,10 @@ import {
   getDefaultCourt,
   getDefaultBrand,
   getSessionDaysOfWeek,
+  getSettings,
 } from "@/actions/settings";
-import {
-  computeDefaultDeadline,
-  DEFAULT_PLAY_START_TIME,
-} from "@/lib/vote-deadline";
+import { computeDefaultDeadline } from "@/lib/vote-deadline";
+import type { AppSettings } from "@/lib/settings-registry";
 
 type Court = { id: number; pricePerSession: number };
 type Brand = { id: number; pricePerTube: number };
@@ -26,6 +25,7 @@ async function createSessionIfMissing(
   dateStr: string,
   defaultCourt: Court | null,
   defaultBrand: Brand | null,
+  settings: AppSettings,
 ): Promise<boolean> {
   const existing = await db.query.sessions.findFirst({
     where: eq(sessions.date, dateStr),
@@ -41,10 +41,18 @@ async function createSessionIfMissing(
     .values({
       date: dateStr,
       status: "voting",
+      startTime: settings.defaultStartTime,
+      endTime: settings.defaultEndTime,
+      courtQuantity: settings.defaultCourtQuantity,
+      maxPlayers: settings.defaultMaxPlayers,
       courtId: defaultCourt?.id ?? null,
       courtPrice: defaultCourt?.pricePerSession ?? null,
       useMinDeduction: true,
-      voteDeadline: computeDefaultDeadline(dateStr, DEFAULT_PLAY_START_TIME),
+      voteDeadline: computeDefaultDeadline(
+        dateStr,
+        settings.defaultStartTime,
+        settings.voteDeadlineOffsetHours,
+      ),
     })
     .onConflictDoNothing({ target: sessions.date })
     .returning();
@@ -75,6 +83,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const settings = await getSettings();
+  if (!settings.autoCreateSessions) {
+    return NextResponse.json({ skipped: "autoCreateSessions is off" });
+  }
+
   const sessionDaysArr = await getSessionDaysOfWeek();
   const [defaultCourt, defaultBrand] = await Promise.all([
     getDefaultCourt(),
@@ -99,6 +112,7 @@ export async function GET(request: NextRequest) {
         dateStr,
         defaultCourt,
         defaultBrand,
+        settings,
       );
       if (wasCreated) created.push(dateStr);
     }
@@ -122,6 +136,7 @@ export async function GET(request: NextRequest) {
     dateStr,
     defaultCourt,
     defaultBrand,
+    settings,
   );
   return NextResponse.json({
     message: wasCreated

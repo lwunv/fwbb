@@ -26,7 +26,6 @@ import { DashboardClient } from "./dashboard-client";
 import {
   getAppName,
   getDefaultCourt,
-  getDefaultBrand,
   getSessionDaysOfWeek,
 } from "@/actions/settings";
 import { ymdInVN } from "@/lib/date-format";
@@ -297,30 +296,18 @@ export default async function DashboardPage() {
 
   // Settings panel data — list courts/brands + currently-resolved defaults
   // (đã fallback qua getDefault*).
-  const [allCourts, allBrands, defaultCourt, defaultBrand, sessionDays] =
-    await Promise.all([
-      db.query.courts.findMany({
-        where: eq(courts.isActive, true),
-        orderBy: (c, { asc }) => [asc(c.name)],
-      }),
-      db.query.shuttlecockBrands.findMany({
-        where: eq(shuttlecockBrands.isActive, true),
-        orderBy: (b, { asc }) => [asc(b.name)],
-      }),
-      getDefaultCourt(),
-      getDefaultBrand(),
-      getSessionDaysOfWeek(),
-    ]);
-  const settingsCourts = allCourts.map((c) => ({
-    id: c.id,
-    name: c.name,
-    pricePerSession: c.pricePerSession,
-  }));
-  const settingsBrands = allBrands.map((b) => ({
-    id: b.id,
-    name: b.name,
-    pricePerTube: b.pricePerTube,
-  }));
+  const [allCourts, allBrands, defaultCourt, sessionDays] = await Promise.all([
+    db.query.courts.findMany({
+      where: eq(courts.isActive, true),
+      orderBy: (c, { asc }) => [asc(c.name)],
+    }),
+    db.query.shuttlecockBrands.findMany({
+      where: eq(shuttlecockBrands.isActive, true),
+      orderBy: (b, { asc }) => [asc(b.name)],
+    }),
+    getDefaultCourt(),
+    getSessionDaysOfWeek(),
+  ]);
   // Full schema records cho inline session editor (CourtSelector cần
   // pricePerSessionRetail, mapLink; ShuttlecockSelector cần object Brand đầy đủ).
   const editorCourts = allCourts;
@@ -351,15 +338,12 @@ export default async function DashboardPage() {
         recentTransactions={recentTransactions}
         currentMonth={monthVN}
         currentYear={yearVN}
-        settingsCourts={settingsCourts}
-        settingsBrands={settingsBrands}
         editorCourts={editorCourts}
         editorBrands={editorBrands}
         editorMembers={activeMembers}
         memberBalances={memberBalances}
         adminMemberId={adminMemberId}
         defaultCourtId={defaultCourt?.id ?? null}
-        defaultBrandId={defaultBrand?.id ?? null}
         sessionDays={sessionDays}
       />
     </div>

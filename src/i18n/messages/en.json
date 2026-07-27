@@ -44,7 +44,10 @@
     "lowFund": "Low-fund warning below",
     "voteBlockDebt": "Block voting when debt ≥",
     "lowStock": "Low-stock warning below",
-    "quaUnit": "shuttles"
+    "quaUnit": "shuttles",
+    "autoCreate": "Auto-create sessions",
+    "autoCreateHint": "Cron auto-creates voting sessions on chosen days",
+    "appName": "Group name"
   },
   "adminMisc": {
     "minDeductionAria": "Toggle 60K minimum rule for members with low fund",

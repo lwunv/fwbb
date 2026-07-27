@@ -44,7 +44,10 @@
     "lowFund": "基金低于此值警告",
     "voteBlockDebt": "欠款达此值禁投票",
     "lowStock": "余球低于此值警告",
-    "quaUnit": "个"
+    "quaUnit": "个",
+    "autoCreate": "自动创建活动",
+    "autoCreateHint": "Cron 在所选日期自动创建投票活动",
+    "appName": "群组名称"
   },
   "adminMisc": {
     "minDeductionAria": "为资金不足的成员开启/关闭 60K 最低扣费规则",
