@@ -15,15 +15,18 @@ import { getTranslations } from "next-intl/server";
 import { AutoRefresh } from "@/components/shared/auto-refresh";
 import { isVoteOpen, type SessionStatus } from "@/lib/session-status";
 import { ymdInVN } from "@/lib/date-format";
-import { VOTE_BLOCK_DEBT_THRESHOLD } from "@/lib/fund-core";
+import { getSettings } from "@/actions/settings";
 
 export default async function HomePage() {
-  const [nextSession, weekDays, user, tDashboard] = await Promise.all([
-    getNextSession(),
-    getWeekBadmintonDays(),
-    getUserFromCookie(),
-    getTranslations("dashboard"),
-  ]);
+  const [nextSession, weekDays, user, tDashboard, settings] = await Promise.all(
+    [
+      getNextSession(),
+      getWeekBadmintonDays(),
+      getUserFromCookie(),
+      getTranslations("dashboard"),
+      getSettings(),
+    ],
+  );
 
   const members = await getActiveMembers();
 
@@ -33,9 +36,10 @@ export default async function HomePage() {
   if (user) {
     userFundBalance = (await getFundBalance(user.memberId)).balance;
   }
-  // Nợ dưới VOTE_BLOCK_DEBT_THRESHOLD (100K) vẫn cho vote bình thường — chỉ
-  // chặn vote, ưu tiên màn thanh toán khi nợ đã đủ lớn (quyết định 2026-07-06).
-  const hasBlockingDebt = userFundBalance <= -VOTE_BLOCK_DEBT_THRESHOLD;
+  // Nợ dưới ngưỡng voteBlockDebtThreshold (mặc định 100K) vẫn cho vote bình
+  // thường — chỉ chặn vote, ưu tiên màn thanh toán khi nợ đủ lớn (quyết định
+  // 2026-07-06). Ngưỡng giờ đọc từ setting.
+  const hasBlockingDebt = userFundBalance <= -settings.voteBlockDebtThreshold;
 
   // Còn nợ đủ lớn → ưu tiên buổi đã chơi gần đây + thanh toán (không vote)
   if (nextSession && user && hasBlockingDebt) {
