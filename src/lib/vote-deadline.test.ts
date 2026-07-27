@@ -37,6 +37,24 @@ describe("computeDefaultDeadline", () => {
       "2026-12-31T04:00:00",
     );
   });
+
+  it("dùng offset truyền vào thay cho mặc định 4 tiếng", () => {
+    expect(computeDefaultDeadline("2026-07-27", "20:30", 2)).toBe(
+      "2026-07-27T18:30:00",
+    );
+  });
+
+  it("không truyền offset thì vẫn là 4 tiếng như cũ", () => {
+    expect(computeDefaultDeadline("2026-07-27", "20:30")).toBe(
+      "2026-07-27T16:30:00",
+    );
+  });
+
+  it("offset 0 nghĩa là hết hạn đúng giờ chơi", () => {
+    expect(computeDefaultDeadline("2026-07-27", "20:30", 0)).toBe(
+      "2026-07-27T20:30:00",
+    );
+  });
 });
 
 describe("parseVoteDeadline", () => {
