@@ -31,6 +31,11 @@ describe("getFundStatus", () => {
   it("LOW_FUND_THRESHOLD is 100_000 VND", () => {
     expect(LOW_FUND_THRESHOLD).toBe(100_000);
   });
+
+  it("dùng ngưỡng truyền vào thay cho mặc định", () => {
+    expect(getFundStatus(150_000, 200_000)).toBe<FundStatus>("lowFund");
+    expect(getFundStatus(150_000)).toBe<FundStatus>("hasFund");
+  });
 });
 
 describe("computeBalancesForMembers", () => {

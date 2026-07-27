@@ -151,10 +151,13 @@ export type FundStatus = "owing" | "depleted" | "lowFund" | "hasFund";
  * mọi UI surface muốn label balance phải import helper này, không inline so
  * sánh ở callsite.
  */
-export function getFundStatus(balance: number): FundStatus {
+export function getFundStatus(
+  balance: number,
+  lowFundThreshold: number = LOW_FUND_THRESHOLD,
+): FundStatus {
   if (balance < 0) return "owing";
   if (balance === 0) return "depleted";
-  if (balance < LOW_FUND_THRESHOLD) return "lowFund";
+  if (balance < lowFundThreshold) return "lowFund";
   return "hasFund";
 }
 

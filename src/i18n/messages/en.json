@@ -40,7 +40,11 @@
     "deadlineHours": "Vote deadline before start (hours)",
     "maxPlayers": "Max players",
     "maxPlayersOptions": "Quick max presets",
-    "addOption": "Add"
+    "addOption": "Add",
+    "lowFund": "Low-fund warning below",
+    "voteBlockDebt": "Block voting when debt ≥",
+    "lowStock": "Low-stock warning below",
+    "quaUnit": "shuttles"
   },
   "adminMisc": {
     "minDeductionAria": "Toggle 60K minimum rule for members with low fund",

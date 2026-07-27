@@ -2,6 +2,7 @@
 
 import type { AppSettings } from "@/lib/settings-registry";
 import { SectionSessionDefaults } from "./section-session-defaults";
+import { SectionThresholds } from "./section-thresholds";
 
 interface CourtOpt {
   id: number;
@@ -34,7 +35,7 @@ export function SettingsClient({
         courts={courts}
         brands={brands}
       />
-      {/* Task 9 cắm section ngưỡng vào đây. */}
+      <SectionThresholds settings={settings} />
       {/* Task 10 cắm section vận hành vào đây. */}
     </div>
   );

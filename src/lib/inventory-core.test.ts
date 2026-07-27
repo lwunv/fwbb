@@ -39,6 +39,10 @@ describe("isLowStock", () => {
   it("treats negative (raw) stock as low", () => {
     expect(isLowStock(-5)).toBe(true);
   });
+  it("dùng ngưỡng truyền vào thay cho mặc định", () => {
+    expect(isLowStock(20, 24)).toBe(true);
+    expect(isLowStock(20)).toBe(false);
+  });
 });
 
 describe("splitOngQua", () => {

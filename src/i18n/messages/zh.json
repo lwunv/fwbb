@@ -40,7 +40,11 @@
     "deadlineHours": "投票截止提前(小时)",
     "maxPlayers": "最多人数",
     "maxPlayersOptions": "快捷上限",
-    "addOption": "添加"
+    "addOption": "添加",
+    "lowFund": "基金低于此值警告",
+    "voteBlockDebt": "欠款达此值禁投票",
+    "lowStock": "余球低于此值警告",
+    "quaUnit": "个"
   },
   "adminMisc": {
     "minDeductionAria": "为资金不足的成员开启/关闭 60K 最低扣费规则",

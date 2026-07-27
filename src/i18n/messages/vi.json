@@ -40,7 +40,11 @@
     "deadlineHours": "Hết hạn vote trước giờ chơi (tiếng)",
     "maxPlayers": "Số người tối đa",
     "maxPlayersOptions": "Các mức tối đa bấm nhanh",
-    "addOption": "Thêm"
+    "addOption": "Thêm",
+    "lowFund": "Cảnh báo quỹ thấp dưới",
+    "voteBlockDebt": "Chặn vote khi nợ từ",
+    "lowStock": "Cảnh báo cầu còn dưới",
+    "quaUnit": "quả"
   },
   "adminMisc": {
     "minDeductionAria": "Bật/tắt rule tối thiểu 60K cho member thiếu quỹ",
