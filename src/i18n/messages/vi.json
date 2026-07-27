@@ -25,7 +25,15 @@
     "logout": "Đăng xuất",
     "pendingMembersTitle": "Có thành viên mới chờ duyệt",
     "pendingMembersBanner": "{count} thành viên mới đang chờ duyệt",
-    "account": "Tài khoản"
+    "account": "Tài khoản",
+    "settings": "Cài đặt"
+  },
+  "adminSettings": {
+    "title": "Cài đặt",
+    "subtitle": "Cấu hình chung cho mọi buổi chơi",
+    "sessionDefaults": "Mặc định cho buổi mới",
+    "thresholds": "Ngưỡng cảnh báo",
+    "operations": "Vận hành"
   },
   "adminMisc": {
     "minDeductionAria": "Bật/tắt rule tối thiểu 60K cho member thiếu quỹ",

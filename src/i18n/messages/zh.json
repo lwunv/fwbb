@@ -25,7 +25,15 @@
     "logout": "退出登录",
     "pendingMembersTitle": "有新成员等待审核",
     "pendingMembersBanner": "{count} 名新成员等待审核",
-    "account": "账户"
+    "account": "账户",
+    "settings": "设置"
+  },
+  "adminSettings": {
+    "title": "设置",
+    "subtitle": "所有活动的通用配置",
+    "sessionDefaults": "新活动默认值",
+    "thresholds": "警告阈值",
+    "operations": "运营"
   },
   "adminMisc": {
     "minDeductionAria": "为资金不足的成员开启/关闭 60K 最低扣费规则",

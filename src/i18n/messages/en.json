@@ -25,7 +25,15 @@
     "logout": "Log out",
     "pendingMembersTitle": "New members awaiting approval",
     "pendingMembersBanner": "{count} new members awaiting approval",
-    "account": "Account"
+    "account": "Account",
+    "settings": "Settings"
+  },
+  "adminSettings": {
+    "title": "Settings",
+    "subtitle": "Shared configuration for all sessions",
+    "sessionDefaults": "New session defaults",
+    "thresholds": "Warning thresholds",
+    "operations": "Operations"
   },
   "adminMisc": {
     "minDeductionAria": "Toggle 60K minimum rule for members with low fund",
