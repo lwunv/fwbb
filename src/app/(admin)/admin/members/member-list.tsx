@@ -64,6 +64,7 @@ import {
 import { confirmPaymentByAdmin } from "@/actions/finance";
 import { fireAction } from "@/lib/optimistic-action";
 import { getFundStatus } from "@/lib/fund-core";
+import { useSettings } from "@/components/settings-provider";
 import { cn, formatK, normalizeVietnamese } from "@/lib/utils";
 import { ymdInVN } from "@/lib/date-format";
 import { usePolling } from "@/lib/use-polling";
@@ -225,10 +226,11 @@ export function MemberList({
   const tF = useTranslations("finance");
   const tCommon = useTranslations("common");
   const tFs = useTranslations("fundStatus");
+  const { lowFundThreshold } = useSettings();
   usePolling();
 
   function balanceColorFor(balance: number): string {
-    const status = getFundStatus(balance);
+    const status = getFundStatus(balance, lowFundThreshold);
     return status === "owing"
       ? "text-rose-600 dark:text-rose-400"
       : status === "depleted"
@@ -243,7 +245,7 @@ export function MemberList({
   // hiệu quan trọng hơn số dư của họ lúc đang khóa.
   function cardAccentClass(memberIsActive: boolean, balance: number): string {
     if (!memberIsActive) return "border-l-4 border-l-muted-foreground/40";
-    const status = getFundStatus(balance);
+    const status = getFundStatus(balance, lowFundThreshold);
     if (status === "owing")
       return "border-l-4 border-l-rose-500 dark:border-l-rose-400";
     if (status === "depleted")
@@ -256,7 +258,7 @@ export function MemberList({
   // Khối số dư: số tiền (đậm, có màu theo trạng thái) trên, nhãn trạng thái
   // dưới. Căn trái để lắp vào bên trái tầng hành động của card (tap → sửa quỹ).
   function fundStatusInfoFor(balance: number) {
-    const status = getFundStatus(balance);
+    const status = getFundStatus(balance, lowFundThreshold);
     const balanceColor = balanceColorFor(balance);
     return (
       <div>
@@ -363,12 +365,12 @@ export function MemberList({
       // dấu chúng đã-ghi-sổ ngay → bucket đó gần như luôn rỗng dù member đang nợ.
       if (
         statusFilter === "hasDebt" &&
-        getFundStatus(memberBalances[m.id] ?? 0) !== "owing"
+        getFundStatus(memberBalances[m.id] ?? 0, lowFundThreshold) !== "owing"
       )
         return false;
       if (
         statusFilter === "lowFund" &&
-        getFundStatus(memberBalances[m.id] ?? 0) !== "lowFund"
+        getFundStatus(memberBalances[m.id] ?? 0, lowFundThreshold) !== "lowFund"
       )
         return false;
       if (statusFilter === "lowInteraction" && !isLowInteraction(m.id))
@@ -453,6 +455,7 @@ export function MemberList({
     playStats,
     today,
     fundMemberSet,
+    lowFundThreshold,
   ]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -595,15 +598,26 @@ export function MemberList({
       active: countable.filter((m) => m.isActive).length,
       locked: countable.filter((m) => !m.isActive).length,
       hasDebt: countable.filter(
-        (m) => getFundStatus(memberBalances[m.id] ?? 0) === "owing",
+        (m) =>
+          getFundStatus(memberBalances[m.id] ?? 0, lowFundThreshold) ===
+          "owing",
       ).length,
       lowFund: countable.filter(
-        (m) => getFundStatus(memberBalances[m.id] ?? 0) === "lowFund",
+        (m) =>
+          getFundStatus(memberBalances[m.id] ?? 0, lowFundThreshold) ===
+          "lowFund",
       ).length,
       lowInteraction: countable.filter((m) => isLowInteraction(m.id)).length,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [liveMembers, memberBalances, playStats, today, fundMemberSet]);
+  }, [
+    liveMembers,
+    memberBalances,
+    playStats,
+    today,
+    fundMemberSet,
+    lowFundThreshold,
+  ]);
 
   const filterButtons: { key: StatusFilter; label: string }[] = [
     { key: "all", label: t("all") },

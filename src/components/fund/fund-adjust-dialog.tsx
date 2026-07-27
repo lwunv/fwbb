@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { formatK, cn } from "@/lib/utils";
-import { LOW_FUND_THRESHOLD } from "@/lib/fund-core";
+import { useSettings } from "@/components/settings-provider";
 import { fireAction } from "@/lib/optimistic-action";
 import { recordContribution, recordRefund } from "@/actions/fund";
 import { toast } from "sonner";
@@ -41,6 +41,7 @@ export function FundAdjustDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const t = useTranslations("adminMisc");
+  const { lowFundThreshold } = useSettings();
   const [mode, setMode] = useState<Mode>("add");
   const [amount, setAmount] = useState(0);
   const [note, setNote] = useState("");
@@ -156,7 +157,7 @@ export function FundAdjustDialog({
       ? "text-rose-500 dark:text-rose-400"
       : target.currentBalance === 0
         ? "text-foreground"
-        : target.currentBalance < LOW_FUND_THRESHOLD
+        : target.currentBalance < lowFundThreshold
           ? "text-yellow-500 dark:text-yellow-400"
           : "text-blue-600 dark:text-blue-400";
 

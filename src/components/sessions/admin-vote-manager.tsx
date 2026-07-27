@@ -17,6 +17,7 @@ import { SearchInput } from "@/components/shared/search-input";
 import { formatK } from "@/lib/utils";
 import { getFundStatus } from "@/lib/fund-core";
 import { FundStatusIcon } from "@/components/shared/fund-status-icon";
+import { useSettings } from "@/components/settings-provider";
 import {
   computeShuttlecockTotal,
   computePerHeadCharges,
@@ -106,6 +107,7 @@ export function AdminVoteManager({
   const t = useTranslations("voting");
   const tCommon = useTranslations("common");
   const tA = useTranslations("adminVote");
+  const { lowFundThreshold } = useSettings();
   const [search, setSearch] = useState("");
   const [removeTarget, setRemoveTarget] = useState<{
     memberId: number;
@@ -729,7 +731,10 @@ export function AdminVoteManager({
                       >
                         <span className="truncate">{member.name}</span>
                         {memberBalances[member.id] !== undefined && (
-                          <FundStatusIcon balance={memberBalances[member.id]} />
+                          <FundStatusIcon
+                            balance={memberBalances[member.id]}
+                            lowFundThreshold={lowFundThreshold}
+                          />
                         )}
                         {/* Đi 2 người → chip status cạnh tên (glanceable, khỏi
                             phải suy từ trạng thái nút toggle 👫). */}
@@ -756,7 +761,7 @@ export function AdminVoteManager({
                         //   lowFund (<100K) → vàng
                         //   depleted (=0)   → foreground (trắng trong dark mode)
                         //   owing (<0)      → đỏ rose
-                        const balStatus = getFundStatus(bal);
+                        const balStatus = getFundStatus(bal, lowFundThreshold);
                         const balColor =
                           balStatus === "owing"
                             ? "font-semibold text-rose-500 dark:text-rose-400"
@@ -778,7 +783,10 @@ export function AdminVoteManager({
                         }
 
                         const remain = bal - ded;
-                        const remainStatus = getFundStatus(remain);
+                        const remainStatus = getFundStatus(
+                          remain,
+                          lowFundThreshold,
+                        );
                         const remainColor =
                           remainStatus === "owing"
                             ? "font-semibold text-rose-500 dark:text-rose-400"
@@ -1132,7 +1140,10 @@ export function AdminVoteManager({
                           <span className="flex items-center gap-1.5 truncate text-base font-medium">
                             {m.name}
                             {memberBalances[m.id] !== undefined && (
-                              <FundStatusIcon balance={memberBalances[m.id]} />
+                              <FundStatusIcon
+                                balance={memberBalances[m.id]}
+                                lowFundThreshold={lowFundThreshold}
+                              />
                             )}
                           </span>
                           {memberBalances[m.id] !== undefined &&
@@ -1140,7 +1151,10 @@ export function AdminVoteManager({
                               const bal = memberBalances[m.id];
                               // Status-colored balance (consistent với voted-list):
                               // owing đỏ, depleted foreground, lowFund vàng, hasFund xanh.
-                              const balStatus = getFundStatus(bal);
+                              const balStatus = getFundStatus(
+                                bal,
+                                lowFundThreshold,
+                              );
                               const balColor =
                                 balStatus === "owing"
                                   ? "font-semibold text-rose-500 dark:text-rose-400"

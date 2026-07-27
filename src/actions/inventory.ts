@@ -11,6 +11,7 @@ import { revalidatePath } from "next/cache";
 import { purchaseSchema } from "@/lib/validators";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
 import { requireAdmin } from "@/lib/auth";
+import { getSettings } from "./settings";
 import {
   tubesToQua,
   isLowStock,
@@ -268,6 +269,7 @@ export async function getStockByBrand(): Promise<StockByBrand[]> {
   // pattern in shuttlecock-finance.ts.
   const auth = await requireAdmin();
   if ("error" in auth) return [];
+  const { lowStockThresholdQua } = await getSettings();
   // Get all brands
   const brands = await db.query.shuttlecockBrands.findMany({
     orderBy: (b, { asc }) => [asc(b.name)],
@@ -325,7 +327,7 @@ export async function getStockByBrand(): Promise<StockByBrand[]> {
       rawStockQua,
       ong,
       qua,
-      isLowStock: isLowStock(rawStockQua), // less than 1 tube
+      isLowStock: isLowStock(rawStockQua, lowStockThresholdQua),
     });
   }
 
@@ -359,10 +361,11 @@ export async function checkLowStock(): Promise<{
   items: StockByBrand[];
 }> {
   const stock = await getStockByBrand();
+  const { lowStockThresholdQua } = await getSettings();
   const activeStock = stock.filter((s) => s.isActive);
   const totalQua = activeStock.reduce((sum, s) => sum + s.currentStockQua, 0);
   return {
-    isLow: isLowStock(totalQua),
+    isLow: isLowStock(totalQua, lowStockThresholdQua),
     totalQua,
     items: activeStock,
   };

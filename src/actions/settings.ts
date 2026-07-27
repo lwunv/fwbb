@@ -1,5 +1,6 @@
 "use server";
 
+import { cache } from "react";
 import { db } from "@/db";
 import { appSettings, courts, shuttlecockBrands } from "@/db/schema";
 import { and, eq, like } from "drizzle-orm";
@@ -210,14 +211,24 @@ export async function updateAppName(name: string) {
 }
 
 /**
- * Đọc toàn bộ setting trong MỘT query. Không kiểm quyền admin vì trang công
- * khai cũng cần vài ngưỡng (ví dụ mức nợ chặn vote). Không trả về gì nhạy cảm.
+ * Đọc + resolve toàn bộ setting trong MỘT query. Bọc `cache()` để nhiều lần
+ * gọi trong CÙNG một request (root layout + page + action) chỉ chạm DB một lần
+ * (dedup theo React request cache, không phải cross-request). Root layout gọi
+ * getSettings mỗi request nên dedup này tránh nhân đôi query xuống SQLite/Turso.
  */
-export async function getSettings(): Promise<AppSettings> {
+const readAllSettings = cache(async (): Promise<AppSettings> => {
   const rows = await db
     .select({ key: appSettings.key, value: appSettings.value })
     .from(appSettings);
   return resolveGlobal(rows);
+});
+
+/**
+ * Đọc toàn bộ setting. Không kiểm quyền admin vì trang công khai cũng cần vài
+ * ngưỡng (ví dụ mức nợ chặn vote). Không trả về gì nhạy cảm.
+ */
+export async function getSettings(): Promise<AppSettings> {
+  return readAllSettings();
 }
 
 /**

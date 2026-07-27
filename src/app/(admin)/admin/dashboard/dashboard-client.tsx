@@ -16,6 +16,8 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { formatK, cn } from "@/lib/utils";
+import { isLowStock } from "@/lib/inventory-core";
+import { useSettings } from "@/components/settings-provider";
 import { getMonthLabels } from "@/lib/i18n-labels";
 import { deriveSessionBadge, type SessionStatus } from "@/lib/session-status";
 import { MemberAvatar } from "@/components/shared/member-avatar";
@@ -242,6 +244,8 @@ export function DashboardClient({
   const tInv = useTranslations("inventory");
   const tFs = useTranslations("fundStatus");
   const locale = useLocale() as AppLocale;
+  const { lowStockThresholdQua } = useSettings();
+  const stockIsLow = isLowStock(totalStockQua, lowStockThresholdQua);
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(appName);
   const [saved, setSaved] = useState(false);
@@ -477,7 +481,7 @@ export function DashboardClient({
         <StatCard
           icon={Package}
           iconClassName={
-            totalStockQua < 12
+            stockIsLow
               ? "bg-red-500/10 text-red-500"
               : totalStockQua <= 40
                 ? "bg-amber-500/10 text-amber-500"
@@ -487,7 +491,7 @@ export function DashboardClient({
           value={
             <span
               className={
-                totalStockQua < 12
+                stockIsLow
                   ? "text-red-600"
                   : totalStockQua <= 40
                     ? "text-amber-600"
@@ -518,7 +522,7 @@ export function DashboardClient({
       </div>
 
       {/* Low stock warning detail */}
-      {totalStockQua < 12 && (
+      {stockIsLow && (
         <InlineNotice
           tone="danger"
           icon={AlertTriangle}

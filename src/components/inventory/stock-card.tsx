@@ -12,6 +12,7 @@ import { Package, Pencil, Check, X } from "lucide-react";
 import { setStockQua } from "@/actions/inventory";
 import { fireAction } from "@/lib/optimistic-action";
 import { tubesToQua, splitOngQua, isLowStock } from "@/lib/inventory-core";
+import { useSettings } from "@/components/settings-provider";
 import type { StockByBrand } from "@/actions/inventory";
 
 interface StockCardProps {
@@ -22,6 +23,7 @@ export function StockCard({ stock }: StockCardProps) {
   const t = useTranslations("inventory");
   const tCommon = useTranslations("common");
   const router = useRouter();
+  const { lowStockThresholdQua } = useSettings();
   const [editing, setEditing] = useState(false);
   const [editOng, setEditOng] = useState(stock.ong);
   const [editQua, setEditQua] = useState(stock.qua);
@@ -38,7 +40,7 @@ export function StockCard({ stock }: StockCardProps) {
   }
   const clampedQua = Math.max(0, displayRawQua);
   const shown = splitOngQua(clampedQua);
-  const shownLow = isLowStock(displayRawQua);
+  const shownLow = isLowStock(displayRawQua, lowStockThresholdQua);
 
   return (
     <Card size="sm">

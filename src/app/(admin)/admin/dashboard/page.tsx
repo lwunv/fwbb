@@ -27,6 +27,7 @@ import {
   getAppName,
   getDefaultCourt,
   getSessionDaysOfWeek,
+  getSettings,
 } from "@/actions/settings";
 import { ymdInVN } from "@/lib/date-format";
 
@@ -36,6 +37,7 @@ export default async function DashboardPage() {
 
   // Mô hình Quỹ + Nợ đã gộp: "nợ" = số dư âm trong quỹ.
   const fundMembers = await getFundMembersWithBalances();
+  const { lowFundThreshold } = await getSettings();
 
   let totalOutstanding = 0;
   let totalPositiveBalance = 0;
@@ -54,7 +56,7 @@ export default async function DashboardPage() {
     balance: number;
   }[] = [];
   for (const fm of fundMembers) {
-    const status = getFundStatus(fm.balance.balance);
+    const status = getFundStatus(fm.balance.balance, lowFundThreshold);
     if (status === "owing") {
       const debt = -fm.balance.balance;
       totalOutstanding += debt;

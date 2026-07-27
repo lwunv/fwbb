@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { formatK, cn } from "@/lib/utils";
 import { getFundStatus } from "@/lib/fund-core";
+import { useSettings } from "@/components/settings-provider";
 import { FundTopUpCard } from "@/components/finance/fund-topup-card";
 
 /**
@@ -38,8 +39,9 @@ export function FundBalanceBanner({
 }) {
   const [open, setOpen] = useState(false);
   const t = useTranslations("fundStatus");
+  const { lowFundThreshold } = useSettings();
 
-  const status = getFundStatus(balance);
+  const status = getFundStatus(balance, lowFundThreshold);
   if (status === "hasFund") return null;
 
   const isOwing = status === "owing";

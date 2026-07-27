@@ -9,6 +9,7 @@ import { MemberAvatar } from "@/components/shared/member-avatar";
 import { BaseModal } from "@/components/shared/base-modal";
 import { formatK } from "@/lib/utils";
 import { getFundStatus } from "@/lib/fund-core";
+import { useSettings } from "@/components/settings-provider";
 
 export interface RecordContributionMember {
   id: number;
@@ -61,6 +62,7 @@ export function RecordContributionDialog({
 }: Props) {
   const t = useTranslations("fundAdmin");
   const tCommon = useTranslations("common");
+  const { lowFundThreshold } = useSettings();
   const [memberId, setMemberId] = useState<number | null>(
     lockedMember?.id ?? null,
   );
@@ -113,12 +115,16 @@ export function RecordContributionDialog({
               {typeof lockedMember.balance === "number" && (
                 <span
                   className={
-                    getFundStatus(lockedMember.balance) === "owing"
+                    getFundStatus(lockedMember.balance, lowFundThreshold) ===
+                    "owing"
                       ? "text-destructive shrink-0 text-sm font-bold tabular-nums"
                       : "text-muted-foreground shrink-0 text-sm font-bold tabular-nums"
                   }
                 >
-                  {getFundStatus(lockedMember.balance) === "owing" ? "−" : ""}
+                  {getFundStatus(lockedMember.balance, lowFundThreshold) ===
+                  "owing"
+                    ? "−"
+                    : ""}
                   {formatK(Math.abs(lockedMember.balance))}
                 </span>
               )}
