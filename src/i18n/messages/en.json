@@ -33,7 +33,14 @@
     "subtitle": "Shared configuration for all sessions",
     "sessionDefaults": "New session defaults",
     "thresholds": "Warning thresholds",
-    "operations": "Operations"
+    "operations": "Operations",
+    "startTime": "Start time",
+    "endTime": "End time",
+    "courtQuantity": "Courts",
+    "deadlineHours": "Vote deadline before start (hours)",
+    "maxPlayers": "Max players",
+    "maxPlayersOptions": "Quick max presets",
+    "addOption": "Add"
   },
   "adminMisc": {
     "minDeductionAria": "Toggle 60K minimum rule for members with low fund",

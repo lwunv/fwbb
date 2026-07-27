@@ -33,7 +33,14 @@
     "subtitle": "Cấu hình chung cho mọi buổi chơi",
     "sessionDefaults": "Mặc định cho buổi mới",
     "thresholds": "Ngưỡng cảnh báo",
-    "operations": "Vận hành"
+    "operations": "Vận hành",
+    "startTime": "Giờ bắt đầu",
+    "endTime": "Giờ kết thúc",
+    "courtQuantity": "Số sân",
+    "deadlineHours": "Hết hạn vote trước giờ chơi (tiếng)",
+    "maxPlayers": "Số người tối đa",
+    "maxPlayersOptions": "Các mức tối đa bấm nhanh",
+    "addOption": "Thêm"
   },
   "adminMisc": {
     "minDeductionAria": "Bật/tắt rule tối thiểu 60K cho member thiếu quỹ",

@@ -33,7 +33,14 @@
     "subtitle": "所有活动的通用配置",
     "sessionDefaults": "新活动默认值",
     "thresholds": "警告阈值",
-    "operations": "运营"
+    "operations": "运营",
+    "startTime": "开始时间",
+    "endTime": "结束时间",
+    "courtQuantity": "场地数",
+    "deadlineHours": "投票截止提前(小时)",
+    "maxPlayers": "最多人数",
+    "maxPlayersOptions": "快捷上限",
+    "addOption": "添加"
   },
   "adminMisc": {
     "minDeductionAria": "为资金不足的成员开启/关闭 60K 最低扣费规则",
