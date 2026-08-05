@@ -74,7 +74,7 @@ export function parseTimoEmail(
     body.match(/(?:\n|\r|^)\s*M[ôo]\s*t[ảa][:\s]+(.+?)(?:\n|\r|$)/i);
   const memo = memoMatch ? memoMatch[1].trim() : "";
 
-  // 4. Sender account number. Format thật: "...CT tu 999999090920 DO DUC MANH
+  // 4. Sender account number. Format thật: "...CT tu 999999090920 TRAN VAN B
   //    tai TCB" — STK đứng sau "tu " và KHÔNG có chữ "TK". Giữ pattern "TK" cũ,
   //    fallback "tu/từ <digits>".
   const accountMatch =
