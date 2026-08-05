@@ -14,6 +14,9 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { getVietQRUrl } from "@/lib/vietqr";
+import { resolveBankAccount } from "@/lib/bank-account";
+import { findBankByBin } from "@/lib/vn-banks";
+import { useSettings } from "@/components/settings-provider";
 import { formatVND } from "@/lib/utils";
 import { subscribePayment } from "@/lib/payment-poller";
 import { toast } from "sonner";
@@ -43,9 +46,13 @@ interface PaymentQRProps {
   compact?: boolean;
 }
 
-const BANK_BIN = process.env.NEXT_PUBLIC_TIMO_BANK_BIN ?? "970454";
-const ACCOUNT_NO = process.env.NEXT_PUBLIC_TIMO_ACCOUNT_NO ?? "";
-const ACCOUNT_NAME = process.env.NEXT_PUBLIC_TIMO_ACCOUNT_NAME ?? "";
+// Fallback env — chỉ còn dùng khi admin chưa nhập setting (accountNo/Name
+// rỗng). `bankBin` không cần fallback env nữa: registry đã có default
+// "970454" nên setting luôn có giá trị. Đọc process.env ở module scope vì
+// Next inline NEXT_PUBLIC_* lúc build (client component), không đổi giữa
+// các lần render nên không cần đưa vào deps của useMemo bên dưới.
+const ENV_ACCOUNT_NO = process.env.NEXT_PUBLIC_TIMO_ACCOUNT_NO ?? "";
+const ENV_ACCOUNT_NAME = process.env.NEXT_PUBLIC_TIMO_ACCOUNT_NAME ?? "";
 
 export function PaymentQR({
   amount,
@@ -66,6 +73,17 @@ export function PaymentQR({
   const router = useRouter();
   const firedRef = useRef(false);
 
+  // Setting thắng env; setting rỗng thì lùi env (xem resolveBankAccount).
+  // useSettings() là Context nạp từ props server mỗi request, không phải
+  // state cục bộ — nên luôn phản ánh đúng lần render mới nhất, không cần
+  // useEffect-sync riêng.
+  const settings = useSettings();
+  const { bankBin, accountNo, accountName } = resolveBankAccount(settings, {
+    accountNo: ENV_ACCOUNT_NO,
+    accountName: ENV_ACCOUNT_NAME,
+  });
+  const bankShortName = findBankByBin(bankBin)?.shortName ?? bankBin;
+
   // Clear the stale "received" banner when the (memo, amount) target changes
   // (e.g. the user switches top-up amount in the same mounted card). Done during
   // render, not an effect, to satisfy the no-set-state-in-effect rule and reset
@@ -82,14 +100,14 @@ export function PaymentQR({
   const qrUrl = useMemo(
     () =>
       getVietQRUrl({
-        bankBin: BANK_BIN,
-        accountNo: ACCOUNT_NO,
-        accountName: ACCOUNT_NAME,
+        bankBin,
+        accountNo,
+        accountName,
         amount,
         memo,
         template: variant === "overlay" ? "compact2" : "qr_only",
       }),
-    [amount, memo, variant],
+    [amount, memo, variant, bankBin, accountNo, accountName],
   );
 
   // ─── Real-time payment detection via Gmail Pub/Sub ───
@@ -202,9 +220,9 @@ export function PaymentQR({
             {!compact &&
               renderRow({
                 label: tF("qrAccountTimo"),
-                value: ACCOUNT_NO,
+                value: accountNo,
                 icon: Banknote,
-                display: ACCOUNT_NO,
+                display: accountNo,
               })}
           </div>
         </div>
@@ -289,18 +307,18 @@ export function PaymentQR({
                 <span className="text-muted-foreground text-sm">
                   {tF("qrBank")}
                 </span>
-                <span className="text-sm font-medium">Timo (VPBank)</span>
+                <span className="text-sm font-medium">{bankShortName}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground text-sm">
                   {tF("qrAccountHolder")}
                 </span>
-                <span className="text-sm font-medium">{ACCOUNT_NAME}</span>
+                <span className="text-sm font-medium">{accountName}</span>
               </div>
             </div>
             {renderRow({
               label: tF("qrAccountShort"),
-              value: ACCOUNT_NO,
+              value: accountNo,
               icon: Banknote,
             })}
             {renderRow({

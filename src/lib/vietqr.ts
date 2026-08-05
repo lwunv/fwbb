@@ -39,17 +39,3 @@ export function getVietQRUrl(options: VietQROptions): string {
   const query = params.toString();
   return query ? `${base}?${query}` : base;
 }
-
-/**
- * Generate a VietQR URL for FWBB payments using configured Timo account.
- * Reads bank info from environment variables.
- */
-export function getFWBBPaymentQRUrl(amount: number, memo: string): string {
-  return getVietQRUrl({
-    bankBin: process.env.NEXT_PUBLIC_TIMO_BANK_BIN ?? "970454",
-    accountNo: process.env.NEXT_PUBLIC_TIMO_ACCOUNT_NO ?? "",
-    accountName: process.env.NEXT_PUBLIC_TIMO_ACCOUNT_NAME ?? "",
-    amount,
-    memo,
-  });
-}
