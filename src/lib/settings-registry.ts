@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { findBankByBin } from "./vn-banks";
 
 /**
  * Khai báo một setting. Registry là nguồn sự thật duy nhất cho tên key, kiểu
@@ -136,6 +137,40 @@ export const SETTINGS = {
     default: true,
     perSession: false,
     revalidate: ["/admin/dashboard", "/admin/sessions"],
+  }),
+
+  // ─── Tài khoản nhận tiền (QR chuyển khoản) ───
+  // Mặc định "970454" = BIN của Timo/VPBank, đúng giá trị fallback env hôm
+  // nay (NEXT_PUBLIC_TIMO_BANK_BIN) nên chưa cấu hình vẫn ra đúng hành vi cũ.
+  // Chặn BIN tự do bằng .refine() qua VN_BANKS — chọn từ dropdown, không gõ tay.
+  bankBin: def({
+    key: "bankBin",
+    schema: z.string().refine((bin) => findBankByBin(bin) !== undefined, {
+      message: "Mã ngân hàng không hợp lệ",
+    }),
+    default: "970454",
+    perSession: false,
+    revalidate: ["/", "/admin/fund"],
+  }),
+  // Rỗng = chưa cấu hình, lùi về env (xem src/lib/bank-account.ts). Không rỗng
+  // thì phải là 6-20 chữ số liền, không dấu cách.
+  bankAccountNo: def({
+    key: "bankAccountNo",
+    schema: z.string().refine((v) => v === "" || /^\d{6,20}$/.test(v), {
+      message: "Số tài khoản không hợp lệ",
+    }),
+    default: "",
+    perSession: false,
+    revalidate: ["/", "/admin/fund"],
+  }),
+  // Rỗng = chưa cấu hình, lùi về env. Trim để không lưu khoảng trắng đầu/cuối
+  // gõ nhầm.
+  bankAccountName: def({
+    key: "bankAccountName",
+    schema: z.string().trim().max(100, "Tên chủ tài khoản tối đa 100 ký tự"),
+    default: "",
+    perSession: false,
+    revalidate: ["/", "/admin/fund"],
   }),
 } as const;
 
