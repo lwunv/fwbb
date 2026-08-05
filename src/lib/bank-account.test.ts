@@ -46,6 +46,51 @@ describe("resolveBankAccount", () => {
     expect(r.accountName).toBe("");
   });
 
+  it("chỉ điền số tài khoản: tên chủ tài khoản vẫn lùi về env (trộn nguồn có chủ đích, từng trường độc lập)", () => {
+    const settings = {
+      bankBin: "970454",
+      bankAccountNo: "1111111111",
+      bankAccountName: "",
+    };
+    const r = resolveBankAccount(settings, {
+      accountNo: "999888",
+      accountName: "ENV NAME",
+    });
+    expect(r.accountNo).toBe("1111111111");
+    expect(r.accountName).toBe("ENV NAME");
+  });
+
+  it("chỉ điền tên chủ tài khoản: số tài khoản vẫn lùi về env", () => {
+    const settings = {
+      bankBin: "970454",
+      bankAccountNo: "",
+      bankAccountName: "NGUYEN VAN A",
+    };
+    const r = resolveBankAccount(settings, {
+      accountNo: "999888",
+      accountName: "ENV NAME",
+    });
+    expect(r.accountNo).toBe("999888");
+    expect(r.accountName).toBe("NGUYEN VAN A");
+  });
+
+  it("chỉ đổi bankBin: accountNo/accountName vẫn lùi về env vì bankBin luôn lấy từ setting riêng", () => {
+    const settings = {
+      bankBin: "970436",
+      bankAccountNo: "",
+      bankAccountName: "",
+    };
+    const r = resolveBankAccount(settings, {
+      accountNo: "999888",
+      accountName: "ENV NAME",
+    });
+    expect(r).toEqual({
+      bankBin: "970436",
+      accountNo: "999888",
+      accountName: "ENV NAME",
+    });
+  });
+
   it("bankBin luôn lấy từ setting, không lùi về env (đã có default '970454')", () => {
     const settings = {
       bankBin: "970436",

@@ -140,8 +140,9 @@ export const SETTINGS = {
   }),
 
   // ─── Tài khoản nhận tiền (QR chuyển khoản) ───
-  // Mặc định "970454" = BIN của Timo/VPBank, đúng giá trị fallback env hôm
-  // nay (NEXT_PUBLIC_TIMO_BANK_BIN) nên chưa cấu hình vẫn ra đúng hành vi cũ.
+  // Mặc định "970454" = BIN của Timo/VietCapitalBank (BVBank), đúng giá trị
+  // fallback env hôm nay (NEXT_PUBLIC_TIMO_BANK_BIN) nên chưa cấu hình vẫn ra
+  // đúng hành vi cũ.
   // Chặn BIN tự do bằng .refine() qua VN_BANKS — chọn từ dropdown, không gõ tay.
   bankBin: def({
     key: "bankBin",
