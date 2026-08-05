@@ -56,6 +56,7 @@ import {
   getDefaultCourt,
   getDefaultBrand,
   getSessionDaysOfWeek,
+  getSettings,
 } from "@/actions/settings";
 import { assertEditable, type SessionStatus } from "@/lib/session-status";
 import {
@@ -1099,9 +1100,10 @@ export async function createSessionManually(
   // Resolve court: admin chọn → dùng đó; không chọn → fallback default court.
   // Giá ban đầu tính qua computeCourtTotal — buổi lẻ (ngày khác lịch config,
   // hoặc sân khác default) sẽ ăn giá retail; buổi mặc định ăn giá tháng.
-  const [defaultCourt, sessionDays] = await Promise.all([
+  const [defaultCourt, sessionDays, settings] = await Promise.all([
     getDefaultCourt(),
     getSessionDaysOfWeek(),
+    getSettings(),
   ]);
   let resolvedCourtId: number | null = null;
   let courtPrice: number | null = null;
@@ -1123,7 +1125,7 @@ export async function createSessionManually(
     courtPrice = computeCourtTotal({
       monthlyPrice: resolvedCourt.pricePerSession,
       retailPrice: resolvedCourt.pricePerSessionRetail,
-      courtQuantity: 1,
+      courtQuantity: settings.defaultCourtQuantity,
       sessionDate: date,
       selectedCourtId: resolvedCourt.id,
       defaultCourtId: defaultCourt?.id ?? null,
@@ -1136,14 +1138,17 @@ export async function createSessionManually(
     .values({
       date,
       status: "voting",
-      startTime: startTime || "20:30",
-      endTime: endTime || "22:30",
+      startTime: startTime || settings.defaultStartTime,
+      endTime: endTime || settings.defaultEndTime,
+      courtQuantity: settings.defaultCourtQuantity,
+      maxPlayers: settings.defaultMaxPlayers,
       courtId: resolvedCourtId,
       courtPrice,
       useMinDeduction: true,
       voteDeadline: computeDefaultDeadline(
         date,
-        startTime || DEFAULT_PLAY_START_TIME,
+        startTime || settings.defaultStartTime,
+        settings.voteDeadlineOffsetHours,
       ),
     })
     .returning();
@@ -1706,9 +1711,10 @@ export async function lockVoteNow(sessionId: number) {
 }
 
 /**
- * Admin đặt sức chứa chơi cầu tối đa cho buổi (toggle 16 mặc định ⇄ 8). Chỉ
- * nhận 8 hoặc 16. Guard editable (không đổi khi đã chốt sổ). KHÔNG đá ai đang
- * vote ra — chỉ chặn vote MỚI vượt số (xem submitVote cap).
+ * Admin đặt sức chứa chơi cầu tối đa cho buổi. Nhận số nguyên 1..100 (các mức
+ * bấm nhanh trên UI chỉ là gợi ý — admin vẫn được nhập số bất kỳ trong khoảng).
+ * Guard editable (không đổi khi đã chốt sổ). KHÔNG đá ai đang vote ra — chỉ
+ * chặn vote MỚI vượt số (xem submitVote cap).
  */
 export async function setSessionMaxPlayers(
   sessionId: number,
@@ -1721,7 +1727,7 @@ export async function setSessionMaxPlayers(
   if (!Number.isInteger(sessionId) || sessionId <= 0) {
     return { error: t("invalidSessionId") };
   }
-  if (maxPlayers !== 8 && maxPlayers !== 16) {
+  if (!Number.isInteger(maxPlayers) || maxPlayers < 1 || maxPlayers > 100) {
     return { error: t("invalidData", { detail: "maxPlayers" }) };
   }
 

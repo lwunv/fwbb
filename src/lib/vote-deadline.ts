@@ -70,8 +70,9 @@ export function parseVoteDeadline(deadline: string): Date {
 export function computeDefaultDeadline(
   date: string,
   startTime: string,
+  offsetHours: number = 4,
 ): string {
   const start = new Date(`${date}T${startTime}:00`);
-  const deadline = new Date(start.getTime() - 4 * 60 * 60 * 1000);
+  const deadline = new Date(start.getTime() - offsetHours * 60 * 60 * 1000);
   return formatLocalDeadline(deadline);
 }

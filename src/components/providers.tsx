@@ -3,8 +3,16 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { ConfirmProvider } from "@/components/shared/confirm-provider";
+import { SettingsProvider } from "@/components/settings-provider";
+import type { AppSettings } from "@/lib/settings-registry";
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({
+  settings,
+  children,
+}: {
+  settings: AppSettings;
+  children: React.ReactNode;
+}) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -19,7 +27,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ConfirmProvider>{children}</ConfirmProvider>
+      <SettingsProvider settings={settings}>
+        <ConfirmProvider>{children}</ConfirmProvider>
+      </SettingsProvider>
     </QueryClientProvider>
   );
 }

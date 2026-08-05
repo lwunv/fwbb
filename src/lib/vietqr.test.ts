@@ -5,18 +5,18 @@ describe("getVietQRUrl", () => {
   it("should generate basic VietQR URL with all params", () => {
     const url = getVietQRUrl({
       bankBin: "970454",
-      accountNo: "9021813730236",
-      accountName: "NGUYEN VAN LUU",
+      accountNo: "1111111111",
+      accountName: "NGUYEN VAN A",
       amount: 150000,
       memo: "FWBB QUY THANG 4",
     });
 
     expect(url).toContain(
-      "https://img.vietqr.io/image/970454-9021813730236-compact2.png",
+      "https://img.vietqr.io/image/970454-1111111111-compact2.png",
     );
     expect(url).toContain("amount=150000");
     expect(url).toContain("addInfo=FWBB+QUY+THANG+4");
-    expect(url).toContain("accountName=NGUYEN+VAN+LUU");
+    expect(url).toContain("accountName=NGUYEN+VAN+A");
   });
 
   it("should use custom template", () => {
@@ -79,6 +79,21 @@ describe("getVietQRUrl", () => {
 
     expect(url).toContain("addInfo=");
     // Ensure URL-encoded properly
+    expect(() => new URL(url)).not.toThrow();
+  });
+
+  it("should escape bankBin/accountNo containing URL-breaking characters (env fallback defense-in-depth)", () => {
+    const url = getVietQRUrl({
+      bankBin: "970454/evil",
+      accountNo: "123?a=1#b",
+      accountName: "TEST",
+      amount: 100000,
+      memo: "test",
+    });
+
+    expect(url).toContain(
+      `${encodeURIComponent("970454/evil")}-${encodeURIComponent("123?a=1#b")}-compact2.png`,
+    );
     expect(() => new URL(url)).not.toThrow();
   });
 });

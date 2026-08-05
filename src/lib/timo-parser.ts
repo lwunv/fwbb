@@ -5,7 +5,7 @@
  * - Amount: "tăng 150.000 VND" or "tang 150.000 VND" (no diacritics fallback)
  * - Transaction ID: "FT2607..." (bank reference)
  * - Transfer content (memo): "ND: FWBB QUY THANG 4 ..." line
- * - Sender account: "TK 9021813730236" pattern
+ * - Sender account: "TK 1111111111" pattern
  *
  * Security: caller must verify From: support@timo.vn + SPF/DKIM pass before parsing.
  */
@@ -74,7 +74,7 @@ export function parseTimoEmail(
     body.match(/(?:\n|\r|^)\s*M[ôo]\s*t[ảa][:\s]+(.+?)(?:\n|\r|$)/i);
   const memo = memoMatch ? memoMatch[1].trim() : "";
 
-  // 4. Sender account number. Format thật: "...CT tu 999999090920 DO DUC MANH
+  // 4. Sender account number. Format thật: "...CT tu 999999090920 TRAN VAN B
   //    tai TCB" — STK đứng sau "tu " và KHÔNG có chữ "TK". Giữ pattern "TK" cũ,
   //    fallback "tu/từ <digits>".
   const accountMatch =

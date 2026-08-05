@@ -238,6 +238,21 @@ export const sessions = sqliteTable(
     /** Sức chứa chơi cầu tối đa của buổi. Admin toggle 16 (mặc định) ⇄ 8.
      *  submitVote chặn vote play khi đủ; UI hiện "Hết slot"/"Còn N slot". */
     maxPlayers: integer("max_players").notNull().default(16),
+    /**
+     * Cấu hình admin cố ý sửa riêng cho buổi này, dạng JSON. Chỉ chứa key đã
+     * sửa, key vắng mặt nghĩa là kế thừa setting chung. Xem
+     * `src/lib/settings-resolve.ts`. Cột text để migration là ADD COLUMN
+     * thuần, tránh recreate-table làm rớt index trên Turso.
+     */
+    settingsOverride: text("settings_override"),
+    /**
+     * Ảnh chụp cấu hình tại lần chốt sổ đầu tiên. Chốt lại sổ đọc cột này thay
+     * vì setting hiện tại, để tiền của buổi cũ không đổi theo khi admin chỉnh
+     * setting. Khác `settingsOverride` về ý nghĩa: một bên là admin cố ý sửa,
+     * một bên là đóng băng lịch sử. Giai đoạn 1 chỉ tạo cột, giai đoạn 3 mới
+     * ghi vào.
+     */
+    settingsSnapshot: text("settings_snapshot"),
     notes: text("notes"),
     createdAt: text("created_at").default(sql`(current_timestamp)`),
     updatedAt: text("updated_at").default(sql`(current_timestamp)`),

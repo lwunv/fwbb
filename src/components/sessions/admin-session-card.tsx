@@ -21,6 +21,7 @@ import { VoteCountdown } from "@/components/sessions/vote-countdown";
 import { VoteDeadlineEdit } from "@/components/sessions/vote-deadline-edit";
 import { VoteLockButton } from "@/components/sessions/vote-lock-button";
 import { MaxPlayersToggle } from "@/components/sessions/max-players-toggle";
+import { useSettings } from "@/components/settings-provider";
 import { LedBorder } from "@/components/shared/led-border";
 import { StatusBadge } from "@/components/shared/status-badge";
 import {
@@ -269,6 +270,7 @@ export function AdminSessionCard({
   const t = useTranslations("sessions");
   const tF = useTranslations("finance");
   const tVoting = useTranslations("voting");
+  const { maxPlayersOptions } = useSettings();
 
   const status = statusStyles[effectiveStatus];
 
@@ -504,6 +506,7 @@ export function AdminSessionCard({
                   <MaxPlayersToggle
                     sessionId={session.id}
                     current={session.maxPlayers}
+                    options={maxPlayersOptions}
                   />
                 </div>
               )}

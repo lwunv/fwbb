@@ -6,6 +6,7 @@ import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { Providers } from "@/components/providers";
 import { PinkThemeEffects } from "@/components/shared/pink-theme-effects";
+import { getSettings } from "@/actions/settings";
 import "./globals.css";
 
 /** vi/en: Roboto. zh: stack dùng Geist + font hệ thống Hán (`globals.css` html[lang="zh"]) */
@@ -44,6 +45,7 @@ export default async function RootLayout({
 }>) {
   const locale = await getLocale();
   const messages = await getMessages();
+  const settings = await getSettings();
 
   return (
     <html
@@ -62,7 +64,7 @@ export default async function RootLayout({
               enableSystem={false}
               disableTransitionOnChange
             >
-              <Providers>{children}</Providers>
+              <Providers settings={settings}>{children}</Providers>
               <PinkThemeEffects />
             </ThemeProvider>
           </NuqsAdapter>

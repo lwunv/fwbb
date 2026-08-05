@@ -137,6 +137,10 @@ export const LOW_FUND_THRESHOLD = 100_000;
  * Ngưỡng nợ chặn vote ở trang chủ — member nợ DƯỚI mức này vẫn được vote bình
  * thường (chỉ hiện banner nhắc trả nợ), chỉ khi nợ ≥ mức này mới ưu tiên màn
  * "buổi gần đây + thanh toán" thay cho vote (xem HomePage).
+ *
+ * Giá trị mặc định. Nguồn sự thật lúc chạy là setting `voteBlockDebtThreshold`
+ * trong registry; hằng số này giữ lại làm default và cho các test thuần không
+ * đụng DB.
  */
 export const VOTE_BLOCK_DEBT_THRESHOLD = 100_000;
 
@@ -147,10 +151,13 @@ export type FundStatus = "owing" | "depleted" | "lowFund" | "hasFund";
  * mọi UI surface muốn label balance phải import helper này, không inline so
  * sánh ở callsite.
  */
-export function getFundStatus(balance: number): FundStatus {
+export function getFundStatus(
+  balance: number,
+  lowFundThreshold: number = LOW_FUND_THRESHOLD,
+): FundStatus {
   if (balance < 0) return "owing";
   if (balance === 0) return "depleted";
-  if (balance < LOW_FUND_THRESHOLD) return "lowFund";
+  if (balance < lowFundThreshold) return "lowFund";
   return "hasFund";
 }
 

@@ -9,6 +9,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { formatK, cn } from "@/lib/utils";
 import { getFundStatus } from "@/lib/fund-core";
+import { useSettings } from "@/components/settings-provider";
 import { toast } from "sonner";
 
 interface DupMember {
@@ -30,6 +31,7 @@ interface DupGroup {
 
 export function DuplicateMembersBanner({ groups }: { groups: DupGroup[] }) {
   const [pending, startTransition] = useTransition();
+  const { lowFundThreshold } = useSettings();
   // selectedKeepId per group — id của member sẽ giữ lại; còn lại là source merge.
   const [keepIds, setKeepIds] = useState<Record<string, number>>(() => {
     const init: Record<string, number> = {};
@@ -189,9 +191,13 @@ export function DuplicateMembersBanner({ groups }: { groups: DupGroup[] }) {
                               <span
                                 className={cn(
                                   "text-sm",
-                                  getFundStatus(m.balance) === "owing"
+                                  getFundStatus(m.balance, lowFundThreshold) ===
+                                    "owing"
                                     ? "text-red-600 dark:text-red-400"
-                                    : getFundStatus(m.balance) === "depleted"
+                                    : getFundStatus(
+                                          m.balance,
+                                          lowFundThreshold,
+                                        ) === "depleted"
                                       ? ""
                                       : "text-green-600 dark:text-green-400",
                                 )}

@@ -1,6 +1,6 @@
 import { AlertCircle, AlertTriangle, Wallet } from "lucide-react";
 import { cn, formatK } from "@/lib/utils";
-import { getFundStatus } from "@/lib/fund-core";
+import { getFundStatus, LOW_FUND_THRESHOLD } from "@/lib/fund-core";
 
 /**
  * Small inline icon hiển thị fund-status của 1 member trong rows chật
@@ -8,17 +8,23 @@ import { getFundStatus } from "@/lib/fund-core";
  *
  * Dùng native `title` attribute → mobile long-press vẫn xem được, không cần
  * Radix tooltip (extra runtime + popper).
+ *
+ * Component này isomorphic (không hook) để dùng được cả server lẫn client.
+ * Ngưỡng `lowFundThreshold` nhận qua prop (default = hằng số): caller client
+ * truyền từ useSettings(), caller server truyền từ getSettings().
  */
 export function FundStatusIcon({
   balance,
   size = 14,
   className,
+  lowFundThreshold = LOW_FUND_THRESHOLD,
 }: {
   balance: number;
   size?: number;
   className?: string;
+  lowFundThreshold?: number;
 }) {
-  const status = getFundStatus(balance);
+  const status = getFundStatus(balance, lowFundThreshold);
   if (status === "hasFund") return null;
 
   const { Icon, color, title } =

@@ -32,6 +32,7 @@ import { formatVND, formatK, cn } from "@/lib/utils";
 import { formatSessionDate } from "@/lib/date-format";
 import { fireAction } from "@/lib/optimistic-action";
 import { getFundStatus, type FundStatus } from "@/lib/fund-core";
+import { useSettings } from "@/components/settings-provider";
 import { recordContribution, recordRefund } from "@/actions/fund";
 import type { InferSelectModel } from "drizzle-orm";
 import type { members as membersTable } from "@/db/schema";
@@ -86,6 +87,7 @@ function statusFor(
 export function FundReport({ fundMembers, transactions }: Props) {
   const t = useTranslations("fundAdmin");
   const tHistory = useTranslations("memberHistory");
+  const { lowFundThreshold } = useSettings();
   // Mirror server prop vào local state để mọi số dẫn xuất (balance từng row,
   // status badge, màu, count filter) update NGAY khi admin cộng/trừ/hết nợ,
   // không phải chờ revalidatePath round-trip. Sync lại theo pattern "adjust
@@ -253,15 +255,19 @@ export function FundReport({ fundMembers, transactions }: Props) {
       FilterKey,
       number
     >;
-    for (const fm of members) c[getFundStatus(fm.balance.balance)] += 1;
+    for (const fm of members)
+      c[getFundStatus(fm.balance.balance, lowFundThreshold)] += 1;
     return c;
-  }, [members]);
+  }, [members, lowFundThreshold]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return [...members]
       .filter((fm) => {
-        if (filter && getFundStatus(fm.balance.balance) !== filter)
+        if (
+          filter &&
+          getFundStatus(fm.balance.balance, lowFundThreshold) !== filter
+        )
           return false;
         if (q) {
           const name = (
@@ -274,7 +280,7 @@ export function FundReport({ fundMembers, transactions }: Props) {
         return true;
       })
       .sort((a, b) => b.balance.balance - a.balance.balance);
-  }, [members, filter, search]);
+  }, [members, filter, search, lowFundThreshold]);
 
   const txByMember = useMemo(() => {
     const map = new Map<number, FundTransaction[]>();
@@ -352,7 +358,7 @@ export function FundReport({ fundMembers, transactions }: Props) {
             {filtered.map((fm) => {
               const isOpen = expandedId === fm.memberId;
               const memberTxs = txByMember.get(fm.memberId) ?? [];
-              const b = getFundStatus(fm.balance.balance);
+              const b = getFundStatus(fm.balance.balance, lowFundThreshold);
               const status = statusFor(b, t);
               const balanceColor =
                 b === "hasFund"

@@ -13,6 +13,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { getFundStatus, type FundBalance } from "@/lib/fund-core";
+import { useSettings } from "@/components/settings-provider";
 import { format } from "date-fns";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 
@@ -34,6 +35,7 @@ interface Props {
 export function MyFundClient({ balance, transactions, memberId }: Props) {
   const t = useTranslations("myFundClient");
   const locale = useLocale();
+  const { lowFundThreshold } = useSettings();
   const debtAmount = balance.balance < 0 ? Math.abs(balance.balance) : 0;
 
   function formatDate(dateStr: string | null) {
@@ -64,7 +66,7 @@ export function MyFundClient({ balance, transactions, memberId }: Props) {
               <div className="mb-2 flex items-center gap-2">
                 <Wallet
                   className={`h-5 w-5 ${
-                    getFundStatus(balance.balance) === "owing"
+                    getFundStatus(balance.balance, lowFundThreshold) === "owing"
                       ? "text-destructive"
                       : "text-primary"
                   }`}
@@ -76,7 +78,7 @@ export function MyFundClient({ balance, transactions, memberId }: Props) {
               <div className="mb-6">
                 <span
                   className={`text-4xl font-bold tabular-nums ${(() => {
-                    const s = getFundStatus(balance.balance);
+                    const s = getFundStatus(balance.balance, lowFundThreshold);
                     return s === "owing"
                       ? "text-destructive"
                       : s === "depleted"
@@ -88,7 +90,7 @@ export function MyFundClient({ balance, transactions, memberId }: Props) {
                 </span>
                 <p className="text-muted-foreground mt-1 text-sm">
                   {(() => {
-                    const s = getFundStatus(balance.balance);
+                    const s = getFundStatus(balance.balance, lowFundThreshold);
                     return s === "owing"
                       ? t("owingFund")
                       : s === "depleted"

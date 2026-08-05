@@ -30,8 +30,11 @@ export function tubesToQua(tubes: number): number {
  * stock is, of course, also low.
  * @param currentStockQua stock in quả (raw or clamped)
  */
-export function isLowStock(currentStockQua: number): boolean {
-  return currentStockQua < LOW_STOCK_THRESHOLD_QUA;
+export function isLowStock(
+  currentStockQua: number,
+  threshold: number = LOW_STOCK_THRESHOLD_QUA,
+): boolean {
+  return currentStockQua < threshold;
 }
 
 /**

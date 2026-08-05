@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { formatK } from "@/lib/utils";
 import { calculateShuttlecockCost } from "@/lib/cost-calculator";
 import { isLowStock, tubesToQua, splitOngQua } from "@/lib/inventory-core";
+import { useSettings } from "@/components/settings-provider";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { Calendar, ArrowDown, ArrowUp, Pencil, Check, X } from "lucide-react";
 import { updatePurchaseTubes } from "@/actions/inventory";
@@ -62,6 +63,7 @@ export function InventoryClient({
   const tStats = useTranslations("stats");
   const locale = useLocale() as AppLocale;
   const router = useRouter();
+  const { lowStockThresholdQua } = useSettings();
   const formatDate = (d: string) => formatSessionDate(d, "long", locale);
   usePolling();
 
@@ -81,7 +83,7 @@ export function InventoryClient({
   const totalQua = localStock
     .filter((s) => s.isActive)
     .reduce((sum, s) => sum + s.currentStockQua, 0);
-  const lowStock = isLowStock(totalQua);
+  const lowStock = isLowStock(totalQua, lowStockThresholdQua);
 
   // Recompute a brand's stock row for an optimistic purchase (adds tubes to
   // purchased + stock). Mirrors getStockByBrand's server math so the display
@@ -99,7 +101,7 @@ export function InventoryClient({
       currentStockQua,
       ong,
       qua,
-      isLowStock: isLowStock(rawStockQua),
+      isLowStock: isLowStock(rawStockQua, lowStockThresholdQua),
     };
   }
 

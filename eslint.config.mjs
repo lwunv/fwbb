@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Claude Code tooling dir: holds ephemeral git worktrees + their build
+    // output (`.claude/worktrees/*/.next`). Never source to lint; the pattern
+    // above only matches `.next` at the repo root, not nested ones.
+    ".claude/**",
   ]),
 ]);
 

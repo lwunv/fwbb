@@ -1,11 +1,18 @@
 "use server";
 
+import { cache } from "react";
 import { db } from "@/db";
 import { appSettings, courts, shuttlecockBrands } from "@/db/schema";
 import { and, eq, like } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { getTranslations } from "next-intl/server";
+import {
+  SETTINGS,
+  type AppSettings,
+  type SettingKey,
+} from "@/lib/settings-registry";
+import { resolveGlobal, serializeSetting } from "@/lib/settings-resolve";
 
 export async function getAppName(): Promise<string> {
   const row = await db.query.appSettings.findFirst({
@@ -200,5 +207,57 @@ export async function updateAppName(name: string) {
 
   revalidatePath("/");
   revalidatePath("/admin");
+  return { success: true };
+}
+
+/**
+ * Đọc + resolve toàn bộ setting trong MỘT query. Bọc `cache()` để nhiều lần
+ * gọi trong CÙNG một request (root layout + page + action) chỉ chạm DB một lần
+ * (dedup theo React request cache, không phải cross-request). Root layout gọi
+ * getSettings mỗi request nên dedup này tránh nhân đôi query xuống SQLite/Turso.
+ */
+const readAllSettings = cache(async (): Promise<AppSettings> => {
+  const rows = await db
+    .select({ key: appSettings.key, value: appSettings.value })
+    .from(appSettings);
+  return resolveGlobal(rows);
+});
+
+/**
+ * Đọc toàn bộ setting. Không kiểm quyền admin vì trang công khai cũng cần vài
+ * ngưỡng (ví dụ mức nợ chặn vote). Không trả về gì nhạy cảm.
+ */
+export async function getSettings(): Promise<AppSettings> {
+  return readAllSettings();
+}
+
+/**
+ * Ghi một setting. Upsert nguyên tử để hai request cùng lúc không đè nhau
+ * (kiểu tìm trước rồi mới insert có kẽ hở giữa hai câu lệnh). Validate qua
+ * schema của registry trước khi ghi; sai schema thì không ghi gì.
+ */
+export async function updateSetting<K extends SettingKey>(
+  key: K,
+  value: AppSettings[K],
+): Promise<{ success: true } | { error: string }> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
+  const def = SETTINGS[key];
+  const parsed = def.schema.safeParse(value);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Giá trị không hợp lệ" };
+  }
+
+  const serialized = serializeSetting(key, parsed.data as AppSettings[K]);
+  await db
+    .insert(appSettings)
+    .values({ key: def.key, value: serialized })
+    .onConflictDoUpdate({
+      target: appSettings.key,
+      set: { value: serialized },
+    });
+
+  for (const path of def.revalidate) revalidatePath(path);
   return { success: true };
 }
