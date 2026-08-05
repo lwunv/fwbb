@@ -47,7 +47,12 @@
     "quaUnit": "个",
     "autoCreate": "自动创建活动",
     "autoCreateHint": "Cron 在所选日期自动创建投票活动",
-    "appName": "群组名称"
+    "appName": "群组名称",
+    "bankAccount": "收款账户",
+    "bankName": "银行",
+    "bankPlaceholder": "选择银行",
+    "bankAccountNo": "账号",
+    "bankAccountName": "开户姓名"
   },
   "adminMisc": {
     "minDeductionAria": "为资金不足的成员开启/关闭 60K 最低扣费规则",

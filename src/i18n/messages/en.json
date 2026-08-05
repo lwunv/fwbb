@@ -47,7 +47,12 @@
     "quaUnit": "shuttles",
     "autoCreate": "Auto-create sessions",
     "autoCreateHint": "Cron auto-creates voting sessions on chosen days",
-    "appName": "Group name"
+    "appName": "Group name",
+    "bankAccount": "Receiving account",
+    "bankName": "Bank",
+    "bankPlaceholder": "Choose a bank",
+    "bankAccountNo": "Account number",
+    "bankAccountName": "Account holder name"
   },
   "adminMisc": {
     "minDeductionAria": "Toggle 60K minimum rule for members with low fund",

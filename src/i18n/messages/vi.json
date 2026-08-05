@@ -47,7 +47,12 @@
     "quaUnit": "quả",
     "autoCreate": "Tự động tạo buổi",
     "autoCreateHint": "Cron tự tạo buổi vote vào các ngày đã chọn",
-    "appName": "Tên nhóm"
+    "appName": "Tên nhóm",
+    "bankAccount": "Tài khoản nhận tiền",
+    "bankName": "Ngân hàng",
+    "bankPlaceholder": "Chọn ngân hàng",
+    "bankAccountNo": "Số tài khoản",
+    "bankAccountName": "Tên chủ tài khoản"
   },
   "adminMisc": {
     "minDeductionAria": "Bật/tắt rule tối thiểu 60K cho member thiếu quỹ",
