@@ -157,4 +157,63 @@ describe("GET /api/cron/create-session", () => {
     });
     expect(sc?.brandId).toBe(brandRow!.id);
   });
+
+  // courtPrice PHẢI khớp courtQuantity: buổi cron dùng đúng sân mặc định vào
+  // ngày chơi (isRegular) → giá = monthly + retail*(qty-1). Bug đã sửa: trước
+  // đây lấy pricePerSession trần nên buổi khai N sân mà giá chỉ 1 sân →
+  // finalize (dùng thẳng courtPrice) thu thiếu khi defaultCourtQuantity > 1.
+  describe("courtPrice khớp courtQuantity (computeCourtTotal)", () => {
+    async function setDefaultCourt(opts: {
+      monthly: number;
+      retail: number | null;
+      qty?: number;
+    }) {
+      const schema = await import("@/db/schema");
+      await testDb.insert(courts).values({
+        name: "Sân mặc định",
+        pricePerSession: opts.monthly,
+        pricePerSessionRetail: opts.retail,
+        isActive: true,
+      });
+      const court = await testDb.query.courts.findFirst({
+        where: eq(courts.name, "Sân mặc định"),
+      });
+      const rows = [{ key: "defaultCourtId", value: String(court!.id) }];
+      if (opts.qty !== undefined) {
+        rows.push({ key: "defaultCourtQuantity", value: String(opts.qty) });
+      }
+      await testDb.insert(schema.appSettings).values(rows);
+    }
+
+    async function runSaturdayThenGetMonday() {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-07-11T10:00:00+07:00"));
+      await GET(makeRequest());
+      // 2026-07-13 = Thứ Hai, ngày chơi mặc định (M/W/F).
+      return testDb.query.sessions.findFirst({
+        where: eq(sessions.date, "2026-07-13"),
+      });
+    }
+
+    it("qty mặc định (1): courtPrice == pricePerSession, không đổi hành vi cũ", async () => {
+      await setDefaultCourt({ monthly: 200_000, retail: 250_000 });
+      const s = await runSaturdayThenGetMonday();
+      expect(s?.courtQuantity).toBe(1);
+      expect(s?.courtPrice).toBe(200_000);
+    });
+
+    it("qty=2 có giá lẻ: courtPrice = monthly + retail*(qty-1), KHÔNG phải giá 1 sân", async () => {
+      await setDefaultCourt({ monthly: 200_000, retail: 250_000, qty: 2 });
+      const s = await runSaturdayThenGetMonday();
+      expect(s?.courtQuantity).toBe(2);
+      expect(s?.courtPrice).toBe(450_000);
+      expect(s?.courtPrice).not.toBe(200_000);
+    });
+
+    it("qty=2 không có giá lẻ (retail null): fallback monthly*qty", async () => {
+      await setDefaultCourt({ monthly: 200_000, retail: null, qty: 2 });
+      const s = await runSaturdayThenGetMonday();
+      expect(s?.courtPrice).toBe(400_000);
+    });
+  });
 });

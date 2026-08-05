@@ -15,9 +15,14 @@ import {
   getSettings,
 } from "@/actions/settings";
 import { computeDefaultDeadline } from "@/lib/vote-deadline";
+import { computeCourtTotal } from "@/lib/cost-calculator";
 import type { AppSettings } from "@/lib/settings-registry";
 
-type Court = { id: number; pricePerSession: number };
+type Court = {
+  id: number;
+  pricePerSession: number;
+  pricePerSessionRetail: number | null;
+};
 type Brand = { id: number; pricePerTube: number };
 
 /** Tạo 1 session cho `dateStr` nếu chưa tồn tại. Trả về true nếu tạo mới. */
@@ -26,11 +31,29 @@ async function createSessionIfMissing(
   defaultCourt: Court | null,
   defaultBrand: Brand | null,
   settings: AppSettings,
+  sessionDays: number[],
 ): Promise<boolean> {
   const existing = await db.query.sessions.findFirst({
     where: eq(sessions.date, dateStr),
   });
   if (existing) return false;
+
+  // Court price phải chạy qua computeCourtTotal để KHỚP courtQuantity (giống
+  // đường tạo buổi thủ công createSessionManually). Lấy pricePerSession trần
+  // thì buổi khai N sân mà giá chỉ 1 sân → finalize (dùng thẳng courtPrice) thu
+  // thiếu khi admin đặt defaultCourtQuantity > 1. Buổi cron luôn dùng đúng sân
+  // mặc định vào ngày chơi → isRegular=true; ở qty=1 kết quả == pricePerSession.
+  const courtPrice = defaultCourt
+    ? computeCourtTotal({
+        monthlyPrice: defaultCourt.pricePerSession,
+        retailPrice: defaultCourt.pricePerSessionRetail,
+        courtQuantity: settings.defaultCourtQuantity,
+        sessionDate: dateStr,
+        selectedCourtId: defaultCourt.id,
+        defaultCourtId: defaultCourt.id,
+        sessionDays,
+      })
+    : null;
 
   // onConflictDoNothing trên UNIQUE(date): nếu 2 lần cron chạy trùng (Vercel cron
   // at-least-once, có thể double-fire) cùng chèn 1 ngày, lần thứ 2 KHÔNG ném
@@ -46,7 +69,7 @@ async function createSessionIfMissing(
       courtQuantity: settings.defaultCourtQuantity,
       maxPlayers: settings.defaultMaxPlayers,
       courtId: defaultCourt?.id ?? null,
-      courtPrice: defaultCourt?.pricePerSession ?? null,
+      courtPrice,
       useMinDeduction: true,
       voteDeadline: computeDefaultDeadline(
         dateStr,
@@ -113,6 +136,7 @@ export async function GET(request: NextRequest) {
         defaultCourt,
         defaultBrand,
         settings,
+        sessionDaysArr,
       );
       if (wasCreated) created.push(dateStr);
     }
@@ -137,6 +161,7 @@ export async function GET(request: NextRequest) {
     defaultCourt,
     defaultBrand,
     settings,
+    sessionDaysArr,
   );
   return NextResponse.json({
     message: wasCreated
