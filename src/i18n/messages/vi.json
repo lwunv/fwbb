@@ -52,7 +52,8 @@
     "bankName": "Ngân hàng",
     "bankPlaceholder": "Chọn ngân hàng",
     "bankAccountNo": "Số tài khoản",
-    "bankAccountName": "Tên chủ tài khoản"
+    "bankAccountName": "Tên chủ tài khoản",
+    "bankAutoMatchWarning": "Tính năng tự động nhận diện chuyển khoản chỉ hoạt động với ngân hàng đang tích hợp. Chọn ngân hàng khác thì mọi khoản chuyển vào sẽ cần admin xác nhận thủ công."
   },
   "adminMisc": {
     "minDeductionAria": "Bật/tắt rule tối thiểu 60K cho member thiếu quỹ",
@@ -272,7 +273,7 @@
     "qrMemoDebt": "FWBB S{id}",
     "qrAmount": "Số tiền",
     "qrContent": "Nội dung",
-    "qrAccountTimo": "STK Timo",
+    "qrAccountNo": "Số tài khoản",
     "qrAccountShort": "STK",
     "qrBank": "Ngân hàng",
     "qrAccountHolder": "Chủ TK",

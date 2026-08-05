@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Cog } from "lucide-react";
 import { SectionCard } from "@/components/shared/section-card";
@@ -11,6 +11,7 @@ import { fireAction } from "@/lib/optimistic-action";
 import { updateSetting } from "@/actions/settings";
 import type { AppSettings } from "@/lib/settings-registry";
 import { VN_BANKS } from "@/lib/vn-banks";
+import { AUTO_MATCH_BANK_BIN } from "@/lib/bank-account";
 
 // Chỉ liệt kê ngân hàng hỗ trợ nhận chuyển khoản qua VietQR — ngân hàng
 // không hỗ trợ vẫn nằm trong VN_BANKS (để tra BIN cũ) nhưng không có nghĩa
@@ -22,13 +23,44 @@ const BANK_OPTIONS = VN_BANKS.filter((b) => b.transferSupported).map((b) => ({
 
 export function SectionOperations({ settings }: { settings: AppSettings }) {
   const t = useTranslations("adminSettings");
-  const [autoCreate, setAutoCreate] = useState(settings.autoCreateSessions);
-  const [appName, setAppName] = useState(settings.appName);
-  const [bankBin, setBankBin] = useState(settings.bankBin);
-  const [bankAccountNo, setBankAccountNo] = useState(settings.bankAccountNo);
+  // Tách từng field ra biến phẳng trước khi dùng trong effect —
+  // react-hooks/set-state-in-effect không nhận diện `settings.foo` (member
+  // expression) là một dependency ổn định để sync, chỉ nhận identifier phẳng.
+  const {
+    autoCreateSessions,
+    appName: appNameSetting,
+    bankBin: bankBinSetting,
+    bankAccountNo: bankAccountNoSetting,
+    bankAccountName: bankAccountNameSetting,
+  } = settings;
+
+  const [autoCreate, setAutoCreate] = useState(autoCreateSessions);
+  const [appName, setAppName] = useState(appNameSetting);
+  const [bankBin, setBankBin] = useState(bankBinSetting);
+  const [bankAccountNo, setBankAccountNo] = useState(bankAccountNoSetting);
   const [bankAccountName, setBankAccountName] = useState(
-    settings.bankAccountName,
+    bankAccountNameSetting,
   );
+
+  // Sync khi server revalidate (settings đổi từ nơi khác, hoặc sau khi action
+  // của chính component này resolve và router.refresh() props mới về) — 5 ô
+  // của section này đều mirror prop server nên phải tự đồng bộ lại, xem mẫu
+  // MaxPlayersToggle.
+  useEffect(() => {
+    setAutoCreate(autoCreateSessions);
+  }, [autoCreateSessions]);
+  useEffect(() => {
+    setAppName(appNameSetting);
+  }, [appNameSetting]);
+  useEffect(() => {
+    setBankBin(bankBinSetting);
+  }, [bankBinSetting]);
+  useEffect(() => {
+    setBankAccountNo(bankAccountNoSetting);
+  }, [bankAccountNoSetting]);
+  useEffect(() => {
+    setBankAccountName(bankAccountNameSetting);
+  }, [bankAccountNameSetting]);
 
   function toggleAutoCreate(next: boolean) {
     const prev = autoCreate;
@@ -50,18 +82,25 @@ export function SectionOperations({ settings }: { settings: AppSettings }) {
     );
   }
 
+  // retry: false — lỗi ở đây (BIN không có trong danh bạ VN_BANKS) là lỗi
+  // validate xác định từ input, gọi lại y hệt chắc chắn lỗi lần hai. Retry
+  // mặc định chỉ có ý nghĩa với lỗi tạm thời (mạng/server), không phải lỗi
+  // do dữ liệu nhập sai.
   function commitBankBin(next: string) {
     const prev = bankBin;
     setBankBin(next);
     fireAction(
       () => updateSetting("bankBin", next),
       () => setBankBin(prev),
+      { retry: false },
     );
   }
 
   // Ghi lúc rời ô (onBlur), không phải mỗi ký tự — tránh spam server action
   // lúc đang gõ dở số tài khoản. Lỗi từ server (BIN sai/số không hợp lệ)
   // không bao giờ echo lại giá trị người dùng gõ (xem message trong registry).
+  // retry: false — cùng lý do commitBankBin, số không khớp regex 6-20 chữ số
+  // thì gọi lại vẫn lỗi y hệt.
   function commitBankAccountNo(next: string) {
     const trimmed = next.trim();
     const prev = bankAccountNo;
@@ -69,6 +108,7 @@ export function SectionOperations({ settings }: { settings: AppSettings }) {
     fireAction(
       () => updateSetting("bankAccountNo", trimmed),
       () => setBankAccountNo(prev),
+      { retry: false },
     );
   }
 
@@ -120,6 +160,17 @@ export function SectionOperations({ settings }: { settings: AppSettings }) {
               options={BANK_OPTIONS}
             />
           </label>
+          {/* Auto-match qua email chỉ hiểu Timo/BVBank (AUTO_MATCH_BANK_BIN) —
+              webhook lọc cứng From: support@timo.vn, không đọc setting này.
+              Đổi ngân hàng khác không đổi logic khớp tiền, chỉ cảnh báo để
+              admin biết phải xác nhận tay. */}
+          {bankBin !== AUTO_MATCH_BANK_BIN && (
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-2">
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                ⚠️ {t("bankAutoMatchWarning")}
+              </p>
+            </div>
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block">
               <span className="text-muted-foreground mb-1 block text-xs font-medium">
@@ -128,6 +179,7 @@ export function SectionOperations({ settings }: { settings: AppSettings }) {
               <Input
                 value={bankAccountNo}
                 inputMode="numeric"
+                maxLength={20}
                 className="min-h-11"
                 onChange={(e) => setBankAccountNo(e.target.value)}
                 onBlur={(e) => commitBankAccountNo(e.target.value)}

@@ -52,7 +52,8 @@
     "bankName": "银行",
     "bankPlaceholder": "选择银行",
     "bankAccountNo": "账号",
-    "bankAccountName": "开户姓名"
+    "bankAccountName": "开户姓名",
+    "bankAutoMatchWarning": "自动识别转账功能仅支持已集成的银行。选择其他银行后，所有转入款项都需要管理员手动确认。"
   },
   "adminMisc": {
     "minDeductionAria": "为资金不足的成员开启/关闭 60K 最低扣费规则",
@@ -272,7 +273,7 @@
     "qrMemoDebt": "FWBB S{id}",
     "qrAmount": "金额",
     "qrContent": "转账内容",
-    "qrAccountTimo": "Timo 账号",
+    "qrAccountNo": "账号",
     "qrAccountShort": "账号",
     "qrBank": "银行",
     "qrAccountHolder": "账户名",

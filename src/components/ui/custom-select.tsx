@@ -15,6 +15,18 @@ export interface SelectOption {
   rightLabel?: string;
 }
 
+// Khoảng cách giữa trigger và dropdown.
+const DROPDOWN_GAP = 4;
+// Đệm tới mép màn hình — mobile hay bị thanh điều hướng/notch che, và ô tìm
+// kiếm tự focus làm bàn phím ảo che thêm phần đáy.
+const VIEWPORT_PADDING = 8;
+// Chiều cao mặc định khi đủ chỗ — khớp `max-h-96` (24rem) vốn có trên list,
+// giữ nguyên giao diện mặc định trên desktop/khi dropdown có nhiều chỗ trống.
+const DEFAULT_DROPDOWN_MAX_HEIGHT = 384;
+// Sàn tối thiểu khi cả trên lẫn dưới đều chật (vd landscape + bàn phím ảo) —
+// vẫn cho thấy vài dòng cuộn được thay vì co về 0.
+const MIN_DROPDOWN_MAX_HEIGHT = 120;
+
 interface CustomSelectProps {
   options: SelectOption[];
   value: string;
@@ -49,7 +61,13 @@ export function CustomSelect({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+  const [pos, setPos] = useState<{
+    top?: number;
+    bottom?: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+  }>({ top: 0, left: 0, width: 0, maxHeight: DEFAULT_DROPDOWN_MAX_HEIGHT });
 
   const filteredOptions = useMemo(() => {
     if (!searchable) return options;
@@ -77,11 +95,26 @@ export function CustomSelect({
   const updatePos = useCallback(() => {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
-    setPos({
-      top: rect.bottom + 4,
-      left: rect.left,
-      width: rect.width,
-    });
+    // `position: fixed` qua portal nên phần vượt đáy màn hình không cuộn tới
+    // được — tính khoảng trống thật hai phía, lật lên trên khi dưới không đủ
+    // mà trên rộng hơn, và luôn giới hạn max-height theo khoảng trống thật
+    // (trừ đệm) để list tự cuộn bên trong thay vì tràn khỏi viewport.
+    const spaceBelow =
+      window.innerHeight - rect.bottom - DROPDOWN_GAP - VIEWPORT_PADDING;
+    const spaceAbove = rect.top - DROPDOWN_GAP - VIEWPORT_PADDING;
+    const openUpward =
+      spaceBelow < DEFAULT_DROPDOWN_MAX_HEIGHT && spaceAbove > spaceBelow;
+    const available = openUpward ? spaceAbove : spaceBelow;
+    const maxHeight = Math.max(
+      MIN_DROPDOWN_MAX_HEIGHT,
+      Math.min(DEFAULT_DROPDOWN_MAX_HEIGHT, available),
+    );
+    const top = openUpward ? undefined : rect.bottom + DROPDOWN_GAP;
+    const bottom = openUpward
+      ? window.innerHeight - rect.top + DROPDOWN_GAP
+      : undefined;
+
+    setPos({ top, bottom, left: rect.left, width: rect.width, maxHeight });
   }, []);
 
   useEffect(() => {
@@ -126,7 +159,7 @@ export function CustomSelect({
           else setOpen(true);
         }}
         className={cn(
-          "bg-card hover:border-primary/50 flex h-[42px] w-full items-center justify-between rounded-xl border px-4 text-base transition-colors",
+          "bg-card hover:border-primary/50 flex h-11 w-full items-center justify-between rounded-xl border px-4 text-base transition-colors",
           "disabled:pointer-events-none disabled:opacity-50",
           open && "border-primary",
         )}
@@ -149,13 +182,15 @@ export function CustomSelect({
             style={{
               position: "fixed",
               top: pos.top,
+              bottom: pos.bottom,
               left: pos.left,
               width: pos.width,
+              maxHeight: pos.maxHeight,
             }}
-            className="bg-popover animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 z-[9999] overflow-hidden rounded-xl border shadow-lg"
+            className="bg-popover animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 z-[9999] flex flex-col overflow-hidden rounded-xl border shadow-lg"
           >
             {searchable && (
-              <div className="border-b p-2">
+              <div className="shrink-0 border-b p-2">
                 <SearchInput
                   ref={searchInputRef}
                   value={query}
@@ -164,7 +199,7 @@ export function CustomSelect({
                 />
               </div>
             )}
-            <div className="max-h-96 overflow-auto py-1">
+            <div className="max-h-96 min-h-0 flex-1 overflow-auto py-1">
               {filteredOptions.map((option) => {
                 const isSelected = option.value === value;
                 return (

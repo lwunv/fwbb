@@ -18,6 +18,17 @@
  */
 import type { AppSettings } from "./settings-registry";
 
+/**
+ * BIN của ngân hàng duy nhất đang tích hợp tự nhận diện thanh toán qua email
+ * (Timo/BVBank). Webhook Gmail Pub/Sub (`src/app/api/webhooks/gmail/route.ts`)
+ * chỉ nhận email `From: support@timo.vn`, và `timo-parser.ts` chỉ hiểu đúng
+ * định dạng email đó — đổi setting `bankBin` sang ngân hàng khác thì QR đổi
+ * ngay nhưng auto-match KHÔNG còn hoạt động, mọi khoản chuyển vào phải admin
+ * xác nhận tay. Đặt hằng số ở đây để so sánh + cảnh báo UI (section cài đặt),
+ * tránh rải chuỗi "970454" ở nhiều nơi.
+ */
+export const AUTO_MATCH_BANK_BIN = "970454";
+
 export interface BankAccountEnv {
   /** Ứng với NEXT_PUBLIC_TIMO_ACCOUNT_NO. */
   accountNo: string;

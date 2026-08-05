@@ -219,7 +219,7 @@ export function PaymentQR({
             })}
             {!compact &&
               renderRow({
-                label: tF("qrAccountTimo"),
+                label: tF("qrAccountNo"),
                 value: accountNo,
                 icon: Banknote,
                 display: accountNo,
@@ -309,11 +309,13 @@ export function PaymentQR({
                 </span>
                 <span className="text-sm font-medium">{bankShortName}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground shrink-0 text-sm">
                   {tF("qrAccountHolder")}
                 </span>
-                <span className="text-sm font-medium">{accountName}</span>
+                <span className="line-clamp-2 min-w-0 text-right text-sm font-medium">
+                  {accountName}
+                </span>
               </div>
             </div>
             {renderRow({
@@ -413,8 +415,8 @@ function CopyRow({
         <Icon className="text-muted-foreground h-3.5 w-3.5" />
         <span className="text-muted-foreground">{label}</span>
       </span>
-      <span className="flex items-center gap-1">
-        <span className="font-mono text-sm font-medium">
+      <span className="flex min-w-0 items-center gap-1">
+        <span className="font-mono text-sm font-medium break-all">
           {display ?? value}
         </span>
         {copied === label ? (
