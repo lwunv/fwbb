@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { findBankByBin } from "./vn-banks";
+import { DEFAULT_GROUP_POLICIES } from "./group-policy";
 
 /**
  * Khai báo một setting. Registry là nguồn sự thật duy nhất cho tên key, kiểu
@@ -22,6 +23,18 @@ const moneyVnd = z.number().int().nonnegative();
 const hhmm = z
   .string()
   .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Giờ phải có dạng HH:MM");
+
+// `.strict()` ở cả nhóm và toàn bảng: key lạ (gõ nhầm tên nhóm, field cũ còn
+// sót sau đổi tên) bị CHẶN thay vì âm thầm bỏ qua. Đối xứng với quy tắc thiếu
+// nhóm cũng bị chặn — sai lệch cấu hình tiền phải lộ ra ngay lúc lưu, không
+// lộ ra sau ở số tiền member bị tính.
+const groupPolicySchema = z
+  .object({
+    mode: z.enum(["equal", "floor", "fixed"]),
+    amount: z.number().int().nonnegative(),
+    capAtEqual: z.boolean(),
+  })
+  .strict();
 
 function def<T>(d: SettingDef<T>): SettingDef<T> {
   return d;
@@ -172,6 +185,38 @@ export const SETTINGS = {
     default: "",
     perSession: false,
     revalidate: ["/", "/admin/fund"],
+  }),
+
+  // ─── Chia tiền — ba setting đầu tiên perSession: true ───
+  minDeductionAmount: def({
+    key: "minDeductionAmount",
+    schema: moneyVnd,
+    default: 60_000,
+    perSession: true,
+    revalidate: ["/admin/sessions", "/admin/dashboard", "/"],
+  }),
+  genderPricingEnabled: def({
+    key: "genderPricingEnabled",
+    schema: z.boolean(),
+    default: false,
+    perSession: true,
+    revalidate: ["/admin/sessions", "/admin/dashboard", "/", "/admin/members"],
+  }),
+  groupPolicies: def({
+    key: "groupPolicies",
+    schema: z
+      .object({
+        member: groupPolicySchema,
+        memberFemale: groupPolicySchema,
+        guestMember: groupPolicySchema,
+        guestMemberFemale: groupPolicySchema,
+        guestAdmin: groupPolicySchema,
+        guestAdminFemale: groupPolicySchema,
+      })
+      .strict(),
+    default: DEFAULT_GROUP_POLICIES,
+    perSession: true,
+    revalidate: ["/admin/sessions", "/admin/dashboard", "/"],
   }),
 } as const;
 

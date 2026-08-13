@@ -5,6 +5,7 @@ import {
   serializeSetting,
 } from "./settings-resolve";
 import { defaultSettings } from "./settings-registry";
+import { DEFAULT_GROUP_POLICIES } from "./group-policy";
 
 describe("resolveGlobal", () => {
   it("bảng rỗng thì trả về đúng bộ default", () => {
@@ -81,6 +82,49 @@ describe("resolveForSession", () => {
     expect(resolveForSession(global, JSON.stringify({ keyLa: 1 }))).toEqual(
       global,
     );
+  });
+
+  it("override minDeductionAmount theo buổi thì được áp dụng", () => {
+    const r = resolveForSession(
+      global,
+      JSON.stringify({ minDeductionAmount: 80_000 }),
+    );
+    expect(r.minDeductionAmount).toBe(80_000);
+  });
+
+  it("override groupPolicies theo buổi thì được áp dụng", () => {
+    const overridePolicies = {
+      ...DEFAULT_GROUP_POLICIES,
+      member: { mode: "fixed" as const, amount: 50_000, capAtEqual: true },
+    };
+    const r = resolveForSession(
+      global,
+      JSON.stringify({ groupPolicies: overridePolicies }),
+    );
+    expect(r.groupPolicies).toEqual(overridePolicies);
+  });
+
+  it("override minDeductionAmount hỏng (âm) thì rơi về setting chung", () => {
+    const r = resolveForSession(
+      global,
+      JSON.stringify({ minDeductionAmount: -1 }),
+    );
+    expect(r.minDeductionAmount).toBe(global.minDeductionAmount);
+  });
+
+  it("override groupPolicies hỏng (thiếu nhóm) thì rơi về setting chung, không âm thầm điền khuyết bằng default", () => {
+    // member cố ý khác default (equal) để lộ ra nếu code âm thầm chấp nhận
+    // phần member này rồi tự điền 5 nhóm còn thiếu bằng default — nếu vậy
+    // r.groupPolicies.member sẽ là 99_000/fixed thay vì bị rơi về global.
+    const r = resolveForSession(
+      global,
+      JSON.stringify({
+        groupPolicies: {
+          member: { mode: "fixed", amount: 99_000, capAtEqual: false },
+        },
+      }),
+    );
+    expect(r.groupPolicies).toEqual(global.groupPolicies);
   });
 });
 

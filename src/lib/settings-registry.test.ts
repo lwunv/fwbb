@@ -5,6 +5,9 @@ import {
   isPerSession,
   type SettingKey,
 } from "./settings-registry";
+import { DEFAULT_GROUP_POLICIES } from "./group-policy";
+
+const EQUAL_FIXTURE = { mode: "equal", amount: 0, capAtEqual: false };
 
 describe("defaultSettings", () => {
   it("khớp hành vi đang chạy hôm nay", () => {
@@ -97,6 +100,61 @@ describe("schema chặn giá trị vô lý", () => {
     ).not.toThrow();
     expect(() =>
       SETTINGS.bankAccountName.schema.parse("A".repeat(101)),
+    ).toThrow();
+  });
+});
+
+describe("setting tiền (giai đoạn 3)", () => {
+  it("mặc định giữ đúng hành vi hôm nay", () => {
+    const d = defaultSettings();
+    expect(d.minDeductionAmount).toBe(60_000);
+    expect(d.genderPricingEnabled).toBe(false);
+    expect(d.groupPolicies.guestAdmin).toEqual({
+      mode: "floor",
+      amount: 60_000,
+      capAtEqual: false,
+    });
+    expect(d.groupPolicies.member.mode).toBe("equal");
+  });
+
+  it("ba setting tiền đều override được theo từng buổi", () => {
+    expect(isPerSession("minDeductionAmount")).toBe(true);
+    expect(isPerSession("genderPricingEnabled")).toBe(true);
+    expect(isPerSession("groupPolicies")).toBe(true);
+  });
+
+  it("chặn chế độ lạ và số tiền âm", () => {
+    expect(() =>
+      SETTINGS.groupPolicies.schema.parse({
+        ...DEFAULT_GROUP_POLICIES,
+        member: { mode: "khong-ton-tai", amount: 0, capAtEqual: false },
+      }),
+    ).toThrow();
+    expect(() => SETTINGS.minDeductionAmount.schema.parse(-1)).toThrow();
+    expect(() => SETTINGS.minDeductionAmount.schema.parse(1.5)).toThrow();
+  });
+
+  it("thiếu nhóm trong bảng thì bị chặn, không âm thầm điền khuyết", () => {
+    expect(() =>
+      SETTINGS.groupPolicies.schema.parse({ member: EQUAL_FIXTURE }),
+    ).toThrow();
+  });
+
+  it("dư key lạ trong groupPolicies bị chặn, không âm thầm bỏ qua", () => {
+    expect(() =>
+      SETTINGS.groupPolicies.schema.parse({
+        ...DEFAULT_GROUP_POLICIES,
+        khongTonTai: EQUAL_FIXTURE,
+      }),
+    ).toThrow();
+  });
+
+  it("dư key lạ trong một nhóm bị chặn", () => {
+    expect(() =>
+      SETTINGS.groupPolicies.schema.parse({
+        ...DEFAULT_GROUP_POLICIES,
+        member: { ...EQUAL_FIXTURE, extra: 1 },
+      }),
     ).toThrow();
   });
 });
