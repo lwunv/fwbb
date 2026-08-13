@@ -1510,3 +1510,60 @@ describe("calculateSessionCosts với chính sách nhóm (giai đoạn 3)", () =
     }
   });
 });
+
+describe("calculateSessionCosts → applyMinDeductionFloor — luật hai sàn khi đụng nhau (Task 4, quyết định admin 13/8/2026)", () => {
+  // Nữ trả cố định 50K trên nền chia đều cao hơn (2 nam gánh phần còn lại) —
+  // để "ưu đãi" là RÕ, không trùng số với suất nam do trùng hợp chia hết.
+  const FEMALE_FIXED_50K_ONLY: Record<GroupKey, GroupPolicy> = {
+    ...DEFAULT_GROUP_POLICIES,
+    memberFemale: { mode: "fixed", amount: 50_000, capAtEqual: false },
+  };
+
+  it("nữ ưu đãi 50K NHƯNG thiếu quỹ → sàn nghèo đè lên, ra 60K chứ không phải 50K", () => {
+    // Sân 250K: 2 nam (chia đều phần còn lại) + 1 nữ (fixed 50K). Pool nam =
+    // (250K − 50K) / 2 = 100K/người → suất nữ 50K rõ ràng RẺ HƠN suất nam,
+    // đúng nghĩa "ưu đãi", không phải trùng số ngẫu nhiên.
+    const breakdown = calculateSessionCosts(
+      { courtPrice: 250_000, diningBill: 0 },
+      [
+        member(1, { gender: "female" }),
+        member(2, { gender: "male" }),
+        member(3, { gender: "male" }),
+      ],
+      [],
+      { policies: FEMALE_FIXED_50K_ONLY, genderPricingEnabled: true },
+    );
+    const femaleDebt = breakdown.memberDebts.find((d) => d.memberId === 1)!;
+    expect(femaleDebt.playAmount).toBe(50_000); // ưu đãi nhóm đúng như cấu hình
+
+    // Thiếu quỹ (balance 0 < 50K) → sàn nghèo (mặc định 60K) ĐÈ LÊN ưu đãi
+    // nhóm. Đây là CHỦ Ý (quyết định admin 13/8/2026: thiếu quỹ phải trả đủ
+    // sàn tối thiểu kể cả khi nhóm đang được ưu đãi), không phải bug — xem
+    // comment trên `applyMinDeductionFloor`.
+    const floored = applyMinDeductionFloor(femaleDebt, 0);
+    expect(floored.playAmount).toBe(60_000);
+    expect(floored.totalAmount).toBe(60_000);
+  });
+
+  it("đối chứng — CÙNG cấu hình, nữ còn đủ quỹ → giữ đúng 50K ưu đãi (sàn không kích hoạt)", () => {
+    // Đặt cạnh ca trên để luật hiện rõ: sàn nghèo chỉ đè lên người THIẾU quỹ,
+    // không vô hiệu hoá ưu đãi nhóm một cách vô điều kiện. Một ca đơn lẻ
+    // không thể phân biệt "luật đúng" với "luật bị lật ngược".
+    const breakdown = calculateSessionCosts(
+      { courtPrice: 250_000, diningBill: 0 },
+      [
+        member(1, { gender: "female" }),
+        member(2, { gender: "male" }),
+        member(3, { gender: "male" }),
+      ],
+      [],
+      { policies: FEMALE_FIXED_50K_ONLY, genderPricingEnabled: true },
+    );
+    const femaleDebt = breakdown.memberDebts.find((d) => d.memberId === 1)!;
+    expect(femaleDebt.playAmount).toBe(50_000);
+
+    const kept = applyMinDeductionFloor(femaleDebt, 100_000);
+    expect(kept.playAmount).toBe(50_000);
+    expect(kept.totalAmount).toBe(50_000);
+  });
+});

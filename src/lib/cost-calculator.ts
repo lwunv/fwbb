@@ -132,14 +132,29 @@ export function calculateExactShuttlecockCost(
 /**
  * Member-poverty floor cho 1 buổi. Áp khi `sessions.use_min_deduction = true`
  * (member có thể miễn qua `session_min_deduction_exemptions`). Floor mặc định
- * 60K — hardcode trước (nếu cần admin đổi sẽ thêm app_setting sau).
+ * 60K, admin đổi được qua setting `minDeductionAmount` (giai đoạn 3, Task 4) —
+ * `finalizeSession` đọc setting rồi truyền vào tham số `floor`, KHÔNG còn ăn
+ * hằng số `MIN_DEDUCTION_PER_HEAD` bên dưới trong đường chốt sổ thật (hằng số
+ * này giờ chỉ còn là giá trị mặc định của tham số).
  *
  * CHỈ floor PLAY của CHÍNH member: member CHƠI + thiếu quỹ trả play share +
  * share < floor → nâng `playAmount` lên `floor`. Member đủ quỹ → không phạt.
  *
- * KHÔNG floor khách: khách-của-admin đã được sàn 60K trong `calculateSessionCosts`;
- * khách-của-member chia đều (không có sàn). KHÔNG floor `dineAmount` /
- * `guestDineAmount` (nhậu tự nguyện). Round-up rule giữ nguyên — admin không lỗ.
+ * KHÔNG floor khách: khách-của-admin đã được sàn riêng (`groupPolicies.guestAdmin`)
+ * trong `calculateSessionCosts`; khách-của-member chia đều (không có sàn).
+ * KHÔNG floor `dineAmount` / `guestDineAmount` (nhậu tự nguyện). Round-up rule
+ * giữ nguyên — admin không lỗ.
+ *
+ * ⚠️ HAI SÀN KHÁC NHAU, VÀ CHÚNG ĐỤNG NHAU CÓ CHỦ Ý (quyết định admin
+ * 13/8/2026, xem `cost-calculator.test.ts` describe "luật hai sàn khi đụng
+ * nhau"): sàn khách (`groupPolicies.guestAdmin.amount`) chỉ quyết định suất
+ * CHIA của nhóm, còn `floor` ở đây quyết định sàn khi MEMBER THIẾU QUỸ. Khi
+ * `playAmount` một member (dù đến từ suất ưu đãi nhóm nào, kể cả fixed thấp
+ * hơn floor) mà member đó thiếu quỹ, floor LUÔN ĐÈ LÊN ưu đãi — member phải
+ * trả đủ sàn tối thiểu, không được hưởng ưu đãi nhóm khi đang thiếu quỹ. Ưu
+ * đãi nhóm chỉ có tác dụng thật với người CÒN quỹ. Đây là hành vi ĐÚNG Ý ADMIN,
+ * ĐỪNG "sửa" thành tôn trọng ưu đãi nhóm vô điều kiện — nhìn từ ngoài code này
+ * rất giống bug nhưng không phải.
  */
 export const MIN_DEDUCTION_PER_HEAD = 60_000;
 
@@ -253,45 +268,90 @@ export function computeShuttlecockTotal(
  * into UI.
  */
 /**
- * Pure: tách rate CHƠI khi có khách-của-admin. Khách-admin trả sàn `floor`
- * (mặc định 60K) khi naive perHead < floor VÀ có nhóm chia đều; phần còn lại
- * chia cho nhóm chia đều (members + khách-của-member). Không có khách-admin
- * hoặc naive ≥ floor → mọi người = naive.
+ * Pure: tách rate CHƠI khi có khách-của-admin — lát cắt 2-nhóm (member vs
+ * guestAdmin, KHÔNG phân biệt giới) của `computeGroupPlayRates`. Không có
+ * khách-admin hoặc naive ≥ floor → mọi người = naive.
  *
- * KHÔNG CÒN LÀ SINGLE SOURCE (hết đúng từ giai đoạn 3): `calculateSessionCosts`
- * (finalize) đã chuyển qua `computeGroupPlayRates` (group-policy.ts) để đọc
- * `policies`/`genderPricingEnabled`. Hàm này giờ chỉ còn `computePerHeadCharges`
- * (preview) gọi — 2 đường khớp nhau CHỈ khi `policies` còn nguyên
- * `DEFAULT_GROUP_POLICIES` (test hiện có chỉ verify đúng trường hợp default
- * đó, KHÔNG có test nào verify khớp ở policies tuỳ ý). Đổi `policies` khác
- * default ở finalize mà quên nối preview qua `computeGroupPlayRates` → preview
- * SẼ lệch so với debt thực ghi vào DB. Nối preview là việc còn để lại.
+ * ĐÃ NỐI LẠI THÀNH SINGLE SOURCE (Task 4, giai đoạn 3): hàm này không tự tính
+ * toán nữa, nó gọi thẳng `computeGroupPlayRates` — CÙNG engine với
+ * `calculateSessionCosts` (finalize) — bằng cách gộp mọi đầu không-phải-khách-
+ * của-admin vào 1 bucket "member" (`headsByGroup.member = splitHeads`), khách-
+ * của-admin vào bucket "guestAdmin". Khi truyền `policies` (đọc từ
+ * `getSettings().groupPolicies`), số ra đây LUÔN khớp debt thực ghi vào DB nếu
+ * admin chỉ đổi sàn/chính sách của khách-của-admin hoặc của "member" nói
+ * chung — đúng đúng những gì UI settings hiện cho sửa (Task 5, giai đoạn 3
+ * chặng 1 chưa build UI riêng cho `guestMember`/`memberFemale`).
+ *
+ * GIỚI HẠN CÒN LẠI (không phải regression — data này chưa tồn tại): hàm gộp
+ * khách-của-MEMBER (không phải admin) vào CHUNG bucket "member" với chính chủ,
+ * nên nếu tương lai có UI cho `groupPolicies.guestMember` một chính sách khác
+ * hẳn `member`, số preview ở đây sẽ lệch — phải truyền thêm 1 bucket riêng lúc
+ * đó. Tương tự, `genderPricingEnabled`/`memberFemale` không có tác dụng ở đây
+ * vì các call site preview (session-list, admin-vote-manager, …) không có dữ
+ * liệu gender theo đầu người — `members` chưa có cột gender (đó là chặng 2,
+ * Task 6-9, có migration riêng), nên field này hoàn toàn dormant ở CẢ hai
+ * đường (preview và finalize) cho tới khi chặng đó xong.
  */
 export function computeGuestAwarePlayRates(input: {
   totalPlayCost: number;
   totalPlayHeads: number;
   adminGuestPlayHeads: number;
+  /** @deprecated Dùng `policies` (sàn khách nằm ở `policies.guestAdmin.amount`).
+   *  Chỉ được đọc khi `policies` KHÔNG truyền — giữ cho call site cũ chưa
+   *  migrate ra đúng số cũ (sàn cố định `floor`, mọi nhóm khác chia đều). */
   floor?: number;
+  /** Không truyền → `DEFAULT_GROUP_POLICIES` (đúng hành vi cũ: mọi nhóm chia
+   *  đều trừ khách-admin ăn sàn `floor`). Truyền `getSettings().groupPolicies`
+   *  để preview khớp đúng cấu hình admin đã đổi. */
+  policies?: Record<GroupKey, GroupPolicy>;
 }): { playCostPerHead: number; adminGuestPlayCostPerHead: number } {
-  const floor = input.floor ?? MIN_DEDUCTION_PER_HEAD;
-  const raw =
-    input.totalPlayHeads > 0 ? input.totalPlayCost / input.totalPlayHeads : 0;
-  const splitHeads = input.totalPlayHeads - input.adminGuestPlayHeads;
-  if (
-    input.adminGuestPlayHeads > 0 &&
-    splitHeads > 0 &&
-    raw > 0 &&
-    raw < floor
-  ) {
-    const splitCost = input.totalPlayCost - floor * input.adminGuestPlayHeads;
-    // Khách-admin trả > tiền sân (hiếm) → split = 0, Math.max chặn âm.
-    return {
-      playCostPerHead: roundToThousand(Math.max(0, splitCost / splitHeads)),
-      adminGuestPlayCostPerHead: floor,
-    };
-  }
-  const rate = roundToThousand(raw);
-  return { playCostPerHead: rate, adminGuestPlayCostPerHead: rate };
+  const policies = input.policies ?? buildTwoGroupPolicies(input.floor);
+  // Kẹp về 0 (KHÁC với calculateSessionCosts/computeGroupPlayRates — nơi đó
+  // throw cho heads âm vì đầu vào là attendee rows thật, âm = lỗi lập trình).
+  // Ở đây input là 2 con số rời (`totalPlayHeads`, `adminGuestPlayHeads`) do
+  // UI preview tự cộng dồn từ state optimistic — 1 lần cập nhật lệch nhịp
+  // (stepper tăng adminGuestPlayHeads trước khi playerCount kịp đồng bộ) có
+  // thể tạo `adminGuestPlayHeads > totalPlayHeads` NHẤT THỜI. Hành vi cũ của
+  // hàm này (trước khi nối `computeGroupPlayRates`) đã lặng lẽ rơi về chia
+  // đều naive trong đúng tình huống đó — throw ở đây sẽ làm cả preview vỡ
+  // trắng màn hình vì 1 render lệch nhịp, tệ hơn hiển thị tạm 1 số sai.
+  const splitHeads = Math.max(
+    0,
+    input.totalPlayHeads - input.adminGuestPlayHeads,
+  );
+  const rates = computeGroupPlayRates({
+    totalPlayCost: input.totalPlayCost,
+    headsByGroup: {
+      member: splitHeads,
+      memberFemale: 0,
+      guestMember: 0,
+      guestMemberFemale: 0,
+      guestAdmin: input.adminGuestPlayHeads,
+      guestAdminFemale: 0,
+    },
+    policies,
+  });
+  return {
+    playCostPerHead: rates.member,
+    adminGuestPlayCostPerHead: rates.guestAdmin,
+  };
+}
+
+/** Dựng policies 2-nhóm tương đương hành vi cũ của `computeGuestAwarePlayRates`
+ *  từ 1 tham số `floor` duy nhất — chỉ dùng khi caller chưa migrate sang
+ *  `policies` đầy đủ. */
+function buildTwoGroupPolicies(floor?: number): Record<GroupKey, GroupPolicy> {
+  if (floor === undefined) return DEFAULT_GROUP_POLICIES;
+  const guestAdminFloor: GroupPolicy = {
+    mode: "floor",
+    amount: floor,
+    capAtEqual: false,
+  };
+  return {
+    ...DEFAULT_GROUP_POLICIES,
+    guestAdmin: guestAdminFloor,
+    guestAdminFemale: guestAdminFloor,
+  };
 }
 
 export function computePerHeadCharges(input: {
@@ -301,9 +361,12 @@ export function computePerHeadCharges(input: {
   playerCount: number;
   dinerCount: number;
   /** Số đầu khách-của-admin (host = admin). Mặc định 0 → naive equal split.
-   *  Truyền vào để preview phản ánh sàn 60K khách-admin + chia lại cho member. */
+   *  Truyền vào để preview phản ánh sàn khách-admin + chia lại cho member. */
   adminGuestPlayHeads?: number;
+  /** @deprecated dùng `policies`. */
   floor?: number;
+  /** Đọc từ `getSettings().groupPolicies` để preview khớp finalize. */
+  policies?: Record<GroupKey, GroupPolicy>;
 }): {
   playCostPerHead: number;
   adminGuestPlayCostPerHead: number;
@@ -315,6 +378,7 @@ export function computePerHeadCharges(input: {
       totalPlayHeads: input.playerCount,
       adminGuestPlayHeads: input.adminGuestPlayHeads ?? 0,
       floor: input.floor,
+      policies: input.policies,
     });
   const dineCostPerHead =
     input.dinerCount > 0

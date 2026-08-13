@@ -32,6 +32,7 @@ import { sendGroupMessage, buildDebtReminderMessage } from "@/lib/messenger";
 import { finalizeSessionSchema } from "@/lib/validators";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getTranslations } from "next-intl/server";
+import { getSettings } from "@/actions/settings";
 
 export interface FinalizeAttendee {
   memberId: number | null;
@@ -129,6 +130,13 @@ export async function finalizeSession(
     }
   }
 
+  // Đọc 1 lần cho cả buổi (giai đoạn 3, Task 4): từ đây SETTINGS quyết định số
+  // tiền thật, không còn hằng số hardcode. Hai sàn KHÁC NHAU, đừng lẫn: sàn
+  // khách nằm trong `groupPolicies.guestAdmin.amount` (đọc trong
+  // calculateSessionCosts bên dưới); sàn member-nghèo là `minDeductionAmount`
+  // riêng (đọc ở applyMinDeductionFloor, bước 3.6 dưới nữa).
+  const settings = await getSettings();
+
   // Compute costs once
   const attendeeInputs: AttendeeInput[] = data.attendeeList.map((a) => ({
     memberId: a.memberId,
@@ -147,10 +155,15 @@ export async function finalizeSession(
     { courtPrice: session.courtPrice, diningBill: data.diningBill },
     attendeeInputs,
     shuttlecockInputs,
-    // Khách-của-admin trả sàn 60K (phần dư giảm cho nhóm chia đều, không vào quỹ);
-    // khách-của-member chia đều như member. Luôn áp, độc lập với cờ min-deduction
-    // (cờ chỉ còn quản member-poverty floor bên dưới).
-    { adminMemberId },
+    // Khách-của-admin trả sàn (mặc định 60K, admin đổi qua groupPolicies.guestAdmin
+    // — phần dư giảm cho nhóm chia đều, không vào quỹ); khách-của-member chia đều
+    // như member. Luôn áp, độc lập với cờ min-deduction (cờ chỉ còn quản
+    // member-poverty floor bên dưới).
+    {
+      adminMemberId,
+      policies: settings.groupPolicies,
+      genderPricingEnabled: settings.genderPricingEnabled,
+    },
   );
 
   const now = new Date().toISOString();
@@ -357,7 +370,11 @@ export async function finalizeSession(
               d.memberId,
               memberTxs,
             ).balance;
-            return applyMinDeductionFloor(d, balance);
+            return applyMinDeductionFloor(
+              d,
+              balance,
+              settings.minDeductionAmount,
+            );
           }),
         );
       }
