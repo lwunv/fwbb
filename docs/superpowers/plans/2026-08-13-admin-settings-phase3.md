@@ -722,6 +722,64 @@ Chi tiết hoá khi tới lượt, dựa trên code thật sau chặng 1. Phạm
 
 **Task 11:** nút xoá snapshot cho admin chủ động áp cấu hình mới lên buổi cũ, có bước xác nhận vì nó làm đổi tiền lịch sử.
 
+### Task 12: Kiểm thử đầu cuối cho cả giai đoạn
+
+**Files:**
+
+- Create: `e2e/admin-money-policy.spec.ts`
+- Create: `e2e/gender-pricing.spec.ts`
+
+**Interfaces:**
+
+- Consumes: mọi thứ ở trên.
+- Produces: không.
+
+Chép cách đăng nhập admin và cách ghi thẳng vào `e2e/local.db` từ `e2e/admin-settings-behavior.spec.ts` (bài đó đã làm đúng kiểu: set setting trong database rồi mở trang và khẳng định giao diện đổi theo).
+
+- [ ] **Step 1: E2E cho chính sách tiền**
+
+Ba kịch bản, mỗi cái phải đi hết chuỗi từ database qua giao diện chứ không chỉ kiểm một tầng:
+
+1. Đổi `groupPolicies.guestAdmin` sang cố định 80K trong `local.db`, mở trang Cài đặt, khẳng định bảng nhóm hiện đúng chế độ và số tiền đó. Sau đó đổi trên giao diện, tải lại trang, khẳng định giá trị được giữ.
+2. Đổi `minDeductionAmount` lên 70K, mở một buổi đang mở vote, khẳng định con số dự kiến trên thẻ buổi phản ánh sàn mới.
+3. Khối xem thử: nhập số người vào khối đó và khẳng định suất hiện ra khớp con số tính tay của thuật toán ở Task 1. Đây là lớp chứng minh giao diện và đường chốt sổ dùng chung một hàm.
+
+- [ ] **Step 2: E2E cho phân biệt nam nữ**
+
+1. Công tắc **tắt** (mặc định): mở màn vote, khẳng định **không** có ô "trong đó nữ" nào. Đây là bài chặn hồi quy quan trọng nhất của chặng 2, vì phần lớn người dùng sẽ không bật tính năng này và màn vote của họ không được đổi một chữ.
+2. Bật công tắc trong `local.db`, tải lại màn vote, khẳng định ô "trong đó nữ" xuất hiện và không cho nhập lớn hơn tổng số khách.
+3. Trang Cài đặt hiện cảnh báo số member chưa khai giới tính, và số đó khớp dữ liệu trong `local.db`.
+
+- [ ] **Step 3: Chạy và đọc mã thoát**
+
+Run: `pnpm build` rồi `pnpm test:e2e`
+Expected: cả hai exit 0. Mốc hiện tại là 42 bài; con số của bạn phải là 42 cộng số bài mới, không bài cũ nào đỏ.
+
+Nếu bài `admin-google.spec.ts:48` đỏ ở lượt đầu, chạy lại trước khi đào: nó chập chờn khi máy chủ khởi động nguội, đã ghi nhận 5/8/2026.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add e2e/admin-money-policy.spec.ts e2e/gender-pricing.spec.ts
+git commit -m "test(finance): add e2e coverage for money policy and gender pricing"
+```
+
+## Yêu cầu về độ phủ kiểm thử
+
+Admin yêu cầu rõ (13/8): đủ cả ba tầng, và tuyệt đối không làm hỏng logic đang chạy. Cụ thể cho giai đoạn này:
+
+| Tầng        | Ở task nào | Phải phủ được gì                                                                                                                                                   |
+| ----------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Unit        | 1, 2, 3    | Thuật toán sáu nhóm gồm mọi biên (rổ rỗng, số cố định vượt tổng chi phí, nhóm 0 đầu người, 0 người chơi), schema chặn giá trị vô lý, và **tương đương hành vi cũ** |
+| Integration | 4, 7, 10   | Chốt sổ thật với từng cấu hình, nợ khớp ledger (I1), không dòng nợ nào thiếu ledger (I8), chốt lại hai lần không nhân đôi, đổi sàn không làm đổi tiền buổi đã chốt |
+| E2E         | 12         | Chuỗi đầy đủ từ database qua giao diện, và ca công tắc tắt phải chứng minh màn vote không đổi                                                                      |
+
+Ba thứ bắt buộc, không được bỏ:
+
+1. `src/lib/cost-calculator.test.ts` xanh **không sửa một dòng**. Đây là bằng chứng số tiền hiện tại không đổi.
+2. Mỗi task đụng tiền chạy skill `reconcile-check`, không báo lệch.
+3. Trước khi merge mỗi chặng, cho reviewer bất biến tài chính soát và phải nhận PASS.
+
 ## Cổng verify trước khi báo xong
 
 ```
