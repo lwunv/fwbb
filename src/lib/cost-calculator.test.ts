@@ -15,6 +15,11 @@ import {
   type MemberDebt,
   type ShuttlecockInput,
 } from "./cost-calculator";
+import {
+  DEFAULT_GROUP_POLICIES,
+  type GroupKey,
+  type GroupPolicy,
+} from "./group-policy";
 
 describe("computePerHeadCharges", () => {
   it("rounds play+shuttle/N up to 1k", () => {
@@ -1272,5 +1277,236 @@ describe("calculateSessionCosts — admin-guest 60K floor vs member-guest equal 
     );
     expect(r.playCostPerHead).toBe(0);
     expect(r.adminGuestPlayCostPerHead).toBe(60_000);
+  });
+});
+
+describe("calculateSessionCosts với chính sách nhóm (giai đoạn 3)", () => {
+  const ADMIN = 1;
+
+  function adminGuest(opts: Partial<AttendeeInput> = {}): AttendeeInput {
+    return {
+      memberId: null,
+      invitedById: ADMIN,
+      isGuest: true,
+      attendsPlay: true,
+      attendsDine: false,
+      ...opts,
+    };
+  }
+  function memberGuest(
+    host: number,
+    opts: Partial<AttendeeInput> = {},
+  ): AttendeeInput {
+    return {
+      memberId: null,
+      invitedById: host,
+      isGuest: true,
+      attendsPlay: true,
+      attendsDine: false,
+      ...opts,
+    };
+  }
+
+  // Nữ trả cố định 50K, không trần (capAtEqual=false) — dùng lại ở nhiều ca.
+  const FEMALE_FIXED_50K: Record<GroupKey, GroupPolicy> = {
+    ...DEFAULT_GROUP_POLICIES,
+    memberFemale: { mode: "fixed", amount: 50_000, capAtEqual: false },
+  };
+  // Khách-member ăn sàn riêng 40K — khác hẳn sàn khách-admin (60K, mặc định).
+  const GUEST_MEMBER_FLOOR_40K: Record<GroupKey, GroupPolicy> = {
+    ...DEFAULT_GROUP_POLICIES,
+    guestMember: { mode: "floor", amount: 40_000, capAtEqual: false },
+  };
+  // guestMember trả cố định 90K — số này không được trùng suất "member" ở
+  // bất kỳ ca nào dùng policy này, để lộ ngay nếu đầu đi-kèm bị xếp nhầm nhóm.
+  const GUEST_MEMBER_FIXED_90K: Record<GroupKey, GroupPolicy> = {
+    ...DEFAULT_GROUP_POLICIES,
+    guestMember: { mode: "fixed", amount: 90_000, capAtEqual: false },
+  };
+
+  it("không truyền policies thì kết quả y hệt trước đây", () => {
+    // Dựng lại ĐÚNG input của ca "hỗn hợp: khách-member chia đều + khách-admin
+    // 60K (dạng buổi 22/6)" ở describe "admin-guest 60K floor..." phía trên
+    // (courtPrice 290K, 3 member + 1 khách-member host=2 + 1 khách-admin).
+    // Gọi KHÔNG có opts.policies, so với ĐÚNG 4 số ca đó đang khẳng định —
+    // 2 ca provably in sync, lệch 1 số là thuật toán mới rẽ nhánh.
+    const r = calculateSessionCosts(
+      { courtPrice: 290_000, diningBill: 0 },
+      [member(1), member(2), member(3), memberGuest(2), adminGuest()],
+      [],
+      { adminMemberId: ADMIN },
+    );
+    expect(r.adminGuestPlayCostPerHead).toBe(60_000);
+    expect(r.playCostPerHead).toBe(58_000); // (290 − 60)/4 = 57.5 → 58K
+    const host = r.memberDebts.find((d) => d.memberId === 2)!;
+    expect(host.guestPlayAmount).toBe(58_000);
+    const admin = r.memberDebts.find((d) => d.memberId === 1)!;
+    expect(admin.guestPlayAmount).toBe(60_000);
+    // Không truyền policies → DEFAULT_GROUP_POLICIES, nên 2 lát cắt phẳng
+    // phải khớp đúng ratesByGroup tương ứng, không phải 2 con số độc lập.
+    expect(r.ratesByGroup.member).toBe(r.playCostPerHead);
+    expect(r.ratesByGroup.guestAdmin).toBe(r.adminGuestPlayCostPerHead);
+  });
+
+  it("nữ cố định 50K: member nữ trả 50K, nam gánh phần còn lại", () => {
+    // Sân 400K, không khách. 2 nam (mặc định) + 2 nữ. memberFemale = fixed
+    // 50K, capAtEqual=false → nữ LUÔN trả đúng 50K bất kể suất chia đều.
+    // fixedTotal (2 nữ) = 50K × 2 = 100K.
+    // Pool (2 nam, nhóm "member") = (400K − 100K) / 2 = 150K mỗi người.
+    // Kiểm tổng: 150K×2 + 50K×2 = 300K + 100K = 400K = đúng tiền sân.
+    const r = calculateSessionCosts(
+      { courtPrice: 400_000, diningBill: 0 },
+      [
+        member(1, { gender: "male" }),
+        member(2, { gender: "male" }),
+        member(3, { gender: "female" }),
+        member(4, { gender: "female" }),
+      ],
+      [],
+      { policies: FEMALE_FIXED_50K, genderPricingEnabled: true },
+    );
+    expect(r.ratesByGroup.member).toBe(150_000);
+    expect(r.ratesByGroup.memberFemale).toBe(50_000);
+    expect(r.playCostPerHead).toBe(150_000); // lát cắt "member" = suất nam
+    for (const id of [1, 2]) {
+      expect(r.memberDebts.find((d) => d.memberId === id)!.playAmount).toBe(
+        150_000,
+      );
+    }
+    for (const id of [3, 4]) {
+      expect(r.memberDebts.find((d) => d.memberId === id)!.playAmount).toBe(
+        50_000,
+      );
+    }
+  });
+
+  it("tắt phân biệt nam nữ thì gender bị bỏ qua hoàn toàn", () => {
+    // Y hệt attendees + policies ca trên (2 người vẫn khai gender: "female"),
+    // CHỈ đổi genderPricingEnabled: false. memberFemale phải nhận 0 đầu (mọi
+    // người rơi về "member"), chia đều 400K/4 = 100K cho cả 4 — nếu code còn
+    // đọc field gender khi cờ tắt, 2 người nữ sẽ lộ ra 50K thay vì 100K.
+    const r = calculateSessionCosts(
+      { courtPrice: 400_000, diningBill: 0 },
+      [
+        member(1, { gender: "male" }),
+        member(2, { gender: "male" }),
+        member(3, { gender: "female" }),
+        member(4, { gender: "female" }),
+      ],
+      [],
+      { policies: FEMALE_FIXED_50K, genderPricingEnabled: false },
+    );
+    expect(r.playCostPerHead).toBe(100_000);
+    for (const id of [1, 2, 3, 4]) {
+      expect(r.memberDebts.find((d) => d.memberId === id)!.playAmount).toBe(
+        100_000,
+      );
+    }
+  });
+
+  it("khách của member ăn sàn riêng, khác sàn khách của admin", () => {
+    // Sân 150K. admin(1) + member(2) chơi + 1 khách-member (host=2, sàn 40K)
+    // + 1 khách-admin (sàn 60K, mặc định) — 2 sàn KHÁC NHAU, độc lập.
+    // fixedTotal = 40K + 60K = 100K. Pool (2 member) = (150K−100K)/2 = 25K.
+    // Kiểm tổng: 25K×2 + 40K + 60K = 50K + 100K = 150K = đúng tiền sân.
+    const r = calculateSessionCosts(
+      { courtPrice: 150_000, diningBill: 0 },
+      [member(1), member(2), memberGuest(2), adminGuest()],
+      [],
+      { adminMemberId: ADMIN, policies: GUEST_MEMBER_FLOOR_40K },
+    );
+    expect(r.ratesByGroup.guestMember).toBe(40_000);
+    expect(r.ratesByGroup.guestAdmin).toBe(60_000);
+    expect(r.playCostPerHead).toBe(25_000);
+    const m1 = r.memberDebts.find((d) => d.memberId === 1)!;
+    const m2 = r.memberDebts.find((d) => d.memberId === 2)!;
+    expect(m1.playAmount).toBe(25_000);
+    expect(m2.playAmount).toBe(25_000);
+    expect(m2.guestPlayAmount).toBe(40_000); // khách-member ăn sàn riêng
+    expect(m1.guestPlayAmount).toBe(60_000); // khách-admin ăn sàn khác hẳn
+    expect(
+      m1.playAmount + m1.guestPlayAmount + m2.playAmount + m2.guestPlayAmount,
+    ).toBe(150_000);
+  });
+
+  it("member headcount=2: đầu đi kèm ăn suất guestMember, không ăn suất member của chính họ", () => {
+    // Sân 300K. member(1) đi 2 người (headcount 2) + member(2) đi 1 mình.
+    // guestMember = fixed 90K, capAtEqual=false → đầu đi-kèm LUÔN trả đúng
+    // 90K, tách biệt hẳn suất "member" của chính chủ.
+    // fixedTotal (1 đầu đi-kèm) = 90K.
+    // Pool (2 đầu "member": member1 chính chủ + member2) = (300K−90K)/2 = 105K.
+    // member1 = 105K (chính chủ) + 90K (đầu đi kèm) = 195K. member2 = 105K.
+    // Nếu code xếp NHẦM đầu đi-kèm vào "member" (thay vì "guestMember"): cả 3
+    // đầu chung 1 rổ 300K/3=100K → member1 sẽ ra 200K (100K×2), member2 100K —
+    // khác hẳn 195K/105K nên test này bắt được lỗi phân loại ngay.
+    const r = calculateSessionCosts(
+      { courtPrice: 300_000, diningBill: 0 },
+      [member(1, { headcount: 2 }), member(2)],
+      [],
+      { policies: GUEST_MEMBER_FIXED_90K },
+    );
+    expect(r.ratesByGroup.member).toBe(105_000);
+    expect(r.ratesByGroup.guestMember).toBe(90_000);
+    const m1 = r.memberDebts.find((d) => d.memberId === 1)!;
+    const m2 = r.memberDebts.find((d) => d.memberId === 2)!;
+    expect(m1.playAmount).toBe(195_000);
+    expect(m2.playAmount).toBe(105_000);
+    expect(m1.playAmount + m2.playAmount).toBe(300_000);
+  });
+
+  it("tổng thu bằng tổng chi cộng phần dư làm tròn, không bao giờ thiếu", () => {
+    // roundToThousand LUÔN làm tròn LÊN, nên với MỌI cấu hình, tổng các suất ×
+    // đầu người phải ≥ totalPlayCost — không bao giờ để admin thu thiếu.
+    const configs: Array<{
+      courtPrice: number;
+      attendees: AttendeeInput[];
+      opts?: {
+        adminMemberId?: number | null;
+        policies?: Record<GroupKey, GroupPolicy>;
+        genderPricingEnabled?: boolean;
+      };
+    }> = [
+      // 250K / 3 người = 83,333.33 → 84K × 3 = 252K ≥ 250K (dư do làm tròn).
+      { courtPrice: 250_000, attendees: [member(1), member(2), member(3)] },
+      // Ca "nữ cố định 50K" — chia hết đúng 400K, dư = 0 (biên dưới).
+      {
+        courtPrice: 400_000,
+        attendees: [
+          member(1, { gender: "male" }),
+          member(2, { gender: "male" }),
+          member(3, { gender: "female" }),
+          member(4, { gender: "female" }),
+        ],
+        opts: { genderPricingEnabled: true, policies: FEMALE_FIXED_50K },
+      },
+      // Ca "2 sàn khách khác nhau" — chia hết đúng 150K, dư = 0 (biên dưới).
+      {
+        courtPrice: 150_000,
+        attendees: [member(1), member(2), memberGuest(2), adminGuest()],
+        opts: { adminMemberId: ADMIN, policies: GUEST_MEMBER_FLOOR_40K },
+      },
+      // Cùng cấu hình nhưng đổi sân → 155K: fixedTotal(40K+60K)=100K, pool 2
+      // member = 55K/2 = 27,500 → làm tròn LÊN 28K. Tổng = 28K×2+40K+60K =
+      // 156K > 155K — chứng minh phần dư làm tròn không bao giờ để thiếu.
+      {
+        courtPrice: 155_000,
+        attendees: [member(1), member(2), memberGuest(2), adminGuest()],
+        opts: { adminMemberId: ADMIN, policies: GUEST_MEMBER_FLOOR_40K },
+      },
+    ];
+
+    for (const c of configs) {
+      const r = calculateSessionCosts(
+        { courtPrice: c.courtPrice, diningBill: 0 },
+        c.attendees,
+        [],
+        c.opts,
+      );
+      const totalCollected = r.memberDebts.reduce(
+        (s, d) => s + d.totalAmount,
+        0,
+      );
+      expect(totalCollected).toBeGreaterThanOrEqual(r.totalPlayCost);
+    }
   });
 });

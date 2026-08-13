@@ -1,5 +1,11 @@
 import { roundToThousand } from "./utils";
 import { isDefaultSessionDay } from "./date-format";
+import {
+  computeGroupPlayRates,
+  DEFAULT_GROUP_POLICIES,
+  type GroupKey,
+  type GroupPolicy,
+} from "./group-policy";
 
 /**
  * Tính tổng tiền sân cho 1 buổi.
@@ -52,6 +58,9 @@ export interface AttendeeInput {
   /** Số đầu người attendee đại diện ở phần của CHÍNH họ (member "đi 2 người" → 2).
    *  Guest = 1. Mặc định 1 nếu không truyền (backward-compat). */
   headcount?: number;
+  /** Dùng để xếp nhóm khi `genderPricingEnabled` bật (giai đoạn 3). Không khai
+   *  → coi như không nữ, trả suất đầy đủ (thà tính đủ còn hơn ưu đãi nhầm). */
+  gender?: "male" | "female";
 }
 
 export interface ShuttlecockInput {
@@ -92,6 +101,11 @@ export interface CostBreakdown {
   adminGuestPlayCostPerHead: number;
   dineCostPerHead: number;
   memberDebts: MemberDebt[];
+  /** Suất CHƠI của cả 6 nhóm (Task 1 group-policy). `playCostPerHead` /
+   *  `adminGuestPlayCostPerHead` ở trên là 2 lát cắt (member/guestAdmin,
+   *  không giới tính) của chính bảng này, giữ cho code cũ đọc 2 trường đó
+   *  không vỡ. Ai cần chi tiết nữ/nam thì đọc `ratesByGroup`. */
+  ratesByGroup: Record<GroupKey, number>;
 }
 
 /**
@@ -336,7 +350,16 @@ export function calculateSessionCosts(
   session: SessionInput,
   attendees: AttendeeInput[],
   shuttlecocks: ShuttlecockInput[],
-  opts?: { floor?: number; adminMemberId?: number | null },
+  opts?: {
+    /** Giữ cho tương thích type cũ — không còn đọc: sàn khách-admin giờ nằm
+     *  trong `policies.guestAdmin.amount`. Muốn đổi sàn thì đổi policies. */
+    floor?: number;
+    adminMemberId?: number | null;
+    /** Không truyền → `DEFAULT_GROUP_POLICIES` (đúng hành vi trước giai đoạn 3). */
+    policies?: Record<GroupKey, GroupPolicy>;
+    /** Tắt (mặc định) → mọi người vào nhóm không-nữ, không đọc `gender` của ai. */
+    genderPricingEnabled?: boolean;
+  },
 ): CostBreakdown {
   // 1. Separate players and diners (all, including guests)
   const allPlayers = attendees.filter((a) => a.attendsPlay);
@@ -359,22 +382,54 @@ export function calculateSessionCosts(
   // 4. Round up to the next 1000 VND so the admin is not underpaid.
   const dineCostPerHead = roundToThousand(rawDineCostPerHead);
 
-  // KHÁCH-CỦA-ADMIN trả sàn 60K; KHÁCH-CỦA-MEMBER chia đều như member.
-  // Rate tính qua helper dùng chung `computeGuestAwarePlayRates` (cũng dùng cho
-  // preview ở computePerHeadCharges) → finalize và preview không bao giờ drift.
-  // Member-poverty floor vẫn xử lý riêng ở `applyMinDeductionFloor`.
-  const floor = opts?.floor ?? MIN_DEDUCTION_PER_HEAD;
   const adminMemberId = opts?.adminMemberId ?? null;
-  const adminGuestPlayHeads = allPlayers
-    .filter((a) => a.isGuest && a.invitedById === adminMemberId)
-    .reduce((s, a) => s + (a.headcount ?? 1), 0);
-  const { playCostPerHead, adminGuestPlayCostPerHead } =
-    computeGuestAwarePlayRates({
-      totalPlayCost,
-      totalPlayHeads: totalPlayers,
-      adminGuestPlayHeads,
-      floor,
-    });
+  const policies = opts?.policies ?? DEFAULT_GROUP_POLICIES;
+  const genderPricingEnabled = opts?.genderPricingEnabled ?? false;
+
+  // Xếp từng ĐẦU đang chơi vào 1 trong 6 nhóm (Task 1 — group-policy.ts).
+  // Khách của admin → guestAdmin*; khách của member khác → guestMember*;
+  // không phải khách → member*. Đuôi Female CHỈ khi genderPricingEnabled bật
+  // VÀ gender === "female" — tắt thì không đọc `gender` của ai, mọi người vào
+  // nhóm không-nữ (đúng yêu cầu "tắt thì bỏ qua hoàn toàn giới tính").
+  // Đầu thứ 2 của member "đi 2 người" (headcount > 1) luôn vào guestMember,
+  // không giới tính riêng (quyết định 27/7/2026) — người đi kèm không tách
+  // nhóm và không "hưởng" ưu đãi nữ dù member đó khai nữ.
+  const headsByGroup: Record<GroupKey, number> = {
+    member: 0,
+    memberFemale: 0,
+    guestMember: 0,
+    guestMemberFemale: 0,
+    guestAdmin: 0,
+    guestAdminFemale: 0,
+  };
+  for (const a of allPlayers) {
+    const heads = a.headcount ?? 1;
+    const isFemale = genderPricingEnabled && a.gender === "female";
+    if (a.isGuest) {
+      const isAdminGuest =
+        adminMemberId !== null && a.invitedById === adminMemberId;
+      if (isAdminGuest) {
+        headsByGroup[isFemale ? "guestAdminFemale" : "guestAdmin"] += heads;
+      } else {
+        headsByGroup[isFemale ? "guestMemberFemale" : "guestMember"] += heads;
+      }
+    } else {
+      headsByGroup[isFemale ? "memberFemale" : "member"] += 1;
+      headsByGroup.guestMember += Math.max(0, heads - 1);
+    }
+  }
+
+  // Hàm THUẦN dùng chung với đường xem trước (khi task sau nối UI) — 1 nguồn
+  // sự thật cho suất từng nhóm, không tính lại bằng tay ở đây.
+  const ratesByGroup = computeGroupPlayRates({
+    totalPlayCost,
+    headsByGroup,
+    policies,
+  });
+  // 2 trường cũ = 2 lát cắt không-giới-tính của ratesByGroup, giữ cho code
+  // đang đọc playCostPerHead/adminGuestPlayCostPerHead không vỡ.
+  const playCostPerHead = ratesByGroup.member;
+  const adminGuestPlayCostPerHead = ratesByGroup.guestAdmin;
 
   // 5. Calculate per-member debts
   // Include both: members attending directly, AND hosts who invited guests
@@ -402,27 +457,48 @@ export function calculateSessionCosts(
       (a) => a.memberId === memberId && !a.isGuest && a.attendsDine,
     );
 
-    // Count guests invited by this member
-    const guestsPlay = attendees.filter(
+    // Guests invited by this member, còn nguyên row (cần gender + headcount
+    // riêng từng khách để tính đúng nhóm khi genderPricingEnabled bật).
+    const guestsPlayRows = attendees.filter(
       (a) => a.isGuest && a.invitedById === memberId && a.attendsPlay,
-    ).length;
+    );
     const guestsDine = attendees.filter(
       (a) => a.isGuest && a.invitedById === memberId && a.attendsDine,
     ).length;
 
-    // headcount của row member (không phải guest). Người đi cùng = +1 đầu do
-    // member tự trả → gộp vào playAmount/dineAmount của member, KHÔNG vào guest.
-    const memberHeadcount =
-      attendees.find((a) => a.memberId === memberId && !a.isGuest)?.headcount ??
-      1;
-    const playAmount = memberPlays ? playCostPerHead * memberHeadcount : 0;
+    // headcount + gender lấy từ row ĐẠI DIỆN đầu tiên của member (không phải
+    // guest) — giữ đúng cách chọn cũ (test "does not double-count..." dựng
+    // 2 row trùng memberId, chỉ row đầu quyết định headcount/gender).
+    const ownRow = attendees.find((a) => a.memberId === memberId && !a.isGuest);
+    const memberHeadcount = ownRow?.headcount ?? 1;
+    const ownIsFemale = genderPricingEnabled && ownRow?.gender === "female";
+    const ownRate = ownIsFemale
+      ? ratesByGroup.memberFemale
+      : ratesByGroup.member;
+    // Đầu thứ 2 ("đi 2 người") luôn ăn suất guestMember, không giới tính riêng.
+    const extraHeads = Math.max(0, memberHeadcount - 1);
+    const playAmount = memberPlays
+      ? ownRate + ratesByGroup.guestMember * extraHeads
+      : 0;
     const dineAmount = memberDines ? dineCostPerHead * memberHeadcount : 0;
-    // Khách-của-admin trả sàn (adminGuestPlayCostPerHead); khách-của-member chia
-    // đều theo playCostPerHead. Mỗi host chỉ có 1 loại khách (admin → khách-admin,
-    // member khác → khách-member) nên phân loại theo host là đủ.
-    const guestPlayRate =
-      memberId === adminMemberId ? adminGuestPlayCostPerHead : playCostPerHead;
-    const guestPlayAmount = guestsPlay * guestPlayRate;
+
+    // Mỗi host chỉ có 1 loại khách (admin → khách-admin, member khác →
+    // khách-member) nên phân loại theo host memberId là đủ; giới tính vẫn
+    // tính riêng từng khách vì các khách của cùng 1 host có thể khác giới.
+    const isAdminHost = adminMemberId !== null && memberId === adminMemberId;
+    let guestPlayAmount = 0;
+    for (const g of guestsPlayRows) {
+      const heads = g.headcount ?? 1;
+      const guestIsFemale = genderPricingEnabled && g.gender === "female";
+      const rate = isAdminHost
+        ? guestIsFemale
+          ? ratesByGroup.guestAdminFemale
+          : ratesByGroup.guestAdmin
+        : guestIsFemale
+          ? ratesByGroup.guestMemberFemale
+          : ratesByGroup.guestMember;
+      guestPlayAmount += rate * heads;
+    }
     const guestDineAmount = guestsDine * dineCostPerHead;
     const totalAmount =
       playAmount + dineAmount + guestPlayAmount + guestDineAmount;
@@ -433,7 +509,7 @@ export function calculateSessionCosts(
         playAmount,
         dineAmount,
         guestPlayAmount,
-        guestPlayCount: guestsPlay,
+        guestPlayCount: guestsPlayRows.length,
         guestDineAmount,
         totalAmount,
       });
@@ -451,5 +527,6 @@ export function calculateSessionCosts(
     adminGuestPlayCostPerHead,
     dineCostPerHead,
     memberDebts,
+    ratesByGroup,
   };
 }
