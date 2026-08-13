@@ -642,6 +642,28 @@ Trong `finalizeSession`, gọi `getSettings()` một lần ở đầu, rồi:
 
 Chú ý hai cái sàn giờ là hai setting khác nhau: sàn khách nằm trong `groupPolicies.guestAdmin.amount`, sàn member thiếu quỹ là `minDeductionAmount`. Đừng dùng lẫn.
 
+Lưu ý `opts.floor` của `calculateSessionCosts` đã bị bỏ ở fix round của Task 3 (nó không còn được đọc), nên đừng truyền nó.
+
+- [ ] **Step 3b: Chốt luật khi hai loại sàn đụng nhau**
+
+Admin đã quyết (13/8): **thiếu quỹ là phải trả đủ sàn tối thiểu, kể cả khi nhóm của họ đang được ưu đãi.** Ưu đãi chỉ có tác dụng với người còn quỹ.
+
+Nghĩa là hành vi hiện tại của `applyMinDeductionFloor` đã đúng ý admin, **không sửa logic của nó**. Nhưng phải khoá luật lại bằng test, vì nhìn từ ngoài nó rất giống một lỗi:
+
+Thêm hai ca cạnh nhau. Ca một: `groupPolicies.memberFemale` = cố định 50K, một member nữ có số dư KHÔNG đủ, chạy qua `calculateSessionCosts` rồi qua `applyMinDeductionFloor`, khẳng định kết quả là **60K chứ không phải 50K**. Ca hai (đối chứng): cùng cấu hình nhưng member nữ còn đủ quỹ thì trả đúng 50K. Chỉ một ca thì không thể hiện được luật.
+
+Thêm comment ngay trên `applyMinDeductionFloor` nói rõ sàn này CỐ Ý đè lên mức ưu đãi theo nhóm khi member thiếu quỹ, đây là quyết định của admin ngày 13/8/2026, đừng "sửa" thành tôn trọng ưu đãi. Không có comment đó thì người sau sẽ đọc và tưởng là bug.
+
+- [ ] **Step 3c: Đồng bộ đường xem trước, nếu không admin thấy một số mà bị trừ số khác**
+
+Reviewer tài chính phát hiện `src/components/sessions/admin-vote-manager.tsx:429` **đang render thật** và gọi `computePerHeadCharges`, tức mô hình hai nhóm cũ, không biết gì về giới tính hay bảng sáu nhóm. Ngay khi Step 3 nối setting vào chốt sổ, admin sẽ thấy số xem trước khác số thực bị trừ quỹ.
+
+Rà hết các nơi còn dùng đường cũ: `admin-session-card.tsx:353`, `session-list.tsx:649` và `:825`, `history-client.tsx:558`. (`finalize-session.tsx` là code chết, bỏ qua.)
+
+Đây đều là client component nên không đọc được setting; server page phải lấy `getSettings()` rồi truyền xuống. Giai đoạn 1 đã dựng `SettingsProvider` cho đúng việc này, kiểm xem dùng lại được không trước khi thêm prop mới.
+
+**Không được merge Step 3 mà thiếu Step 3c.** Một mình Step 3 đủ để tạo ra tình huống admin xem trước một con số rồi hệ thống trừ một con số khác, không cảnh báo gì.
+
 - [ ] **Step 4: Chạy lại test và đối soát**
 
 Run: `npx vitest run src/actions/finalize-group-policy.integration.test.ts`
