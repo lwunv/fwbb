@@ -6,7 +6,6 @@ import {
   type GroupKey,
 } from "./group-policy";
 
-const equal: GroupPolicy = { mode: "equal", amount: 0, capAtEqual: false };
 const floor60: GroupPolicy = {
   mode: "floor",
   amount: 60_000,
@@ -175,5 +174,106 @@ describe("tương đương hành vi cũ (chứng minh ở spec mục 4.4)", () =
     // naive = 30K < 60K → khách admin trả 60K, còn (300 - 120)/8 = 22.5K → 23K
     expect(r.guestAdmin).toBe(60_000);
     expect(r.member).toBe(23_000);
+  });
+});
+
+describe("computeGroupPlayRates — totalPlayCost = 0 (khác nhánh với 0 người chơi)", () => {
+  it("chi phí bằng 0 nhưng vẫn có người chơi thì mọi suất vẫn bằng 0", () => {
+    const r = computeGroupPlayRates({
+      totalPlayCost: 0,
+      headsByGroup: heads({ member: 4, guestAdmin: 2 }),
+      policies: DEFAULT_GROUP_POLICIES,
+    });
+    expect(Object.values(r).every((v) => v === 0)).toBe(true);
+  });
+});
+
+describe("computeGroupPlayRates — biên đúng lúc suất chia đều bằng sàn (review finding 1)", () => {
+  // Chỉ 1 nhóm ăn sàn đúng lúc equalRate == amount thì KHÔNG thể phân biệt
+  // <= với < (dời nhóm đó vào rổ hay không cho ra số giống nhau — nhập rổ
+  // không đổi suất chia đều khi số dời vào đúng bằng suất hiện tại). Cần MỘT
+  // nhóm sàn khác thấp hơn hẳn (guestMemberFemale 40K) cùng dời trong CÙNG một
+  // vòng để suất chia đều thật sự đổi tuỳ có tính guestAdmin vào rổ hay không —
+  // đó mới là chỗ <= và < cho ra hai số khác nhau.
+  const floor40: GroupPolicy = {
+    mode: "floor",
+    amount: 40_000,
+    capAtEqual: false,
+  };
+
+  it("sàn 60K PHẢI kích hoạt khi suất chia đều đúng bằng 60K (biên chính xác)", () => {
+    const r = computeGroupPlayRates({
+      totalPlayCost: 560_000,
+      headsByGroup: heads({ member: 5, guestAdmin: 3, guestMemberFemale: 2 }),
+      policies: {
+        ...DEFAULT_GROUP_POLICIES,
+        guestAdmin: floor60,
+        guestMemberFemale: floor40,
+      },
+    });
+    // Vòng đầu: (560K − 60K×3 − 40K×2) / 5 = 300K / 5 = 60K — đúng bằng sàn của
+    // guestAdmin. guestMemberFemale (40K) chắc chắn vào rổ vì rẻ hơn hẳn; nếu
+    // guestAdmin CŨNG vào rổ (đúng hành vi <=), rổ cuối = 10 đầu, suất ổn định
+    // 560K/10 = 56K cho tất cả. Nếu toán tử bị đổi thành < (guestAdmin không
+    // vào rổ), guestAdmin vẫn trả 60K cố định còn 8 đầu còn lại chia
+    // (560K−60K×3)/8 = 47.5K → 48K, một kết quả khác hẳn — test này bắt được.
+    expect(r.member).toBe(56_000);
+    expect(r.guestAdmin).toBe(56_000);
+    expect(r.guestMemberFemale).toBe(56_000);
+  });
+});
+
+describe("computeGroupPlayRates — cascade nhiều vòng (review finding 2)", () => {
+  it("cap kéo suất lên rồi sàn kéo xuống, chốt đúng điểm dừng cuối chứ không phải số giữa đường", () => {
+    const r = computeGroupPlayRates({
+      totalPlayCost: 2_598_000,
+      headsByGroup: heads({ member: 20, guestAdmin: 1, guestMemberFemale: 1 }),
+      policies: {
+        ...DEFAULT_GROUP_POLICIES,
+        guestAdmin: { mode: "fixed", amount: 280_000, capAtEqual: true },
+        guestMemberFemale: {
+          mode: "floor",
+          amount: 118_000,
+          capAtEqual: false,
+        },
+      },
+    });
+    // Vòng 0: suất chia đều = (2.598M − 280K − 118K)/20 = 110K. guestAdmin đòi
+    // 280K > 110K nên bị cap kéo vào rổ.
+    // Vòng 1: rổ giờ 21 đầu, suất = (2.598M − 118K)/21 ≈ 118.095K — đã vượt
+    // sàn 118K của guestMemberFemale nên nhóm này cũng vào rổ.
+    // Vòng 2: rổ đủ 22 đầu, suất = 2.598M/22 ≈ 118.0909K, không ai chuyển nữa
+    // — điểm dừng thật, làm tròn lên 119K. Nếu vòng lặp dừng sớm (thiếu vòng
+    // xác nhận cuối) thì kết quả sẽ kẹt ở 110K (vòng 0) hoặc một số chưa tính
+    // guestMemberFemale (vòng 1), cả hai đều SAI so với 119K.
+    expect(r.member).toBe(119_000);
+    expect(r.guestAdmin).toBe(119_000);
+    expect(r.guestMemberFemale).toBe(119_000);
+  });
+});
+
+describe("computeGroupPlayRates — đầu người âm là lỗi lập trình (review finding 3)", () => {
+  // Đầu người âm không thể xảy ra thật (không có buổi nào có "-2 người").
+  // Clamp âm thầm về 0 vẫn ra một số tiền và sẽ có người bị thu theo số đó —
+  // đúng kiểu lỗi "thu sai ngầm"/"miễn phí ngầm" app này đã từng dính. Throw
+  // để lỗi lộ ra ngay ở test và ở nhánh {error} của server action.
+  it("một nhóm âm nhẹ: throw thay vì lệch hẳn suất của nhóm khác", () => {
+    expect(() =>
+      computeGroupPlayRates({
+        totalPlayCost: 300_000,
+        headsByGroup: heads({ member: 5, guestMember: -2 }),
+        policies: DEFAULT_GROUP_POLICIES,
+      }),
+    ).toThrow();
+  });
+
+  it("một nhóm âm mạnh khiến tổng đầu người âm: throw thay vì thu 0 (miễn phí ngầm)", () => {
+    expect(() =>
+      computeGroupPlayRates({
+        totalPlayCost: 300_000,
+        headsByGroup: heads({ member: 2, guestMember: -10 }),
+        policies: DEFAULT_GROUP_POLICIES,
+      }),
+    ).toThrow();
   });
 });

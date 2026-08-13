@@ -50,8 +50,18 @@ export const DEFAULT_GROUP_POLICIES: Record<GroupKey, GroupPolicy> = {
   guestAdminFemale: { mode: "floor", amount: 60_000, capAtEqual: false },
 };
 
-/** Chặn cứng phòng lỗi lập trình; vòng lặp chỉ có chiều vào rổ nên tối đa 6 vòng là dư. */
-const MAX_ROUNDS = 6;
+/**
+ * Chặn cứng phòng lỗi lập trình — PHẢI theo `GROUP_KEYS.length`, không phải số
+ * cứng. Mỗi nhóm chỉ dời vào rổ tối đa 1 lần (đơn điệu, không bao giờ rời rổ
+ * lại), nên tối đa `GROUP_KEYS.length` vòng là đủ cho MỌI lượt dời; +1 vòng
+ * nữa để LẶP LẠI xác nhận không còn ai dời (equalRate lúc đó mới thật sự ổn
+ * định theo rổ cuối cùng). Thiếu vòng xác nhận này, `equalRate` dùng để tính
+ * `pooled` có thể là số CŨ từ trước khi nhóm cuối dời vào — mọi người trong rổ
+ * bị tính sai suất mà không có lỗi nào báo ra. Nếu sau này thêm nhóm thứ 7 mà
+ * quên sửa hằng số này thì sẽ sai ngầm đúng kiểu đó — nên đừng thay lại bằng
+ * số cứng.
+ */
+const MAX_ROUNDS = GROUP_KEYS.length + 1;
 
 /**
  * Suất CHƠI của từng nhóm. Ai chia đều thì vào một rổ chung, ai có số riêng thì
@@ -69,6 +79,23 @@ export function computeGroupPlayRates(input: {
   policies: Record<GroupKey, GroupPolicy>;
 }): Record<GroupKey, number> {
   const { totalPlayCost, headsByGroup, policies } = input;
+
+  // Đầu người âm là lỗi lập trình phía gọi hàm, không phải dữ liệu hợp lệ
+  // (không có buổi tập nào có "-2 người"). `heads || 0` chỉ chặn 0/undefined,
+  // KHÔNG chặn số âm (`-2 || 0` vẫn ra -2) nên nếu không throw ở đây, số âm sẽ
+  // chảy thẳng vào totalHeads/fixedTotal và cho ra một số tiền — SAI nhưng
+  // không có lỗi nào báo, đúng kiểu "thu sai ngầm"/"miễn phí ngầm" app này đã
+  // dính trước đây. Throw để lỗi lộ ra ở test và ở nhánh {error} của server
+  // action, không âm thầm tính ra một số.
+  for (const k of GROUP_KEYS) {
+    const h = headsByGroup[k];
+    if (h < 0) {
+      throw new Error(
+        `computeGroupPlayRates: headsByGroup.${k} âm (${h}) — lỗi lập trình ở phía gọi hàm.`,
+      );
+    }
+  }
+
   const totalHeads = GROUP_KEYS.reduce((s, k) => s + (headsByGroup[k] || 0), 0);
 
   const rates = {} as Record<GroupKey, number>;
