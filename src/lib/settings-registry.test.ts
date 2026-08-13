@@ -134,6 +134,21 @@ describe("setting tiền (giai đoạn 3)", () => {
     expect(() => SETTINGS.minDeductionAmount.schema.parse(1.5)).toThrow();
   });
 
+  it("amount âm hoặc số thực trong một nhóm cũng bị chặn", () => {
+    expect(() =>
+      SETTINGS.groupPolicies.schema.parse({
+        ...DEFAULT_GROUP_POLICIES,
+        guestAdmin: { mode: "floor", amount: -60_000, capAtEqual: false },
+      }),
+    ).toThrow();
+    expect(() =>
+      SETTINGS.groupPolicies.schema.parse({
+        ...DEFAULT_GROUP_POLICIES,
+        guestAdmin: { mode: "floor", amount: 60_000.5, capAtEqual: false },
+      }),
+    ).toThrow();
+  });
+
   it("thiếu nhóm trong bảng thì bị chặn, không âm thầm điền khuyết", () => {
     expect(() =>
       SETTINGS.groupPolicies.schema.parse({ member: EQUAL_FIXTURE }),

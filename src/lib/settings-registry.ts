@@ -202,6 +202,12 @@ export const SETTINGS = {
     perSession: true,
     revalidate: ["/admin/sessions", "/admin/dashboard", "/", "/admin/members"],
   }),
+  // Caller (form admin, action lưu setting...) LUÔN phải gửi đủ 6 nhóm, không
+  // bao giờ PATCH một phần. Schema `.strict()` bên dưới chặn thiếu/dư nhóm
+  // đúng vì lý do này: một patch một phần lặng lẽ làm 2 nhóm còn lại rơi về
+  // default chỉ lộ ra sau ở số tiền member bị tính, không lộ lúc lưu. Đừng
+  // "sửa" lỗi thiếu-field bằng `.partial()` hay field `.optional()` — làm vậy
+  // là mở lại đúng lỗ hổng này.
   groupPolicies: def({
     key: "groupPolicies",
     schema: z
