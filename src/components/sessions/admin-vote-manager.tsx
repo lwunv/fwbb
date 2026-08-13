@@ -107,7 +107,11 @@ export function AdminVoteManager({
   const t = useTranslations("voting");
   const tCommon = useTranslations("common");
   const tA = useTranslations("adminVote");
-  const { lowFundThreshold } = useSettings();
+  // groupPolicies/minDeductionAmount: đọc từ settings để số xem trước khớp
+  // đúng số thực bị trừ quỹ lúc chốt sổ (giai đoạn 3, Task 4) — trước đây
+  // computePerHeadCharges/applyMinDeductionFloor ở đây ăn hằng số hardcode,
+  // lệch ngay khi admin đổi setting.
+  const { lowFundThreshold, groupPolicies, minDeductionAmount } = useSettings();
   const [search, setSearch] = useState("");
   const [removeTarget, setRemoveTarget] = useState<{
     memberId: number;
@@ -434,6 +438,7 @@ export function AdminVoteManager({
         playerCount,
         dinerCount,
         adminGuestPlayHeads: adminGuestPlayCount,
+        policies: groupPolicies,
       })
     : { playCostPerHead: 0, dineCostPerHead: 0 };
   const totalExpense = sc ? playCost + sc.diningBill : 0;
@@ -752,7 +757,11 @@ export function AdminVoteManager({
                         const exempt = getExempt(member.id);
                         const after =
                           minDeductionEnabled && !exempt
-                            ? applyMinDeductionFloor(raw, bal)
+                            ? applyMinDeductionFloor(
+                                raw,
+                                bal,
+                                minDeductionAmount,
+                              )
                             : raw;
                         const ded = after.totalAmount;
 

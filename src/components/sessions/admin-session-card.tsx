@@ -270,7 +270,10 @@ export function AdminSessionCard({
   const t = useTranslations("sessions");
   const tF = useTranslations("finance");
   const tVoting = useTranslations("voting");
-  const { maxPlayersOptions } = useSettings();
+  // groupPolicies/minDeductionAmount: đọc từ settings để preview khớp đúng số
+  // thực bị trừ quỹ lúc chốt sổ (giai đoạn 3, Task 4).
+  const { maxPlayersOptions, groupPolicies, minDeductionAmount } =
+    useSettings();
 
   const status = statusStyles[effectiveStatus];
 
@@ -356,8 +359,9 @@ export function AdminSessionCard({
       diningBill: session.diningBill,
       playerCount: totalPlayers,
       dinerCount: totalDiners,
-      // Khách-của-admin trả sàn 60K → preview khớp finalize.
+      // Khách-của-admin trả sàn theo groupPolicies.guestAdmin → preview khớp finalize.
       adminGuestPlayHeads: ag.play,
+      policies: groupPolicies,
     });
   const totalExpense = courtPriceVal + shuttlecockCost + session.diningBill;
 
@@ -528,9 +532,9 @@ export function AdminSessionCard({
             (() => {
               const showRevenue =
                 effectiveStatus === "completed" || isPastPending;
-              // Predicted revenue MUST include min-60K penalty
+              // Predicted revenue MUST include min-deduction penalty
               // surplus (members below playPerHead get floored to
-              // 60K, admin captures the difference). Plain
+              // minDeductionAmount, admin captures the difference). Plain
               // `players × playPerHead` understates "Tổng thu".
               const predictedPenaltySurplus = session.useMinDeduction
                 ? computePredictedMinDeductionSurplus({
@@ -540,6 +544,7 @@ export function AdminSessionCard({
                     memberBalances,
                     exemptMemberIds: session.exemptMemberIds,
                     playCostPerHead,
+                    floor: minDeductionAmount,
                   })
                 : 0;
               // Nhóm chia đều trả splitRate; khách-của-admin trả sàn

@@ -15,6 +15,7 @@ import {
 import { confirmPaymentByAdmin, finalizeSessionAuto } from "@/actions/finance";
 import { fireAction } from "@/lib/optimistic-action";
 import { useOptimisticSet } from "@/lib/optimistic-ui";
+import { useSettings } from "@/components/settings-provider";
 import { formatK, cn } from "@/lib/utils";
 import {
   computeShuttlecockTotal,
@@ -221,6 +222,10 @@ export function SessionList({
   });
   const viewMode: "cards" | "list" = viewParam === "list" ? "list" : "cards";
   const router = useRouter();
+  // groupPolicies/minDeductionAmount: đọc từ settings để số xem trước ở list
+  // gọn (mobile) và bảng desktop khớp đúng số thực bị trừ quỹ lúc chốt sổ
+  // (giai đoạn 3, Task 4).
+  const { groupPolicies, minDeductionAmount } = useSettings();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [error, setError] = useState("");
   const [cancelledSessions, setCancelledSessions] = useState<Set<number>>(
@@ -653,6 +658,7 @@ export function SessionList({
                 playerCount: listPlayers,
                 dinerCount: listDiners,
                 adminGuestPlayHeads: listAg.play,
+                policies: groupPolicies,
               });
               const listTotalExpense =
                 (session.courtPrice ?? 0) +
@@ -678,6 +684,7 @@ export function SessionList({
                           memberBalances,
                           exemptMemberIds: session.exemptMemberIds,
                           playCostPerHead: listPlayPerHead,
+                          floor: minDeductionAmount,
                         })
                       : 0);
               const listProfit = listShowRevenue
@@ -829,6 +836,7 @@ export function SessionList({
                     playerCount: listPlayers,
                     dinerCount: listDiners,
                     adminGuestPlayHeads: listAg.play,
+                    policies: groupPolicies,
                   });
                   const listTotalExpense =
                     (session.courtPrice ?? 0) +
@@ -854,6 +862,7 @@ export function SessionList({
                               memberBalances,
                               exemptMemberIds: session.exemptMemberIds,
                               playCostPerHead: listPlayPerHead,
+                              floor: minDeductionAmount,
                             })
                           : 0);
                   const listProfit = listShowRevenue

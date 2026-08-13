@@ -21,6 +21,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PaymentQR } from "@/components/payment/payment-qr";
+import { useSettings } from "@/components/settings-provider";
 import { computePerHeadCharges } from "@/lib/cost-calculator";
 import {
   Dialog,
@@ -553,7 +554,9 @@ function SessionDetailCard({
   const shareHasDebt = (myDebt?.totalAmount ?? 0) > 0;
 
   // Per-head charges — share single source of truth with cost-calculator so
-  // there's no risk of UI drift vs server-side finalize logic.
+  // there's no risk of UI drift vs server-side finalize logic. `policies` đọc
+  // từ settings (giai đoạn 3, Task 4) để khớp đúng cấu hình admin đã đổi.
+  const { groupPolicies } = useSettings();
   const { playCostPerHead: playPerHead, dineCostPerHead: dinePerHead } =
     computePerHeadCharges({
       courtPrice: session.courtPrice,
@@ -561,6 +564,7 @@ function SessionDetailCard({
       diningBill: session.diningBill,
       playerCount: session.playerCount,
       dinerCount: session.dinerCount,
+      policies: groupPolicies,
     });
 
   return (
