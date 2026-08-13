@@ -331,8 +331,13 @@ export function AdminSessionCard({
       ? tVoting("voteClosedLabel")
       : t(status.labelKey);
   const ag = { play: adminGuestPlay, dine: adminGuestDine };
-  const totalGuestPlay =
-    session.guestPlayCount + ag.play - session.adminGuestPlayCount;
+  // guestMemberPlayHeads: số khách-của-member (KHÔNG phải admin) — độc lập với
+  // override optimistic `ag.play` (cái đó chỉ đổi phần khách-của-admin). Biết
+  // CHÍNH XÁC từ props server nên KHÔNG bỏ trống — bỏ trống computePerHeadCharges
+  // sẽ coi là "không biết" và throw khi policy guestMember khác equal.
+  const guestMemberPlayHeads =
+    session.guestPlayCount - session.adminGuestPlayCount;
+  const totalGuestPlay = guestMemberPlayHeads + ag.play;
   const totalGuestDine =
     session.guestDineCount + ag.dine - session.adminGuestDineCount;
 
@@ -352,17 +357,23 @@ export function AdminSessionCard({
   const shuttlecockCost = computeShuttlecockTotal(effShuttlecocks);
   const totalPlayers = session.playerCount + totalGuestPlay;
   const totalDiners = session.dinerCount + totalGuestDine;
-  const { playCostPerHead, adminGuestPlayCostPerHead, dineCostPerHead } =
-    computePerHeadCharges({
-      courtPrice: courtPriceVal,
-      shuttlecockCost,
-      diningBill: session.diningBill,
-      playerCount: totalPlayers,
-      dinerCount: totalDiners,
-      // Khách-của-admin trả sàn theo groupPolicies.guestAdmin → preview khớp finalize.
-      adminGuestPlayHeads: ag.play,
-      policies: groupPolicies,
-    });
+  const {
+    playCostPerHead,
+    adminGuestPlayCostPerHead,
+    guestMemberPlayCostPerHead,
+    dineCostPerHead,
+  } = computePerHeadCharges({
+    courtPrice: courtPriceVal,
+    shuttlecockCost,
+    diningBill: session.diningBill,
+    playerCount: totalPlayers,
+    dinerCount: totalDiners,
+    // Khách-của-admin trả sàn theo groupPolicies.guestAdmin → preview khớp finalize.
+    adminGuestPlayHeads: ag.play,
+    // Khách-của-member ăn suất RIÊNG, không giả định trùng playCostPerHead.
+    guestMemberPlayHeads,
+    policies: groupPolicies,
+  });
   const totalExpense = courtPriceVal + shuttlecockCost + session.diningBill;
 
   const showLed = isActive && !isPastPending && !voteClosed;
@@ -555,6 +566,8 @@ export function AdminSessionCard({
                   adminGuestPlayHeads: ag.play,
                   playCostPerHead,
                   adminGuestPlayCostPerHead,
+                  guestMemberPlayHeads,
+                  guestMemberPlayCostPerHead,
                 }) +
                 totalDiners * dineCostPerHead +
                 predictedPenaltySurplus;

@@ -268,34 +268,48 @@ export function computeShuttlecockTotal(
  * into UI.
  */
 /**
- * Pure: tách rate CHƠI khi có khách-của-admin — lát cắt 2-nhóm (member vs
- * guestAdmin, KHÔNG phân biệt giới) của `computeGroupPlayRates`. Không có
- * khách-admin hoặc naive ≥ floor → mọi người = naive.
+ * Pure: tách rate CHƠI khi có khách-của-admin/khách-của-member — lát cắt
+ * 3-nhóm (member, guestMember, guestAdmin; KHÔNG phân biệt giới) của
+ * `computeGroupPlayRates`. Không có khách hoặc naive ≥ floor → mọi người =
+ * naive.
  *
  * ĐÃ NỐI LẠI THÀNH SINGLE SOURCE (Task 4, giai đoạn 3): hàm này không tự tính
  * toán nữa, nó gọi thẳng `computeGroupPlayRates` — CÙNG engine với
- * `calculateSessionCosts` (finalize) — bằng cách gộp mọi đầu không-phải-khách-
- * của-admin vào 1 bucket "member" (`headsByGroup.member = splitHeads`), khách-
- * của-admin vào bucket "guestAdmin". Khi truyền `policies` (đọc từ
- * `getSettings().groupPolicies`), số ra đây LUÔN khớp debt thực ghi vào DB nếu
- * admin chỉ đổi sàn/chính sách của khách-của-admin hoặc của "member" nói
- * chung — đúng đúng những gì UI settings hiện cho sửa (Task 5, giai đoạn 3
- * chặng 1 chưa build UI riêng cho `guestMember`/`memberFemale`).
+ * `calculateSessionCosts` (finalize).
  *
- * GIỚI HẠN CÒN LẠI (không phải regression — data này chưa tồn tại): hàm gộp
- * khách-của-MEMBER (không phải admin) vào CHUNG bucket "member" với chính chủ,
- * nên nếu tương lai có UI cho `groupPolicies.guestMember` một chính sách khác
- * hẳn `member`, số preview ở đây sẽ lệch — phải truyền thêm 1 bucket riêng lúc
- * đó. Tương tự, `genderPricingEnabled`/`memberFemale` không có tác dụng ở đây
- * vì các call site preview (session-list, admin-vote-manager, …) không có dữ
- * liệu gender theo đầu người — `members` chưa có cột gender (đó là chặng 2,
- * Task 6-9, có migration riêng), nên field này hoàn toàn dormant ở CẢ hai
- * đường (preview và finalize) cho tới khi chặng đó xong.
+ * `guestMemberPlayHeads` (review round 2, phát hiện từ 2 reviewer độc lập):
+ * BAN ĐẦU khách-của-member bị gộp chung bucket "member" — chỉ đúng NGẪU
+ * NHIÊN khi `policies.guestMember` còn là `equal` (mặc định). Khác `guestAdmin`
+ * (dữ liệu dormant vì `members` chưa có cột gender), khách-của-member là dữ
+ * liệu SỐNG — buổi nào có ai mời khách không phải khách-admin cũng có. Giờ
+ * hàm nhận số đầu khách-của-member THẬT làm bucket riêng, nên số ra ĐÚNG với
+ * MỌI cấu hình `policies.guestMember`, không chỉ đúng khi nó bằng `equal`.
+ *
+ * Nhóm Female (`memberFemale`/`guestMemberFemale`/`guestAdminFemale`) LUÔN
+ * truyền 0 đầu — đây là CHỨNG MINH được, không phải may rủi: một nhóm 0 đầu
+ * không bao giờ ảnh hưởng phép chia (xem `computeGroupPlayRates` — nhóm 0 đầu
+ * luôn vào rổ chia đều ngay từ đầu, `fixedTotal` không bao giờ cộng policy của
+ * nó). `genderPricingEnabled` dormant ở CẢ preview và finalize vì `members`
+ * chưa có cột gender (chặng 2, Task 6-9, migration riêng) — không phải preview
+ * "quên", mà dữ liệu chưa tồn tại ở bất kỳ đâu.
+ *
+ * KHÔNG THỂ CHỨNG MINH tương tự cho `guestMemberPlayHeads` nếu caller không
+ * biết số đó — 0 heads ở đây có thể là "thật sự 0" hoặc "không biết, mặc định
+ * 0". Để không lặng lẽ sai khi rơi vào TH sau, hàm THROW nếu
+ * `guestMemberPlayHeads` không được truyền (`undefined`, khác hẳn `0`) VÀ
+ * chính sách `guestMember`/`guestMemberFemale` không còn là `equal` — lúc đó
+ * caller PHẢI tính ra số đầu thật hoặc chấp nhận preview báo lỗi rõ ràng, thay
+ * vì hiển thị một số có thể sai mà admin tin là đúng.
  */
 export function computeGuestAwarePlayRates(input: {
   totalPlayCost: number;
   totalPlayHeads: number;
   adminGuestPlayHeads: number;
+  /** Số đầu khách-của-member (KHÔNG phải khách-của-admin) — bucket `guestMember`
+   *  riêng. Truyền `0` khi caller CHẮC CHẮN buổi này không có khách-của-member
+   *  (không phải "không biết"). Bỏ trống (`undefined`) mà `policies.guestMember`
+   *  khác `equal` → hàm throw, xem docblock phía trên. */
+  guestMemberPlayHeads?: number;
   /** @deprecated Dùng `policies` (sàn khách nằm ở `policies.guestAdmin.amount`).
    *  Chỉ được đọc khi `policies` KHÔNG truyền — giữ cho call site cũ chưa
    *  migrate ra đúng số cũ (sàn cố định `floor`, mọi nhóm khác chia đều). */
@@ -304,27 +318,45 @@ export function computeGuestAwarePlayRates(input: {
    *  đều trừ khách-admin ăn sàn `floor`). Truyền `getSettings().groupPolicies`
    *  để preview khớp đúng cấu hình admin đã đổi. */
   policies?: Record<GroupKey, GroupPolicy>;
-}): { playCostPerHead: number; adminGuestPlayCostPerHead: number } {
+}): {
+  playCostPerHead: number;
+  adminGuestPlayCostPerHead: number;
+  guestMemberPlayCostPerHead: number;
+} {
   const policies = input.policies ?? buildTwoGroupPolicies(input.floor);
+
+  if (input.guestMemberPlayHeads === undefined) {
+    const gm = policies.guestMember;
+    const gmf = policies.guestMemberFemale;
+    if (gm.mode !== "equal" || gmf.mode !== "equal") {
+      throw new Error(
+        "computeGuestAwarePlayRates: guestMemberPlayHeads không được truyền " +
+          "nhưng groupPolicies.guestMember/guestMemberFemale không còn là " +
+          "'equal' — không thể suy ra số đúng, phải truyền số đầu khách-của-" +
+          "member thật (0 nếu chắc chắn không có) thay vì để mặc định.",
+      );
+    }
+  }
+  const guestMemberHeads = input.guestMemberPlayHeads ?? 0;
+
   // Kẹp về 0 (KHÁC với calculateSessionCosts/computeGroupPlayRates — nơi đó
   // throw cho heads âm vì đầu vào là attendee rows thật, âm = lỗi lập trình).
-  // Ở đây input là 2 con số rời (`totalPlayHeads`, `adminGuestPlayHeads`) do
-  // UI preview tự cộng dồn từ state optimistic — 1 lần cập nhật lệch nhịp
-  // (stepper tăng adminGuestPlayHeads trước khi playerCount kịp đồng bộ) có
-  // thể tạo `adminGuestPlayHeads > totalPlayHeads` NHẤT THỜI. Hành vi cũ của
-  // hàm này (trước khi nối `computeGroupPlayRates`) đã lặng lẽ rơi về chia
-  // đều naive trong đúng tình huống đó — throw ở đây sẽ làm cả preview vỡ
-  // trắng màn hình vì 1 render lệch nhịp, tệ hơn hiển thị tạm 1 số sai.
+  // Ở đây input là các con số rời do UI preview tự cộng dồn từ state
+  // optimistic — 1 lần cập nhật lệch nhịp (stepper tăng trước khi playerCount
+  // kịp đồng bộ) có thể tạo tổng âm NHẤT THỜI. Hành vi cũ của hàm này (trước
+  // khi nối `computeGroupPlayRates`) đã lặng lẽ rơi về chia đều naive trong
+  // đúng tình huống đó — throw ở đây sẽ làm cả preview vỡ trắng màn hình vì 1
+  // render lệch nhịp, tệ hơn hiển thị tạm 1 số sai.
   const splitHeads = Math.max(
     0,
-    input.totalPlayHeads - input.adminGuestPlayHeads,
+    input.totalPlayHeads - input.adminGuestPlayHeads - guestMemberHeads,
   );
   const rates = computeGroupPlayRates({
     totalPlayCost: input.totalPlayCost,
     headsByGroup: {
       member: splitHeads,
       memberFemale: 0,
-      guestMember: 0,
+      guestMember: guestMemberHeads,
       guestMemberFemale: 0,
       guestAdmin: input.adminGuestPlayHeads,
       guestAdminFemale: 0,
@@ -334,6 +366,7 @@ export function computeGuestAwarePlayRates(input: {
   return {
     playCostPerHead: rates.member,
     adminGuestPlayCostPerHead: rates.guestAdmin,
+    guestMemberPlayCostPerHead: rates.guestMember,
   };
 }
 
@@ -363,6 +396,11 @@ export function computePerHeadCharges(input: {
   /** Số đầu khách-của-admin (host = admin). Mặc định 0 → naive equal split.
    *  Truyền vào để preview phản ánh sàn khách-admin + chia lại cho member. */
   adminGuestPlayHeads?: number;
+  /** Số đầu khách-của-member (không phải admin). Bỏ trống khi caller không
+   *  biết/không tách được số này — xem cảnh báo throw ở
+   *  `computeGuestAwarePlayRates`. KHÔNG mặc định về 0 ở đây (0 tường minh
+   *  ≠ "không biết"). */
+  guestMemberPlayHeads?: number;
   /** @deprecated dùng `policies`. */
   floor?: number;
   /** Đọc từ `getSettings().groupPolicies` để preview khớp finalize. */
@@ -370,21 +408,31 @@ export function computePerHeadCharges(input: {
 }): {
   playCostPerHead: number;
   adminGuestPlayCostPerHead: number;
+  guestMemberPlayCostPerHead: number;
   dineCostPerHead: number;
 } {
-  const { playCostPerHead, adminGuestPlayCostPerHead } =
-    computeGuestAwarePlayRates({
-      totalPlayCost: input.courtPrice + input.shuttlecockCost,
-      totalPlayHeads: input.playerCount,
-      adminGuestPlayHeads: input.adminGuestPlayHeads ?? 0,
-      floor: input.floor,
-      policies: input.policies,
-    });
+  const {
+    playCostPerHead,
+    adminGuestPlayCostPerHead,
+    guestMemberPlayCostPerHead,
+  } = computeGuestAwarePlayRates({
+    totalPlayCost: input.courtPrice + input.shuttlecockCost,
+    totalPlayHeads: input.playerCount,
+    adminGuestPlayHeads: input.adminGuestPlayHeads ?? 0,
+    guestMemberPlayHeads: input.guestMemberPlayHeads,
+    floor: input.floor,
+    policies: input.policies,
+  });
   const dineCostPerHead =
     input.dinerCount > 0
       ? roundToThousand(input.diningBill / input.dinerCount)
       : 0;
-  return { playCostPerHead, adminGuestPlayCostPerHead, dineCostPerHead };
+  return {
+    playCostPerHead,
+    adminGuestPlayCostPerHead,
+    guestMemberPlayCostPerHead,
+    dineCostPerHead,
+  };
 }
 
 /**
@@ -414,19 +462,33 @@ function classifyHead(
 }
 
 /**
- * Predicted PLAY revenue cho preview: nhóm chia đều × splitRate + khách-của-admin
- * × sàn. KHÔNG gồm nhậu / penalty surplus (caller cộng riêng). Tách helper để
- * session-list + dashboard không hand-roll công thức (tránh drift khi đổi rule).
+ * Predicted PLAY revenue cho preview: nhóm chia đều × splitRate + khách-của-
+ * member × rate riêng (nếu có) + khách-của-admin × sàn. KHÔNG gồm nhậu /
+ * penalty surplus (caller cộng riêng). Tách helper để session-list + dashboard
+ * không hand-roll công thức (tránh drift khi đổi rule).
+ *
+ * `guestMemberPlayHeads`/`guestMemberPlayCostPerHead` optional, backward-compat:
+ * bỏ trống → công thức cũ y hệt (mọi đầu không-phải-khách-admin đều ăn
+ * `playCostPerHead`). Truyền vào khi caller đã tách được số đầu khách-của-
+ * member thật (xem `computeGuestAwarePlayRates`) để dự đoán khớp đúng khi
+ * `groupPolicies.guestMember` khác `equal`.
  */
 export function computePredictedPlayRevenue(input: {
   totalPlayHeads: number;
   adminGuestPlayHeads: number;
   playCostPerHead: number;
   adminGuestPlayCostPerHead: number;
+  guestMemberPlayHeads?: number;
+  guestMemberPlayCostPerHead?: number;
 }): number {
-  const splitHeads = input.totalPlayHeads - input.adminGuestPlayHeads;
+  const guestMemberHeads = input.guestMemberPlayHeads ?? 0;
+  const memberHeads =
+    input.totalPlayHeads - input.adminGuestPlayHeads - guestMemberHeads;
+  const guestMemberRate =
+    input.guestMemberPlayCostPerHead ?? input.playCostPerHead;
   return (
-    splitHeads * input.playCostPerHead +
+    memberHeads * input.playCostPerHead +
+    guestMemberHeads * guestMemberRate +
     input.adminGuestPlayHeads * input.adminGuestPlayCostPerHead
   );
 }

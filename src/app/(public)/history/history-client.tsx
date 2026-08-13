@@ -556,9 +556,22 @@ function SessionDetailCard({
   // Per-head charges — share single source of truth with cost-calculator so
   // there's no risk of UI drift vs server-side finalize logic. `policies` đọc
   // từ settings (giai đoạn 3, Task 4) để khớp đúng cấu hình admin đã đổi.
+  //
+  // GIỚI HẠN THẬT (round 2 review, 2 reviewer độc lập nêu): `HistorySession`
+  // không có field tách khách-của-member / khách-của-admin — `playerCount` ở
+  // đây đã gộp SẴN cả 3 nhóm từ server, component này KHÔNG CÁCH NÀO suy ra
+  // đúng số đầu khách-của-member thật. KHÔNG giả `guestMemberPlayHeads: 0`
+  // (0 tường minh khác "không biết") — bỏ trống để computeGuestAwarePlayRates
+  // tự THROW nếu admin từng đổi `groupPolicies.guestMember`/`guestMemberFemale`
+  // khỏi "equal". Bắt lỗi ở đây và ẩn số per-head (thà vỡ rõ ràng + ẩn số còn
+  // hơn hiện một số có thể sai mà user tin). Muốn tính đúng thật cần đổi query
+  // dựng `HistorySession` để trả thêm guestPlayCount/adminGuestPlayCount —
+  // rộng hơn phạm vi đồng bộ preview của task này, chưa làm.
   const { groupPolicies } = useSettings();
-  const { playCostPerHead: playPerHead, dineCostPerHead: dinePerHead } =
-    computePerHeadCharges({
+  let playPerHead = 0;
+  let dinePerHead = 0;
+  try {
+    const rates = computePerHeadCharges({
       courtPrice: session.courtPrice,
       shuttlecockCost: session.shuttlecockCost,
       diningBill: session.diningBill,
@@ -566,6 +579,11 @@ function SessionDetailCard({
       dinerCount: session.dinerCount,
       policies: groupPolicies,
     });
+    playPerHead = rates.playCostPerHead;
+    dinePerHead = rates.dineCostPerHead;
+  } catch {
+    // Xem comment phía trên — cấu hình vượt khả năng biết của component này.
+  }
 
   return (
     <Card

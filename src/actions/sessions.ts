@@ -1477,9 +1477,10 @@ export async function setAdminGuestCount(
 //
 // Per-session opt-in. Khi `useMinDeduction = true`, `finalizeSession` sẽ
 // apply `applyMinDeductionFloor` cho mỗi member không đủ quỹ trả play share
-// AND play share < 60K → override lên 60K (admin recover được fund + ép
-// member nộp quỹ). Per-member exemption lưu ở
-// `sessionMinDeductionExemptions` (admin có thể untick từng người).
+// AND play share < sàn (setting `minDeductionAmount`, mặc định 60K, giai đoạn
+// 3 Task 4) → override lên sàn đó (admin recover được fund + ép member nộp
+// quỹ). Per-member exemption lưu ở `sessionMinDeductionExemptions` (admin có
+// thể untick từng người).
 //
 // Spec: `docs/superpowers/specs/2026-05-15-min-deduction-floor-design.md`.
 

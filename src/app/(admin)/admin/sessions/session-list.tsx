@@ -634,10 +634,13 @@ export function SessionList({
               // Tiền cho list (tổng chi + /người + Lãi/Lỗ) — DÙNG CÙNG helper
               // với card view để số KHÔNG lệch.
               const listAg = getAdminGuests(session.id, session);
-              const listGuestPlay =
-                session.guestPlayCount +
-                listAg.play -
-                session.adminGuestPlayCount;
+              // Khách-của-member (KHÔNG phải admin) — biết CHÍNH XÁC từ
+              // session.guestPlayCount/adminGuestPlayCount (props server, độc
+              // lập override optimistic của khách-admin). Tách riêng để
+              // computePerHeadCharges không gộp nhầm vào suất "member".
+              const listGuestMemberPlayHeads =
+                session.guestPlayCount - session.adminGuestPlayCount;
+              const listGuestPlay = listGuestMemberPlayHeads + listAg.play;
               const listGuestDine =
                 session.guestDineCount +
                 listAg.dine -
@@ -650,6 +653,7 @@ export function SessionList({
               const {
                 playCostPerHead: listPlayPerHead,
                 adminGuestPlayCostPerHead: listAgPlayPerHead,
+                guestMemberPlayCostPerHead: listGuestMemberPerHead,
                 dineCostPerHead: listDinePerHead,
               } = computePerHeadCharges({
                 courtPrice: session.courtPrice ?? 0,
@@ -658,6 +662,7 @@ export function SessionList({
                 playerCount: listPlayers,
                 dinerCount: listDiners,
                 adminGuestPlayHeads: listAg.play,
+                guestMemberPlayHeads: listGuestMemberPlayHeads,
                 policies: groupPolicies,
               });
               const listTotalExpense =
@@ -674,6 +679,8 @@ export function SessionList({
                       adminGuestPlayHeads: listAg.play,
                       playCostPerHead: listPlayPerHead,
                       adminGuestPlayCostPerHead: listAgPlayPerHead,
+                      guestMemberPlayHeads: listGuestMemberPlayHeads,
+                      guestMemberPlayCostPerHead: listGuestMemberPerHead,
                     }) +
                     listDiners * listDinePerHead +
                     (session.useMinDeduction
@@ -812,10 +819,11 @@ export function SessionList({
                     (d) => !paidDebtIds.has(d.debtId),
                   ).length;
                   const listAg = getAdminGuests(session.id, session);
-                  const listGuestPlay =
-                    session.guestPlayCount +
-                    listAg.play -
-                    session.adminGuestPlayCount;
+                  // Xem comment ở khối mobile phía trên — cùng công thức, y
+                  // hệt để 2 khối mobile/desktop không lệch nhau.
+                  const listGuestMemberPlayHeads =
+                    session.guestPlayCount - session.adminGuestPlayCount;
+                  const listGuestPlay = listGuestMemberPlayHeads + listAg.play;
                   const listGuestDine =
                     session.guestDineCount +
                     listAg.dine -
@@ -828,6 +836,7 @@ export function SessionList({
                   const {
                     playCostPerHead: listPlayPerHead,
                     adminGuestPlayCostPerHead: listAgPlayPerHead,
+                    guestMemberPlayCostPerHead: listGuestMemberPerHead,
                     dineCostPerHead: listDinePerHead,
                   } = computePerHeadCharges({
                     courtPrice: session.courtPrice ?? 0,
@@ -836,6 +845,7 @@ export function SessionList({
                     playerCount: listPlayers,
                     dinerCount: listDiners,
                     adminGuestPlayHeads: listAg.play,
+                    guestMemberPlayHeads: listGuestMemberPlayHeads,
                     policies: groupPolicies,
                   });
                   const listTotalExpense =
@@ -852,6 +862,8 @@ export function SessionList({
                           adminGuestPlayHeads: listAg.play,
                           playCostPerHead: listPlayPerHead,
                           adminGuestPlayCostPerHead: listAgPlayPerHead,
+                          guestMemberPlayHeads: listGuestMemberPlayHeads,
+                          guestMemberPlayCostPerHead: listGuestMemberPerHead,
                         }) +
                         listDiners * listDinePerHead +
                         (session.useMinDeduction

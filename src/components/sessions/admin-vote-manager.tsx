@@ -108,9 +108,12 @@ export function AdminVoteManager({
   const tCommon = useTranslations("common");
   const tA = useTranslations("adminVote");
   // groupPolicies/minDeductionAmount: đọc từ settings để số xem trước khớp
-  // đúng số thực bị trừ quỹ lúc chốt sổ (giai đoạn 3, Task 4) — trước đây
-  // computePerHeadCharges/applyMinDeductionFloor ở đây ăn hằng số hardcode,
-  // lệch ngay khi admin đổi setting.
+  // đúng số thực bị trừ quỹ lúc chốt sổ (giai đoạn 3, Task 4). Trước Task 4,
+  // computePerHeadCharges/applyMinDeductionFloor ở đây ăn hằng số hardcode
+  // (60K) bất kể setting — đã hết từ khi thêm dòng này. Round 2 review còn phát
+  // hiện khách-của-member (không phải admin) bị gộp chung suất "member" trong
+  // computePerHeadCharges → đã tách bucket riêng, xem `guestMemberPlayHeads`
+  // bên dưới.
   const { lowFundThreshold, groupPolicies, minDeductionAmount } = useSettings();
   const [search, setSearch] = useState("");
   const [removeTarget, setRemoveTarget] = useState<{
@@ -261,12 +264,14 @@ export function AdminVoteManager({
   /** Khách cộng từ vote — dùng getGuestCounts (nguồn optimistic, cùng chỗ các
    *  row đọc) để khi admin đổi số khách thì mẫu số + per-head cập nhật NGAY,
    *  không lệch với per-member deduction trong lúc chờ server. Bỏ member đã
-   *  remove. Cộng cả khách-của-admin để khớp finalize. */
-  const totalGuestPlay =
-    members.reduce((s, m) => {
-      if (removedMembers.has(m.id)) return s;
-      return s + getGuestCounts(m.id).play;
-    }, 0) + adminGuestPlayCount;
+   *  remove. Tách riêng khỏi khách-của-admin (biết CHÍNH XÁC là bao nhiêu, xem
+   *  round-2 review) để computePerHeadCharges tính đúng suất riêng cho nhóm
+   *  guestMember khi policy của nó khác "member". */
+  const guestMemberPlayHeads = members.reduce((s, m) => {
+    if (removedMembers.has(m.id)) return s;
+    return s + getGuestCounts(m.id).play;
+  }, 0);
+  const totalGuestPlay = guestMemberPlayHeads + adminGuestPlayCount;
   const totalGuestDine =
     members.reduce((s, m) => {
       if (removedMembers.has(m.id)) return s;
@@ -427,10 +432,15 @@ export function AdminVoteManager({
   // with finalize-session.tsx, session-list.tsx, dashboard-client.tsx and the
   // server-side cost-calculator. Previously inlined the same Math.ceil
   // formula and would drift if the rounding rule changed.
-  // adminGuestPlayHeads: khách-của-admin trả sàn 60K, phần dư chia cho nhóm
-  // chia đều → playPerHead ở đây là SPLIT rate (members + khách-member), khớp
-  // finalize. Khách-member dùng đúng playPerHead này.
-  const { playCostPerHead: playPerHead, dineCostPerHead: dinePerHead } = sc
+  // adminGuestPlayHeads: khách-của-admin trả sàn theo groupPolicies.guestAdmin,
+  // phần dư chia cho nhóm chia đều. guestMemberPlayHeads: khách-của-member có
+  // suất RIÊNG (guestMemberPerHead) — KHÔNG còn giả định trùng playPerHead của
+  // member (round 2 review: giả định đó chỉ đúng khi guestMember còn "equal").
+  const {
+    playCostPerHead: playPerHead,
+    dineCostPerHead: dinePerHead,
+    guestMemberPlayCostPerHead: guestMemberPerHead,
+  } = sc
     ? computePerHeadCharges({
         courtPrice: sc.courtPrice,
         shuttlecockCost,
@@ -438,9 +448,10 @@ export function AdminVoteManager({
         playerCount,
         dinerCount,
         adminGuestPlayHeads: adminGuestPlayCount,
+        guestMemberPlayHeads,
         policies: groupPolicies,
       })
-    : { playCostPerHead: 0, dineCostPerHead: 0 };
+    : { playCostPerHead: 0, dineCostPerHead: 0, guestMemberPlayCostPerHead: 0 };
   const totalExpense = sc ? playCost + sc.diningBill : 0;
   const paidAmount = Object.entries(debtMap)
     .filter(([mid]) => getDebtConfirmed(Number(mid)))
@@ -479,7 +490,11 @@ export function AdminVoteManager({
     const gp = row?.guestPlayCount ?? 0;
     const gd = row?.guestDineCount ?? 0;
     const hc = memberHeadcount(memberId);
-    const playPart = (v.willPlay ? playPerHead * hc : 0) + gp * playPerHead;
+    // Khách-của-member (gp) ăn suất RIÊNG guestMemberPerHead, không phải
+    // playPerHead của chính chủ — 2 suất chỉ trùng khi policy guestMember còn
+    // "equal" (mặc định), không phải luôn luôn.
+    const playPart =
+      (v.willPlay ? playPerHead * hc : 0) + gp * guestMemberPerHead;
     const dinePart = (v.willDine ? dinePerHead * hc : 0) + gd * dinePerHead;
     const est = playPart + dinePart;
     if (est > 0) return est;
@@ -498,7 +513,8 @@ export function AdminVoteManager({
     const hc = memberHeadcount(memberId);
     const playAmount = willPlay ? playPerHead * hc : 0;
     const dineAmount = willDine ? dinePerHead * hc : 0;
-    const guestPlayAmount = gp * playPerHead;
+    // Cùng lý do ở displayMemberAmount: khách-của-member ăn suất riêng.
+    const guestPlayAmount = gp * guestMemberPerHead;
     const guestDineAmount = gd * dinePerHead;
     return {
       memberId,

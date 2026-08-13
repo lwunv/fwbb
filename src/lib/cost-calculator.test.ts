@@ -175,6 +175,71 @@ describe("computePerHeadCharges", () => {
       breakdown.adminGuestPlayCostPerHead,
     );
   });
+
+  it("khớp calculateSessionCosts KỂ CẢ khi groupPolicies.guestMember khác 'equal' (round 2 fix)", () => {
+    // Trước fix round 2: helper gộp khách-của-member vào bucket "member" nên
+    // CHỈ khớp calculateSessionCosts khi guestMember còn equal — ca này dùng
+    // guestMember = floor 40K (khác hẳn equal) để lộ ngay nếu ai revert fix.
+    const guestMemberFloor40K = {
+      ...DEFAULT_GROUP_POLICIES,
+      guestMember: {
+        mode: "floor" as const,
+        amount: 40_000,
+        capAtEqual: false,
+      },
+    };
+    const attendees: AttendeeInput[] = [
+      {
+        memberId: 1,
+        invitedById: null,
+        isGuest: false,
+        attendsPlay: true,
+        attendsDine: false,
+      },
+      {
+        memberId: 2,
+        invitedById: null,
+        isGuest: false,
+        attendsPlay: true,
+        attendsDine: false,
+      },
+      {
+        memberId: null,
+        invitedById: 2,
+        isGuest: true,
+        attendsPlay: true,
+        attendsDine: false,
+      }, // khách-của-member
+      {
+        memberId: null,
+        invitedById: 1,
+        isGuest: true,
+        attendsPlay: true,
+        attendsDine: false,
+      }, // khách-của-admin
+    ];
+    const breakdown = calculateSessionCosts(
+      { courtPrice: 150_000, diningBill: 0 },
+      attendees,
+      [],
+      { adminMemberId: 1, policies: guestMemberFloor40K },
+    );
+    const helper = computePerHeadCharges({
+      courtPrice: 150_000,
+      shuttlecockCost: 0,
+      diningBill: 0,
+      playerCount: breakdown.totalPlayers,
+      dinerCount: breakdown.totalDiners,
+      adminGuestPlayHeads: 1,
+      guestMemberPlayHeads: 1,
+      policies: guestMemberFloor40K,
+    });
+    expect(helper.playCostPerHead).toBe(breakdown.playCostPerHead);
+    expect(helper.guestMemberPlayCostPerHead).toBe(40_000);
+    expect(helper.adminGuestPlayCostPerHead).toBe(
+      breakdown.adminGuestPlayCostPerHead,
+    );
+  });
 });
 
 describe("computeGuestAwarePlayRates", () => {
@@ -226,6 +291,77 @@ describe("computeGuestAwarePlayRates", () => {
     });
     expect(r.playCostPerHead).toBe(0);
     expect(r.adminGuestPlayCostPerHead).toBe(0);
+  });
+
+  // Round 2 review (2 reviewer độc lập): trước đây khách-của-member bị gộp
+  // chung bucket "member" — chỉ đúng NGẪU NHIÊN khi policies.guestMember còn
+  // equal. Nhóm test dưới đây khoá lại: (a) khách-của-member có rate RIÊNG khi
+  // policy khác member, (b) bỏ trống + policy vẫn equal thì không throw (an
+  // toàn cho mọi call site cũ chưa migrate), (c) bỏ trống + policy khác equal
+  // → throw (báo lỗi rõ ràng thay vì im lặng sai), (d) truyền tường minh 0 thì
+  // không throw dù policy khác equal (0 đã biết, khác "không biết").
+  it("guestMemberPlayHeads riêng + policy floor 40K khác hẳn member → ra đúng 2 rate khác nhau", () => {
+    // Sân 150K: 2 member (chia đều) + 1 khách-của-member (sàn 40K) + 1
+    // khách-của-admin (sàn 60K, mặc định). fixedTotal = 40K+60K=100K.
+    // Pool 2 member = (150K−100K)/2 = 25K/người — khác hẳn 40K khách-member.
+    const r = computeGuestAwarePlayRates({
+      totalPlayCost: 150_000,
+      totalPlayHeads: 4,
+      adminGuestPlayHeads: 1,
+      guestMemberPlayHeads: 1,
+      policies: {
+        ...DEFAULT_GROUP_POLICIES,
+        guestMember: { mode: "floor", amount: 40_000, capAtEqual: false },
+      },
+    });
+    expect(r.playCostPerHead).toBe(25_000);
+    expect(r.guestMemberPlayCostPerHead).toBe(40_000);
+    expect(r.adminGuestPlayCostPerHead).toBe(60_000);
+  });
+
+  it("bỏ trống guestMemberPlayHeads nhưng policy guestMember vẫn 'equal' (mặc định) → KHÔNG throw", () => {
+    expect(() =>
+      computeGuestAwarePlayRates({
+        totalPlayCost: 200_000,
+        totalPlayHeads: 4,
+        adminGuestPlayHeads: 1,
+        policies: DEFAULT_GROUP_POLICIES,
+      }),
+    ).not.toThrow();
+  });
+
+  it("bỏ trống guestMemberPlayHeads MÀ policy guestMember khác 'equal' → throw (an toàn hơn im lặng sai)", () => {
+    expect(() =>
+      computeGuestAwarePlayRates({
+        totalPlayCost: 200_000,
+        totalPlayHeads: 4,
+        adminGuestPlayHeads: 1,
+        policies: {
+          ...DEFAULT_GROUP_POLICIES,
+          guestMember: { mode: "floor", amount: 40_000, capAtEqual: false },
+        },
+      }),
+    ).toThrow(/guestMemberPlayHeads/);
+  });
+
+  it("truyền guestMemberPlayHeads = 0 TƯỜNG MINH, policy khác equal → không throw, ra đúng số (0 đầu = trung lập)", () => {
+    // 3 member chia đều + 1 khách-admin (sàn 60K, mặc định). guestMember 0
+    // đầu, dù policy của nó là floor 40K, KHÔNG ảnh hưởng gì (0 đầu = trung
+    // lập, chứng minh ở computeGroupPlayRates). fixedTotal = 60K (chỉ guestAdmin).
+    // equalRate = (200K−60K)/3 = 46.666,67 → roundToThousand lên 47K.
+    const r = computeGuestAwarePlayRates({
+      totalPlayCost: 200_000,
+      totalPlayHeads: 4,
+      adminGuestPlayHeads: 1,
+      guestMemberPlayHeads: 0,
+      policies: {
+        ...DEFAULT_GROUP_POLICIES,
+        guestMember: { mode: "floor", amount: 40_000, capAtEqual: false },
+      },
+    });
+    expect(r.playCostPerHead).toBe(47_000);
+    expect(r.guestMemberPlayCostPerHead).toBe(47_000); // 0 đầu → cùng rổ chia đều với member
+    expect(r.adminGuestPlayCostPerHead).toBe(60_000);
   });
 });
 
