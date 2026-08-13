@@ -686,6 +686,15 @@ git commit -m "feat(finance): read money policy from settings when finalizing"
 
 ### Task 5: Section chia tiền trên trang Cài đặt
 
+> **⛔ TASK NÀY BỊ CHẶN cho tới khi hai việc dưới đây xong. Đổi thứ tự so với bản plan đầu, lý do từ hai reviewer ngày 13/8.**
+>
+> Task 5 là thứ đầu tiên cho admin THỰC SỰ đổi được chính sách tiền. Trước khi có nó, mọi setting tiền đều nằm ở giá trị mặc định nên mọi rủi ro bên dưới đều ngủ. Ship Task 5 mà thiếu hai cái này là mở cửa cho hai kiểu sai tiền im lặng:
+>
+> 1. **Task 10 (đóng băng cấu hình lúc chốt sổ) phải xong TRƯỚC.** `finalizeSession` hiện luôn đọc setting HIỆN TẠI, kể cả khi chốt lại một buổi đã xong. Admin đổi sàn rồi bấm chốt lại buổi tháng trước là tiền đã settled bị tính lại theo cấu hình mới, không cảnh báo gì. Cột `sessions.settings_snapshot` đã tồn tại từ giai đoạn 1 nhưng chưa ai đọc hay ghi.
+> 2. **Đường xem trước phải phân nhóm thật.** `computeGuestAwarePlayRates` đang gộp `guestMember`, `memberFemale`, `guestMemberFemale` vào chung rổ `member`. Hôm nay trùng số vì các nhóm đó đều ở chế độ chia đều. Ngay khi Task 5 hiện ô cho đặt `guestMember` khác `member`, bốn màn xem trước sẽ hiện số mà hệ thống không tính. Khách-của-member là dữ liệu có thật đang phát sinh hàng buổi, không phải trường hợp lý thuyết như giới tính (giới tính còn chưa có cột).
+>
+> Nếu vì lý do gì phải ship Task 5 sớm, thì bắt buộc chỉ hiện ô cho `member` và `guestAdmin`, ẩn hẳn bốn nhóm còn lại, và ghi rõ trong giao diện là chúng chưa dùng được.
+
 **Files:**
 
 - Create: `src/app/(admin)/admin/settings/section-money.tsx`
