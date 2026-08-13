@@ -256,9 +256,16 @@ export function computeShuttlecockTotal(
  * Pure: tách rate CHƠI khi có khách-của-admin. Khách-admin trả sàn `floor`
  * (mặc định 60K) khi naive perHead < floor VÀ có nhóm chia đều; phần còn lại
  * chia cho nhóm chia đều (members + khách-của-member). Không có khách-admin
- * hoặc naive ≥ floor → mọi người = naive. SINGLE SOURCE: dùng chung bởi
- * `calculateSessionCosts` (finalize) và `computePerHeadCharges` (preview) để
- * preview KHÔNG bao giờ drift so với debt thực ghi vào DB.
+ * hoặc naive ≥ floor → mọi người = naive.
+ *
+ * KHÔNG CÒN LÀ SINGLE SOURCE (hết đúng từ giai đoạn 3): `calculateSessionCosts`
+ * (finalize) đã chuyển qua `computeGroupPlayRates` (group-policy.ts) để đọc
+ * `policies`/`genderPricingEnabled`. Hàm này giờ chỉ còn `computePerHeadCharges`
+ * (preview) gọi — 2 đường khớp nhau CHỈ khi `policies` còn nguyên
+ * `DEFAULT_GROUP_POLICIES` (test hiện có chỉ verify đúng trường hợp default
+ * đó, KHÔNG có test nào verify khớp ở policies tuỳ ý). Đổi `policies` khác
+ * default ở finalize mà quên nối preview qua `computeGroupPlayRates` → preview
+ * SẼ lệch so với debt thực ghi vào DB. Nối preview là việc còn để lại.
  */
 export function computeGuestAwarePlayRates(input: {
   totalPlayCost: number;
@@ -317,6 +324,32 @@ export function computePerHeadCharges(input: {
 }
 
 /**
+ * Xếp 1 ĐẦU (member chính chủ hoặc khách — KHÔNG gồm đầu-đi-kèm của member
+ * "đi 2 người", cái đó luôn cố định về `guestMember` bất kể hàm này, xem
+ * `calculateSessionCosts`) vào 1 trong 6 `GroupKey`. Trước đây map
+ * isGuest+invitedById+gender → nhóm bị viết lặp 3 chỗ trong
+ * `calculateSessionCosts` (dựng headsByGroup, tính suất riêng của member,
+ * tính guestPlayAmount) — 3 bản có thể lệch nhau ở lần sửa sau mà chỉ đụng
+ * 1-2 chỗ. Gom về đây để chỉ còn 1 chỗ giữ đúng.
+ */
+function classifyHead(
+  attendee: Pick<AttendeeInput, "isGuest" | "invitedById" | "gender">,
+  adminMemberId: number | null,
+  genderPricingEnabled: boolean,
+): GroupKey {
+  const isFemale = genderPricingEnabled && attendee.gender === "female";
+  if (attendee.isGuest) {
+    const isAdminGuest =
+      adminMemberId !== null && attendee.invitedById === adminMemberId;
+    if (isAdminGuest) {
+      return isFemale ? "guestAdminFemale" : "guestAdmin";
+    }
+    return isFemale ? "guestMemberFemale" : "guestMember";
+  }
+  return isFemale ? "memberFemale" : "member";
+}
+
+/**
  * Predicted PLAY revenue cho preview: nhóm chia đều × splitRate + khách-của-admin
  * × sàn. KHÔNG gồm nhậu / penalty surplus (caller cộng riêng). Tách helper để
  * session-list + dashboard không hand-roll công thức (tránh drift khi đổi rule).
@@ -351,9 +384,6 @@ export function calculateSessionCosts(
   attendees: AttendeeInput[],
   shuttlecocks: ShuttlecockInput[],
   opts?: {
-    /** Giữ cho tương thích type cũ — không còn đọc: sàn khách-admin giờ nằm
-     *  trong `policies.guestAdmin.amount`. Muốn đổi sàn thì đổi policies. */
-    floor?: number;
     adminMemberId?: number | null;
     /** Không truyền → `DEFAULT_GROUP_POLICIES` (đúng hành vi trước giai đoạn 3). */
     policies?: Record<GroupKey, GroupPolicy>;
@@ -404,17 +434,13 @@ export function calculateSessionCosts(
   };
   for (const a of allPlayers) {
     const heads = a.headcount ?? 1;
-    const isFemale = genderPricingEnabled && a.gender === "female";
+    const group = classifyHead(a, adminMemberId, genderPricingEnabled);
     if (a.isGuest) {
-      const isAdminGuest =
-        adminMemberId !== null && a.invitedById === adminMemberId;
-      if (isAdminGuest) {
-        headsByGroup[isFemale ? "guestAdminFemale" : "guestAdmin"] += heads;
-      } else {
-        headsByGroup[isFemale ? "guestMemberFemale" : "guestMember"] += heads;
-      }
+      headsByGroup[group] += heads;
     } else {
-      headsByGroup[isFemale ? "memberFemale" : "member"] += 1;
+      headsByGroup[group] += 1;
+      // Đầu đi-kèm không chạy qua classifyHead — luật cố định (27/7/2026),
+      // không phụ thuộc gender/host của member chính chủ.
       headsByGroup.guestMember += Math.max(0, heads - 1);
     }
   }
@@ -471,9 +497,11 @@ export function calculateSessionCosts(
     // 2 row trùng memberId, chỉ row đầu quyết định headcount/gender).
     const ownRow = attendees.find((a) => a.memberId === memberId && !a.isGuest);
     const memberHeadcount = ownRow?.headcount ?? 1;
-    const ownIsFemale = genderPricingEnabled && ownRow?.gender === "female";
-    const ownRate = ownIsFemale
-      ? ratesByGroup.memberFemale
+    // ownRow undefined chỉ xảy ra khi memberPlays cũng false (không có row
+    // non-guest nào cho member này) — fallback "member" không ảnh hưởng vì
+    // playAmount dưới đây đã ép 0 trong trường hợp đó.
+    const ownRate = ownRow
+      ? ratesByGroup[classifyHead(ownRow, adminMemberId, genderPricingEnabled)]
       : ratesByGroup.member;
     // Đầu thứ 2 ("đi 2 người") luôn ăn suất guestMember, không giới tính riêng.
     const extraHeads = Math.max(0, memberHeadcount - 1);
@@ -482,21 +510,11 @@ export function calculateSessionCosts(
       : 0;
     const dineAmount = memberDines ? dineCostPerHead * memberHeadcount : 0;
 
-    // Mỗi host chỉ có 1 loại khách (admin → khách-admin, member khác →
-    // khách-member) nên phân loại theo host memberId là đủ; giới tính vẫn
-    // tính riêng từng khách vì các khách của cùng 1 host có thể khác giới.
-    const isAdminHost = adminMemberId !== null && memberId === adminMemberId;
     let guestPlayAmount = 0;
     for (const g of guestsPlayRows) {
       const heads = g.headcount ?? 1;
-      const guestIsFemale = genderPricingEnabled && g.gender === "female";
-      const rate = isAdminHost
-        ? guestIsFemale
-          ? ratesByGroup.guestAdminFemale
-          : ratesByGroup.guestAdmin
-        : guestIsFemale
-          ? ratesByGroup.guestMemberFemale
-          : ratesByGroup.guestMember;
+      const rate =
+        ratesByGroup[classifyHead(g, adminMemberId, genderPricingEnabled)];
       guestPlayAmount += rate * heads;
     }
     const guestDineAmount = guestsDine * dineCostPerHead;
