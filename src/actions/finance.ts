@@ -33,6 +33,10 @@ import { finalizeSessionSchema } from "@/lib/validators";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getTranslations } from "next-intl/server";
 import { getSettings } from "@/actions/settings";
+import {
+  resolveSessionSettings,
+  serializeSnapshot,
+} from "@/lib/session-money-settings";
 
 export interface FinalizeAttendee {
   memberId: number | null;
@@ -135,7 +139,19 @@ export async function finalizeSession(
   // khách nằm trong `groupPolicies.guestAdmin.amount` (đọc trong
   // calculateSessionCosts bên dưới); sàn member-nghèo là `minDeductionAmount`
   // riêng (đọc ở applyMinDeductionFloor, bước 3.6 dưới nữa).
-  const settings = await getSettings();
+  //
+  // Task 10 (giai đoạn 3): buổi đã chốt sổ trước đó đọc lại CHÍNH cấu hình đã
+  // dùng lần đầu (`session.settingsSnapshot`), không đọc setting hiện tại —
+  // nếu không, chốt lại một buổi tháng trước sau khi admin đổi sàn sẽ tính lại
+  // tiền đã settled theo cấu hình mới, im lặng. `fromSnapshot=false` nghĩa là
+  // buổi này chưa từng chốt (hoặc snapshot hỏng) → dùng cấu hình hiện tại VÀ
+  // ghi snapshot mới trong transaction bên dưới để đóng băng cho lần sau.
+  const globalSettings = await getSettings();
+  const { settings, fromSnapshot } = resolveSessionSettings({
+    global: globalSettings,
+    override: session.settingsOverride,
+    snapshot: session.settingsSnapshot,
+  });
 
   // Compute costs once
   const attendeeInputs: AttendeeInput[] = data.attendeeList.map((a) => ({
@@ -511,13 +527,22 @@ export async function finalizeSession(
         }
       }
 
-      // 5. Mark session completed
+      // 5. Mark session completed. Ghi settings_snapshot NGAY TRONG transaction
+      // này (không phải sau khi tx commit): nếu ghi ngoài mà tx rollback ở bước
+      // trên, buổi sẽ bị đóng băng một cấu hình chưa từng thực sự dùng để tính
+      // tiền. Chỉ ghi khi `fromSnapshot=false` (buổi chưa từng chốt/snapshot
+      // hỏng) — buổi đã có snapshot hợp lệ thì giữ nguyên, không ghi đè bằng
+      // cấu hình vừa resolve (nó chính là snapshot cũ, ghi lại vô hại nhưng
+      // không cần thiết).
       await tx
         .update(sessions)
         .set({
           diningBill: data.diningBill,
           status: "completed",
           updatedAt: now,
+          ...(fromSnapshot
+            ? {}
+            : { settingsSnapshot: serializeSnapshot(settings) }),
         })
         .where(eq(sessions.id, data.sessionId));
     });
