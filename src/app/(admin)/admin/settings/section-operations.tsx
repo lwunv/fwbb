@@ -9,7 +9,10 @@ import { Switch } from "@/components/ui/switch";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { fireAction } from "@/lib/optimistic-action";
 import { updateSetting } from "@/actions/settings";
-import type { AppSettings } from "@/lib/settings-registry";
+import {
+  normalizeContactHotline,
+  type AppSettings,
+} from "@/lib/settings-registry";
 import { VN_BANKS } from "@/lib/vn-banks";
 import { AUTO_MATCH_BANK_BIN } from "@/lib/bank-account";
 
@@ -134,15 +137,18 @@ export function SectionOperations({ settings }: { settings: AppSettings }) {
 
   // retry: false — cùng lý do commitBankBin/commitBankAccountNo: sai định
   // dạng hotline/email thì gọi lại lần hai vẫn sai y hệt, retry chỉ tốn thêm
-  // một vòng round-trip trước khi rollback. Registry tự chuẩn hoá hotline
-  // (bỏ dấu cách/chấm/gạch ngang) nên giá trị hiện lại sau khi lưu có thể
-  // khác chuỗi vừa gõ — đúng ý đồ, để href `tel:` luôn sạch.
+  // một vòng round-trip trước khi rollback. Chuẩn hoá NGAY Ở ĐÂY bằng đúng
+  // hàm registry export ra (không tự chép lại regex) — setting này
+  // `revalidate: []` và component không gọi `router.refresh()`, nên nếu chỉ
+  // trim() rồi set state lạc quan như cũ, ô nhập sẽ đứng yên với chuỗi có dấu
+  // cách/chấm/gạch ngang cho tới khi reload cả trang, dù DB đã lưu đúng giá
+  // trị sạch — admin nhìn vào tưởng lưu chưa xong.
   function commitContactHotline(next: string) {
-    const trimmed = next.trim();
+    const normalized = normalizeContactHotline(next);
     const prev = contactHotline;
-    setContactHotline(trimmed);
+    setContactHotline(normalized);
     fireAction(
-      () => updateSetting("contactHotline", trimmed),
+      () => updateSetting("contactHotline", normalized),
       () => setContactHotline(prev),
       { retry: false },
     );

@@ -89,11 +89,15 @@ export default async function VoteSessionPage({
         adminGuestPlayCount={session.adminGuestPlayCount ?? 0}
         adminGuestDineCount={session.adminGuestDineCount ?? 0}
         maxPlayers={session.maxPlayers ?? 16}
-      />
-
-      <VoteContactInfo
-        hotline={settings.contactHotline}
-        email={settings.contactEmail}
+        // Đi qua footerSlot (không phải sibling sau component) để spacer h-28
+        // chừa chỗ cho thanh sticky đáy luôn nằm SAU khối liên hệ này — nếu
+        // không, thanh sticky (fixed, z-40) đè lên che mất link gọi/mail.
+        footerSlot={
+          <VoteContactInfo
+            hotline={settings.contactHotline}
+            email={settings.contactEmail}
+          />
+        }
       />
     </div>
   );

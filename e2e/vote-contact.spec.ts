@@ -103,18 +103,27 @@ test.describe("khối liên hệ ở màn vote", () => {
     await expect(page.locator('a[href^="mailto:"]')).toHaveCount(0);
   });
 
-  test("cấu hình cả hai → khối hiện, liên kết tel: và mailto: đúng giá trị", async ({
+  test("cấu hình cả hai → khối hiện, liên kết tel: và mailto: đúng giá trị, không bị thanh sticky che", async ({
     page,
   }) => {
     await setContactSettings("0987654321", "hotro@fwbb.club");
     await loginAsMember(page);
     await page.goto(`/vote/${sessionId}`, { waitUntil: "domcontentloaded" });
 
+    const telLink = page.locator('a[href="tel:0987654321"]');
+    const mailLink = page.locator('a[href="mailto:hotro@fwbb.club"]');
     await expect(page.getByText("Liên hệ hỗ trợ")).toBeVisible();
-    await expect(page.locator('a[href="tel:0987654321"]')).toBeVisible();
-    await expect(
-      page.locator('a[href="mailto:hotro@fwbb.club"]'),
-    ).toBeVisible();
+    await expect(telLink).toBeVisible();
+    await expect(mailLink).toBeVisible();
+
+    // Buổi status='voting', không deadline → thanh sticky vote bar (fixed,
+    // z-40) luôn hiện ở đáy màn hình cho member đã login — đúng trạng thái
+    // đa số member gặp khi mở link vote. `click({ trial: true })` chạy đủ
+    // actionability check của Playwright (visible + stable + KHÔNG có phần
+    // tử khác chặn tại điểm click) mà không thật sự bấm — nếu thanh sticky
+    // đè lên link này, bước trial-click sẽ timeout/fail ngay đây.
+    await telLink.click({ trial: true, timeout: 5_000 });
+    await mailLink.click({ trial: true, timeout: 5_000 });
   });
 
   test("chỉ cấu hình một cái → chỉ hiện cái đã có", async ({ page }) => {
@@ -122,7 +131,9 @@ test.describe("khối liên hệ ở màn vote", () => {
     await loginAsMember(page);
     await page.goto(`/vote/${sessionId}`, { waitUntil: "domcontentloaded" });
 
-    await expect(page.locator('a[href="tel:0987654321"]')).toBeVisible();
+    const telLink = page.locator('a[href="tel:0987654321"]');
+    await expect(telLink).toBeVisible();
     await expect(page.locator('a[href^="mailto:"]')).toHaveCount(0);
+    await telLink.click({ trial: true, timeout: 5_000 });
   });
 });

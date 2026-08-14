@@ -41,16 +41,26 @@ function def<T>(d: SettingDef<T>): SettingDef<T> {
 }
 
 // Người dùng gõ số điện thoại tự nhiên kiểu "090 765 4321" hay
-// "090.765.4321". Bỏ dấu cách/dấu chấm/dấu gạch ngang NGAY TRONG schema
-// (transform trước refine) trước khi lưu — giá trị nằm trong DB dùng thẳng
-// làm href `tel:`, và một `tel:` href có dấu cách không tin cậy trên mọi
-// dialer di động. Nhận đầu số `0` hoặc `+84`, giữ nguyên đầu số admin gõ
-// (không tự quy đổi qua lại giữa hai dạng).
+// "090.765.4321". Bỏ dấu cách/dấu chấm/dấu gạch ngang — giá trị nằm trong DB
+// dùng thẳng làm href `tel:`, và một `tel:` href có dấu cách không tin cậy
+// trên mọi dialer di động. Export ra để component ô nhập (section-operations)
+// dùng LẠI ĐÚNG hàm này cho state lạc quan — không chép lại regex, tránh lệch
+// giữa giá trị hiện trên UI và giá trị thật sẽ được server chuẩn hoá rồi lưu.
+export function normalizeContactHotline(v: string): string {
+  return v.trim().replace(/[\s.-]/g, "");
+}
+
+// Nhận đầu số `0` hoặc `+84`, giữ nguyên đầu số admin gõ (không tự quy đổi
+// qua lại giữa hai dạng). Theo sau ĐÚNG 9 chữ số — số di động VN chuẩn là
+// 10 số bắt đầu bằng 0 (0 + 9 số) hoặc +84 + 9 số (bỏ số 0 đầu). Cố tình
+// KHÔNG dùng khoảng {8,9}: số thiếu 1 chữ số vẫn phải bị chặn, không cho qua
+// như số hợp lệ (xem regression test "chặn số thiếu đúng 1 chữ số"). Không
+// hỗ trợ landline nhiều số hơn — hotline nhóm trong thực tế luôn là di động
+// cá nhân của admin/BTC.
 const contactHotlineSchema = z
   .string()
-  .trim()
-  .transform((v) => v.replace(/[\s.-]/g, ""))
-  .refine((v) => v === "" || /^(0|\+84)\d{8,9}$/.test(v), {
+  .transform(normalizeContactHotline)
+  .refine((v) => v === "" || /^(0|\+84)\d{9}$/.test(v), {
     message: "Số hotline không hợp lệ",
   });
 

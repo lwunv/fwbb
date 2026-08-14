@@ -53,6 +53,15 @@ interface SessionVoteOptimisticPanelProps {
   maxPlayers?: number;
   /** Render ở đỉnh SessionCard (vd hàng chip chọn thứ). Forward xuống topSlot. */
   headerSlot?: ReactNode;
+  /**
+   * Render dưới danh sách vote, NGAY TRƯỚC spacer `h-28` chừa chỗ cho thanh
+   * sticky đáy (vd khối liên hệ hotline/email). Phải đi qua slot này thay vì
+   * render làm sibling SAU cả component — nếu không, spacer h-28 (vốn phải
+   * luôn là phần tử cuối cùng) sẽ nằm CHEN giữa slot đó và thanh sticky,
+   * để lại một khoảng trống vô nghĩa phía trên, đồng thời không còn gì chừa
+   * chỗ cho slot nên thanh sticky (fixed, z-40) đè lên che mất nội dung slot.
+   */
+  footerSlot?: ReactNode;
   /** Báo optimisticVotes ra ngoài (week-sessions-view) để badge chip ngày cũng
    *  cập nhật NGAY khi vote — không chờ server revalidate. */
   onOptimisticVotesChange?: (votes: VoteWithMember[]) => void;
@@ -70,6 +79,7 @@ export function SessionVoteOptimisticPanel({
   adminGuestDineCount = 0,
   maxPlayers = 16,
   headerSlot,
+  footerSlot,
   onOptimisticVotesChange,
 }: SessionVoteOptimisticPanelProps) {
   const t = useTranslations("sessions");
@@ -260,8 +270,12 @@ export function SessionVoteOptimisticPanel({
         </CardContent>
       </Card>
 
+      {footerSlot}
+
       {/* Spacer chừa chỗ cho thanh sticky đáy (vote bar khi đã login, hoặc CTA
-          đăng nhập khi là khách) khỏi che danh sách. */}
+          đăng nhập khi là khách) khỏi che danh sách. Đặt SAU footerSlot để nó
+          luôn là phần tử cuối cùng trước thanh sticky, bất kể footerSlot có
+          nội dung hay không. */}
       {effectiveIsVotingOpen && <div className="h-28" aria-hidden />}
 
       {/* Thanh FIXED full-width, portal ra body để tràn hết mép màn hình (không

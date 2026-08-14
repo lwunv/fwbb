@@ -142,6 +142,13 @@ describe("setting liên hệ nhóm (task 13)", () => {
     expect(() => SETTINGS.contactHotline.schema.parse("84987654321")).toThrow(); // thiếu dấu +
   });
 
+  it("hotline: chặn số thiếu đúng 1 chữ số (regression — {8,9} trước đây lọt số 8 chữ số)", () => {
+    // "098765432" = đầu số 0 + 8 chữ số, tức "0987654321" gõ thiếu mất số cuối.
+    // Số di động VN thật luôn là đầu số + ĐÚNG 9 chữ số, không phải khoảng 8-9.
+    expect(() => SETTINGS.contactHotline.schema.parse("098765432")).toThrow();
+    expect(() => SETTINGS.contactHotline.schema.parse("+8498765432")).toThrow(); // tương tự, +84 + 8 chữ số
+  });
+
   it("email: rỗng hợp lệ, nhận email hợp lệ, chặn rác", () => {
     expect(SETTINGS.contactEmail.schema.parse("")).toBe("");
     expect(SETTINGS.contactEmail.schema.parse("admin@fwbb.club")).toBe(
