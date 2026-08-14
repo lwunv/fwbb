@@ -692,8 +692,9 @@ git commit -m "feat(finance): read money policy from settings when finalizing"
 >
 > 1. **Task 10 (đóng băng cấu hình lúc chốt sổ) phải xong TRƯỚC.** `finalizeSession` hiện luôn đọc setting HIỆN TẠI, kể cả khi chốt lại một buổi đã xong. Admin đổi sàn rồi bấm chốt lại buổi tháng trước là tiền đã settled bị tính lại theo cấu hình mới, không cảnh báo gì. Cột `sessions.settings_snapshot` đã tồn tại từ giai đoạn 1 nhưng chưa ai đọc hay ghi.
 > 2. **Đường xem trước phải phân nhóm thật.** `computeGuestAwarePlayRates` đang gộp `guestMember`, `memberFemale`, `guestMemberFemale` vào chung rổ `member`. Hôm nay trùng số vì các nhóm đó đều ở chế độ chia đều. Ngay khi Task 5 hiện ô cho đặt `guestMember` khác `member`, bốn màn xem trước sẽ hiện số mà hệ thống không tính. Khách-của-member là dữ liệu có thật đang phát sinh hàng buổi, không phải trường hợp lý thuyết như giới tính (giới tính còn chưa có cột).
+> 3. **Khách do chính admin mời qua phiếu vote của họ phải được phân loại đúng.** Lúc chốt sổ, quy tắc là `invitedById === adminMemberId`, nên khách admin mời qua dòng vote của chính mình cũng tính là khách-của-admin. Nhưng ba màn xem trước đang đếm nó vào khách-của-member: `admin-vote-manager.tsx` không nhận `adminMemberId` nên không thể tách, còn `admin-session-card.tsx` và `session-list.tsx` lấy `guestPlayCount − adminGuestPlayCount` nên phần khách trong phiếu vote của admin vẫn nằm lại. Lỗi này có từ trước (trước fix round 2 nó bị gộp vào `member`, cũng sai), đang ngủ vì chưa có ô nào cho đổi chính sách `guestMember`. Đóng nó cần thread `adminMemberId` xuống `admin-vote-manager` và tách được phần khách trong phiếu của admin ở hai màn kia — đúng những component Task 5 dù sao cũng phải chạm.
 >
-> Nếu vì lý do gì phải ship Task 5 sớm, thì bắt buộc chỉ hiện ô cho `member` và `guestAdmin`, ẩn hẳn bốn nhóm còn lại, và ghi rõ trong giao diện là chúng chưa dùng được.
+> Nếu vì lý do gì phải ship Task 5 sớm, thì bắt buộc chỉ hiện ô cho `member` và `guestAdmin`, ẩn hẳn bốn nhóm còn lại, và ghi rõ trong giao diện là chúng chưa dùng được. Cách đó cũng vô hiệu hoá luôn cả ba rủi ro trên, vì cả ba chỉ phát sinh khi `guestMember` hoặc các nhóm nữ rời khỏi chế độ chia đều.
 
 **Files:**
 
@@ -749,7 +750,144 @@ Chi tiết hoá khi tới lượt, dựa trên code thật sau chặng 1. Phạm
 
 ### Chặng 3: đóng băng cấu hình (task 10-11)
 
-**Task 10:** lần chốt sổ đầu ghi cấu hình đang áp vào `sessions.settings_snapshot`; các lần chốt lại đọc snapshot thay vì setting hiện tại. Kèm test: đổi sàn rồi chốt lại buổi cũ, tiền phải không đổi.
+### Task 10: Đóng băng cấu hình lúc chốt sổ
+
+> **Task này đã được ĐẨY LÊN TRƯỚC Task 5** (quyết định 13/8, sau review Task 4). Lý do ở phần cảnh báo đầu Task 5.
+
+**Files:**
+
+- Create: `src/lib/session-money-settings.ts`
+- Modify: `src/actions/finance.ts`
+- Test: `src/lib/session-money-settings.test.ts`, `src/actions/finalize-snapshot.integration.test.ts`
+
+**Interfaces:**
+
+- Consumes: `AppSettings` và `SETTINGS` từ registry, `resolveForSession` từ `src/lib/settings-resolve.ts` (hàm này viết từ giai đoạn 1 và tới nay CHƯA có caller thật nào ngoài test, Task 10 là chỗ đầu tiên dùng nó thật), `getSettings` từ `src/actions/settings.ts`.
+- Produces: `resolveSessionSettings({ global, override, snapshot })` trả `{ settings: AppSettings; fromSnapshot: boolean }`, và `serializeSnapshot(settings): string`.
+
+**Vấn đề đang có:** `finalizeSession` gọi `getSettings()` (`src/actions/finance.ts:138`) và luôn lấy cấu hình **hiện tại**, kể cả khi chốt lại một buổi đã xong. Chốt lại được phép (`finance.ts:81-84` cho phép re-finalize, và nó đảo khoản trừ cũ rồi ghi mới). Nên admin đổi sàn rồi bấm chốt lại buổi tháng trước là tiền đã settled bị tính lại theo cấu hình mới, không cảnh báo gì. Cột `sessions.settings_snapshot` tồn tại từ migration 0023 nhưng chưa ai đọc hay ghi.
+
+- [ ] **Step 1: Viết test cho hàm thuần trước**
+
+Tạo `src/lib/session-money-settings.test.ts`:
+
+```ts
+import { describe, expect, it } from "vitest";
+import {
+  resolveSessionSettings,
+  serializeSnapshot,
+} from "./session-money-settings";
+import { defaultSettings } from "./settings-registry";
+
+describe("resolveSessionSettings", () => {
+  const global = { ...defaultSettings(), minDeductionAmount: 70_000 };
+
+  it("chưa có snapshot thì dùng setting hiện tại, và báo là cần ghi snapshot", () => {
+    const r = resolveSessionSettings({
+      global,
+      override: null,
+      snapshot: null,
+    });
+    expect(r.settings.minDeductionAmount).toBe(70_000);
+    expect(r.fromSnapshot).toBe(false);
+  });
+
+  it("có snapshot thì dùng snapshot, KHÔNG dùng setting hiện tại", () => {
+    const frozen = serializeSnapshot({
+      ...defaultSettings(),
+      minDeductionAmount: 60_000,
+    });
+    const r = resolveSessionSettings({
+      global,
+      override: null,
+      snapshot: frozen,
+    });
+    // global đang 70K nhưng buổi này đã đóng băng ở 60K
+    expect(r.settings.minDeductionAmount).toBe(60_000);
+    expect(r.fromSnapshot).toBe(true);
+  });
+
+  it("snapshot hỏng thì rơi về setting hiện tại chứ không ném lỗi, và báo chưa có snapshot", () => {
+    const r = resolveSessionSettings({
+      global,
+      override: null,
+      snapshot: "{{{",
+    });
+    expect(r.settings.minDeductionAmount).toBe(70_000);
+    expect(r.fromSnapshot).toBe(false);
+  });
+
+  it("snapshot thắng cả override của buổi", () => {
+    const frozen = serializeSnapshot({
+      ...defaultSettings(),
+      minDeductionAmount: 50_000,
+    });
+    const r = resolveSessionSettings({
+      global,
+      override: JSON.stringify({ minDeductionAmount: 80_000 }),
+      snapshot: frozen,
+    });
+    expect(r.settings.minDeductionAmount).toBe(50_000);
+  });
+
+  it("chưa có snapshot thì override của buổi vẫn đè setting chung", () => {
+    const r = resolveSessionSettings({
+      global,
+      override: JSON.stringify({ minDeductionAmount: 80_000 }),
+      snapshot: null,
+    });
+    expect(r.settings.minDeductionAmount).toBe(80_000);
+  });
+});
+```
+
+Vì sao snapshot thắng cả override: snapshot là ảnh chụp cấu hình **đã áp dụng thật** lúc chốt, mà cấu hình đó vốn đã gộp override vào rồi. Đọc lại override sau đó là đọc một giá trị có thể đã bị admin sửa sau khi buổi chốt xong.
+
+- [ ] **Step 2: Chạy test cho chắc là đỏ**
+
+Run: `npx vitest run src/lib/session-money-settings.test.ts`
+Expected: FAIL, không tìm thấy module.
+
+- [ ] **Step 3: Viết hàm thuần**
+
+Snapshot lưu **toàn bộ `AppSettings`**, không phải chỉ ba key tiền. Lý do: thêm setting tiền mới sau này mà quên thêm vào danh sách snapshot là một lỗi im lặng đúng loại chúng ta đang cố diệt; lưu tất thì không thể quên. Các key không liên quan tiền (tên nhóm chẳng hạn) bị đóng băng theo cũng vô hại vì `finalizeSession` không đọc chúng.
+
+Parse snapshot phải đi qua `SETTINGS[key].schema` giống `resolveGlobal`, và key hỏng thì rơi về giá trị của tầng dưới thay vì ném lỗi. Một snapshot hỏng không được làm admin không chốt được sổ.
+
+- [ ] **Step 4: Nối vào finalizeSession**
+
+Thay `const settings = await getSettings()` (`finance.ts:138`) bằng: đọc global settings, đọc `session.settingsOverride` và `session.settingsSnapshot` từ hàng session đã query, rồi gọi `resolveSessionSettings`.
+
+Sau khi transaction chốt sổ thành công, nếu `fromSnapshot` là false thì ghi `settings_snapshot` cho buổi đó. Ghi **trong cùng transaction** với phần chốt sổ, không phải sau: nếu ghi ngoài mà transaction rollback thì buổi bị đóng băng một cấu hình chưa từng được dùng để tính tiền.
+
+Cẩn thận thứ tự: query lấy `session` hiện tại có `columns` giới hạn không? Nếu có, phải thêm `settingsOverride` và `settingsSnapshot` vào đó, không thì chúng về `undefined` và snapshot không bao giờ được đọc — một lỗi im lặng mà test đọc-ghi qua DB sẽ bắt được nhưng test hàm thuần thì không.
+
+- [ ] **Step 5: Test tích hợp qua DB thật**
+
+Tạo `src/actions/finalize-snapshot.integration.test.ts`, chép cách dựng DB thử từ một file `*.integration.test.ts` sẵn có.
+
+Bốn ca, ca thứ hai là ca quan trọng nhất của cả task:
+
+1. Chốt sổ lần đầu: sau khi xong, `sessions.settings_snapshot` khác null và parse ra đúng cấu hình vừa dùng.
+2. **Đổi setting rồi chốt lại buổi đó: số tiền từng member KHÔNG đổi.** Cụ thể: chốt với sàn 60K, ghi lại các `totalAmount`, đổi `minDeductionAmount` lên 90K, chốt lại, khẳng định từng `totalAmount` y hệt lần đầu. Đây là toàn bộ lý do task này tồn tại.
+3. Buổi chốt lần đầu **sau khi** admin đã đổi setting thì dùng cấu hình mới (snapshot chưa tồn tại nên không đóng băng gì).
+4. Sau mọi ca trên, `Σ fund_deduction` vẫn khớp `Σ debt.totalAmount` (bất biến I1) và không dòng nợ nào mang cờ confirmed mà thiếu dòng ledger (I8).
+
+- [ ] **Step 6: Verify và đối soát**
+
+- `npx vitest run` trên hai file test mới cộng `finalize-min-deduction.integration.test.ts` và `finalize-admin-guest-income.integration.test.ts`
+- `npx tsc --noEmit`, `pnpm lint`, `pnpm test`, `pnpm build`
+- `pnpm test:e2e`
+- Chạy skill `reconcile-check`, bắt buộc vì task này đụng đường chốt sổ.
+
+Đọc mã thoát thật từng lệnh.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/lib/session-money-settings.ts src/lib/session-money-settings.test.ts src/actions/finance.ts src/actions/finalize-snapshot.integration.test.ts
+git commit -m "feat(finance): freeze money settings into session snapshot on finalize"
+```
 
 **Task 11:** nút xoá snapshot cho admin chủ động áp cấu hình mới lên buổi cũ, có bước xác nhận vì nó làm đổi tiền lịch sử.
 
