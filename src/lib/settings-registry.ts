@@ -40,6 +40,28 @@ function def<T>(d: SettingDef<T>): SettingDef<T> {
   return d;
 }
 
+// Người dùng gõ số điện thoại tự nhiên kiểu "090 765 4321" hay
+// "090.765.4321". Bỏ dấu cách/dấu chấm/dấu gạch ngang NGAY TRONG schema
+// (transform trước refine) trước khi lưu — giá trị nằm trong DB dùng thẳng
+// làm href `tel:`, và một `tel:` href có dấu cách không tin cậy trên mọi
+// dialer di động. Nhận đầu số `0` hoặc `+84`, giữ nguyên đầu số admin gõ
+// (không tự quy đổi qua lại giữa hai dạng).
+const contactHotlineSchema = z
+  .string()
+  .trim()
+  .transform((v) => v.replace(/[\s.-]/g, ""))
+  .refine((v) => v === "" || /^(0|\+84)\d{8,9}$/.test(v), {
+    message: "Số hotline không hợp lệ",
+  });
+
+// Rỗng = chưa cấu hình. Không rỗng thì phải là email hợp lệ.
+const contactEmailSchema = z
+  .string()
+  .trim()
+  .refine((v) => v === "" || z.email().safeParse(v).success, {
+    message: "Email không hợp lệ",
+  });
+
 export const SETTINGS = {
   // ─── Đã tồn tại trong app_settings, giữ nguyên tên key ───
   appName: def({
@@ -185,6 +207,30 @@ export const SETTINGS = {
     default: "",
     perSession: false,
     revalidate: ["/", "/admin/fund"],
+  }),
+
+  // ─── Liên hệ nhóm (hiện ở màn vote khi đã cấu hình) ───
+  // Mặc định rỗng = admin chưa cấu hình → khối liên hệ ở màn vote KHÔNG
+  // render gì (không phải box trống, không phải "chưa có"). Hôm nay chưa ai
+  // cấu hình nên đây là trạng thái đa số member sẽ thấy — màn vote phải
+  // giống hệt lúc chưa có hai setting này. Hai setting độc lập, không bắt
+  // buộc phải điền cả hai. perSession: false vì đây là thông tin liên hệ của
+  // cả nhóm, không có lý do khác nhau theo từng buổi.
+  contactHotline: def({
+    key: "contactHotline",
+    schema: contactHotlineSchema,
+    default: "",
+    perSession: false,
+    // /vote/[id] đọc cookie member (getUserFromCookie) nên trang luôn render
+    // động mỗi request — không có route cache tĩnh nào cần revalidate.
+    revalidate: [],
+  }),
+  contactEmail: def({
+    key: "contactEmail",
+    schema: contactEmailSchema,
+    default: "",
+    perSession: false,
+    revalidate: [],
   }),
 
   // ─── Chia tiền — ba setting đầu tiên perSession: true ───

@@ -104,6 +104,61 @@ describe("schema chặn giá trị vô lý", () => {
   });
 });
 
+describe("setting liên hệ nhóm (task 13)", () => {
+  it("mặc định rỗng và không override theo buổi", () => {
+    const d = defaultSettings();
+    expect(d.contactHotline).toBe("");
+    expect(d.contactEmail).toBe("");
+    expect(isPerSession("contactHotline" as SettingKey)).toBe(false);
+    expect(isPerSession("contactEmail" as SettingKey)).toBe(false);
+  });
+
+  it("hotline: rỗng hợp lệ, nhận đầu số 0 hoặc +84, chuẩn hoá bỏ dấu cách/chấm/gạch ngang", () => {
+    expect(SETTINGS.contactHotline.schema.parse("")).toBe("");
+    expect(SETTINGS.contactHotline.schema.parse("0987654321")).toBe(
+      "0987654321",
+    );
+    expect(SETTINGS.contactHotline.schema.parse("090 765 4321")).toBe(
+      "0907654321",
+    );
+    expect(SETTINGS.contactHotline.schema.parse("090.765.4321")).toBe(
+      "0907654321",
+    );
+    expect(SETTINGS.contactHotline.schema.parse("090-765-4321")).toBe(
+      "0907654321",
+    );
+    expect(SETTINGS.contactHotline.schema.parse("+84987654321")).toBe(
+      "+84987654321",
+    );
+    expect(SETTINGS.contactHotline.schema.parse("+84 90 765 4321")).toBe(
+      "+84907654321",
+    );
+  });
+
+  it("hotline: chặn giá trị rác", () => {
+    expect(() => SETTINGS.contactHotline.schema.parse("abcdefghij")).toThrow();
+    expect(() => SETTINGS.contactHotline.schema.parse("0123")).toThrow(); // quá ngắn
+    expect(() => SETTINGS.contactHotline.schema.parse("123456789")).toThrow(); // thiếu đầu số 0/+84
+    expect(() => SETTINGS.contactHotline.schema.parse("84987654321")).toThrow(); // thiếu dấu +
+  });
+
+  it("email: rỗng hợp lệ, nhận email hợp lệ, chặn rác", () => {
+    expect(SETTINGS.contactEmail.schema.parse("")).toBe("");
+    expect(SETTINGS.contactEmail.schema.parse("admin@fwbb.club")).toBe(
+      "admin@fwbb.club",
+    );
+    expect(() => SETTINGS.contactEmail.schema.parse("not-an-email")).toThrow();
+    expect(() => SETTINGS.contactEmail.schema.parse("admin@")).toThrow();
+  });
+
+  it("mỗi setting validate độc lập — điền một cái, để trống cái kia vẫn hợp lệ", () => {
+    expect(() =>
+      SETTINGS.contactHotline.schema.parse("0987654321"),
+    ).not.toThrow();
+    expect(() => SETTINGS.contactEmail.schema.parse("")).not.toThrow();
+  });
+});
+
 describe("setting tiền (giai đoạn 3)", () => {
   it("mặc định giữ đúng hành vi hôm nay", () => {
     const d = defaultSettings();

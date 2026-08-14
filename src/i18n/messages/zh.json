@@ -53,7 +53,10 @@
     "bankPlaceholder": "选择银行",
     "bankAccountNo": "账号",
     "bankAccountName": "开户姓名",
-    "bankAutoMatchWarning": "自动识别转账功能仅支持已集成的银行。选择其他银行后，所有转入款项都需要管理员手动确认。"
+    "bankAutoMatchWarning": "自动识别转账功能仅支持已集成的银行。选择其他银行后，所有转入款项都需要管理员手动确认。",
+    "contactInfo": "联系方式",
+    "contactHotline": "热线电话",
+    "contactEmail": "联系邮箱"
   },
   "adminMisc": {
     "minDeductionAria": "为资金不足的成员开启/关闭 60K 最低扣费规则",
@@ -138,6 +141,9 @@
     "directions": "导航",
     "adminGuestButton": "+ 管理员嘉宾",
     "stillOwingAmount": "仍欠 {amount}",
+    "contactTitle": "联系方式",
+    "contactCallAria": "拨打热线",
+    "contactEmailAria": "发送邮件",
     "filterAll": "全部",
     "filterUpcoming": "即将到来",
     "filterFrom": "从",

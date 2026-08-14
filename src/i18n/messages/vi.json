@@ -53,7 +53,10 @@
     "bankPlaceholder": "Chọn ngân hàng",
     "bankAccountNo": "Số tài khoản",
     "bankAccountName": "Tên chủ tài khoản",
-    "bankAutoMatchWarning": "Tính năng tự động nhận diện chuyển khoản chỉ hoạt động với ngân hàng đang tích hợp. Chọn ngân hàng khác thì mọi khoản chuyển vào sẽ cần admin xác nhận thủ công."
+    "bankAutoMatchWarning": "Tính năng tự động nhận diện chuyển khoản chỉ hoạt động với ngân hàng đang tích hợp. Chọn ngân hàng khác thì mọi khoản chuyển vào sẽ cần admin xác nhận thủ công.",
+    "contactInfo": "Liên hệ",
+    "contactHotline": "Hotline",
+    "contactEmail": "Email liên hệ"
   },
   "adminMisc": {
     "minDeductionAria": "Bật/tắt rule tối thiểu 60K cho member thiếu quỹ",
@@ -138,6 +141,9 @@
     "directions": "Chỉ đường",
     "adminGuestButton": "+ Khách admin",
     "stillOwingAmount": "Còn thiếu {amount}",
+    "contactTitle": "Liên hệ hỗ trợ",
+    "contactCallAria": "Gọi hotline",
+    "contactEmailAria": "Gửi email",
     "filterAll": "Tất cả",
     "filterUpcoming": "Sắp tới",
     "filterFrom": "Từ ngày",

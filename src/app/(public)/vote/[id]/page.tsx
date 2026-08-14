@@ -1,8 +1,10 @@
 import { getSession } from "@/actions/sessions";
 import { getSessionVotes } from "@/actions/votes";
 import { getActiveMembers } from "@/actions/members";
+import { getSettings } from "@/actions/settings";
 import { getUserFromCookie } from "@/lib/user-identity";
 import { SessionVoteOptimisticPanel } from "@/components/sessions/session-vote-optimistic-panel";
+import { VoteContactInfo } from "@/components/sessions/vote-contact-info";
 import { CopyLinkButton } from "@/components/shared/copy-link-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { notFound, redirect } from "next/navigation";
@@ -33,9 +35,10 @@ export default async function VoteSessionPage({
 
   if (!session) notFound();
 
-  const [votes, members] = await Promise.all([
+  const [votes, members, settings] = await Promise.all([
     getSessionVotes(session.id),
     getActiveMembers(),
+    getSettings(),
   ]);
 
   // Helper canonical (deadline-aware) — khớp gate server-side của submitVote.
@@ -86,6 +89,11 @@ export default async function VoteSessionPage({
         adminGuestPlayCount={session.adminGuestPlayCount ?? 0}
         adminGuestDineCount={session.adminGuestDineCount ?? 0}
         maxPlayers={session.maxPlayers ?? 16}
+      />
+
+      <VoteContactInfo
+        hotline={settings.contactHotline}
+        email={settings.contactEmail}
       />
     </div>
   );

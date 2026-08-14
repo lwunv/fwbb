@@ -32,6 +32,8 @@ export function SectionOperations({ settings }: { settings: AppSettings }) {
     bankBin: bankBinSetting,
     bankAccountNo: bankAccountNoSetting,
     bankAccountName: bankAccountNameSetting,
+    contactHotline: contactHotlineSetting,
+    contactEmail: contactEmailSetting,
   } = settings;
 
   const [autoCreate, setAutoCreate] = useState(autoCreateSessions);
@@ -41,6 +43,8 @@ export function SectionOperations({ settings }: { settings: AppSettings }) {
   const [bankAccountName, setBankAccountName] = useState(
     bankAccountNameSetting,
   );
+  const [contactHotline, setContactHotline] = useState(contactHotlineSetting);
+  const [contactEmail, setContactEmail] = useState(contactEmailSetting);
 
   // Sync khi server revalidate (settings đổi từ nơi khác, hoặc sau khi action
   // của chính component này resolve và router.refresh() props mới về) — 5 ô
@@ -61,6 +65,12 @@ export function SectionOperations({ settings }: { settings: AppSettings }) {
   useEffect(() => {
     setBankAccountName(bankAccountNameSetting);
   }, [bankAccountNameSetting]);
+  useEffect(() => {
+    setContactHotline(contactHotlineSetting);
+  }, [contactHotlineSetting]);
+  useEffect(() => {
+    setContactEmail(contactEmailSetting);
+  }, [contactEmailSetting]);
 
   function toggleAutoCreate(next: boolean) {
     const prev = autoCreate;
@@ -119,6 +129,33 @@ export function SectionOperations({ settings }: { settings: AppSettings }) {
     fireAction(
       () => updateSetting("bankAccountName", trimmed),
       () => setBankAccountName(prev),
+    );
+  }
+
+  // retry: false — cùng lý do commitBankBin/commitBankAccountNo: sai định
+  // dạng hotline/email thì gọi lại lần hai vẫn sai y hệt, retry chỉ tốn thêm
+  // một vòng round-trip trước khi rollback. Registry tự chuẩn hoá hotline
+  // (bỏ dấu cách/chấm/gạch ngang) nên giá trị hiện lại sau khi lưu có thể
+  // khác chuỗi vừa gõ — đúng ý đồ, để href `tel:` luôn sạch.
+  function commitContactHotline(next: string) {
+    const trimmed = next.trim();
+    const prev = contactHotline;
+    setContactHotline(trimmed);
+    fireAction(
+      () => updateSetting("contactHotline", trimmed),
+      () => setContactHotline(prev),
+      { retry: false },
+    );
+  }
+
+  function commitContactEmail(next: string) {
+    const trimmed = next.trim();
+    const prev = contactEmail;
+    setContactEmail(trimmed);
+    fireAction(
+      () => updateSetting("contactEmail", trimmed),
+      () => setContactEmail(prev),
+      { retry: false },
     );
   }
 
@@ -194,6 +231,38 @@ export function SectionOperations({ settings }: { settings: AppSettings }) {
                 className="min-h-11"
                 onChange={(e) => setBankAccountName(e.target.value)}
                 onBlur={(e) => commitBankAccountName(e.target.value)}
+              />
+            </label>
+          </div>
+        </div>
+
+        <div className="space-y-3 border-t pt-3">
+          <div className="text-sm font-medium">{t("contactInfo")}</div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="text-muted-foreground mb-1 block text-xs font-medium">
+                {t("contactHotline")}
+              </span>
+              <Input
+                value={contactHotline}
+                type="tel"
+                inputMode="tel"
+                className="min-h-11"
+                onChange={(e) => setContactHotline(e.target.value)}
+                onBlur={(e) => commitContactHotline(e.target.value)}
+              />
+            </label>
+            <label className="block">
+              <span className="text-muted-foreground mb-1 block text-xs font-medium">
+                {t("contactEmail")}
+              </span>
+              <Input
+                value={contactEmail}
+                type="email"
+                inputMode="email"
+                className="min-h-11"
+                onChange={(e) => setContactEmail(e.target.value)}
+                onBlur={(e) => commitContactEmail(e.target.value)}
               />
             </label>
           </div>
