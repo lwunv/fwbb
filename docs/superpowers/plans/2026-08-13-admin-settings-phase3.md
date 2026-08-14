@@ -933,6 +933,65 @@ git add e2e/admin-money-policy.spec.ts e2e/gender-pricing.spec.ts
 git commit -m "test(finance): add e2e coverage for money policy and gender pricing"
 ```
 
+### Task 13: Hotline và email liên hệ, hiện ở màn vote
+
+> Việc này admin yêu cầu thêm ngày 14/8. **Không đụng tiền**, độc lập hoàn toàn với chuỗi Task 5 tới 9, nên làm được ngay không cần chờ điều kiện chặn nào.
+
+**Files:**
+
+- Modify: `src/lib/settings-registry.ts`, `src/app/(admin)/admin/settings/section-operations.tsx`, `src/app/(public)/vote/[id]/page.tsx`, ba file `src/i18n/messages/*.json`
+- Create: component hiển thị khối liên hệ, đặt cạnh các component vote sẵn có
+- Test: `src/lib/settings-registry.test.ts` (thêm ca), `e2e/vote-contact.spec.ts`
+
+**Interfaces:**
+
+- Consumes: `updateSetting`, `getSettings`, `SettingsProvider` nếu cần phía client.
+- Produces: hai setting `contactHotline` và `contactEmail`.
+
+- [ ] **Step 1: Hai setting mới trong registry**
+
+Cả hai `perSession: false` (thông tin liên hệ của nhóm, không việc gì khác nhau theo từng buổi), mặc định **chuỗi rỗng**. Rỗng có nghĩa là chưa cấu hình, và khi rỗng thì màn vote không hiện gì cả, không hiện khối trống hay chữ "chưa có".
+
+Validate: hotline nhận chuỗi rỗng hoặc dãy số điện thoại Việt Nam (cho phép dấu cách, dấu chấm, dấu gạch ngang, đầu số `0` hoặc `+84`); email nhận chuỗi rỗng hoặc một email hợp lệ. Đừng bắt buộc phải có cả hai, admin có thể chỉ điền một cái.
+
+Viết test cho cả hai: giá trị hợp lệ, chuỗi rỗng, và giá trị rác bị chặn.
+
+- [ ] **Step 2: Ô nhập ở trang Cài đặt**
+
+Thêm vào `section-operations.tsx` (mục Vận hành), đúng chỗ cùng với tên nhóm và thông tin chuyển khoản, vì đây cùng loại thông tin cấu hình của nhóm.
+
+Theo mẫu sẵn có trong file đó: cập nhật lạc quan qua `fireAction`, `useEffect` đồng bộ khi prop đổi, ghi khi rời ô chứ không ghi mỗi ký tự, vùng chạm tối thiểu `min-h-11`. Ô hotline dùng `inputMode="tel"`, ô email dùng `type="email"` với `inputMode="email"` để điện thoại hiện đúng bàn phím.
+
+Với hai ô này, tắt chế độ thử lại của `fireAction` như đã làm cho các ô có validate ở phía server: gõ sai định dạng thì gọi lại lần hai cũng sai y như vậy.
+
+- [ ] **Step 3: Hiện ở màn vote**
+
+`src/app/(public)/vote/[id]/page.tsx` là server component và đã chặn chưa đăng nhập (`if (!user) redirect("/login")`), nên đọc `getSettings()` trực tiếp tại đó được, không cần đi qua context.
+
+Hiện một khối liên hệ nhỏ ở cuối màn, dưới phần bình chọn. Nội dung: số hotline bấm gọi được (`tel:`) và email bấm mở được (`mailto:`). Chỉ hiện những cái đã cấu hình; cả hai rỗng thì không render gì.
+
+Mobile first: đây là màn member dùng trên điện thoại trong trình duyệt Zalo hoặc Messenger. Hai liên kết phải là vùng chạm tối thiểu 44px, không phải chữ nhỏ chen chúc. Số điện thoại dài không được làm tràn ngang.
+
+Chuỗi hiển thị thêm đủ ba file ngôn ngữ, có test chặn lệch khoá.
+
+- [ ] **Step 4: E2E**
+
+Tạo `e2e/vote-contact.spec.ts`, chép cách đăng nhập member và cách ghi thẳng vào `e2e/local.db` từ `e2e/admin-settings-behavior.spec.ts`.
+
+Ba ca:
+
+1. Chưa cấu hình gì (cả hai rỗng): mở màn vote, khẳng định **không** có khối liên hệ nào. Đây là ca chặn hồi quy quan trọng nhất, vì hôm nay chưa ai cấu hình nên đa số người dùng sẽ ở trạng thái này và màn vote của họ không được đổi.
+2. Cấu hình cả hai: khối hiện, liên kết `tel:` và `mailto:` đúng giá trị.
+3. Chỉ cấu hình một trong hai: chỉ hiện cái đã có, không hiện cái rỗng.
+
+- [ ] **Step 5: Verify và commit**
+
+`npx tsc --noEmit`, `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm test:e2e`. Đọc mã thoát thật từng lệnh. **Chạy e2e một mình**, đừng chạy song song lượt e2e nào khác: cả hai lượt cùng ghi `e2e/local.db` và tranh cổng 3101, sinh bài đỏ giả (đã bị ngày 14/8).
+
+```bash
+git commit -m "feat(settings): add contact hotline and email shown on vote screen"
+```
+
 ## Yêu cầu về độ phủ kiểm thử
 
 Admin yêu cầu rõ (13/8): đủ cả ba tầng, và tuyệt đối không làm hỏng logic đang chạy. Cụ thể cho giai đoạn này:
