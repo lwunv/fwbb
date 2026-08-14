@@ -198,7 +198,7 @@ async function assertLedgerInvariants(sessionId: number) {
 describe("finalizeSession — đóng băng cấu hình tiền vào settings_snapshot (Task 10)", () => {
   beforeEach(reset);
 
-  it("ca 1 — chốt sổ lần đầu: settings_snapshot khác null, parse ra đúng TOÀN BỘ AppSettings vừa dùng", async () => {
+  it("ca 1 — chốt sổ lần đầu: settings_snapshot khác null, parse ra đúng các key perSession vừa dùng, KHÔNG kèm thông tin ngân hàng/key khác", async () => {
     const { adminMemberId, aliceId, bobId, carolId } = await seedActors("c1");
     await contributeToFund(bobId, 200_000);
     await contributeToFund(carolId, 200_000);
@@ -213,11 +213,15 @@ describe("finalizeSession — đóng băng cấu hình tiền vào settings_snap
 
     const snap = await getSnapshotSettings(sessionId);
     expect(snap).not.toBeNull();
-    // Toàn bộ AppSettings được lưu, không chỉ 3 key tiền — key không liên
-    // quan tiền (appName) vẫn có mặt, đúng thiết kế "lưu tất để không quên".
+    // Chỉ 3 key perSession:true được lưu (Fix-2: đóng băng chỉ những gì
+    // "có thể khác nhau theo buổi" — KHÔNG lưu toàn bộ AppSettings như bản
+    // đầu, vì làm vậy sẽ sao chép bankAccountNo/bankAccountName của club vào
+    // mọi buổi đã chốt, mãi mãi).
     expect(snap!.minDeductionAmount).toBe(60_000); // default, chưa đổi setting nào
-    expect(snap!.appName).toBe(defaultSettings().appName);
     expect(snap!.groupPolicies).toEqual(defaultSettings().groupPolicies);
+    expect(snap).not.toHaveProperty("appName");
+    expect(snap).not.toHaveProperty("bankAccountNo");
+    expect(snap).not.toHaveProperty("bankAccountName");
 
     await assertLedgerInvariants(sessionId);
   });
