@@ -4,7 +4,10 @@ import {
   calculateShuttlecockCost,
   calculateExactShuttlecockCost,
   computePerHeadCharges,
+  computePerHeadChargesSafe,
   computeGuestAwarePlayRates,
+  computeDineCostPerHead,
+  GuestMemberPolicyUnknownError,
   computePredictedPlayRevenue,
   computeCourtTotal,
   computeShuttlecockTotal,
@@ -362,6 +365,103 @@ describe("computeGuestAwarePlayRates", () => {
     expect(r.playCostPerHead).toBe(47_000);
     expect(r.guestMemberPlayCostPerHead).toBe(47_000); // 0 đầu → cùng rổ chia đều với member
     expect(r.adminGuestPlayCostPerHead).toBe(60_000);
+  });
+});
+
+// Round 3 review: try/catch cũ ở history-client.tsx bắt MỌI lỗi (bare catch)
+// và tính nhậu CHUNG 1 khối với chơi nên 1 lỗi bên chơi kéo cả nhậu biến mất.
+// computePerHeadChargesSafe sửa cả 2: bắt CHÍNH XÁC GuestMemberPolicyUnknownError
+// (instanceof), lỗi khác NÉM LẠI; nhậu luôn tính đúng qua computeDineCostPerHead
+// dù phần chơi có bị ẩn hay không.
+describe("computePerHeadChargesSafe", () => {
+  const guestMemberFloor40K = {
+    ...DEFAULT_GROUP_POLICIES,
+    guestMember: { mode: "floor" as const, amount: 40_000, capAtEqual: false },
+  };
+
+  it("guard fire (không biết guestMemberPlayHeads + policy khác equal) → playCostPerHead=0 NHƯNG dineCostPerHead vẫn tính đúng", () => {
+    const r = computePerHeadChargesSafe({
+      courtPrice: 200_000,
+      shuttlecockCost: 0,
+      diningBill: 300_000,
+      playerCount: 4,
+      dinerCount: 3, // 300K/3 = 100K, không phụ thuộc gì groupPolicies
+      policies: guestMemberFloor40K,
+      // guestMemberPlayHeads bỏ trống có chủ đích — mô phỏng history-client.tsx
+    });
+    expect(r.playCostPerHead).toBe(0);
+    expect(r.adminGuestPlayCostPerHead).toBe(0);
+    expect(r.guestMemberPlayCostPerHead).toBe(0);
+    expect(r.dineCostPerHead).toBe(100_000); // KHÔNG bị kéo về 0 theo phần chơi
+  });
+
+  it("không guard (policy vẫn equal hoặc guestMemberPlayHeads có truyền) → giống computePerHeadCharges y hệt", () => {
+    const input = {
+      courtPrice: 200_000,
+      shuttlecockCost: 0,
+      diningBill: 100_000,
+      playerCount: 4,
+      dinerCount: 2,
+      policies: DEFAULT_GROUP_POLICIES,
+    };
+    expect(computePerHeadChargesSafe(input)).toEqual(
+      computePerHeadCharges(input),
+    );
+  });
+
+  it("lỗi KHÁC guard (vd heads âm — bug lập trình thật) KHÔNG bị nuốt, vẫn ném ra", () => {
+    // adminGuestPlayHeads âm → computeGroupPlayRates throw Error THƯỜNG (không
+    // phải GuestMemberPolicyUnknownError) — computePerHeadChargesSafe PHẢI để
+    // lỗi này lọt qua, không được coi là guard rồi âm thầm trả playCostPerHead=0.
+    expect(() =>
+      computePerHeadChargesSafe({
+        courtPrice: 200_000,
+        shuttlecockCost: 0,
+        diningBill: 0,
+        playerCount: 4,
+        dinerCount: 0,
+        adminGuestPlayHeads: -1,
+        guestMemberPlayHeads: 0,
+        policies: DEFAULT_GROUP_POLICIES,
+      }),
+    ).toThrow();
+    // Xác nhận đúng là lỗi KHÁC guard, không phải bị misclassify.
+    try {
+      computePerHeadChargesSafe({
+        courtPrice: 200_000,
+        shuttlecockCost: 0,
+        diningBill: 0,
+        playerCount: 4,
+        dinerCount: 0,
+        adminGuestPlayHeads: -1,
+        guestMemberPlayHeads: 0,
+        policies: DEFAULT_GROUP_POLICIES,
+      });
+      expect.unreachable("phải throw");
+    } catch (err) {
+      expect(err).not.toBeInstanceOf(GuestMemberPolicyUnknownError);
+    }
+  });
+
+  it("guard error là instance của GuestMemberPolicyUnknownError (không phải Error trần) — cơ chế phân biệt không dựa vào message", () => {
+    expect(() =>
+      computeGuestAwarePlayRates({
+        totalPlayCost: 100_000,
+        totalPlayHeads: 4,
+        adminGuestPlayHeads: 0,
+        policies: guestMemberFloor40K,
+        // guestMemberPlayHeads bỏ trống
+      }),
+    ).toThrow(GuestMemberPolicyUnknownError);
+  });
+});
+
+describe("computeDineCostPerHead", () => {
+  it("chia đều diningBill cho dinerCount, round UP", () => {
+    expect(computeDineCostPerHead(100_000, 3)).toBe(34_000); // 33,333.33 → 34K
+  });
+  it("dinerCount = 0 → 0 (không chia cho 0)", () => {
+    expect(computeDineCostPerHead(100_000, 0)).toBe(0);
   });
 });
 

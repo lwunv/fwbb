@@ -22,7 +22,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PaymentQR } from "@/components/payment/payment-qr";
 import { useSettings } from "@/components/settings-provider";
-import { computePerHeadCharges } from "@/lib/cost-calculator";
+import { computePerHeadChargesSafe } from "@/lib/cost-calculator";
 import {
   Dialog,
   DialogContent,
@@ -563,15 +563,20 @@ function SessionDetailCard({
   // đúng số đầu khách-của-member thật. KHÔNG giả `guestMemberPlayHeads: 0`
   // (0 tường minh khác "không biết") — bỏ trống để computeGuestAwarePlayRates
   // tự THROW nếu admin từng đổi `groupPolicies.guestMember`/`guestMemberFemale`
-  // khỏi "equal". Bắt lỗi ở đây và ẩn số per-head (thà vỡ rõ ràng + ẩn số còn
-  // hơn hiện một số có thể sai mà user tin). Muốn tính đúng thật cần đổi query
-  // dựng `HistorySession` để trả thêm guestPlayCount/adminGuestPlayCount —
-  // rộng hơn phạm vi đồng bộ preview của task này, chưa làm.
+  // khỏi "equal". Muốn tính đúng thật cần đổi query dựng `HistorySession` để
+  // trả thêm guestPlayCount/adminGuestPlayCount — rộng hơn phạm vi đồng bộ
+  // preview của task này, chưa làm.
+  //
+  // Round 3 review: trước đây tự viết try/catch bare ở đây — bắt NHẦM luôn cả
+  // lỗi không liên quan guard, và tính dineCostPerHead CHUNG khối với play nên
+  // 1 lỗi bên chơi kéo cả số nhậu biến mất. Dùng `computePerHeadChargesSafe`
+  // thay thế: bắt ĐÚNG lỗi guard (`instanceof`, không match message) và tự
+  // đảm bảo `dineCostPerHead` vẫn tính đúng dù phần chơi bị ẩn — nhậu không
+  // phụ thuộc gì `groupPolicies.guestMember` nên không có lý do gì mất theo.
+  // Lỗi KHÁC (bug logic thật) vẫn ném ra bình thường, không bị nuốt.
   const { groupPolicies } = useSettings();
-  let playPerHead = 0;
-  let dinePerHead = 0;
-  try {
-    const rates = computePerHeadCharges({
+  const { playCostPerHead: playPerHead, dineCostPerHead: dinePerHead } =
+    computePerHeadChargesSafe({
       courtPrice: session.courtPrice,
       shuttlecockCost: session.shuttlecockCost,
       diningBill: session.diningBill,
@@ -579,11 +584,6 @@ function SessionDetailCard({
       dinerCount: session.dinerCount,
       policies: groupPolicies,
     });
-    playPerHead = rates.playCostPerHead;
-    dinePerHead = rates.dineCostPerHead;
-  } catch {
-    // Xem comment phía trên — cấu hình vượt khả năng biết của component này.
-  }
 
   return (
     <Card

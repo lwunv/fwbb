@@ -301,6 +301,21 @@ export function computeShuttlecockTotal(
  * caller PHẢI tính ra số đầu thật hoặc chấp nhận preview báo lỗi rõ ràng, thay
  * vì hiển thị một số có thể sai mà admin tin là đúng.
  */
+/**
+ * Lỗi RIÊNG cho guard "không biết guestMemberPlayHeads + policy khác equal"
+ * trong `computeGuestAwarePlayRates`. Dùng class riêng (không phải `Error`
+ * trần) để caller (ví dụ `computePerHeadChargesSafe` bên dưới) phân biệt được
+ * CHÍNH XÁC lỗi này với lỗi khác (NaN, bug logic, throw từ
+ * `computeGroupPlayRates` cho heads âm, …) bằng `instanceof` — không match
+ * chuỗi message, vì message có thể đổi chữ mà không đổi ý nghĩa lỗi.
+ */
+export class GuestMemberPolicyUnknownError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "GuestMemberPolicyUnknownError";
+  }
+}
+
 export function computeGuestAwarePlayRates(input: {
   totalPlayCost: number;
   totalPlayHeads: number;
@@ -329,7 +344,7 @@ export function computeGuestAwarePlayRates(input: {
     const gm = policies.guestMember;
     const gmf = policies.guestMemberFemale;
     if (gm.mode !== "equal" || gmf.mode !== "equal") {
-      throw new Error(
+      throw new GuestMemberPolicyUnknownError(
         "computeGuestAwarePlayRates: guestMemberPlayHeads không được truyền " +
           "nhưng groupPolicies.guestMember/guestMemberFemale không còn là " +
           "'equal' — không thể suy ra số đúng, phải truyền số đầu khách-của-" +
@@ -387,6 +402,21 @@ function buildTwoGroupPolicies(floor?: number): Record<GroupKey, GroupPolicy> {
   };
 }
 
+/**
+ * Suất NHẬU mỗi đầu — độc lập HOÀN TOÀN với `groupPolicies` (nhậu không có
+ * khái niệm 6 nhóm, chỉ chia đều). Tách riêng khỏi `computePerHeadCharges` để
+ * caller lấy được số này ngay cả khi phần CHƠI ném lỗi (guard
+ * `guestMemberPlayHeads`, xem `computeGuestAwarePlayRates`) — 1 lỗi bên chơi
+ * không liên quan gì đến nhậu thì không được kéo số nhậu biến mất theo (xem
+ * `computePerHeadChargesSafe`).
+ */
+export function computeDineCostPerHead(
+  diningBill: number,
+  dinerCount: number,
+): number {
+  return dinerCount > 0 ? roundToThousand(diningBill / dinerCount) : 0;
+}
+
 export function computePerHeadCharges(input: {
   courtPrice: number;
   shuttlecockCost: number;
@@ -423,16 +453,50 @@ export function computePerHeadCharges(input: {
     floor: input.floor,
     policies: input.policies,
   });
-  const dineCostPerHead =
-    input.dinerCount > 0
-      ? roundToThousand(input.diningBill / input.dinerCount)
-      : 0;
+  const dineCostPerHead = computeDineCostPerHead(
+    input.diningBill,
+    input.dinerCount,
+  );
   return {
     playCostPerHead,
     adminGuestPlayCostPerHead,
     guestMemberPlayCostPerHead,
     dineCostPerHead,
   };
+}
+
+/**
+ * Bản AN TOÀN của `computePerHeadCharges` cho call site KHÔNG BIẾT (không
+ * tách được) số đầu khách-của-member thật — ví dụ `history-client.tsx`, nơi
+ * `HistorySession` chưa có field tách riêng. Gọi hàm này thay cho
+ * `computePerHeadCharges` + tự viết try/catch ở component.
+ *
+ * Bắt CHÍNH XÁC `GuestMemberPolicyUnknownError` (bằng `instanceof`, không
+ * match message — xem class đó) — khi bắt được, trả về suất CHƠI = 0 (ẩn số
+ * có thể sai) nhưng suất NHẬU vẫn tính đúng bình thường qua
+ * `computeDineCostPerHead` (nhậu không phụ thuộc gì `groupPolicies.guestMember`
+ * nên không có lý do gì để mất theo). Lỗi KHÁC (bug logic, NaN, …) được NÉM
+ * LẠI nguyên vẹn — không nuốt, để lộ ra thay vì im lặng hiện số sai.
+ */
+export function computePerHeadChargesSafe(
+  input: Parameters<typeof computePerHeadCharges>[0],
+): ReturnType<typeof computePerHeadCharges> {
+  try {
+    return computePerHeadCharges(input);
+  } catch (err) {
+    if (err instanceof GuestMemberPolicyUnknownError) {
+      return {
+        playCostPerHead: 0,
+        adminGuestPlayCostPerHead: 0,
+        guestMemberPlayCostPerHead: 0,
+        dineCostPerHead: computeDineCostPerHead(
+          input.diningBill,
+          input.dinerCount,
+        ),
+      };
+    }
+    throw err;
+  }
 }
 
 /**
