@@ -690,6 +690,8 @@ git commit -m "feat(finance): read money policy from settings when finalizing"
 >
 > Task 5 là thứ đầu tiên cho admin THỰC SỰ đổi được chính sách tiền. Trước khi có nó, mọi setting tiền đều nằm ở giá trị mặc định nên mọi rủi ro bên dưới đều ngủ. Ship Task 5 mà thiếu hai cái này là mở cửa cho hai kiểu sai tiền im lặng:
 >
+> **Cập nhật 14/8:** điều kiện 1 ĐÃ THOẢ (Task 10 xong, commits 559d4fa và e4d93f7). Điều kiện 2 đã đóng phần khách-của-member ở Task 4 fix round 2; phần ba nhóm nữ vẫn hở nhưng thực sự đang ngủ vì chưa có cột giới tính nào trong database, nên nó tự đóng ở chặng 2. Điều kiện 3 tách thành Task 14 ở trên. Nghĩa là Task 5 chỉ còn chờ Task 14, và khi làm Task 5 thì **chỉ hiện ba nhóm không phân biệt giới** (member, khách-của-member, khách-của-admin), ẩn ba nhóm nữ cho tới khi chặng 2 xong.
+>
 > 1. **Task 10 (đóng băng cấu hình lúc chốt sổ) phải xong TRƯỚC.** `finalizeSession` hiện luôn đọc setting HIỆN TẠI, kể cả khi chốt lại một buổi đã xong. Admin đổi sàn rồi bấm chốt lại buổi tháng trước là tiền đã settled bị tính lại theo cấu hình mới, không cảnh báo gì. Cột `sessions.settings_snapshot` đã tồn tại từ giai đoạn 1 nhưng chưa ai đọc hay ghi.
 > 2. **Đường xem trước phải phân nhóm thật.** `computeGuestAwarePlayRates` đang gộp `guestMember`, `memberFemale`, `guestMemberFemale` vào chung rổ `member`. Hôm nay trùng số vì các nhóm đó đều ở chế độ chia đều. Ngay khi Task 5 hiện ô cho đặt `guestMember` khác `member`, bốn màn xem trước sẽ hiện số mà hệ thống không tính. Khách-của-member là dữ liệu có thật đang phát sinh hàng buổi, không phải trường hợp lý thuyết như giới tính (giới tính còn chưa có cột).
 > 3. **Khách do chính admin mời qua phiếu vote của họ phải được phân loại đúng.** Lúc chốt sổ, quy tắc là `invitedById === adminMemberId`, nên khách admin mời qua dòng vote của chính mình cũng tính là khách-của-admin. Nhưng ba màn xem trước đang đếm nó vào khách-của-member: `admin-vote-manager.tsx` không nhận `adminMemberId` nên không thể tách, còn `admin-session-card.tsx` và `session-list.tsx` lấy `guestPlayCount − adminGuestPlayCount` nên phần khách trong phiếu vote của admin vẫn nằm lại. Lỗi này có từ trước (trước fix round 2 nó bị gộp vào `member`, cũng sai), đang ngủ vì chưa có ô nào cho đổi chính sách `guestMember`. Đóng nó cần thread `adminMemberId` xuống `admin-vote-manager` và tách được phần khách trong phiếu của admin ở hai màn kia — đúng những component Task 5 dù sao cũng phải chạm.
@@ -931,6 +933,53 @@ Nếu bài `admin-google.spec.ts:48` đỏ ở lượt đầu, chạy lại trư
 ```bash
 git add e2e/admin-money-policy.spec.ts e2e/gender-pricing.spec.ts
 git commit -m "test(finance): add e2e coverage for money policy and gender pricing"
+```
+
+### Task 14: Đóng nốt điều kiện chặn Task 5 — phân loại khách đúng ở đường xem trước
+
+> Task này gỡ điều kiện chặn số 3 của Task 5. Sinh ra sau review Task 4 (14/8).
+
+**Files:**
+
+- Modify: `src/components/sessions/admin-vote-manager.tsx`, `src/components/sessions/admin-session-card.tsx`, `src/app/(admin)/admin/sessions/session-list.tsx`, và các server page bơm props cho chúng
+- Test: bổ sung ca vào test sẵn có của các component đó, cộng một ca e2e
+
+**Vấn đề:** lúc chốt sổ, một khách được xếp vào nhóm khách-của-admin khi `invitedById === adminMemberId`, **bất kể** khách đó được thêm qua ô đếm khách-của-admin hay qua dòng vote của chính admin. Ba màn xem trước hiện chỉ trừ được phần ô đếm: `guestPlayCount − adminGuestPlayCount`. Phần khách nằm trong phiếu vote của admin vẫn bị tính vào khách-của-member. Nên khi Task 5 cho đặt chính sách riêng cho khách-của-member, ba màn đó hiện một số mà hệ thống không tính.
+
+- [ ] **Step 1: Đưa việc phân loại về server**
+
+Đừng thêm `adminMemberId` xuống client rồi để client tự trừ. Client trừ sai là đúng cái lỗi này. Thay vào đó, **server tính sẵn số đầu khách-của-member đúng nghĩa** rồi truyền xuống như một con số đã chốt.
+
+Server có đủ dữ liệu: nó có danh sách vote và có `adminMemberId` (qua `resolveAdminMemberId`, xem `src/actions/finance.ts:95`). Số cần tính là tổng `guestPlayCount` của các phiếu **không phải** của admin. Cộng thêm ô đếm khách-của-admin thì ra khách-của-admin.
+
+Làm ở mọi server page đang bơm props cho ba component: trang danh sách buổi, trang chi tiết buổi, và dashboard nếu nó cũng render. Tìm hết bằng cách lần theo nơi khai báo prop, đừng đoán.
+
+**Quan trọng:** dùng đúng một hàm dùng chung để tính, đừng viết lại phép tính ở từng page. Ba bản sao của một quy tắc phân loại tiền là đúng thứ vừa gây ra lỗi này. Đặt hàm đó cạnh `src/lib/cost-calculator.ts` hoặc trong `src/lib/` và cho cả ba page gọi.
+
+- [ ] **Step 2: `admin-vote-manager` có trạng thái lạc quan, xử lý riêng**
+
+Component này khác hai màn kia: nó giữ trạng thái vote lạc quan trong bộ nhớ (admin bấm thay đổi vote của member ngay trên màn). Nên số đầu khách-của-member ở đây phải tính lại từ trạng thái lạc quan đó, không thể chỉ nhận một con số tĩnh từ server.
+
+Cách giải: server truyền `adminMemberId` xuống component này (chỉ component này), và component tự loại phiếu của admin khi tính tổng khách-của-member từ trạng thái lạc quan. Ở đây client tự tính là chấp nhận được vì nó là nơi duy nhất biết trạng thái chưa lưu, nhưng nó phải dùng đúng quy tắc `invitedById === adminMemberId`.
+
+Kiểm cả hai chỗ trong file này đã sửa ở Task 4 (`displayMemberAmount` và `predictedDebt`) có cần cập nhật theo không.
+
+- [ ] **Step 3: Test**
+
+Ba ca tối thiểu:
+
+1. Admin tự vote chơi và thêm một khách qua dòng vote của mình: số xem trước phải khớp con số lúc chốt sổ, tức khách đó tính theo chính sách khách-của-admin. Dựng chính sách khách-của-member khác hẳn khách-của-admin để hai đường cho số khác nhau nếu phân loại sai.
+2. Member thường thêm khách: vẫn tính theo chính sách khách-của-member.
+3. Cả hai cùng lúc trong một buổi.
+
+Ca 1 là ca chặn hồi quy chính. Nếu nó vẫn xanh khi ta cố ý phân loại sai thì nó vô dụng, nên kiểm bằng cách tạm phân loại sai và xác nhận nó đỏ.
+
+- [ ] **Step 4: Verify và commit**
+
+`npx tsc --noEmit`, `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm test:e2e` (chạy một mình). Đọc mã thoát thật. Chạy `reconcile-check` nếu có đụng `finance.ts`.
+
+```bash
+git commit -m "fix(sessions): classify admin-invited guests correctly in cost preview"
 ```
 
 ### Task 13: Hotline và email liên hệ, hiện ở màn vote
