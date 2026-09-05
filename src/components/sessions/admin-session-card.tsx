@@ -496,13 +496,17 @@ export function AdminSessionCard({
                     <VoteCountdown
                       deadline={session.voteDeadline}
                       variant="inline"
+                      showNoDeadline
                     />
                   </span>
                   <VoteDeadlineEdit
                     sessionId={session.id}
                     current={session.voteDeadline}
                   />
-                  <VoteLockButton sessionId={session.id} />
+                  <VoteLockButton
+                    sessionId={session.id}
+                    deadline={session.voteDeadline}
+                  />
                   <MaxPlayersToggle
                     sessionId={session.id}
                     current={session.maxPlayers}

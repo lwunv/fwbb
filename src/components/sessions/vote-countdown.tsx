@@ -16,6 +16,12 @@ interface VoteCountdownProps {
   variant: "banner" | "inline" | "compact";
   /** Fires once when remaining time hits 0. Use to flip parent's isVotingOpen. */
   onExpired?: () => void;
+  /**
+   * Khi `deadline` là null: hiện nhãn "đang mở, không hạn" thay vì render rỗng.
+   * Mặc định `false` để màn member không đổi gì. Admin bật cờ này vì sau khi
+   * bấm "Mở vote" (xóa hạn) chỗ đồng hồ trống trơn, không rõ vote còn mở không.
+   */
+  showNoDeadline?: boolean;
 }
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
@@ -24,6 +30,7 @@ export function VoteCountdown({
   deadline,
   variant,
   onExpired,
+  showNoDeadline = false,
 }: VoteCountdownProps) {
   const t = useTranslations("voting");
   // Init `null` (not Date.now()-based) so SSR and client hydration match.
@@ -49,7 +56,32 @@ export function VoteCountdown({
     return () => clearInterval(interval);
   }, [deadline, onExpired]);
 
-  if (!deadline) return null;
+  if (!deadline) {
+    if (!showNoDeadline) return null;
+    // Nhãn này chỉ phụ thuộc prop (không đọc giờ) nên render được cả ở SSR,
+    // không sợ hydration mismatch như nhánh đồng hồ bên dưới.
+    const openLabel = t("voteOpenNoDeadline");
+    if (variant === "compact") {
+      return (
+        <span className="border-primary/30 bg-primary/10 text-primary inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-semibold">
+          <Timer className="h-3 w-3 shrink-0" aria-hidden />
+          {openLabel}
+        </span>
+      );
+    }
+    if (variant === "banner") {
+      return (
+        <div className="border-primary/30 bg-primary/10 text-primary rounded-xl border p-3 text-center text-sm font-semibold backdrop-blur">
+          {openLabel}
+        </div>
+      );
+    }
+    return (
+      <span className="text-muted-foreground text-sm font-medium">
+        {openLabel}
+      </span>
+    );
+  }
   // Pre-hydration: render nothing (avoids "flash of stale time"). The useEffect
   // sets remainingMs on the first client tick.
   if (remainingMs === null) return null;
