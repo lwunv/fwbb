@@ -274,23 +274,28 @@ export function AdminSessionCard({
 
   const status = statusStyles[effectiveStatus];
 
-  // "Đã đóng vote": deadline đã qua nhưng buổi VẪN ở status voting (admin chưa
-  // confirm/finalize). Tính client-side (giống VoteCountdown) để tránh hydration
-  // mismatch: pre-hydration coi như còn mở (LED sáng), sau mount mới flip. Dùng
-  // cùng `new Date()` với VoteCountdown → khớp đúng lúc nó hiện "Đã đóng vote".
+  // "Đã đóng vote": deadline đã qua trong khi buổi còn nhận vote được (status
+  // voting HOẶC confirmed — đúng tập `isActive`). Trước đây chỉ tính cho
+  // "voting", nên buổi đã xác nhận mà hết hạn vẫn nháy LED "đang vote" dù
+  // VoteCountdown ngay cạnh đã báo đóng. Badge/viền vàng KHÔNG đổi: chúng đi
+  // qua `voteClosedPending` bên dưới, vốn còn ràng buộc `effectiveStatus ===
+  // "voting"` (buổi đã xác nhận thì không phải "cần xác nhận").
+  // Tính client-side (giống VoteCountdown) để tránh hydration mismatch:
+  // pre-hydration coi như còn mở (LED sáng), sau mount mới flip. Dùng cùng
+  // `new Date()` với VoteCountdown → khớp đúng lúc nó hiện "Đã đóng vote".
   const [voteClosed, setVoteClosed] = useState(false);
   useEffect(() => {
     const dl = session.voteDeadline;
+    const acceptsVote =
+      effectiveStatus === "voting" || effectiveStatus === "confirmed";
     // Gộp điều kiện + reset vào 1 hàm rồi gọi gián tiếp (giống VoteCountdown) để
     // tránh setState trực tiếp trong thân effect (react-hooks/set-state-in-effect).
     const sync = () =>
       setVoteClosed(
-        !!dl &&
-          effectiveStatus === "voting" &&
-          new Date(dl).getTime() - Date.now() <= 0,
+        !!dl && acceptsVote && new Date(dl).getTime() - Date.now() <= 0,
       );
     sync();
-    if (!dl || effectiveStatus !== "voting") return;
+    if (!dl || !acceptsVote) return;
     const id = setInterval(sync, 1000);
     return () => clearInterval(id);
   }, [session.voteDeadline, effectiveStatus]);
