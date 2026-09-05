@@ -78,8 +78,22 @@ export default async function HomePage() {
   // tuần sau) — kể cả ngày Admin chưa tạo buổi. Chỉ cho khách / member đã hết
   // nợ (member còn nợ đi nhánh trả tiền ở trên). Hiện khi tuần có ≥ 1 buổi.
   if (weekDays.some((d) => d.session) && !(user && hasBlockingDebt)) {
+    // Buổi ad-hoc (hôm nay/mai nhưng ngoài các thứ cấu hình, vd T7 đột xuất)
+    // không thuộc tuần đích nên getWeekBadmintonDays không thấy → gộp thành 1
+    // chip riêng, nếu không nó tàng hình trên trang chủ (bug 2026-09-05). Trùng
+    // ngày chip có sẵn: chỉ thay khi chip trống (getNextSession có thể vừa
+    // auto-create SAU khi getWeekBadmintonDays đã query trong cùng Promise.all).
+    const mergedDays = weekDays.map((d) =>
+      d.session == null && nextSession && d.date === nextSession.date
+        ? { date: d.date, session: nextSession }
+        : d,
+    );
+    if (nextSession && !mergedDays.some((d) => d.date === nextSession.date)) {
+      mergedDays.push({ date: nextSession.date, session: nextSession });
+      mergedDays.sort((a, b) => a.date.localeCompare(b.date));
+    }
     const days = await Promise.all(
-      weekDays.map(async (d) => {
+      mergedDays.map(async (d) => {
         if (!d.session) return { date: d.date, session: null };
         const s = d.session;
         return {
