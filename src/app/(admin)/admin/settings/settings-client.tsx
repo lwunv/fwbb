@@ -1,6 +1,7 @@
 "use client";
 
 import type { AppSettings } from "@/lib/settings-registry";
+import { SectionMoney } from "./section-money";
 import { SectionSessionDefaults } from "./section-session-defaults";
 import { SectionThresholds } from "./section-thresholds";
 import { SectionOperations } from "./section-operations";
@@ -31,6 +32,7 @@ export function SettingsClient({
 }) {
   return (
     <div className="space-y-4">
+      <SectionMoney settings={settings} />
       <SectionSessionDefaults
         settings={settings}
         courts={courts}
