@@ -1,8 +1,13 @@
 import { test, expect } from "@playwright/test";
 import { createClient } from "@libsql/client";
 
-function db() {
-  return createClient({ url: "file:e2e/local.db" });
+async function db() {
+  const c = createClient({ url: "file:e2e/local.db" });
+  // Fixture và server Next mở CÙNG file e2e/local.db, nên ghi đồng thời làm
+  // SQLITE_BUSY. Chờ lock nhả thay vì chết ngay. Cùng cách src/db/test-db.ts
+  // đã dùng cho test tích hợp.
+  await c.execute("PRAGMA busy_timeout = 5000");
+  return c;
 }
 
 // Lớp e2e cho phần "đổi setting → UI thật đổi" (không chỉ compile/wire).
@@ -13,7 +18,7 @@ function db() {
 test("maxPlayersOptions: đổi setting → nút sức chứa trên card buổi đổi theo", async ({
   page,
 }) => {
-  const c = db();
+  const c = await db();
   // Lấy buổi mới nhất để tạm chuyển sang voting; nhớ trạng thái cũ để hoàn nguyên.
   const s = await c.execute(
     "SELECT id, status, max_players FROM sessions ORDER BY date DESC LIMIT 1",
@@ -49,7 +54,7 @@ test("maxPlayersOptions: đổi setting → nút sức chứa trên card buổi 
       page.getByRole("button", { name: "14", exact: true }),
     ).toBeVisible();
   } finally {
-    const c2 = db();
+    const c2 = await db();
     await c2.execute({
       sql: "UPDATE sessions SET status=?, max_players=? WHERE id = ?",
       args: [origStatus, origMax, sessionId],

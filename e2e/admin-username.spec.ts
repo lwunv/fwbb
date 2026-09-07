@@ -13,12 +13,17 @@ const NAME = "E2E Uname Create";
 const TYPED = "E2EUname"; // nhập hoa → phải lưu lowercase
 const STORED = "e2euname";
 
-function db() {
-  return createClient({ url: "file:e2e/local.db" });
+async function db() {
+  const c = createClient({ url: "file:e2e/local.db" });
+  // Fixture và server Next mở CÙNG file e2e/local.db, nên ghi đồng thời làm
+  // SQLITE_BUSY. Chờ lock nhả thay vì chết ngay. Cùng cách src/db/test-db.ts
+  // đã dùng cho test tích hợp.
+  await c.execute("PRAGMA busy_timeout = 5000");
+  return c;
 }
 
 test.beforeAll(async () => {
-  const c = db();
+  const c = await db();
   await c.execute({ sql: "DELETE FROM members WHERE name = ?", args: [NAME] });
   await c.execute({
     sql: "DELETE FROM members WHERE username = ?",
@@ -45,7 +50,7 @@ test("admin tạo member kèm username → lưu lowercase (UI → action → DB)
   await expect
     .poll(
       async () => {
-        const c = db();
+        const c = await db();
         const r = await c.execute({
           sql: "SELECT username FROM members WHERE name = ?",
           args: [NAME],

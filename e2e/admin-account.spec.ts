@@ -3,8 +3,13 @@ import { createClient } from "@libsql/client";
 
 // Chỉ sửa PHONE (an toàn — không đổi username/email của admin đang đăng nhập,
 // tránh làm hỏng login cho các test khác). DB e2e/local.db.
-function db() {
-  return createClient({ url: "file:e2e/local.db" });
+async function db() {
+  const c = createClient({ url: "file:e2e/local.db" });
+  // Fixture và server Next mở CÙNG file e2e/local.db, nên ghi đồng thời làm
+  // SQLITE_BUSY. Chờ lock nhả thay vì chết ngay. Cùng cách src/db/test-db.ts
+  // đã dùng cho test tích hợp.
+  await c.execute("PRAGMA busy_timeout = 5000");
+  return c;
 }
 
 test("admin sửa SĐT ở /admin/account → lưu vào DB (UI → action → DB)", async ({
@@ -21,7 +26,7 @@ test("admin sửa SĐT ở /admin/account → lưu vào DB (UI → action → DB
   await expect
     .poll(
       async () => {
-        const c = db();
+        const c = await db();
         const r = await c.execute("SELECT phone_number FROM admins LIMIT 1");
         c.close();
         return r.rows[0]?.phone_number ?? null;

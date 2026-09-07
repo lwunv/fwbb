@@ -14,8 +14,13 @@ const OPEN_DATE = "2099-08-03";
 const PAST_DEADLINE = "2020-01-01T00:00:00";
 const FUTURE_DEADLINE = "2099-12-31T20:00:00";
 
-function db() {
-  return createClient({ url: "file:e2e/local.db" });
+async function db() {
+  const c = createClient({ url: "file:e2e/local.db" });
+  // Fixture và server Next mở CÙNG file e2e/local.db, nên ghi đồng thời làm
+  // SQLITE_BUSY. Chờ lock nhả thay vì chết ngay. Cùng cách src/db/test-db.ts
+  // đã dùng cho test tích hợp.
+  await c.execute("PRAGMA busy_timeout = 5000");
+  return c;
 }
 
 // DELETE FROM sessions thẳng tay: AGENTS.md cấm trong code app (deleteSession
@@ -23,7 +28,7 @@ function db() {
 // file:e2e/local.db, với buổi ngày 2099 do chính spec tạo và chưa từng chốt sổ
 // nên không có ledger nào để reverse. Cùng pattern e2e/vote-contact.spec.ts.
 async function seed(date: string, deadline: string) {
-  const c = db();
+  const c = await db();
   await c.execute({ sql: "DELETE FROM sessions WHERE date=?", args: [date] });
   const r = await c.execute({
     sql: "INSERT INTO sessions (date, status, vote_deadline) VALUES (?, 'confirmed', ?)",
@@ -42,7 +47,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  const c = db();
+  const c = await db();
   for (const date of [CLOSED_DATE, OPEN_DATE]) {
     await c.execute({ sql: "DELETE FROM sessions WHERE date=?", args: [date] });
   }

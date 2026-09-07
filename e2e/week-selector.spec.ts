@@ -30,6 +30,9 @@ function targetDates(): string[] {
 
 test.beforeAll(async () => {
   const c = createClient({ url: "file:e2e/local.db" });
+  // Fixture và server Next mở CÙNG file e2e/local.db → ghi đồng thời sinh
+  // SQLITE_BUSY. Chờ lock nhả thay vì chết ngay.
+  await c.execute("PRAGMA busy_timeout = 5000");
   // Member active+approved → set password/email để login; clear nợ để vào nhánh
   // selector (member còn nợ đi nhánh thanh toán).
   const m = (

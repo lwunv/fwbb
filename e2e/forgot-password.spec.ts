@@ -30,8 +30,13 @@ test.beforeEach(async ({ page }) => {
   );
 });
 
-function db() {
-  return createClient({ url: "file:e2e/local.db" });
+async function db() {
+  const c = createClient({ url: "file:e2e/local.db" });
+  // Fixture và server Next mở CÙNG file e2e/local.db, nên ghi đồng thời làm
+  // SQLITE_BUSY. Chờ lock nhả thay vì chết ngay. Cùng cách src/db/test-db.ts
+  // đã dùng cho test tích hợp.
+  await c.execute("PRAGMA busy_timeout = 5000");
+  return c;
 }
 
 /** sha256 hex — bản sao thuần của hashResetToken() (spec không import từ src/
@@ -44,7 +49,7 @@ const RUN_ID = Date.now();
 const FUTURE = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
 test.beforeAll(async () => {
-  const c = db();
+  const c = await db();
   // Migration 0022 (password_reset_tokens) — local.db clone cũ hơn migration
   // này nên chưa có bảng; áp DDL y hệt src/db/migrations/0022_needy_pepper_potts.sql.
   await c.execute(`
@@ -73,7 +78,7 @@ async function insertMember(opts: {
   email: string;
   passwordHash: string;
 }): Promise<number> {
-  const c = db();
+  const c = await db();
   await c.execute({
     sql: `INSERT INTO members
       (name, email, password_hash, approval_status, is_active, default_with_partner)
@@ -93,7 +98,7 @@ async function insertAdmin(opts: {
   email: string;
   passwordHash: string;
 }): Promise<number> {
-  const c = db();
+  const c = await db();
   await c.execute({
     sql: `INSERT INTO admins (username, email, password_hash) VALUES (?, ?, ?)`,
     args: [opts.username, opts.email, opts.passwordHash],
@@ -112,7 +117,7 @@ async function insertResetToken(opts: {
   tokenHash: string;
   expiresAt: string;
 }) {
-  const c = db();
+  const c = await db();
   await c.execute({
     sql: `INSERT INTO password_reset_tokens (member_id, admin_id, token_hash, expires_at)
       VALUES (?, ?, ?, ?)`,
@@ -166,7 +171,7 @@ test.describe("quên mật khẩu → đặt lại qua token (e2e)", () => {
     ).toHaveCount(0, { timeout: 15_000 });
     await expect(page).toHaveURL(/\/$/);
 
-    const c = db();
+    const c = await db();
     const memberRow = await c.execute({
       sql: "SELECT password_hash FROM members WHERE id = ?",
       args: [memberId],
@@ -226,7 +231,7 @@ test.describe("quên mật khẩu → đặt lại qua token (e2e)", () => {
     await expect
       .poll(
         async () => {
-          const c = db();
+          const c = await db();
           const r = await c.execute({
             sql: "SELECT COUNT(*) AS n FROM password_reset_tokens WHERE member_id = ?",
             args: [memberId],
@@ -269,7 +274,7 @@ test.describe("quên mật khẩu → đặt lại qua token (e2e)", () => {
     await expect
       .poll(
         async () => {
-          const c = db();
+          const c = await db();
           const r = await c.execute({
             sql: "SELECT COUNT(*) AS n FROM password_reset_tokens WHERE admin_id = ?",
             args: [adminId],
@@ -307,7 +312,7 @@ test.describe("admin tạo member kèm mail mời đặt mật khẩu (e2e)", ()
     await expect
       .poll(
         async () => {
-          const c = db();
+          const c = await db();
           const r = await c.execute({
             sql: `SELECT COUNT(*) AS n FROM password_reset_tokens pt
               JOIN members m ON m.id = pt.member_id

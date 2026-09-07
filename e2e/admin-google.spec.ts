@@ -9,12 +9,17 @@ import { createClient } from "@libsql/client";
  * DB = e2e/local.db (KHÔNG đụng prod).
  */
 
-function db() {
-  return createClient({ url: "file:e2e/local.db" });
+async function db() {
+  const c = createClient({ url: "file:e2e/local.db" });
+  // Fixture và server Next mở CÙNG file e2e/local.db, nên ghi đồng thời làm
+  // SQLITE_BUSY. Chờ lock nhả thay vì chết ngay. Cùng cách src/db/test-db.ts
+  // đã dùng cho test tích hợp.
+  await c.execute("PRAGMA busy_timeout = 5000");
+  return c;
 }
 
 async function setAdminGoogle(googleId: string | null) {
-  const c = db();
+  const c = await db();
   // Idempotent: đảm bảo cột + index tồn tại trên local.db (migration 0021).
   try {
     await c.execute("ALTER TABLE admins ADD google_id text");
@@ -36,7 +41,7 @@ async function setAdminGoogle(googleId: string | null) {
 }
 
 async function getAdminGoogle(): Promise<string | null> {
-  const c = db();
+  const c = await db();
   const r = await c.execute(
     "SELECT google_id FROM admins WHERE username = 'admin'",
   );

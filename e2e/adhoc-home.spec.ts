@@ -43,6 +43,9 @@ const SEED_TARGETS = TARGETS.filter((d) => d !== TODAY && d !== TOMORROW);
 
 test.beforeAll(async () => {
   const c = createClient({ url: "file:e2e/local.db" });
+  // Fixture và server Next mở CÙNG file e2e/local.db → ghi đồng thời sinh
+  // SQLITE_BUSY. Chờ lock nhả thay vì chết ngay.
+  await c.execute("PRAGMA busy_timeout = 5000");
   const m = (
     await c.execute(
       "SELECT id FROM members WHERE is_active=1 AND approval_status='approved' ORDER BY id LIMIT 1",
@@ -80,6 +83,9 @@ test.beforeAll(async () => {
 // expect đúng 3 chip.
 test.afterAll(async () => {
   const c = createClient({ url: "file:e2e/local.db" });
+  // Fixture và server Next mở CÙNG file e2e/local.db → ghi đồng thời sinh
+  // SQLITE_BUSY. Chờ lock nhả thay vì chết ngay.
+  await c.execute("PRAGMA busy_timeout = 5000");
   for (const date of [ADHOC_DATE, ...SEED_TARGETS]) {
     await c.execute("DELETE FROM sessions WHERE date=?", [date]);
   }

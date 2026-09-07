@@ -12,8 +12,13 @@ const TEST_DATE = "2099-08-01";
 // Hạn vote ở quá khứ = vote đang ĐÓNG (giống sau khi admin bấm "Khóa vote").
 const PAST_DEADLINE = "2020-01-01T00:00:00";
 
-function db() {
-  return createClient({ url: "file:e2e/local.db" });
+async function db() {
+  const c = createClient({ url: "file:e2e/local.db" });
+  // Fixture và server Next mở CÙNG file e2e/local.db, nên ghi đồng thời làm
+  // SQLITE_BUSY. Chờ lock nhả thay vì chết ngay. Cùng cách src/db/test-db.ts
+  // đã dùng cho test tích hợp.
+  await c.execute("PRAGMA busy_timeout = 5000");
+  return c;
 }
 
 // Về DELETE FROM sessions thẳng tay ở đây: AGENTS.md cấm nó trong code app vì
@@ -25,7 +30,7 @@ function db() {
 let sessionId: number;
 
 test.beforeAll(async () => {
-  const c = db();
+  const c = await db();
   await c.execute({
     sql: "DELETE FROM sessions WHERE date=?",
     args: [TEST_DATE],
@@ -39,7 +44,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  const c = db();
+  const c = await db();
   await c.execute({
     sql: "DELETE FROM votes WHERE session_id=?",
     args: [sessionId],
@@ -52,7 +57,7 @@ test.afterAll(async () => {
 });
 
 async function readDeadline(): Promise<string | null> {
-  const c = db();
+  const c = await db();
   const row = (
     await c.execute({
       sql: "SELECT vote_deadline FROM sessions WHERE id=?",

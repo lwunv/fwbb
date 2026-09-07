@@ -59,6 +59,9 @@ const SEED = [
 
 test.beforeAll(async () => {
   const db = createClient({ url: "file:e2e/local.db" });
+  // Fixture và server Next mở CÙNG file e2e/local.db → ghi đồng thời sinh
+  // SQLITE_BUSY. Chờ lock nhả thay vì chết ngay.
+  await db.execute("PRAGMA busy_timeout = 5000");
   // Reset rate-limit để nhiều lần login trong suite không bị chặn.
   await db.execute("DELETE FROM rate_limit_buckets").catch(() => {});
   for (const m of SEED) {

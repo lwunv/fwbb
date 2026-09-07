@@ -11,14 +11,19 @@ const PASSWORD = "votecontact123";
 // Ngày xa tương lai, không đụng session thật/session của bài test khác.
 const TEST_DATE = "2099-06-01";
 
-function db() {
-  return createClient({ url: "file:e2e/local.db" });
+async function db() {
+  const c = createClient({ url: "file:e2e/local.db" });
+  // Fixture và server Next mở CÙNG file e2e/local.db, nên ghi đồng thời làm
+  // SQLITE_BUSY. Chờ lock nhả thay vì chết ngay. Cùng cách src/db/test-db.ts
+  // đã dùng cho test tích hợp.
+  await c.execute("PRAGMA busy_timeout = 5000");
+  return c;
 }
 
 let sessionId: number;
 
 test.beforeAll(async () => {
-  const c = db();
+  const c = await db();
   const m = (
     await c.execute(
       "SELECT id FROM members WHERE is_active=1 AND approval_status='approved' ORDER BY id LIMIT 1",
@@ -41,7 +46,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  const c = db();
+  const c = await db();
   await c.execute("DELETE FROM sessions WHERE date=?", [TEST_DATE]);
   await c.execute(
     "DELETE FROM app_settings WHERE key IN ('contactHotline','contactEmail')",
@@ -70,7 +75,7 @@ async function loginAsMember(page: Page) {
 /** Ghi thẳng app_settings — value rỗng nghĩa là xoá key (khớp hành vi "chưa
  *  cấu hình" mà registry đọc ra default ""). */
 async function setContactSettings(hotline: string, email: string) {
-  const c = db();
+  const c = await db();
   if (hotline) {
     await c.execute({
       sql: "INSERT INTO app_settings (key, value) VALUES ('contactHotline', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
