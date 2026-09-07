@@ -265,3 +265,69 @@ describe("lockVoteNow — khóa vote ngay", () => {
     expect("error" in r).toBe(true);
   });
 });
+
+describe("mở lại vote sau khi khóa — setVoteDeadline(null)", () => {
+  beforeEach(reset);
+
+  it("khóa rồi mở lại → member vote được ngay, không cần đặt hạn mới", async () => {
+    const aliceId = await seedMember();
+    const sessionId = await seedSession({ voteDeadline: futureIso() });
+    userMock.getUserFromCookie.mockResolvedValue({
+      memberId: aliceId,
+      externalId: "fb-a",
+    });
+
+    await lockVoteNow(sessionId);
+    const blocked = await submitVote(sessionId, true, false, 0, 0, false);
+    expect("error" in blocked).toBe(true);
+
+    // Đây là hành động sau nút "Mở vote": xóa hạn, vote mở tới khi admin khóa lại.
+    const reopen = await setVoteDeadline(sessionId, null);
+    expect("error" in reopen).toBe(false);
+
+    const s = await testDb.query.sessions.findFirst({
+      where: eq(sessions.id, sessionId),
+    });
+    expect(s?.voteDeadline).toBeNull();
+
+    const accepted = await submitVote(sessionId, true, false, 0, 0, false);
+    expect("error" in accepted).toBe(false);
+  });
+
+  it("buổi đã quá NGÀY chơi mà còn status voting: mở lại vẫn vote được", async () => {
+    const aliceId = await seedMember();
+    // seedSession dùng ngày 2026-06-01, đã ở quá khứ so với lúc chạy test.
+    const sessionId = await seedSession({ voteDeadline: pastIso() });
+    userMock.getUserFromCookie.mockResolvedValue({
+      memberId: aliceId,
+      externalId: "fb-a",
+    });
+
+    const blocked = await submitVote(sessionId, true, false, 0, 0, false);
+    expect("error" in blocked).toBe(true);
+
+    const reopen = await setVoteDeadline(sessionId, null);
+    expect("error" in reopen).toBe(false);
+
+    const accepted = await submitVote(sessionId, true, false, 0, 0, false);
+    expect("error" in accepted).toBe(false);
+  });
+
+  it("buổi đã chốt sổ: mở lại bị từ chối (phải bấm 'Mở lại' buổi trước)", async () => {
+    const sessionId = await seedSession({
+      status: "completed",
+      voteDeadline: pastIso(),
+    });
+    const r = await setVoteDeadline(sessionId, null);
+    expect("error" in r).toBe(true);
+  });
+
+  it("buổi đã hủy: mở lại bị từ chối", async () => {
+    const sessionId = await seedSession({
+      status: "cancelled",
+      voteDeadline: pastIso(),
+    });
+    const r = await setVoteDeadline(sessionId, null);
+    expect("error" in r).toBe(true);
+  });
+});

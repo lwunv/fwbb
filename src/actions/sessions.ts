@@ -1673,6 +1673,9 @@ export async function setVoteDeadline(
   revalidatePath(`/vote/${sessionId}`);
   revalidatePath("/admin/sessions");
   revalidatePath(`/admin/sessions/${sessionId}`);
+  // Dashboard cũng render AdminSessionCard (buổi sắp tới) với nút khóa/mở vote,
+  // nên phải revalidate luôn, không thì nút giữ nhãn cũ sau khi bấm.
+  revalidatePath("/admin/dashboard");
   return { success: true };
 }
 
@@ -1708,6 +1711,7 @@ export async function lockVoteNow(sessionId: number) {
   revalidatePath(`/vote/${sessionId}`);
   revalidatePath("/admin/sessions");
   revalidatePath(`/admin/sessions/${sessionId}`);
+  revalidatePath("/admin/dashboard");
   return { success: true };
 }
 
@@ -1797,5 +1801,6 @@ export async function extendVoteDeadline(sessionId: number, hours: 2 | 24) {
   revalidatePath(`/vote/${sessionId}`);
   revalidatePath("/admin/sessions");
   revalidatePath(`/admin/sessions/${sessionId}`);
+  revalidatePath("/admin/dashboard");
   return { success: true, voteDeadline: newDeadlineStr };
 }
