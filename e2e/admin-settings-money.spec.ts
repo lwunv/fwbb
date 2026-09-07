@@ -55,17 +55,26 @@ test.describe("admin settings — money policy section", () => {
 
     try {
       // Mặc định guestAdmin: floor 60.000, capAtEqual=false. Đổi sang fixed
-      // 50.000 + bật cap.
+      // 50.000 + bật cap. Mỗi bước lưu qua fireAction là fire-and-forget
+      // (không có gì để đợi trên UI — không toast, không disable nút), nên
+      // đợi networkidle sau MỖI lần ghi trước khi ghi tiếp/reload: nếu không,
+      // request ghi còn dở có thể bị reload cắt ngang giữa chừng, và phần
+      // còn dở đó chạy tiếp trên server, lấn sang timing của bài test SAU —
+      // đã thấy đúng kiểu này (bài admin-settings.spec.ts ăn field "8" do
+      // request ghi rớt lại từ bài này).
       await modeButton(page, "Cách tính: Khách của admin").click();
       await page.getByRole("button", { name: "Cố định", exact: true }).click();
+      await page.waitForLoadState("networkidle");
 
       const amount = amountField(page, "Khách của admin");
       await expect(amount).toBeVisible();
       await amount.fill("50000");
       await amount.blur();
+      await page.waitForLoadState("networkidle");
 
       const cap = capField(page, "Khách của admin");
       await cap.check();
+      await page.waitForLoadState("networkidle");
 
       await page.reload({ waitUntil: "domcontentloaded" });
 
@@ -78,18 +87,24 @@ test.describe("admin settings — money policy section", () => {
       // dừng ở bước nào.
       await modeButton(page, "Cách tính: Khách của admin").click();
       await page.getByRole("button", { name: "Cố định", exact: true }).click();
+      await page.waitForLoadState("networkidle");
 
       const cap = capField(page, "Khách của admin");
-      if (await cap.isChecked()) await cap.uncheck();
+      if (await cap.isChecked()) {
+        await cap.uncheck();
+        await page.waitForLoadState("networkidle");
+      }
 
       const amount = amountField(page, "Khách của admin");
       await amount.fill("60000");
       await amount.blur();
+      await page.waitForLoadState("networkidle");
 
       await modeButton(page, "Cách tính: Khách của admin").click();
       await page
         .getByRole("button", { name: "Sàn tối thiểu", exact: true })
         .click();
+      await page.waitForLoadState("networkidle");
 
       await page.reload({ waitUntil: "domcontentloaded" });
       await expect(amountField(page, "Khách của admin")).toHaveValue("60000");
