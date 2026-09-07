@@ -417,6 +417,58 @@ export function computeDineCostPerHead(
   return dinerCount > 0 ? roundToThousand(diningBill / dinerCount) : 0;
 }
 
+/**
+ * Đầu vào tối thiểu để phân loại khách CHƠI: mỗi "phiếu" (vote row thật, hoặc
+ * hàng optimistic dựng tương đương ở client) có `memberId` chủ phiếu +
+ * `guestPlayCount` khách CHƠI được thêm qua CHÍNH phiếu đó.
+ */
+export interface VoteGuestPlayRow {
+  memberId: number;
+  guestPlayCount: number | null;
+}
+
+/**
+ * MỘT nguồn duy nhất cho luật phân loại khách-của-admin vs khách-của-member ở
+ * đường XEM TRƯỚC — phải khớp CHÍNH XÁC luật finalize thật (`classifyHead`
+ * trong `calculateSessionCosts`): khách sinh ra từ phiếu vote nào thì
+ * `invitedById` = memberId phiếu đó, nên khách nằm trong CHÍNH phiếu của admin
+ * luôn là khách-của-admin — BẤT KỂ khách đó vào qua ô đếm riêng
+ * (`adminGuestCounter`, tức "Khách của admin" stepper) hay qua nút "+Khách"
+ * ngay trên dòng vote của admin.
+ *
+ * Bug đã sửa (Task 14, giai đoạn 3): 3 màn xem trước (`admin-session-card`,
+ * 2 khối trong `session-list`, và bản optimistic trong `admin-vote-manager`)
+ * trước đây chỉ trừ ô đếm (`guestPlayCount - adminGuestPlayCount`) để ra
+ * khách-của-member — bỏ sót đúng phần khách nằm trong phiếu của admin, khiến
+ * preview và finalize lệch số khi `groupPolicies.guestMember` khác
+ * `guestAdmin`. Đừng viết lại phép cộng/trừ này ở từng page — MỌI nơi cần số
+ * phải gọi hàm này (kể cả bản optimistic client, dựng input từ state chưa
+ * lưu, xem `admin-vote-manager.tsx`).
+ */
+export function classifyGuestPlayHeads(input: {
+  votes: ReadonlyArray<VoteGuestPlayRow>;
+  adminMemberId: number | null;
+  /** Ô đếm khách-của-admin HIỆU LỰC (giá trị server hoặc optimistic override
+   *  từ stepper "Khách của admin") — CHƯA gồm khách nằm trong phiếu của admin,
+   *  hàm này cộng thêm phần đó vào. */
+  adminGuestCounter: number;
+}): { guestMemberPlayHeads: number; adminGuestPlayHeads: number } {
+  let guestMemberPlayHeads = 0;
+  let adminOwnVoteGuestPlayHeads = 0;
+  for (const v of input.votes) {
+    const gp = v.guestPlayCount ?? 0;
+    if (input.adminMemberId !== null && v.memberId === input.adminMemberId) {
+      adminOwnVoteGuestPlayHeads += gp;
+    } else {
+      guestMemberPlayHeads += gp;
+    }
+  }
+  return {
+    guestMemberPlayHeads,
+    adminGuestPlayHeads: input.adminGuestCounter + adminOwnVoteGuestPlayHeads,
+  };
+}
+
 export function computePerHeadCharges(input: {
   courtPrice: number;
   shuttlecockCost: number;

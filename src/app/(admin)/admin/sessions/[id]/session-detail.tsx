@@ -52,6 +52,7 @@ export function SessionDetail({
   sessionDays,
   exemptMemberIds = [],
   memberBalances = {},
+  adminMemberId = null,
 }: {
   session: Session;
   votes: Vote[];
@@ -71,6 +72,10 @@ export function SessionDetail({
   /** Map memberId → fund balance. Threaded xuống AdminVoteManager để
    *  render warning icon cạnh tên member trong row. */
   memberBalances?: Record<number, number>;
+  /** Admin's memberId — khách trong CHÍNH phiếu của admin cũng tính là
+   *  khách-của-admin (Task 14). Trước đây trang này luôn truyền `null` xuống
+   *  AdminSessionCard, khiến preview trang chi tiết không phân loại được. */
+  adminMemberId?: number | null;
 }) {
   const [localStatus, setLocalStatus] = useState(session.status);
   // Optimistic mirror của giá/tên sân + danh sách cầu. CourtSelector /
@@ -227,7 +232,7 @@ export function SessionDetail({
         memberBalances={memberBalances}
         defaultCourtId={defaultCourtId}
         sessionDays={sessionDays}
-        adminMemberId={null}
+        adminMemberId={adminMemberId}
         adminGuestPlay={adminGuestPlay}
         adminGuestDine={adminGuestDine}
         costCourtPrice={localCourtPrice}

@@ -31,6 +31,7 @@ export default async function SessionDetailPage({
     defaultCourt,
     sessionDays,
     exemptions,
+    adminRow,
   ] = await Promise.all([
     getSession(sessionId),
     getSessionVotes(sessionId),
@@ -43,9 +44,14 @@ export default async function SessionDetailPage({
     getDefaultCourt(),
     getSessionDaysOfWeek(),
     getSessionExemptions(sessionId),
+    // Admin's memberId — khách trong CHÍNH phiếu vote của admin cũng tính là
+    // khách-của-admin (Task 14), không chỉ khách qua ô đếm riêng. Trước đây
+    // trang này không fetch admin nên luôn truyền null xuống AdminSessionCard.
+    db.query.admins.findFirst({ columns: { memberId: true } }),
   ]);
 
   if (!session) notFound();
+  const adminMemberId = adminRow?.memberId ?? null;
 
   const visibleMemberIds = members.map((m) => m.id);
   const memberTxs =
@@ -94,6 +100,7 @@ export default async function SessionDetailPage({
         sessionDays={sessionDays}
         exemptMemberIds={exemptions}
         memberBalances={memberBalances}
+        adminMemberId={adminMemberId}
       />
     </div>
   );

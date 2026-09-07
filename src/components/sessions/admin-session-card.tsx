@@ -8,6 +8,7 @@ import {
   computePerHeadCharges,
   computePredictedPlayRevenue,
   computePredictedMinDeductionSurplus,
+  classifyGuestPlayHeads,
 } from "@/lib/cost-calculator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -336,13 +337,22 @@ export function AdminSessionCard({
       ? tVoting("voteClosedLabel")
       : t(status.labelKey);
   const ag = { play: adminGuestPlay, dine: adminGuestDine };
-  // guestMemberPlayHeads: số khách-của-member (KHÔNG phải admin) — độc lập với
-  // override optimistic `ag.play` (cái đó chỉ đổi phần khách-của-admin). Biết
-  // CHÍNH XÁC từ props server nên KHÔNG bỏ trống — bỏ trống computePerHeadCharges
-  // sẽ coi là "không biết" và throw khi policy guestMember khác equal.
-  const guestMemberPlayHeads =
-    session.guestPlayCount - session.adminGuestPlayCount;
-  const totalGuestPlay = guestMemberPlayHeads + ag.play;
+  // Phân loại khách CHƠI đúng luật finalize (Task 14): khách nằm trong CHÍNH
+  // phiếu vote của admin cũng là khách-của-admin, không chỉ khách qua ô đếm
+  // `ag.play`. Dùng hàm chung `classifyGuestPlayHeads` — KHÔNG tính tay
+  // `guestPlayCount - adminGuestPlayCount` nữa (cách cũ bỏ sót đúng phần khách
+  // nằm trong phiếu của admin).
+  const {
+    guestMemberPlayHeads,
+    adminGuestPlayHeads: effectiveAdminGuestPlayHeads,
+  } = classifyGuestPlayHeads({
+    votes: session.votes,
+    adminMemberId,
+    adminGuestCounter: ag.play,
+  });
+  const totalGuestPlay = guestMemberPlayHeads + effectiveAdminGuestPlayHeads;
+  // Khách NHẬU không có khái niệm nhóm (luôn chia đều) — giữ nguyên công thức
+  // cũ, không cần phân loại theo admin.
   const totalGuestDine =
     session.guestDineCount + ag.dine - session.adminGuestDineCount;
 
@@ -373,8 +383,10 @@ export function AdminSessionCard({
     diningBill: session.diningBill,
     playerCount: totalPlayers,
     dinerCount: totalDiners,
-    // Khách-của-admin trả sàn theo groupPolicies.guestAdmin → preview khớp finalize.
-    adminGuestPlayHeads: ag.play,
+    // Khách-của-admin trả sàn theo groupPolicies.guestAdmin → preview khớp
+    // finalize. Dùng số ĐÃ phân loại đúng (gồm cả khách trong phiếu admin),
+    // không phải riêng ô đếm `ag.play`.
+    adminGuestPlayHeads: effectiveAdminGuestPlayHeads,
     // Khách-của-member ăn suất RIÊNG, không giả định trùng playCostPerHead.
     guestMemberPlayHeads,
     policies: groupPolicies,
@@ -398,6 +410,9 @@ export function AdminSessionCard({
       readOnly={voteReadOnly}
       adminGuestPlayCount={ag.play}
       adminGuestDineCount={ag.dine}
+      // Chỉ component này cần adminMemberId để TỰ tính lại khách-của-admin từ
+      // trạng thái optimistic (Task 14, xem docblock AdminVoteManagerProps).
+      adminMemberId={adminMemberId}
       onAdminGuestChange={onAdminGuestChange}
       minDeductionEnabled={session.useMinDeduction}
       exemptMemberIds={session.exemptMemberIds}
@@ -572,7 +587,7 @@ export function AdminSessionCard({
               const predictedRevenue =
                 computePredictedPlayRevenue({
                   totalPlayHeads: totalPlayers,
-                  adminGuestPlayHeads: ag.play,
+                  adminGuestPlayHeads: effectiveAdminGuestPlayHeads,
                   playCostPerHead,
                   adminGuestPlayCostPerHead,
                   guestMemberPlayHeads,

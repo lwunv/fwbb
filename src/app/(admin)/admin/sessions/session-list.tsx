@@ -22,6 +22,7 @@ import {
   computePerHeadCharges,
   computePredictedPlayRevenue,
   computePredictedMinDeductionSurplus,
+  classifyGuestPlayHeads,
 } from "@/lib/cost-calculator";
 import { deriveSessionBadge } from "@/lib/session-status";
 import { Button } from "@/components/ui/button";
@@ -634,13 +635,21 @@ export function SessionList({
               // Tiền cho list (tổng chi + /người + Lãi/Lỗ) — DÙNG CÙNG helper
               // với card view để số KHÔNG lệch.
               const listAg = getAdminGuests(session.id, session);
-              // Khách-của-member (KHÔNG phải admin) — biết CHÍNH XÁC từ
-              // session.guestPlayCount/adminGuestPlayCount (props server, độc
-              // lập override optimistic của khách-admin). Tách riêng để
-              // computePerHeadCharges không gộp nhầm vào suất "member".
-              const listGuestMemberPlayHeads =
-                session.guestPlayCount - session.adminGuestPlayCount;
-              const listGuestPlay = listGuestMemberPlayHeads + listAg.play;
+              // Phân loại khách CHƠI đúng luật finalize (Task 14): khách nằm
+              // trong CHÍNH phiếu vote của admin cũng là khách-của-admin, MỘT
+              // hàm dùng chung cho cả khối mobile lẫn desktop bên dưới — không
+              // tính tay `guestPlayCount - adminGuestPlayCount` nữa (cách cũ bỏ
+              // sót đúng phần khách nằm trong phiếu của admin).
+              const {
+                guestMemberPlayHeads: listGuestMemberPlayHeads,
+                adminGuestPlayHeads: listEffectiveAdminGuestPlayHeads,
+              } = classifyGuestPlayHeads({
+                votes: session.votes,
+                adminMemberId,
+                adminGuestCounter: listAg.play,
+              });
+              const listGuestPlay =
+                listGuestMemberPlayHeads + listEffectiveAdminGuestPlayHeads;
               const listGuestDine =
                 session.guestDineCount +
                 listAg.dine -
@@ -661,7 +670,7 @@ export function SessionList({
                 diningBill: session.diningBill,
                 playerCount: listPlayers,
                 dinerCount: listDiners,
-                adminGuestPlayHeads: listAg.play,
+                adminGuestPlayHeads: listEffectiveAdminGuestPlayHeads,
                 guestMemberPlayHeads: listGuestMemberPlayHeads,
                 policies: groupPolicies,
               });
@@ -676,7 +685,7 @@ export function SessionList({
                   ? session.totalDebt
                   : computePredictedPlayRevenue({
                       totalPlayHeads: listPlayers,
-                      adminGuestPlayHeads: listAg.play,
+                      adminGuestPlayHeads: listEffectiveAdminGuestPlayHeads,
                       playCostPerHead: listPlayPerHead,
                       adminGuestPlayCostPerHead: listAgPlayPerHead,
                       guestMemberPlayHeads: listGuestMemberPlayHeads,
@@ -821,9 +830,16 @@ export function SessionList({
                   const listAg = getAdminGuests(session.id, session);
                   // Xem comment ở khối mobile phía trên — cùng công thức, y
                   // hệt để 2 khối mobile/desktop không lệch nhau.
-                  const listGuestMemberPlayHeads =
-                    session.guestPlayCount - session.adminGuestPlayCount;
-                  const listGuestPlay = listGuestMemberPlayHeads + listAg.play;
+                  const {
+                    guestMemberPlayHeads: listGuestMemberPlayHeads,
+                    adminGuestPlayHeads: listEffectiveAdminGuestPlayHeads,
+                  } = classifyGuestPlayHeads({
+                    votes: session.votes,
+                    adminMemberId,
+                    adminGuestCounter: listAg.play,
+                  });
+                  const listGuestPlay =
+                    listGuestMemberPlayHeads + listEffectiveAdminGuestPlayHeads;
                   const listGuestDine =
                     session.guestDineCount +
                     listAg.dine -
@@ -844,7 +860,7 @@ export function SessionList({
                     diningBill: session.diningBill,
                     playerCount: listPlayers,
                     dinerCount: listDiners,
-                    adminGuestPlayHeads: listAg.play,
+                    adminGuestPlayHeads: listEffectiveAdminGuestPlayHeads,
                     guestMemberPlayHeads: listGuestMemberPlayHeads,
                     policies: groupPolicies,
                   });
@@ -859,7 +875,7 @@ export function SessionList({
                       ? session.totalDebt
                       : computePredictedPlayRevenue({
                           totalPlayHeads: listPlayers,
-                          adminGuestPlayHeads: listAg.play,
+                          adminGuestPlayHeads: listEffectiveAdminGuestPlayHeads,
                           playCostPerHead: listPlayPerHead,
                           adminGuestPlayCostPerHead: listAgPlayPerHead,
                           guestMemberPlayHeads: listGuestMemberPlayHeads,

@@ -13,6 +13,7 @@ import {
   computeShuttlecockTotal,
   applyMinDeductionFloor,
   computePredictedMinDeductionSurplus,
+  classifyGuestPlayHeads,
   MIN_DEDUCTION_PER_HEAD,
   type AttendeeInput,
   type MemberDebt,
@@ -1801,5 +1802,294 @@ describe("calculateSessionCosts → applyMinDeductionFloor — luật hai sàn k
     const kept = applyMinDeductionFloor(femaleDebt, 100_000);
     expect(kept.playAmount).toBe(50_000);
     expect(kept.totalAmount).toBe(50_000);
+  });
+});
+
+describe("classifyGuestPlayHeads (Task 14)", () => {
+  it("khách trong CHÍNH phiếu vote của admin → cộng vào khách-của-admin, KHÔNG phải khách-của-member", () => {
+    const r = classifyGuestPlayHeads({
+      votes: [
+        { memberId: 1, guestPlayCount: 2 }, // phiếu của admin, tự thêm 2 khách
+        { memberId: 2, guestPlayCount: 1 }, // phiếu member thường
+      ],
+      adminMemberId: 1,
+      adminGuestCounter: 3, // ô đếm "Khách của admin" riêng
+    });
+    expect(r.guestMemberPlayHeads).toBe(1);
+    expect(r.adminGuestPlayHeads).toBe(5); // 3 (ô đếm) + 2 (trong phiếu admin)
+  });
+
+  it("adminMemberId = null (admin chưa link member) → mọi khách coi là khách-của-member", () => {
+    const r = classifyGuestPlayHeads({
+      votes: [{ memberId: 1, guestPlayCount: 2 }],
+      adminMemberId: null,
+      adminGuestCounter: 0,
+    });
+    expect(r.guestMemberPlayHeads).toBe(2);
+    expect(r.adminGuestPlayHeads).toBe(0);
+  });
+
+  it("guestPlayCount null coi như 0, không NaN", () => {
+    const r = classifyGuestPlayHeads({
+      votes: [
+        { memberId: 5, guestPlayCount: null },
+        { memberId: 1, guestPlayCount: null },
+      ],
+      adminMemberId: 1,
+      adminGuestCounter: 4,
+    });
+    expect(r.guestMemberPlayHeads).toBe(0);
+    expect(r.adminGuestPlayHeads).toBe(4);
+  });
+});
+
+describe("preview khớp finalize khi khách nằm trong phiếu vote của admin (Task 14 — chặn hồi quy)", () => {
+  // guestMember cố tình khác HẲN guestAdmin (fixed 15K so với floor 60K mặc
+  // định) — 2 policy giống nhau thì test này không chứng minh được gì, vì
+  // phân loại sai lẫn đúng đều ra cùng 1 số.
+  const policies = {
+    ...DEFAULT_GROUP_POLICIES,
+    guestMember: {
+      mode: "fixed" as const,
+      amount: 15_000,
+      capAtEqual: false,
+    },
+  };
+  const adminMemberId = 1;
+
+  /** Preview: dùng ĐÚNG production code (classifyGuestPlayHeads +
+   *  computePerHeadCharges) — chính là code path 3 màn xem trước gọi. */
+  function preview(
+    votes: { memberId: number; guestPlayCount: number | null }[],
+    playerCount: number,
+  ) {
+    const { guestMemberPlayHeads, adminGuestPlayHeads } =
+      classifyGuestPlayHeads({ votes, adminMemberId, adminGuestCounter: 0 });
+    return computePerHeadCharges({
+      courtPrice: 300_000,
+      shuttlecockCost: 0,
+      diningBill: 0,
+      playerCount,
+      dinerCount: 0,
+      adminGuestPlayHeads,
+      guestMemberPlayHeads,
+      policies,
+    });
+  }
+
+  it("case 1: admin tự vote chơi + tự thêm khách qua CHÍNH dòng vote của mình → giá khớp finalize (giá khách-của-admin)", () => {
+    const votes = [
+      { memberId: adminMemberId, guestPlayCount: 1 },
+      { memberId: 2, guestPlayCount: 0 },
+      { memberId: 3, guestPlayCount: 0 },
+    ];
+    const p = preview(votes, 4);
+
+    // Finalize thật: guest sinh từ vote của admin → invitedById = adminMemberId
+    // (đúng cách finalizeSessionAuto dựng attendeeList từ votes).
+    const attendees: AttendeeInput[] = [
+      {
+        memberId: adminMemberId,
+        invitedById: null,
+        isGuest: false,
+        attendsPlay: true,
+        attendsDine: false,
+      },
+      {
+        memberId: 2,
+        invitedById: null,
+        isGuest: false,
+        attendsPlay: true,
+        attendsDine: false,
+      },
+      {
+        memberId: 3,
+        invitedById: null,
+        isGuest: false,
+        attendsPlay: true,
+        attendsDine: false,
+      },
+      {
+        memberId: null,
+        guestName: "Khách admin",
+        invitedById: adminMemberId,
+        isGuest: true,
+        attendsPlay: true,
+        attendsDine: false,
+      },
+    ];
+    const breakdown = calculateSessionCosts(
+      { courtPrice: 300_000, diningBill: 0 },
+      attendees,
+      [],
+      { adminMemberId, policies },
+    );
+    const adminDebt = breakdown.memberDebts.find(
+      (d) => d.memberId === adminMemberId,
+    )!;
+
+    // Preview khớp đúng nhóm finalize dùng (guestAdmin), và đúng số tiền thật
+    // finalize sẽ ghi vào debt của admin.
+    expect(p.adminGuestPlayCostPerHead).toBe(breakdown.ratesByGroup.guestAdmin);
+    expect(adminDebt.guestPlayAmount).toBe(p.adminGuestPlayCostPerHead * 1);
+
+    // Chứng minh ca này THỰC SỰ chặn hồi quy: mô phỏng lại công thức CŨ trước
+    // Task 14 (chỉ trừ ô đếm `guestPlayCount - adminGuestPlayCount`, bỏ sót
+    // khách trong phiếu admin → toàn bộ khách bị tính vào guestMemberPlayHeads).
+    // Với `guestMember` là "fixed 15K, capAtEqual=false" (KHÁC hẳn guestAdmin),
+    // công thức cũ ra sàn khách hoàn toàn khác — nếu ai revert
+    // `classifyGuestPlayHeads` về công thức cũ, assertion trên đã đỏ trước khi
+    // chạy tới đây.
+    const totalVotesGuestPlayHeads = votes.reduce(
+      (s, v) => s + (v.guestPlayCount ?? 0),
+      0,
+    );
+    const wrongPreview = computePerHeadCharges({
+      courtPrice: 300_000,
+      shuttlecockCost: 0,
+      diningBill: 0,
+      playerCount: 4,
+      dinerCount: 0,
+      adminGuestPlayHeads: 0, // ô đếm riêng, không có khách nào qua đó ở ca này
+      guestMemberPlayHeads: totalVotesGuestPlayHeads, // BUG: gộp cả khách của admin vào đây
+      policies,
+    });
+    expect(wrongPreview.guestMemberPlayCostPerHead).not.toBe(
+      breakdown.ratesByGroup.guestAdmin,
+    );
+  });
+
+  it("case 2: member thường tự thêm khách → giá khớp finalize (giá khách-của-member)", () => {
+    const votes = [
+      { memberId: adminMemberId, guestPlayCount: 0 },
+      { memberId: 2, guestPlayCount: 1 },
+      { memberId: 3, guestPlayCount: 0 },
+    ];
+    const p = preview(votes, 4);
+
+    const attendees: AttendeeInput[] = [
+      {
+        memberId: adminMemberId,
+        invitedById: null,
+        isGuest: false,
+        attendsPlay: true,
+        attendsDine: false,
+      },
+      {
+        memberId: 2,
+        invitedById: null,
+        isGuest: false,
+        attendsPlay: true,
+        attendsDine: false,
+      },
+      {
+        memberId: 3,
+        invitedById: null,
+        isGuest: false,
+        attendsPlay: true,
+        attendsDine: false,
+      },
+      {
+        memberId: null,
+        guestName: "Khách member 2",
+        invitedById: 2,
+        isGuest: true,
+        attendsPlay: true,
+        attendsDine: false,
+      },
+    ];
+    const breakdown = calculateSessionCosts(
+      { courtPrice: 300_000, diningBill: 0 },
+      attendees,
+      [],
+      { adminMemberId, policies },
+    );
+    const member2Debt = breakdown.memberDebts.find((d) => d.memberId === 2)!;
+
+    expect(p.adminGuestPlayCostPerHead).not.toBe(p.guestMemberPlayCostPerHead);
+    expect(p.guestMemberPlayCostPerHead).toBe(
+      breakdown.ratesByGroup.guestMember,
+    );
+    expect(member2Debt.guestPlayAmount).toBe(p.guestMemberPlayCostPerHead * 1);
+  });
+
+  it("case 3: cả khách-qua-phiếu-admin lẫn khách-của-member trong CÙNG buổi → mỗi loại ăn đúng suất nhóm của nó", () => {
+    const votes = [
+      { memberId: adminMemberId, guestPlayCount: 1 },
+      { memberId: 2, guestPlayCount: 2 },
+      { memberId: 3, guestPlayCount: 0 },
+    ];
+    const { guestMemberPlayHeads, adminGuestPlayHeads } =
+      classifyGuestPlayHeads({ votes, adminMemberId, adminGuestCounter: 0 });
+    expect(guestMemberPlayHeads).toBe(2);
+    expect(adminGuestPlayHeads).toBe(1);
+
+    const p = preview(votes, 3 + 1 + 2);
+
+    const attendees: AttendeeInput[] = [
+      {
+        memberId: adminMemberId,
+        invitedById: null,
+        isGuest: false,
+        attendsPlay: true,
+        attendsDine: false,
+      },
+      {
+        memberId: 2,
+        invitedById: null,
+        isGuest: false,
+        attendsPlay: true,
+        attendsDine: false,
+      },
+      {
+        memberId: 3,
+        invitedById: null,
+        isGuest: false,
+        attendsPlay: true,
+        attendsDine: false,
+      },
+      {
+        memberId: null,
+        guestName: "Khách admin",
+        invitedById: adminMemberId,
+        isGuest: true,
+        attendsPlay: true,
+        attendsDine: false,
+      },
+      {
+        memberId: null,
+        guestName: "Khách member2 #1",
+        invitedById: 2,
+        isGuest: true,
+        attendsPlay: true,
+        attendsDine: false,
+      },
+      {
+        memberId: null,
+        guestName: "Khách member2 #2",
+        invitedById: 2,
+        isGuest: true,
+        attendsPlay: true,
+        attendsDine: false,
+      },
+    ];
+    const breakdown = calculateSessionCosts(
+      { courtPrice: 300_000, diningBill: 0 },
+      attendees,
+      [],
+      { adminMemberId, policies },
+    );
+    const adminDebt = breakdown.memberDebts.find(
+      (d) => d.memberId === adminMemberId,
+    )!;
+    const member2Debt = breakdown.memberDebts.find((d) => d.memberId === 2)!;
+
+    expect(p.adminGuestPlayCostPerHead).not.toBe(p.guestMemberPlayCostPerHead);
+    expect(p.adminGuestPlayCostPerHead).toBe(breakdown.ratesByGroup.guestAdmin);
+    expect(p.guestMemberPlayCostPerHead).toBe(
+      breakdown.ratesByGroup.guestMember,
+    );
+    expect(adminDebt.guestPlayAmount).toBe(p.adminGuestPlayCostPerHead * 1);
+    expect(member2Debt.guestPlayAmount).toBe(p.guestMemberPlayCostPerHead * 2);
   });
 });

@@ -22,6 +22,7 @@ import {
   computeShuttlecockTotal,
   computePerHeadCharges,
   applyMinDeductionFloor,
+  classifyGuestPlayHeads,
   type MemberDebt,
 } from "@/lib/cost-calculator";
 import { MinDeductionToggle } from "@/components/sessions/min-deduction-toggle";
@@ -65,6 +66,13 @@ interface AdminVoteManagerProps {
   sessionCosts?: SessionCosts;
   adminGuestPlayCount?: number;
   adminGuestDineCount?: number;
+  /** MemberId của admin — component này giữ trạng thái vote LẠC QUAN trong bộ
+   *  nhớ (admin đổi vote/khách ngay trên màn trước khi lưu) nên không thể chỉ
+   *  nhận sẵn 1 con số khách-của-member từ server như 2 màn kia
+   *  (`admin-session-card`, `session-list`). Cần đúng memberId để tự phân loại
+   *  lại từ state lạc quan bằng CHÍNH quy tắc `invitedById === adminMemberId`
+   *  (qua `classifyGuestPlayHeads`, dùng chung với server) — Task 14. */
+  adminMemberId?: number | null;
   /** Khi cung cấp → render Khách-của-admin stepper bên trong (trên search box).
    *  Gắn callback fire setAdminGuestCount + rollback ở caller. */
   onAdminGuestChange?: (play: number, dine: number) => void;
@@ -98,6 +106,7 @@ export function AdminVoteManager({
   sessionCosts,
   adminGuestPlayCount = 0,
   adminGuestDineCount = 0,
+  adminMemberId = null,
   onAdminGuestChange,
   hideCostSummary = false,
   minDeductionEnabled = false,
@@ -261,17 +270,30 @@ export function AdminVoteManager({
     0,
   );
 
-  /** Khách cộng từ vote — dùng getGuestCounts (nguồn optimistic, cùng chỗ các
-   *  row đọc) để khi admin đổi số khách thì mẫu số + per-head cập nhật NGAY,
-   *  không lệch với per-member deduction trong lúc chờ server. Bỏ member đã
-   *  remove. Tách riêng khỏi khách-của-admin (biết CHÍNH XÁC là bao nhiêu, xem
-   *  round-2 review) để computePerHeadCharges tính đúng suất riêng cho nhóm
-   *  guestMember khi policy của nó khác "member". */
-  const guestMemberPlayHeads = members.reduce((s, m) => {
-    if (removedMembers.has(m.id)) return s;
-    return s + getGuestCounts(m.id).play;
-  }, 0);
-  const totalGuestPlay = guestMemberPlayHeads + adminGuestPlayCount;
+  /** Khách CHƠI cộng từ vote — dùng getGuestCounts (nguồn optimistic, cùng chỗ
+   *  các row đọc) để khi admin đổi số khách thì mẫu số + per-head cập nhật
+   *  NGAY, không lệch với per-member deduction trong lúc chờ server. Bỏ member
+   *  đã remove. Phân loại khách-của-admin/khách-của-member qua
+   *  `classifyGuestPlayHeads` — CÙNG hàm dùng ở server (admin-session-card,
+   *  session-list) — để khách nằm trong CHÍNH dòng vote của admin cũng tính là
+   *  khách-của-admin (Task 14), không chỉ khách qua ô đếm
+   *  `adminGuestPlayCount`. Đây là màn DUY NHẤT phải tự tính lại vì nó giữ
+   *  trạng thái vote lạc quan (member vừa toggle/thêm khách nhưng chưa lưu). */
+  const {
+    guestMemberPlayHeads,
+    adminGuestPlayHeads: effectiveAdminGuestPlayHeads,
+  } = classifyGuestPlayHeads({
+    votes: members
+      .filter((m) => !removedMembers.has(m.id))
+      .map((m) => ({
+        memberId: m.id,
+        guestPlayCount: getGuestCounts(m.id).play,
+      })),
+    adminMemberId,
+    adminGuestCounter: adminGuestPlayCount,
+  });
+  const totalGuestPlay = guestMemberPlayHeads + effectiveAdminGuestPlayHeads;
+  // Khách NHẬU không có khái niệm nhóm (luôn chia đều) — không cần phân loại.
   const totalGuestDine =
     members.reduce((s, m) => {
       if (removedMembers.has(m.id)) return s;
@@ -440,6 +462,7 @@ export function AdminVoteManager({
     playCostPerHead: playPerHead,
     dineCostPerHead: dinePerHead,
     guestMemberPlayCostPerHead: guestMemberPerHead,
+    adminGuestPlayCostPerHead: agPerHead,
   } = sc
     ? computePerHeadCharges({
         courtPrice: sc.courtPrice,
@@ -447,11 +470,18 @@ export function AdminVoteManager({
         diningBill: sc.diningBill,
         playerCount,
         dinerCount,
-        adminGuestPlayHeads: adminGuestPlayCount,
+        // Số ĐÃ phân loại đúng (gồm cả khách trong phiếu admin), không phải
+        // riêng ô đếm `adminGuestPlayCount`.
+        adminGuestPlayHeads: effectiveAdminGuestPlayHeads,
         guestMemberPlayHeads,
         policies: groupPolicies,
       })
-    : { playCostPerHead: 0, dineCostPerHead: 0, guestMemberPlayCostPerHead: 0 };
+    : {
+        playCostPerHead: 0,
+        dineCostPerHead: 0,
+        guestMemberPlayCostPerHead: 0,
+        adminGuestPlayCostPerHead: 0,
+      };
   const totalExpense = sc ? playCost + sc.diningBill : 0;
   const paidAmount = Object.entries(debtMap)
     .filter(([mid]) => getDebtConfirmed(Number(mid)))
@@ -492,9 +522,12 @@ export function AdminVoteManager({
     const hc = memberHeadcount(memberId);
     // Khách-của-member (gp) ăn suất RIÊNG guestMemberPerHead, không phải
     // playPerHead của chính chủ — 2 suất chỉ trùng khi policy guestMember còn
-    // "equal" (mặc định), không phải luôn luôn.
-    const playPart =
-      (v.willPlay ? playPerHead * hc : 0) + gp * guestMemberPerHead;
+    // "equal" (mặc định), không phải luôn luôn. NGOẠI LỆ: nếu chính dòng này
+    // là phiếu của ADMIN, khách trong đó là khách-của-admin (Task 14) → ăn
+    // suất agPerHead, không phải guestMemberPerHead.
+    const isAdminRow = adminMemberId !== null && memberId === adminMemberId;
+    const guestRate = isAdminRow ? agPerHead : guestMemberPerHead;
+    const playPart = (v.willPlay ? playPerHead * hc : 0) + gp * guestRate;
     const dinePart = (v.willDine ? dinePerHead * hc : 0) + gd * dinePerHead;
     const est = playPart + dinePart;
     if (est > 0) return est;
@@ -513,8 +546,10 @@ export function AdminVoteManager({
     const hc = memberHeadcount(memberId);
     const playAmount = willPlay ? playPerHead * hc : 0;
     const dineAmount = willDine ? dinePerHead * hc : 0;
-    // Cùng lý do ở displayMemberAmount: khách-của-member ăn suất riêng.
-    const guestPlayAmount = gp * guestMemberPerHead;
+    // Cùng lý do ở displayMemberAmount: khách-của-member ăn suất riêng, trừ
+    // khi memberId chính là admin → khách trong dòng đó ăn suất agPerHead.
+    const isAdminRow = adminMemberId !== null && memberId === adminMemberId;
+    const guestPlayAmount = gp * (isAdminRow ? agPerHead : guestMemberPerHead);
     const guestDineAmount = gd * dinePerHead;
     return {
       memberId,
