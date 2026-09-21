@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Settings2, X } from "lucide-react";
 import { SectionCard } from "@/components/shared/section-card";
@@ -64,6 +64,53 @@ export function SectionSessionDefaults({
   const [maxPlayers, setMaxPlayers] = useState(settings.defaultMaxPlayers);
   const [options, setOptions] = useState<number[]>(settings.maxPlayersOptions);
   const [draft, setDraft] = useState("");
+
+  // Chín ô trên đều là bản sao của prop `settings`, và trước đây KHÔNG đồng bộ
+  // lại bao giờ: sau khi server revalidate (hoặc admin sửa từ tab khác) thì
+  // form vẫn hiện giá trị cũ, và lần lưu kế tiếp ghi đè bằng số đã lỗi thời.
+  //
+  // Tách phẳng từng field làm dependency thay vì để cả object `settings`: prop
+  // đó là object mới mỗi lần render của cha, dùng nguyên nó sẽ chạy effect
+  // liên tục và giật ô đang chỉnh. `draft` KHÔNG đồng bộ — nó là ô người dùng
+  // đang gõ, không phải bản sao của server.
+  const {
+    defaultCourtId,
+    defaultBrandId,
+    sessionDaysOfWeek,
+    defaultStartTime,
+    defaultEndTime,
+    defaultCourtQuantity,
+    voteDeadlineOffsetHours,
+    defaultMaxPlayers,
+    maxPlayersOptions,
+  } = settings;
+  useEffect(() => {
+    setCourtId(defaultCourtId ? String(defaultCourtId) : "");
+  }, [defaultCourtId]);
+  useEffect(() => {
+    setBrandId(defaultBrandId ? String(defaultBrandId) : "");
+  }, [defaultBrandId]);
+  useEffect(() => {
+    setSessionDays(new Set(sessionDaysOfWeek));
+  }, [sessionDaysOfWeek]);
+  useEffect(() => {
+    setStartTime(defaultStartTime);
+  }, [defaultStartTime]);
+  useEffect(() => {
+    setEndTime(defaultEndTime);
+  }, [defaultEndTime]);
+  useEffect(() => {
+    setCourtQty(defaultCourtQuantity);
+  }, [defaultCourtQuantity]);
+  useEffect(() => {
+    setDeadlineHours(voteDeadlineOffsetHours);
+  }, [voteDeadlineOffsetHours]);
+  useEffect(() => {
+    setMaxPlayers(defaultMaxPlayers);
+  }, [defaultMaxPlayers]);
+  useEffect(() => {
+    setOptions(maxPlayersOptions);
+  }, [maxPlayersOptions]);
 
   // Mọi ô ở đây đều ghi kiểu upsert ai-đến-sau-thắng. Bấm nhanh hai lần trên
   // CÙNG một ô (tick liên tiếp hai ngày trong tuần, thêm rồi xoá một mức sĩ
