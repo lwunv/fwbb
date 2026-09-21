@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Coins } from "lucide-react";
@@ -9,6 +9,7 @@ import { MoneyInput } from "@/components/shared/money-input";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { fireAction } from "@/lib/optimistic-action";
+import { useWriteQueue } from "@/lib/use-write-queue";
 import { updateSetting } from "@/actions/settings";
 import type { AppSettings } from "@/lib/settings-registry";
 import {
@@ -68,32 +69,7 @@ export function SectionMoney({
   const [policies, setPolicies] =
     useState<Record<GroupKey, GroupPolicy>>(groupPoliciesSetting);
 
-  // Hàng đợi ghi tuần tự — `updateSetting` là upsert last-write-wins đơn
-  // thuần, không có version check. Đổi mode rồi gõ số tiền ngay sau (thao
-  // tác bình thường: đổi "cố định" để lộ ô số tiền, rồi điền số) là HAI lần
-  // ghi cả object groupPolicies liên tiếp. Nếu bắn cả hai request song song,
-  // request đầu (đổi mode) có thể về CHẬM hơn request sau (điền số tiền) —
-  // mobile giật, retry, tái dùng connection — và đè lên bằng snapshot cũ hơn
-  // nhưng vẫn hợp schema (`.strict()` không bắt được vì cả hai payload đều
-  // đủ sáu nhóm). Chọn cách "giữ 1 promise trong ref, nối request sau vào
-  // đuôi request trước" thay vì đánh số thứ tự rồi bỏ qua kết quả cũ hơn —
-  // đơn giản hơn: không cần so sánh số thứ tự ở nơi nhận kết quả, và tự
-  // nhiên tương thích với logic retry sẵn có của `fireAction` (retry gọi lại
-  // `action()`, action đó vẫn đi qua `enqueueWrite` nên vẫn xếp hàng đúng
-  // chỗ). Không đụng `fireAction`/`updateSetting` — chỉ nối request ở tầng
-  // gọi, UI vẫn optimistic ngay lập tức, rollback vẫn đúng theo kết quả của
-  // CHÍNH lần ghi đó.
-  const writeQueueRef = useRef<Promise<void>>(Promise.resolve());
-  function enqueueWrite<T>(action: () => Promise<T>): Promise<T> {
-    const run = writeQueueRef.current.then(action, action);
-    // Chuẩn hoá về "luôn resolve" bất kể lần ghi này lỗi hay không — một lần
-    // ghi lỗi không được phép chặn đứng các lần ghi sau xếp hàng phía sau nó.
-    writeQueueRef.current = run.then(
-      () => undefined,
-      () => undefined,
-    );
-    return run;
-  }
+  const enqueue = useWriteQueue();
 
   useEffect(() => {
     setPolicies(groupPoliciesSetting);
@@ -101,7 +77,9 @@ export function SectionMoney({
 
   function commitMinDeduction(n: number) {
     fireAction(() =>
-      enqueueWrite(() => updateSetting("minDeductionAmount", n)),
+      enqueue("minDeductionAmount", () =>
+        updateSetting("minDeductionAmount", n),
+      ),
     );
   }
 
@@ -119,7 +97,8 @@ export function SectionMoney({
     };
     setPolicies(nextAll);
     fireAction(
-      () => enqueueWrite(() => updateSetting("groupPolicies", nextAll)),
+      () =>
+        enqueue("groupPolicies", () => updateSetting("groupPolicies", nextAll)),
       () => setPolicies(prevAll),
     );
   }

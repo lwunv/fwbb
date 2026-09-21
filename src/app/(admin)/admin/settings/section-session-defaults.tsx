@@ -7,6 +7,7 @@ import { SectionCard } from "@/components/shared/section-card";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { fireAction } from "@/lib/optimistic-action";
+import { useWriteQueue } from "@/lib/use-write-queue";
 import { updateSetting } from "@/actions/settings";
 import type { AppSettings } from "@/lib/settings-registry";
 import { formatK, cn } from "@/lib/utils";
@@ -64,13 +65,20 @@ export function SectionSessionDefaults({
   const [options, setOptions] = useState<number[]>(settings.maxPlayersOptions);
   const [draft, setDraft] = useState("");
 
+  // Mọi ô ở đây đều ghi kiểu upsert ai-đến-sau-thắng. Bấm nhanh hai lần trên
+  // CÙNG một ô (tick liên tiếp hai ngày trong tuần, thêm rồi xoá một mức sĩ
+  // số) là hai request gần như đồng thời, không có gì đảm bảo thứ tự chúng về.
+  // Xếp hàng theo khoá để bản cũ không đè bản mới.
+  const enqueue = useWriteQueue();
+
   function handleCourtChange(v: string) {
     const prev = courtId;
     setCourtId(v);
     const id = parseInt(v, 10);
     if (!Number.isFinite(id)) return;
     fireAction(
-      () => updateSetting("defaultCourtId", id),
+      () =>
+        enqueue("defaultCourtId", () => updateSetting("defaultCourtId", id)),
       () => setCourtId(prev),
     );
   }
@@ -81,7 +89,8 @@ export function SectionSessionDefaults({
     const id = parseInt(v, 10);
     if (!Number.isFinite(id)) return;
     fireAction(
-      () => updateSetting("defaultBrandId", id),
+      () =>
+        enqueue("defaultBrandId", () => updateSetting("defaultBrandId", id)),
       () => setBrandId(prev),
     );
   }
@@ -94,7 +103,10 @@ export function SectionSessionDefaults({
     if (next.size === 0) return; // ít nhất 1 ngày — khớp validate registry
     setSessionDays(next);
     fireAction(
-      () => updateSetting("sessionDaysOfWeek", Array.from(next).sort()),
+      () =>
+        enqueue("sessionDaysOfWeek", () =>
+          updateSetting("sessionDaysOfWeek", Array.from(next).sort()),
+        ),
       () => setSessionDays(prev),
     );
   }
@@ -107,7 +119,7 @@ export function SectionSessionDefaults({
   ) {
     set(next);
     fireAction(
-      () => updateSetting(key, next),
+      () => enqueue(key, () => updateSetting(key, next)),
       () => set(prev),
     );
   }
@@ -124,7 +136,7 @@ export function SectionSessionDefaults({
     if (!Number.isInteger(next) || next < 0) return;
     set(next);
     fireAction(
-      () => updateSetting(key, next),
+      () => enqueue(key, () => updateSetting(key, next)),
       () => set(prev),
     );
   }
@@ -134,7 +146,10 @@ export function SectionSessionDefaults({
     const prev = options;
     setOptions(next);
     fireAction(
-      () => updateSetting("maxPlayersOptions", next),
+      () =>
+        enqueue("maxPlayersOptions", () =>
+          updateSetting("maxPlayersOptions", next),
+        ),
       () => setOptions(prev),
     );
   }

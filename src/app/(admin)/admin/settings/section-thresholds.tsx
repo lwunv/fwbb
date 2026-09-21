@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { TriangleAlert } from "lucide-react";
 import { SectionCard } from "@/components/shared/section-card";
 import { MoneyInput } from "@/components/shared/money-input";
 import { fireAction } from "@/lib/optimistic-action";
+import { useWriteQueue } from "@/lib/use-write-queue";
 import { updateSetting } from "@/actions/settings";
 import type { AppSettings } from "@/lib/settings-registry";
 
@@ -22,20 +23,7 @@ export function SectionThresholds({ settings }: { settings: AppSettings }) {
     lowStockThresholdQua: settings.lowStockThresholdQua,
   });
 
-  // Xếp hàng ghi theo từng key. `updateSetting` là upsert last-write-wins,
-  // không kiểm version, nên hai lần sửa nhanh liên tiếp trên CÙNG một ngưỡng
-  // mà bắn song song thì request về trước/sau không xác định, và bản cũ có thể
-  // đè bản mới. Nối request sau vào đuôi request trước là đủ.
-  const writeQueues = useRef<Partial<Record<ThresholdKey, Promise<void>>>>({});
-  function enqueue<T>(key: ThresholdKey, action: () => Promise<T>): Promise<T> {
-    const prev = writeQueues.current[key] ?? Promise.resolve();
-    const run = prev.then(action, action);
-    writeQueues.current[key] = run.then(
-      () => undefined,
-      () => undefined,
-    );
-    return run;
-  }
+  const enqueue = useWriteQueue();
 
   function commit(key: ThresholdKey, next: number) {
     const prev = values[key];
