@@ -44,22 +44,28 @@ export function VoteDeadlineEdit({
     setValue(toDatetimeLocalValue(current));
   }, [current]);
 
+  // Dialog đóng NGAY khi bấm (phản hồi tức thì), nhưng nếu server từ chối thì
+  // phải mở lại: không mở lại thì admin chỉ thấy một cái toast lỗi trong khi
+  // hộp thoại đã biến mất, và thứ họ vừa nhập cũng đi theo. Cùng cách
+  // `handleCreate` ở session-list làm.
+  const reopenOnFailure = () => setOpen(true);
+
   function handleSet() {
     // datetime-local returns "YYYY-MM-DDTHH:MM"; pad seconds to match stored
     // format `YYYY-MM-DDTHH:MM:SS`.
     const deadline = value ? `${value}:00` : null;
     setOpen(false);
-    fireAction(() => setVoteDeadline(sessionId, deadline));
+    fireAction(() => setVoteDeadline(sessionId, deadline), reopenOnFailure);
   }
 
   function handleClear() {
     setOpen(false);
-    fireAction(() => setVoteDeadline(sessionId, null));
+    fireAction(() => setVoteDeadline(sessionId, null), reopenOnFailure);
   }
 
   function handleExtend(hours: 2 | 24) {
     setOpen(false);
-    fireAction(() => extendVoteDeadline(sessionId, hours));
+    fireAction(() => extendVoteDeadline(sessionId, hours), reopenOnFailure);
   }
 
   return (
