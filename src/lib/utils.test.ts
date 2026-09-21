@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { roundToThousand, formatVND, formatK } from "./utils";
+import {
+  roundToThousand,
+  formatVND,
+  formatK,
+  formatDigitsVi,
+  onlyDigits,
+} from "./utils";
 
 describe("roundToThousand", () => {
   it("should round up partial thousands", () => {
@@ -104,5 +110,37 @@ describe("roundToThousand financial invariants", () => {
     for (const [input, expected] of cases) {
       expect(roundToThousand(input)).toBe(expected);
     }
+  });
+});
+
+describe("formatDigitsVi", () => {
+  it("nhóm nghìn bằng dấu chấm kiểu Việt", () => {
+    expect(formatDigitsVi("100000")).toBe("100.000");
+    expect(formatDigitsVi("1000")).toBe("1.000");
+    expect(formatDigitsVi("999")).toBe("999");
+    expect(formatDigitsVi("1234567")).toBe("1.234.567");
+  });
+
+  it("chuỗi rỗng ra chuỗi rỗng, KHÔNG ra 0", () => {
+    // Đây là lý do hàm nhận string chứ không nhận number: ô nhập đang trống
+    // khác hẳn ô nhập số 0, gộp hai cái làm một là bug đặt ngưỡng về 0.
+    expect(formatDigitsVi("")).toBe("");
+    expect(formatDigitsVi("abc")).toBe("");
+    expect(formatDigitsVi("0")).toBe("0");
+  });
+
+  it("bỏ mọi ký tự không phải số nên paste kiểu gì cũng được", () => {
+    expect(formatDigitsVi("200.000đ")).toBe("200.000");
+    expect(formatDigitsVi("200 000")).toBe("200.000");
+    expect(formatDigitsVi("200,000")).toBe("200.000");
+  });
+});
+
+describe("onlyDigits", () => {
+  it("giữ đúng phần chữ số", () => {
+    expect(onlyDigits("200.000đ")).toBe("200000");
+    expect(onlyDigits("")).toBe("");
+    expect(onlyDigits("abc")).toBe("");
+    expect(onlyDigits("0")).toBe("0");
   });
 });
