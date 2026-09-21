@@ -123,7 +123,12 @@ export function AdminVoteManager({
   // hiện khách-của-member (không phải admin) bị gộp chung suất "member" trong
   // computePerHeadCharges → đã tách bucket riêng, xem `guestMemberPlayHeads`
   // bên dưới.
-  const { lowFundThreshold, groupPolicies, minDeductionAmount } = useSettings();
+  const {
+    lowFundThreshold,
+    groupPolicies,
+    minDeductionAmount,
+    genderPricingEnabled,
+  } = useSettings();
   const [search, setSearch] = useState("");
   const [removeTarget, setRemoveTarget] = useState<{
     memberId: number;
@@ -134,7 +139,10 @@ export function AdminVoteManager({
   const [localVotes, setLocalVotes] = useState<Record<number, LocalVote>>({});
   const [localDebts, setLocalDebts] = useState<Record<number, LocalDebt>>({});
   const [localGuests, setLocalGuests] = useState<
-    Record<number, { play: number; dine: number }>
+    Record<
+      number,
+      { play: number; dine: number; playFemale: number; dineFemale: number }
+    >
   >({});
   // Optimistic "đi 2 người" (withPartner) per member — mirror server row.
   const [localPartner, setLocalPartner] = useState<Record<number, boolean>>({});
@@ -246,11 +254,21 @@ export function AdminVoteManager({
     );
   }
 
-  function getGuestCounts(memberId: number): { play: number; dine: number } {
+  function getGuestCounts(memberId: number): {
+    play: number;
+    dine: number;
+    playFemale: number;
+    dineFemale: number;
+  } {
     const local = localGuests[memberId];
     if (local) return local;
     const row = getVoteRow(memberId);
-    return { play: row?.guestPlayCount ?? 0, dine: row?.guestDineCount ?? 0 };
+    return {
+      play: row?.guestPlayCount ?? 0,
+      dine: row?.guestDineCount ?? 0,
+      playFemale: row?.guestPlayFemaleCount ?? 0,
+      dineFemale: row?.guestDineFemaleCount ?? 0,
+    };
   }
 
   const allActiveMembers = members.filter((m) => {
@@ -344,6 +362,11 @@ export function AdminVoteManager({
         [memberId]: {
           play: togglingOffPlay ? 0 : prevGuests.play,
           dine: togglingOffDine ? 0 : prevGuests.dine,
+          // Zero CẢ phần nữ, khớp đúng việc server zero cả hai cột trong cùng
+          // câu lệnh (`adminSetVote`). Mirror thiếu ở đây thì UI còn hiện
+          // khách nữ trong khi server đã xoá — số hiển thị lệch số thật.
+          playFemale: togglingOffPlay ? 0 : prevGuests.playFemale,
+          dineFemale: togglingOffDine ? 0 : prevGuests.dineFemale,
         },
       }));
     }
@@ -494,15 +517,28 @@ export function AdminVoteManager({
 
   function handleGuestChange(
     memberId: number,
-    field: "play" | "dine",
+    field: "play" | "dine" | "playFemale" | "dineFemale",
     value: number,
   ) {
     const current = getGuestCounts(memberId);
     const prev = { ...current };
     const next = { ...current, [field]: value };
+    // Giảm TỔNG khách xuống dưới số nữ thì kéo số nữ xuống theo, ngay trên
+    // client. Không kẹp ở đây thì server trả lỗi "nữ vượt tổng" cho một thao
+    // tác mà admin không hiểu vì sao sai — họ chỉ bấm giảm một nút.
+    next.playFemale = Math.min(next.playFemale, next.play);
+    next.dineFemale = Math.min(next.dineFemale, next.dine);
     setLocalGuests((s) => ({ ...s, [memberId]: next }));
     fireAsync(
-      () => adminSetGuestCount(sessionId, memberId, next.play, next.dine),
+      () =>
+        adminSetGuestCount(
+          sessionId,
+          memberId,
+          next.play,
+          next.dine,
+          next.playFemale,
+          next.dineFemale,
+        ),
       () => setLocalGuests((s) => ({ ...s, [memberId]: prev })),
     );
   }
@@ -1094,6 +1130,29 @@ export function AdminVoteManager({
                               min={0}
                               max={5}
                             />
+                            {/* Ô "trong đó nữ" CHỈ mọc khi công tắc giới tính
+                                bật và thật sự có khách. Tắt công tắc thì màn
+                                này không đổi một chữ. Chặn trên là tổng khách
+                                của chính ô đó. */}
+                            {genderPricingEnabled && guests.play > 0 && (
+                              <>
+                                <span className="text-muted-foreground text-xs">
+                                  {tA("ofWhichFemale")}
+                                </span>
+                                <NumberStepper
+                                  value={guests.playFemale}
+                                  onChange={(val) =>
+                                    handleGuestChange(
+                                      member.id,
+                                      "playFemale",
+                                      val,
+                                    )
+                                  }
+                                  min={0}
+                                  max={guests.play}
+                                />
+                              </>
+                            )}
                           </>
                         )}
                         {v.willDine && (
@@ -1107,6 +1166,25 @@ export function AdminVoteManager({
                               min={0}
                               max={5}
                             />
+                            {genderPricingEnabled && guests.dine > 0 && (
+                              <>
+                                <span className="text-muted-foreground text-xs">
+                                  {tA("ofWhichFemale")}
+                                </span>
+                                <NumberStepper
+                                  value={guests.dineFemale}
+                                  onChange={(val) =>
+                                    handleGuestChange(
+                                      member.id,
+                                      "dineFemale",
+                                      val,
+                                    )
+                                  }
+                                  min={0}
+                                  max={guests.dine}
+                                />
+                              </>
+                            )}
                           </>
                         )}
                       </div>

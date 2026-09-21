@@ -75,7 +75,10 @@
     "previewTotalCost": "Total court + shuttlecock cost (hypothetical)",
     "previewHeadsLabel": "Head count: {group}",
     "genderUnsetWarning": "{count} members have no gender set; they are charged as male.",
-    "genderUnsetLink": "Set gender on the Members page"
+    "genderUnsetLink": "Set gender on the Members page",
+    "groupMemberFemale": "Female member",
+    "groupGuestMemberFemale": "Female guest of member",
+    "groupGuestAdminFemale": "Female guest of admin"
   },
   "adminMisc": {
     "minDeductionAria": "Toggle 60K minimum rule for members with low fund",
@@ -1340,7 +1343,8 @@
     "guestUnit": "guests",
     "removeTitle": "Remove {name}?",
     "removeDesc": "Remove from this session's list?",
-    "min60k": "Min 60K: {from} → {to}"
+    "min60k": "Min 60K: {from} → {to}",
+    "ofWhichFemale": "of which female"
   },
   "tour": {
     "open": "Guide",

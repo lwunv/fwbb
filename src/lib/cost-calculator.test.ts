@@ -1805,6 +1805,57 @@ describe("calculateSessionCosts → applyMinDeductionFloor — luật hai sàn k
   });
 });
 
+describe("classifyGuestPlayHeads — tách khách nữ (chặng 2)", () => {
+  it("tách đúng phần nữ cho khách-của-member và khách-của-admin, không lẫn", () => {
+    const r = classifyGuestPlayHeads({
+      votes: [
+        // Phiếu của admin: 3 khách, 2 nữ → về rổ khách-của-admin.
+        { memberId: 1, guestPlayCount: 3, guestPlayFemaleCount: 2 },
+        // Phiếu member thường: 2 khách, 1 nữ.
+        { memberId: 2, guestPlayCount: 2, guestPlayFemaleCount: 1 },
+      ],
+      adminMemberId: 1,
+      adminGuestCounter: 4,
+      adminGuestFemaleCounter: 1,
+    });
+    expect(r.guestMemberPlayHeads).toBe(2);
+    expect(r.guestMemberFemalePlayHeads).toBe(1);
+    // 4 từ ô đếm riêng + 3 từ phiếu của admin.
+    expect(r.adminGuestPlayHeads).toBe(7);
+    expect(r.adminGuestFemalePlayHeads).toBe(3);
+  });
+
+  it("phần nữ nằm TRONG tổng, không bao giờ vượt tổng", () => {
+    const r = classifyGuestPlayHeads({
+      votes: [{ memberId: 2, guestPlayCount: 1, guestPlayFemaleCount: 9 }],
+      adminMemberId: 1,
+      adminGuestCounter: 2,
+      adminGuestFemaleCounter: 8,
+    });
+    // Dữ liệu hỏng kiểu này chỉ tới từ dòng cũ. Không kẹp thì số đầu người
+    // nhóm không-nữ (tổng trừ nữ) ra ÂM và cả bảng chia tiền sai.
+    expect(r.guestMemberFemalePlayHeads).toBe(1);
+    expect(r.adminGuestFemalePlayHeads).toBe(2);
+    expect(r.guestMemberPlayHeads - r.guestMemberFemalePlayHeads).toBe(0);
+    expect(r.adminGuestPlayHeads - r.adminGuestFemalePlayHeads).toBe(0);
+  });
+
+  it("không khai giới tính thì phần nữ bằng 0, tổng giữ nguyên như trước", () => {
+    const r = classifyGuestPlayHeads({
+      votes: [
+        { memberId: 1, guestPlayCount: 2 },
+        { memberId: 2, guestPlayCount: 3 },
+      ],
+      adminMemberId: 1,
+      adminGuestCounter: 1,
+    });
+    expect(r.guestMemberPlayHeads).toBe(3);
+    expect(r.adminGuestPlayHeads).toBe(3);
+    expect(r.guestMemberFemalePlayHeads).toBe(0);
+    expect(r.adminGuestFemalePlayHeads).toBe(0);
+  });
+});
+
 describe("classifyGuestPlayHeads (Task 14)", () => {
   it("khách trong CHÍNH phiếu vote của admin → cộng vào khách-của-admin, KHÔNG phải khách-của-member", () => {
     const r = classifyGuestPlayHeads({

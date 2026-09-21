@@ -75,7 +75,10 @@
     "previewTotalCost": "Tổng tiền sân + cầu (giả định)",
     "previewHeadsLabel": "Số người: {group}",
     "genderUnsetWarning": "Còn {count} thành viên chưa khai giới tính, họ đang được tính như nam.",
-    "genderUnsetLink": "Khai giới tính ở trang Thành viên"
+    "genderUnsetLink": "Khai giới tính ở trang Thành viên",
+    "groupMemberFemale": "Thành viên nữ",
+    "groupGuestMemberFemale": "Khách nữ của thành viên",
+    "groupGuestAdminFemale": "Khách nữ của admin"
   },
   "adminMisc": {
     "minDeductionAria": "Bật/tắt rule tối thiểu 60K cho member thiếu quỹ",
@@ -1340,7 +1343,8 @@
     "guestUnit": "khách",
     "removeTitle": "Xóa {name}?",
     "removeDesc": "Xóa khỏi danh sách buổi chơi này?",
-    "min60k": "Min 60K: {from} → {to}"
+    "min60k": "Min 60K: {from} → {to}",
+    "ofWhichFemale": "trong đó nữ"
   },
   "tour": {
     "open": "Hướng dẫn",

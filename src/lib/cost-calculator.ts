@@ -425,6 +425,9 @@ export function computeDineCostPerHead(
 export interface VoteGuestPlayRow {
   memberId: number;
   guestPlayCount: number | null;
+  /** Trong số khách chơi ở trên, bao nhiêu là nữ. Bỏ trống = 0 (dữ liệu cũ,
+   *  hoặc caller chưa quan tâm giới tính). */
+  guestPlayFemaleCount?: number | null;
 }
 
 /**
@@ -452,20 +455,45 @@ export function classifyGuestPlayHeads(input: {
    *  từ stepper "Khách của admin") — CHƯA gồm khách nằm trong phiếu của admin,
    *  hàm này cộng thêm phần đó vào. */
   adminGuestCounter: number;
-}): { guestMemberPlayHeads: number; adminGuestPlayHeads: number } {
+  /** Trong ô đếm khách-của-admin, bao nhiêu là nữ. Bỏ trống = 0. */
+  adminGuestFemaleCounter?: number;
+}): {
+  guestMemberPlayHeads: number;
+  adminGuestPlayHeads: number;
+  /** Phần NỮ nằm TRONG con số ở trên, không phải cộng thêm. Giữ nghĩa hai
+   *  trường cũ là TỔNG để 4 chỗ gọi sẵn có không đổi hành vi khi bỏ qua hai
+   *  trường mới; caller cần tách nhóm thì tự lấy tổng trừ nữ. */
+  guestMemberFemalePlayHeads: number;
+  adminGuestFemalePlayHeads: number;
+} {
   let guestMemberPlayHeads = 0;
+  let guestMemberFemalePlayHeads = 0;
   let adminOwnVoteGuestPlayHeads = 0;
+  let adminOwnVoteGuestFemalePlayHeads = 0;
   for (const v of input.votes) {
-    const gp = v.guestPlayCount ?? 0;
+    const gp = Math.max(0, v.guestPlayCount ?? 0);
+    // Kẹp lại: dòng dữ liệu cũ có thể cho nữ nhiều hơn tổng, và nếu để lọt thì
+    // số đầu người nhóm không-nữ ra ÂM, kéo cả bảng chia tiền sai.
+    const gpf = Math.min(Math.max(0, v.guestPlayFemaleCount ?? 0), gp);
     if (input.adminMemberId !== null && v.memberId === input.adminMemberId) {
       adminOwnVoteGuestPlayHeads += gp;
+      adminOwnVoteGuestFemalePlayHeads += gpf;
     } else {
       guestMemberPlayHeads += gp;
+      guestMemberFemalePlayHeads += gpf;
     }
   }
+  const adminCounter = Math.max(0, input.adminGuestCounter);
+  const adminFemaleCounter = Math.min(
+    Math.max(0, input.adminGuestFemaleCounter ?? 0),
+    adminCounter,
+  );
   return {
     guestMemberPlayHeads,
-    adminGuestPlayHeads: input.adminGuestCounter + adminOwnVoteGuestPlayHeads,
+    guestMemberFemalePlayHeads,
+    adminGuestPlayHeads: adminCounter + adminOwnVoteGuestPlayHeads,
+    adminGuestFemalePlayHeads:
+      adminFemaleCounter + adminOwnVoteGuestFemalePlayHeads,
   };
 }
 

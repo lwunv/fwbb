@@ -18,19 +18,28 @@ import {
 } from "@/lib/group-policy";
 import { formatK } from "@/lib/utils";
 
-// Chỉ ba nhóm không phân biệt giới được cho đổi ở đây. Ba nhóm nữ
-// (memberFemale, guestMemberFemale, guestAdminFemale) CHỦ Ý không có dòng
-// nào trong bảng — chưa có cột gender nào trong DB nên không attendee nào có
-// thể rơi vào rổ đó, hiện ô cấu hình cho nó chỉ tạo ảo giác đổi được trong
-// khi không có tác dụng gì. Giá trị mặc định của ba nhóm nữ vẫn nằm nguyên
-// trong object policies (spread khi lưu) — không đụng, không xoá.
-const VISIBLE_GROUPS = ["member", "guestMember", "guestAdmin"] as const;
-type VisibleGroupKey = (typeof VISIBLE_GROUPS)[number];
+// Ba nhóm không phân biệt giới: LUÔN hiện.
+const BASE_GROUPS = ["member", "guestMember", "guestAdmin"] as const;
+// Ba nhóm nữ: chỉ hiện khi công tắc `genderPricingEnabled` BẬT. Tắt thì không
+// attendee nào rơi vào rổ đó được, hiện ô cấu hình chỉ tạo ảo giác đổi được
+// trong khi không có tác dụng gì. Giá trị của chúng vẫn nằm nguyên trong
+// object policies dù đang ẩn (spread khi lưu) — không đụng, không xoá.
+const FEMALE_GROUPS = [
+  "memberFemale",
+  "guestMemberFemale",
+  "guestAdminFemale",
+] as const;
+type VisibleGroupKey =
+  | (typeof BASE_GROUPS)[number]
+  | (typeof FEMALE_GROUPS)[number];
 
 const GROUP_LABEL_KEY: Record<VisibleGroupKey, string> = {
   member: "groupMember",
   guestMember: "groupGuestMember",
   guestAdmin: "groupGuestAdmin",
+  memberFemale: "groupMemberFemale",
+  guestMemberFemale: "groupGuestMemberFemale",
+  guestAdminFemale: "groupGuestAdminFemale",
 };
 
 export function SectionMoney({
@@ -42,6 +51,10 @@ export function SectionMoney({
   unsetGenderCount?: number;
 }) {
   const t = useTranslations("adminSettings");
+  const visibleGroups: readonly VisibleGroupKey[] =
+    settings.genderPricingEnabled
+      ? [...BASE_GROUPS, ...FEMALE_GROUPS]
+      : BASE_GROUPS;
 
   // Tách phẳng trước khi dùng trong effect — react-hooks/set-state-in-effect
   // chỉ nhận identifier phẳng làm dependency ổn định (xem section-operations).
@@ -135,25 +148,26 @@ export function SectionMoney({
   // ─── Khối xem thử — gọi ĐÚNG computeGroupPlayRates mà đường chốt sổ dùng,
   // không tự tính lại bằng tay, nên không bao giờ lệch với số tiền thật.
   const [previewTotal, setPreviewTotal] = useState(0);
-  const [previewHeads, setPreviewHeads] = useState<
-    Record<VisibleGroupKey, number>
-  >({ member: 0, guestMember: 0, guestAdmin: 0 });
+  // Đủ SÁU nhóm kể cả khi ba nhóm nữ đang ẩn: `computeGroupPlayRates` cần đủ
+  // sáu rổ, và giữ nguyên state khi admin bật/tắt công tắc.
+  const [previewHeads, setPreviewHeads] = useState<Record<GroupKey, number>>({
+    member: 0,
+    memberFemale: 0,
+    guestMember: 0,
+    guestMemberFemale: 0,
+    guestAdmin: 0,
+    guestAdminFemale: 0,
+  });
 
-  const previewRates = useMemo(() => {
-    const headsByGroup: Record<GroupKey, number> = {
-      member: previewHeads.member,
-      memberFemale: 0,
-      guestMember: previewHeads.guestMember,
-      guestMemberFemale: 0,
-      guestAdmin: previewHeads.guestAdmin,
-      guestAdminFemale: 0,
-    };
-    return computeGroupPlayRates({
-      totalPlayCost: previewTotal,
-      headsByGroup,
-      policies,
-    });
-  }, [previewTotal, previewHeads, policies]);
+  const previewRates = useMemo(
+    () =>
+      computeGroupPlayRates({
+        totalPlayCost: previewTotal,
+        headsByGroup: previewHeads,
+        policies,
+      }),
+    [previewTotal, previewHeads, policies],
+  );
 
   return (
     <SectionCard tone="emerald" icon={Coins} title={t("moneyPolicy")}>
@@ -184,7 +198,7 @@ export function SectionMoney({
 
         <div className="space-y-3 border-t pt-3">
           <div className="text-sm font-medium">{t("groupPoliciesTitle")}</div>
-          {VISIBLE_GROUPS.map((key) => {
+          {visibleGroups.map((key) => {
             const policy = policies[key];
             const groupLabel = t(GROUP_LABEL_KEY[key]);
             return (
@@ -252,7 +266,7 @@ export function SectionMoney({
             />
           </label>
           <div className="grid gap-3 sm:grid-cols-3">
-            {VISIBLE_GROUPS.map((key) => (
+            {visibleGroups.map((key) => (
               <label key={key} className="block">
                 <span className="text-muted-foreground mb-1 block text-sm font-medium">
                   {t("previewHeadsLabel", { group: t(GROUP_LABEL_KEY[key]) })}
@@ -266,7 +280,7 @@ export function SectionMoney({
             ))}
           </div>
           <div className="bg-muted/30 space-y-1 rounded-lg border p-3">
-            {VISIBLE_GROUPS.map((key) => (
+            {visibleGroups.map((key) => (
               <div
                 key={key}
                 className="flex items-center justify-between text-sm"

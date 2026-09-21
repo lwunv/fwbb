@@ -75,7 +75,10 @@
     "previewTotalCost": "场地+羽毛球总费用（假设）",
     "previewHeadsLabel": "人数：{group}",
     "genderUnsetWarning": "还有 {count} 名成员未填写性别，目前按男性计费。",
-    "genderUnsetLink": "前往成员页填写性别"
+    "genderUnsetLink": "前往成员页填写性别",
+    "groupMemberFemale": "女性成员",
+    "groupGuestMemberFemale": "成员的女性客人",
+    "groupGuestAdminFemale": "管理员的女性客人"
   },
   "adminMisc": {
     "minDeductionAria": "为资金不足的成员开启/关闭 60K 最低扣费规则",
@@ -1340,7 +1343,8 @@
     "guestUnit": "位客人",
     "removeTitle": "移除 {name}？",
     "removeDesc": "从本场名单中移除？",
-    "min60k": "下限 60K：{from} → {to}"
+    "min60k": "下限 60K：{from} → {to}",
+    "ofWhichFemale": "其中女性"
   },
   "tour": {
     "open": "引导",
