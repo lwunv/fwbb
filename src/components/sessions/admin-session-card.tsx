@@ -26,15 +26,16 @@ import { useSettings } from "@/components/settings-provider";
 import { LedBorder } from "@/components/shared/led-border";
 import { StatusBadge } from "@/components/shared/status-badge";
 import {
-  Calendar,
-  Clock,
-  MapPin,
-  ChevronDown,
-  Navigation,
   AlertTriangle,
-  X,
+  Calendar,
   Check,
+  ChevronDown,
+  Clock,
+  Loader2,
+  MapPin,
+  Navigation,
   RotateCcw,
+  X,
 } from "lucide-react";
 import { formatSessionDate as fmtSessionDate } from "@/lib/date-format";
 import type { SessionBadge, SessionStatus } from "@/lib/session-status";
@@ -725,7 +726,7 @@ export function AdminSessionCard({
                   totalDebt thật. */}
               {isFinalizing ? (
                 <span className="text-muted-foreground ml-auto inline-flex items-center gap-1.5 text-sm">
-                  <span className="border-muted-foreground/40 border-t-primary inline-block h-3 w-3 animate-spin rounded-full border-2" />
+                  <Loader2 className="text-primary h-3 w-3 animate-spin" />
                   {t("closingBooks")}
                 </span>
               ) : !allPaid ? (

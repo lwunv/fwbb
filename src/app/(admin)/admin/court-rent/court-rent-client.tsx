@@ -782,7 +782,7 @@ export function CourtRentClient({
                           // ordering. Sau revalidate sẽ thay bằng real
                           // createdAt từ server.
                           <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
-                            <span className="inline-block h-2.5 w-2.5 animate-spin rounded-full border-2 border-amber-500/40 border-t-amber-500" />
+                            <Loader2 className="h-3 w-3 animate-spin text-amber-500" />
                             {t("saving")}
                           </span>
                         ) : p.createdAt ? (
