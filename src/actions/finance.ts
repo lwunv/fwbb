@@ -46,6 +46,9 @@ export interface FinalizeAttendee {
   attendsPlay: boolean;
   attendsDine: boolean;
   headcount?: number;
+  /** Giới tính CHỐT cho đầu người này. Optional để mọi caller cũ và mọi test
+   *  cũ biên dịch y nguyên; không truyền = không khai = tính như không-nữ. */
+  gender?: "male" | "female";
 }
 
 export async function finalizeSession(
@@ -162,6 +165,10 @@ export async function finalizeSession(
     attendsPlay: a.attendsPlay,
     attendsDine: a.attendsDine,
     headcount: a.headcount ?? 1,
+    // Phải truyền cả vào ĐÂY, không chỉ vào câu insert bên dưới. Đây mới là
+    // thứ máy tính tiền nhìn thấy; thiếu nó thì mọi người rơi hết vào nhóm
+    // không-nữ và công tắc giới tính bật cũng như không.
+    gender: a.gender ?? undefined,
   }));
   const shuttlecockInputs = session.shuttlecocks.map((s) => ({
     quantityUsed: s.quantityUsed,
@@ -352,6 +359,10 @@ export async function finalizeSession(
           attendsPlay: a.attendsPlay,
           attendsDine: a.attendsDine,
           headcount: a.headcount ?? 1,
+          // Mắt xích quyết định của cả chặng giới tính: đây là chỗ
+          // cost-calculator đọc lại khi tính từ attendee rows. Thiếu dòng này
+          // thì mọi thứ còn lại vô nghĩa.
+          gender: a.gender ?? null,
         });
       }
 
@@ -614,6 +625,40 @@ export async function finalizeSessionAuto(sessionId: number) {
   }
 
   const attendeeList: FinalizeAttendee[] = [];
+
+  /**
+   * Bung một ô đếm khách thành từng dòng attendee, `female` dòng đầu mang giới
+   * tính nữ, phần còn lại là nam.
+   *
+   * Chốt chặn thật nằm ở BIÊN VÒNG LẶP `i < g.total`: số dòng sinh ra luôn
+   * bằng tổng khách, nên một `female` hỏng (lớn hơn tổng) không thể đẻ thêm
+   * người và không thể chia tiền cho ai không tồn tại. Dữ liệu hỏng kiểu đó
+   * vẫn có thể tới từ dòng cũ ghi trước khi có ràng buộc zod.
+   *
+   * `Math.min` giữ lại để `female` không bao giờ vượt `total`, phòng khi sau
+   * này ai đó đổi cách lặp. Nó KHÔNG phải thứ đang chặn lỗi hôm nay: gỡ nó ra
+   * thì mọi test vẫn xanh, đã thử.
+   */
+  function pushGuests(g: {
+    total: number;
+    female: number;
+    label: (i: number) => string;
+    invitedById: number | null;
+    play: boolean;
+  }) {
+    const female = Math.min(Math.max(0, g.female), Math.max(0, g.total));
+    for (let i = 0; i < g.total; i++) {
+      attendeeList.push({
+        memberId: null,
+        guestName: g.label(i),
+        invitedById: g.invitedById,
+        isGuest: true,
+        attendsPlay: g.play,
+        attendsDine: !g.play,
+        gender: i < female ? "female" : "male",
+      });
+    }
+  }
   for (const v of session.votes) {
     // Bỏ qua voter đã khóa / chưa duyệt (đã rời quỹ) — không tính nợ + không
     // tạo guest cho họ. Nếu không, guard trong finalizeSession sẽ abort TOÀN BỘ
@@ -634,55 +679,43 @@ export async function finalizeSessionAuto(sessionId: number) {
         attendsDine: v.willDine ?? false,
         // "Đi 2 người": member gánh 2 suất cho phần chơi/nhậu của họ.
         headcount: v.withPartner ? 2 : 1,
+        // Chốt giới tính đã khai của member vào dòng attendee. Chốt ở đây chứ
+        // không tra ngược `members.gender` về sau: member đổi khai báo không
+        // được phép làm đổi tiền một buổi đã chốt.
+        gender: v.member?.gender ?? undefined,
       });
     }
     const memberName = v.member?.name ?? `M${v.memberId}`;
-    const gp = v.guestPlayCount ?? 0;
-    const gd = v.guestDineCount ?? 0;
-    for (let i = 0; i < gp; i++) {
-      attendeeList.push({
-        memberId: null,
-        guestName: `Khách ${memberName} ${i + 1}`,
-        invitedById: v.memberId,
-        isGuest: true,
-        attendsPlay: true,
-        attendsDine: false,
-      });
-    }
-    for (let i = 0; i < gd; i++) {
-      attendeeList.push({
-        memberId: null,
-        guestName: `Khách ${memberName} (nhậu) ${i + 1}`,
-        invitedById: v.memberId,
-        isGuest: true,
-        attendsPlay: false,
-        attendsDine: true,
-      });
-    }
+    pushGuests({
+      total: v.guestPlayCount ?? 0,
+      female: v.guestPlayFemaleCount ?? 0,
+      label: (i) => `Khách ${memberName} ${i + 1}`,
+      invitedById: v.memberId,
+      play: true,
+    });
+    pushGuests({
+      total: v.guestDineCount ?? 0,
+      female: v.guestDineFemaleCount ?? 0,
+      label: (i) => `Khách ${memberName} (nhậu) ${i + 1}`,
+      invitedById: v.memberId,
+      play: false,
+    });
   }
 
-  const adminGp = session.adminGuestPlayCount ?? 0;
-  const adminGd = session.adminGuestDineCount ?? 0;
-  for (let i = 0; i < adminGp; i++) {
-    attendeeList.push({
-      memberId: null,
-      guestName: `Khách Admin ${i + 1}`,
-      invitedById: adminMemberId,
-      isGuest: true,
-      attendsPlay: true,
-      attendsDine: false,
-    });
-  }
-  for (let i = 0; i < adminGd; i++) {
-    attendeeList.push({
-      memberId: null,
-      guestName: `Khách Admin (nhậu) ${i + 1}`,
-      invitedById: adminMemberId,
-      isGuest: true,
-      attendsPlay: false,
-      attendsDine: true,
-    });
-  }
+  pushGuests({
+    total: session.adminGuestPlayCount ?? 0,
+    female: session.adminGuestPlayFemaleCount ?? 0,
+    label: (i) => `Khách Admin ${i + 1}`,
+    invitedById: adminMemberId,
+    play: true,
+  });
+  pushGuests({
+    total: session.adminGuestDineCount ?? 0,
+    female: session.adminGuestDineFemaleCount ?? 0,
+    label: (i) => `Khách Admin (nhậu) ${i + 1}`,
+    invitedById: adminMemberId,
+    play: false,
+  });
 
   return finalizeSession(sessionId, attendeeList, session.diningBill ?? 0);
 }

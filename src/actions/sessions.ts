@@ -1431,6 +1431,8 @@ export async function setAdminGuestCount(
   sessionId: number,
   guestPlayCount: number,
   guestDineCount: number,
+  guestPlayFemaleCount = 0,
+  guestDineFemaleCount = 0,
 ) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
@@ -1440,6 +1442,8 @@ export async function setAdminGuestCount(
     sessionId,
     guestPlayCount,
     guestDineCount,
+    guestPlayFemaleCount,
+    guestDineFemaleCount,
   });
   if (!parsed.success) {
     return {
@@ -1463,6 +1467,8 @@ export async function setAdminGuestCount(
     .set({
       adminGuestPlayCount: data.guestPlayCount,
       adminGuestDineCount: data.guestDineCount,
+      adminGuestPlayFemaleCount: data.guestPlayFemaleCount,
+      adminGuestDineFemaleCount: data.guestDineFemaleCount,
       updatedAt: new Date().toISOString(),
     })
     .where(eq(sessions.id, data.sessionId));

@@ -36,14 +36,50 @@ export const brandSchema = z.object({
   pricePerTube: moneyVnd,
 });
 
-export const voteSchema = z.object({
-  sessionId: z.number().int().positive(),
-  willPlay: z.boolean(),
-  willDine: z.boolean(),
-  guestPlayCount: z.number().int().min(0).max(20).default(0),
-  guestDineCount: z.number().int().min(0).max(20).default(0),
-  withPartner: z.boolean().default(false),
-});
+/**
+ * "Số khách nữ không được vượt tổng số khách" — đặt ở tầng object chứ không
+ * phải từng field, vì nó là ràng buộc GIỮA hai field.
+ *
+ * Vượt thì không chỉ sai hiển thị: lúc chốt sổ, số này được bung thành từng
+ * dòng attendee, nên nữ nhiều hơn tổng nghĩa là sinh ra người không tồn tại và
+ * chia tiền cho họ.
+ */
+function refineFemaleWithinTotal<
+  T extends {
+    guestPlayCount: number;
+    guestDineCount: number;
+    guestPlayFemaleCount: number;
+    guestDineFemaleCount: number;
+  },
+>(v: T, ctx: z.RefinementCtx) {
+  if (v.guestPlayFemaleCount > v.guestPlayCount) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["guestPlayFemaleCount"],
+      message: `Số khách chơi nữ (${v.guestPlayFemaleCount}) không được vượt tổng khách chơi (${v.guestPlayCount})`,
+    });
+  }
+  if (v.guestDineFemaleCount > v.guestDineCount) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["guestDineFemaleCount"],
+      message: `Số khách nhậu nữ (${v.guestDineFemaleCount}) không được vượt tổng khách nhậu (${v.guestDineCount})`,
+    });
+  }
+}
+
+export const voteSchema = z
+  .object({
+    sessionId: z.number().int().positive(),
+    willPlay: z.boolean(),
+    willDine: z.boolean(),
+    guestPlayCount: z.number().int().min(0).max(20).default(0),
+    guestDineCount: z.number().int().min(0).max(20).default(0),
+    guestPlayFemaleCount: z.number().int().min(0).max(20).default(0),
+    guestDineFemaleCount: z.number().int().min(0).max(20).default(0),
+    withPartner: z.boolean().default(false),
+  })
+  .superRefine(refineFemaleWithinTotal);
 
 export const purchaseSchema = z.object({
   brandId: z.number().int().positive(),
@@ -91,6 +127,9 @@ export const finalizeAttendeeSchema = z.object({
   attendsDine: z.boolean(),
   /** Member "đi 2 người" → 2. Guest = 1. App-layer invariant (không có DB CHECK). */
   headcount: z.number().int().min(1).max(2).default(1),
+  /** Giới tính chốt cho đầu người này, dùng xếp nhóm chia tiền khi công tắc
+   *  `genderPricingEnabled` bật. Bỏ trống = không khai = tính như không-nữ. */
+  gender: z.enum(["male", "female"]).nullable().optional(),
 });
 
 export const finalizeSessionSchema = z.object({
@@ -103,11 +142,15 @@ export const finalizeSessionSchema = z.object({
   attendeeList: z.array(finalizeAttendeeSchema).max(200),
 });
 
-export const adminGuestCountSchema = z.object({
-  sessionId: z.number().int().positive(),
-  guestPlayCount: z.number().int().min(0).max(20),
-  guestDineCount: z.number().int().min(0).max(20),
-});
+export const adminGuestCountSchema = z
+  .object({
+    sessionId: z.number().int().positive(),
+    guestPlayCount: z.number().int().min(0).max(20),
+    guestDineCount: z.number().int().min(0).max(20),
+    guestPlayFemaleCount: z.number().int().min(0).max(20).default(0),
+    guestDineFemaleCount: z.number().int().min(0).max(20).default(0),
+  })
+  .superRefine(refineFemaleWithinTotal);
 
 export const selectCourtSchema = z.object({
   sessionId: z.number().int().positive(),

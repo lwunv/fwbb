@@ -119,6 +119,10 @@ export async function submitVote(
       willDine: data.willDine,
       guestPlayCount: 0,
       guestDineCount: 0,
+      // Member không thêm được khách (bỏ từ 7/7/2026), nên cả tổng lẫn phần nữ
+      // đều ép 0 ở server, không tin tham số client gửi lên.
+      guestPlayFemaleCount: 0,
+      guestDineFemaleCount: 0,
       withPartner: data.withPartner,
     })
     .onConflictDoUpdate({
@@ -128,6 +132,8 @@ export async function submitVote(
         willDine: data.willDine,
         guestPlayCount: 0,
         guestDineCount: 0,
+        guestPlayFemaleCount: 0,
+        guestDineFemaleCount: 0,
         withPartner: data.withPartner,
         updatedAt: new Date().toISOString(),
       },
@@ -198,8 +204,11 @@ export async function adminSetVote(
         // độc lập, nếu 1 cái fail thì finalize vẫn tính "ghost guest". finalize
         // (buildAttendees) tạo guest theo guestPlayCount/DineCount không phụ
         // thuộc willPlay/willDine nên phải zero ở đây mới thật sự không tính.
-        ...(willPlay ? {} : { guestPlayCount: 0 }),
-        ...(willDine ? {} : { guestDineCount: 0 }),
+        // Zero phần nữ TRONG CÙNG câu lệnh zero tổng khách. Tách ra 2 câu là
+        // 2 cơ hội để một câu thành công còn câu kia không, để lại khách nữ ma
+        // nhiều hơn tổng khách.
+        ...(willPlay ? {} : { guestPlayCount: 0, guestPlayFemaleCount: 0 }),
+        ...(willDine ? {} : { guestDineCount: 0, guestDineFemaleCount: 0 }),
         updatedAt: new Date().toISOString(),
       },
     });
@@ -255,16 +264,22 @@ export async function adminSetGuestCount(
   memberId: number,
   guestPlayCount: number,
   guestDineCount: number,
+  guestPlayFemaleCount = 0,
+  guestDineFemaleCount = 0,
 ) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
 
-  const parsed = adminGuestCountSchema
-    .pick({ guestPlayCount: true, guestDineCount: true })
-    .safeParse({
-      guestPlayCount,
-      guestDineCount,
-    });
+  // Validate qua schema ĐẦY ĐỦ (kèm sessionId giả) thay vì `.pick()`: `.pick()`
+  // trên schema đã `superRefine` sẽ rụng mất ràng buộc "nữ không vượt tổng",
+  // đúng cái ràng buộc quan trọng nhất ở đây.
+  const parsed = adminGuestCountSchema.safeParse({
+    sessionId,
+    guestPlayCount,
+    guestDineCount,
+    guestPlayFemaleCount,
+    guestDineFemaleCount,
+  });
   if (!parsed.success) {
     const t = await getTranslations("serverErrors");
     return {
@@ -286,6 +301,8 @@ export async function adminSetGuestCount(
     .set({
       guestPlayCount: parsed.data.guestPlayCount,
       guestDineCount: parsed.data.guestDineCount,
+      guestPlayFemaleCount: parsed.data.guestPlayFemaleCount,
+      guestDineFemaleCount: parsed.data.guestDineFemaleCount,
       updatedAt: new Date().toISOString(),
     })
     .where(eq(votes.id, existing.id));
