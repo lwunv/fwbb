@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -69,6 +69,26 @@ export function DebtFundTabs({
     if (initialTab === "debt" && hasDebt) return String(outstandingTotal);
     return "500000";
   });
+
+  // Cùng một lỗi với `fund-topup-card.tsx`, ở component thứ hai: `fundAmount`
+  // khởi tạo MỘT LẦN từ `outstandingTotal` rồi đi thẳng vào mã QR. Member trả
+  // bớt nợ, trang revalidate, prop giảm — mà số trong QR vẫn là số nợ CŨ, nên
+  // họ quét và chuyển sai số tiền.
+  //
+  // Không đồng bộ mù: chỉ cập nhật khi ô đang hiển thị vẫn đúng bằng số nợ CŨ
+  // (tức là giá trị tự điền chưa ai sửa) và đang ở tab trả nợ. Member tự gõ số
+  // khác thì giữ nguyên.
+  const prevOutstanding = useRef(outstandingTotal);
+  useEffect(() => {
+    const old = prevOutstanding.current;
+    prevOutstanding.current = outstandingTotal;
+    if (old === outstandingTotal) return;
+    setFundAmount((current) =>
+      tab === "debt" && current === String(old)
+        ? String(outstandingTotal)
+        : current,
+    );
+  }, [outstandingTotal, tab]);
 
   function pickTab(next: "fund" | "debt") {
     setTab(next);
