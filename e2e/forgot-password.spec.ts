@@ -48,6 +48,40 @@ function hashResetToken(rawToken: string): string {
 const RUN_ID = Date.now();
 const FUTURE = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
+/**
+ * Dọn mọi hàng bài này tạo ra.
+ *
+ * Trước đây spec tạo admin + member mang hậu tố `RUN_ID` cho MỖI lần chạy mà
+ * không xoá bao giờ. Tới 21/9/2026 fixture `e2e/local.db` đã tích **61 hàng
+ * `e2efpadmin*`** bên cạnh admin thật, cộng chừng đó member rác. Chưa làm hỏng
+ * bài nào nhưng nó phình mãi và làm nhiễu mỗi lần soi bảng `admins`.
+ *
+ * Xoá theo ĐÚNG `RUN_ID` của lần chạy này, không xoá theo mẫu chung, để hai
+ * lần chạy song song (nếu sau này có) không giẫm lên nhau.
+ */
+test.afterAll(async () => {
+  const c = await db();
+  try {
+    // Token trỏ tới member/admin sắp xoá — dọn trước cho khỏi mồ côi.
+    await c.execute({
+      sql: `DELETE FROM password_reset_tokens WHERE member_id IN
+              (SELECT id FROM members WHERE email LIKE ?)
+            OR admin_id IN (SELECT id FROM admins WHERE email LIKE ?)`,
+      args: [`%-${RUN_ID}@example.com`, `%-${RUN_ID}@example.com`],
+    });
+    await c.execute({
+      sql: "DELETE FROM admins WHERE email LIKE ?",
+      args: [`%-${RUN_ID}@example.com`],
+    });
+    await c.execute({
+      sql: "DELETE FROM members WHERE email LIKE ?",
+      args: [`%-${RUN_ID}@example.com`],
+    });
+  } finally {
+    c.close();
+  }
+});
+
 test.beforeAll(async () => {
   const c = await db();
   // Migration 0022 (password_reset_tokens) — local.db clone cũ hơn migration
