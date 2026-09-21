@@ -73,7 +73,9 @@
     "previewTitle": "Preview",
     "previewNote": "Preview only, nothing is saved and no real session is affected.",
     "previewTotalCost": "Total court + shuttlecock cost (hypothetical)",
-    "previewHeadsLabel": "Head count: {group}"
+    "previewHeadsLabel": "Head count: {group}",
+    "genderUnsetWarning": "{count} members have no gender set; they are charged as male.",
+    "genderUnsetLink": "Set gender on the Members page"
   },
   "adminMisc": {
     "minDeductionAria": "Toggle 60K minimum rule for members with low fund",
@@ -834,7 +836,11 @@
     "playCountShort": "{count}",
     "filterLowInteraction": "Low activity",
     "sortRestLongest": "Away the longest",
-    "sortYearPlayDesc": "Most active (year)"
+    "sortYearPlayDesc": "Most active (year)",
+    "gender": "Gender",
+    "genderUnset": "Not set",
+    "genderMale": "Male",
+    "genderFemale": "Female"
   },
   "adminAccount": {
     "title": "Account",

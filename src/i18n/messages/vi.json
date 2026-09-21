@@ -73,7 +73,9 @@
     "previewTitle": "Xem thử",
     "previewNote": "Chỉ để xem thử, không lưu và không ảnh hưởng buổi chơi thật.",
     "previewTotalCost": "Tổng tiền sân + cầu (giả định)",
-    "previewHeadsLabel": "Số người: {group}"
+    "previewHeadsLabel": "Số người: {group}",
+    "genderUnsetWarning": "Còn {count} thành viên chưa khai giới tính, họ đang được tính như nam.",
+    "genderUnsetLink": "Khai giới tính ở trang Thành viên"
   },
   "adminMisc": {
     "minDeductionAria": "Bật/tắt rule tối thiểu 60K cho member thiếu quỹ",
@@ -834,7 +836,11 @@
     "playCountShort": "{count} buổi",
     "filterLowInteraction": "Ít tương tác",
     "sortRestLongest": "Nghỉ lâu nhất",
-    "sortYearPlayDesc": "Chơi nhiều nhất (năm)"
+    "sortYearPlayDesc": "Chơi nhiều nhất (năm)",
+    "gender": "Giới tính",
+    "genderUnset": "Chưa khai",
+    "genderMale": "Nam",
+    "genderFemale": "Nữ"
   },
   "adminAccount": {
     "title": "Tài khoản",

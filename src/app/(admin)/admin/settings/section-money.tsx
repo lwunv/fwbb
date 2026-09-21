@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Coins } from "lucide-react";
 import { SectionCard } from "@/components/shared/section-card";
@@ -32,7 +33,14 @@ const GROUP_LABEL_KEY: Record<VisibleGroupKey, string> = {
   guestAdmin: "groupGuestAdmin",
 };
 
-export function SectionMoney({ settings }: { settings: AppSettings }) {
+export function SectionMoney({
+  settings,
+  unsetGenderCount = 0,
+}: {
+  settings: AppSettings;
+  /** Số thành viên còn hoạt động chưa khai giới tính (chỉ con số, không tên). */
+  unsetGenderCount?: number;
+}) {
   const t = useTranslations("adminSettings");
 
   // Tách phẳng trước khi dùng trong effect — react-hooks/set-state-in-effect
@@ -150,6 +158,19 @@ export function SectionMoney({ settings }: { settings: AppSettings }) {
   return (
     <SectionCard tone="emerald" icon={Coins} title={t("moneyPolicy")}>
       <div className="space-y-4">
+        {/* Chỉ cảnh báo khi công tắc giới tính ĐANG BẬT. Tắt thì cột gender
+            không ai đọc, nhắc chỉ gây nhiễu. */}
+        {settings.genderPricingEnabled && unsetGenderCount > 0 && (
+          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+            <p>{t("genderUnsetWarning", { count: unsetGenderCount })}</p>
+            <Link
+              href="/admin/members"
+              className="text-primary mt-1 inline-block min-h-11 font-medium underline underline-offset-4"
+            >
+              {t("genderUnsetLink")}
+            </Link>
+          </div>
+        )}
         <label className="block">
           <span className="text-muted-foreground mb-1 block text-sm font-medium">
             {t("minDeduction")}

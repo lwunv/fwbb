@@ -25,14 +25,18 @@ export function SettingsClient({
   settings,
   courts,
   brands,
+  unsetGenderCount = 0,
 }: {
   settings: AppSettings;
   courts: CourtOpt[];
   brands: BrandOpt[];
+  /** Số thành viên còn hoạt động chưa khai giới tính. Chỉ là con số, không
+   *  kèm danh sách tên. */
+  unsetGenderCount?: number;
 }) {
   return (
     <div className="space-y-4">
-      <SectionMoney settings={settings} />
+      <SectionMoney settings={settings} unsetGenderCount={unsetGenderCount} />
       <SectionSessionDefaults
         settings={settings}
         courts={courts}

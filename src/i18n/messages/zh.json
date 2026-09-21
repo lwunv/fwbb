@@ -73,7 +73,9 @@
     "previewTitle": "预览",
     "previewNote": "仅供预览，不会保存，也不影响任何真实活动。",
     "previewTotalCost": "场地+羽毛球总费用（假设）",
-    "previewHeadsLabel": "人数：{group}"
+    "previewHeadsLabel": "人数：{group}",
+    "genderUnsetWarning": "还有 {count} 名成员未填写性别，目前按男性计费。",
+    "genderUnsetLink": "前往成员页填写性别"
   },
   "adminMisc": {
     "minDeductionAria": "为资金不足的成员开启/关闭 60K 最低扣费规则",
@@ -834,7 +836,11 @@
     "playCountShort": "{count} 场",
     "filterLowInteraction": "低活跃",
     "sortRestLongest": "最久未打",
-    "sortYearPlayDesc": "本年最活跃"
+    "sortYearPlayDesc": "本年最活跃",
+    "gender": "性别",
+    "genderUnset": "未填写",
+    "genderMale": "男",
+    "genderFemale": "女"
   },
   "adminAccount": {
     "title": "账户",

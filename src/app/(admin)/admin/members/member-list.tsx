@@ -570,6 +570,7 @@ export function MemberList({
       email: string;
       phoneNumber: string;
       username: string;
+      gender: string;
     },
   ) {
     const formData = new FormData();
@@ -578,6 +579,7 @@ export function MemberList({
     formData.set("email", values.email);
     formData.set("phoneNumber", values.phoneNumber);
     formData.set("username", values.username);
+    formData.set("gender", values.gender);
     const prev = infoOverrides[memberId];
     setInfoOverrides((o) => ({
       ...o,
@@ -1616,6 +1618,7 @@ function MemberInfoDialog({
       email: string;
       phoneNumber: string;
       username: string;
+      gender: string;
     },
   ) => void;
 }) {
@@ -1649,6 +1652,7 @@ function MemberInfoForm({
       email: string;
       phoneNumber: string;
       username: string;
+      gender: string;
     },
   ) => void;
 }) {
@@ -1659,6 +1663,8 @@ function MemberInfoForm({
   const [email, setEmail] = useState(member.email ?? "");
   const [phoneNumber, setPhoneNumber] = useState(member.phoneNumber ?? "");
   const [username, setUsername] = useState(member.username ?? "");
+  // "" = chưa khai. Ba trạng thái, KHÔNG bắt buộc chọn.
+  const [gender, setGender] = useState<string>(member.gender ?? "");
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -1669,6 +1675,7 @@ function MemberInfoForm({
       email,
       phoneNumber,
       username,
+      gender,
     });
   }
 
@@ -1722,6 +1729,23 @@ function MemberInfoForm({
           spellCheck={false}
           placeholder={t("usernamePlaceholder")}
         />
+      </div>
+      <div className="space-y-2">
+        {/* Bọc trong <label> giống các CustomSelect khác trong file: trigger là
+            <button> nên htmlFor không gắn được, bọc mới cho ra tên khả truy cập. */}
+        <label className="block space-y-2">
+          <span className="block text-sm font-medium">{t("gender")}</span>
+          <CustomSelect
+            name="info-gender"
+            value={gender}
+            onChange={setGender}
+            options={[
+              { value: "", label: t("genderUnset") },
+              { value: "male", label: t("genderMale") },
+              { value: "female", label: t("genderFemale") },
+            ]}
+          />
+        </label>
       </div>
       <Button type="submit" className="w-full">
         <Check className="mr-1.5 h-4 w-4" />

@@ -441,6 +441,18 @@ export async function updateMember(id: number, formData: FormData) {
   if (formData.has("withPartner")) {
     setValues.defaultWithPartner = formData.get("withPartner") === "1";
   }
+  // Giới tính: ba trạng thái, "" = chưa khai (null). Cùng pattern `has()` như
+  // trên — form nào không gửi field này thì giữ nguyên giá trị cũ, không nuke.
+  // KHÔNG bắt buộc khai: ép admin chọn sẽ chặn họ sửa những thứ khác trên
+  // member cũ chỉ vì thiếu một field họ chưa cần. Chưa khai thì chia tiền tính
+  // như không-nữ (xem doc comment cột `members.gender`).
+  if (formData.has("gender")) {
+    const g = (formData.get("gender") as string)?.trim() ?? "";
+    if (g !== "" && g !== "male" && g !== "female") {
+      return { error: t("invalidData", { detail: "gender" }) };
+    }
+    setValues.gender = g === "" ? null : (g as "male" | "female");
+  }
   // Email/SĐT: chỉ đụng khi form CÓ gửi field (cùng pattern withPartner) —
   // dialog "Sửa thông tin" luôn gửi cả 2 (rỗng = xoá), còn các form khác
   // (vd inline nickname cũ) không gửi thì giữ nguyên giá trị hiện có.
