@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
@@ -63,6 +63,13 @@ export function PendingMembersSection({
   const [busyId, setBusyId] = useState<number | null>(null);
   const [, startTransition] = useTransition();
   const [list, setList] = useState(pendingMembers);
+  // Trang thành viên gọi `usePolling()` (member-list.tsx:230) nên prop này đổi
+  // đều đặn khi có người đăng ký mới. Thiếu đồng bộ thì `list` đứng im mãi ở
+  // ảnh chụp lúc mount: admin KHÔNG BAO GIỜ thấy người mới cho tới khi tải lại
+  // trang bằng tay, mà họ không có lý do gì để nghĩ là phải tải lại.
+  useEffect(() => {
+    setList(pendingMembers);
+  }, [pendingMembers]);
   // Member được chọn ở dropdown gộp thủ công, theo từng pending id.
   const [manualPick, setManualPick] = useState<Record<number, string>>({});
 
