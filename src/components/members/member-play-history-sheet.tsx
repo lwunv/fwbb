@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { useLocale, useTranslations } from "next-intl";
@@ -168,7 +169,7 @@ function BalanceLine({
 }) {
   const t = useTranslations("memberHistory");
   if (loading || balance === undefined) {
-    return <div className="bg-muted h-5 w-32 animate-pulse rounded" />;
+    return <Skeleton className="h-5 w-32" />;
   }
   if (balance < 0) {
     return (
@@ -191,7 +192,7 @@ function ListSkeleton() {
   return (
     <div className="space-y-2">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="bg-muted h-14 animate-pulse rounded-xl" />
+        <Skeleton key={i} className="h-14 rounded-xl" />
       ))}
     </div>
   );
@@ -201,13 +202,13 @@ function CalendarSkeleton() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <div className="bg-muted h-11 w-11 animate-pulse rounded-lg" />
-        <div className="bg-muted h-5 w-28 animate-pulse rounded" />
-        <div className="bg-muted h-11 w-11 animate-pulse rounded-lg" />
+        <Skeleton className="h-11 w-11 rounded-lg" />
+        <Skeleton className="h-5 w-28" />
+        <Skeleton className="h-11 w-11 rounded-lg" />
       </div>
       <div className="grid grid-cols-7 gap-1">
         {Array.from({ length: 35 }).map((_, i) => (
-          <div key={i} className="bg-muted min-h-11 animate-pulse rounded-lg" />
+          <Skeleton key={i} className="min-h-11 rounded-lg" />
         ))}
       </div>
     </div>

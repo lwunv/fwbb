@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   LocaleFlag,
   type LocaleFlagCountry,
@@ -55,9 +56,9 @@ export function LanguageCardPicker({ className }: { className?: string }) {
         aria-label={t("label")}
       >
         {LANG_CARDS.map((item) => (
-          <div
+          <Skeleton
             key={item.code}
-            className="bg-muted/60 h-[4.25rem] flex-1 animate-pulse rounded-lg"
+            className="h-[4.25rem] flex-1 rounded-lg"
             aria-hidden
           />
         ))}
@@ -152,11 +153,8 @@ export function LanguageSelector({ className }: LanguageSelectorProps) {
 
   if (!mounted) {
     return (
-      <div
-        className={cn(
-          "bg-muted/60 h-11 w-11 animate-pulse rounded-xl sm:h-9 sm:w-[8.25rem]",
-          className,
-        )}
+      <Skeleton
+        className={cn("h-11 w-11 rounded-xl sm:h-9 sm:w-[8.25rem]", className)}
         aria-hidden
       />
     );
