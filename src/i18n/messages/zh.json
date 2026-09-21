@@ -78,7 +78,9 @@
     "genderUnsetLink": "前往成员页填写性别",
     "groupMemberFemale": "女性成员",
     "groupGuestMemberFemale": "成员的女性客人",
-    "groupGuestAdminFemale": "管理员的女性客人"
+    "groupGuestAdminFemale": "管理员的女性客人",
+    "genderPricing": "按性别计费",
+    "genderPricingHint": "开启后可为女性成员和女性客人单独设定金额。关闭则所有人均摊。"
   },
   "adminMisc": {
     "minDeductionAria": "为资金不足的成员开启/关闭 60K 最低扣费规则",

@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { Coins } from "lucide-react";
 import { SectionCard } from "@/components/shared/section-card";
 import { MoneyInput } from "@/components/shared/money-input";
+import { Switch } from "@/components/ui/switch";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { fireAction } from "@/lib/optimistic-action";
@@ -52,10 +53,13 @@ export function SectionMoney({
   unsetGenderCount?: number;
 }) {
   const t = useTranslations("adminSettings");
-  const visibleGroups: readonly VisibleGroupKey[] =
-    settings.genderPricingEnabled
-      ? [...BASE_GROUPS, ...FEMALE_GROUPS]
-      : BASE_GROUPS;
+  const [genderOn, setGenderOn] = useState(settings.genderPricingEnabled);
+
+  // Đọc từ state cục bộ, KHÔNG từ prop: gạt công tắc là ba nhóm nữ hiện/ẩn
+  // ngay, không đợi server revalidate.
+  const visibleGroups: readonly VisibleGroupKey[] = genderOn
+    ? [...BASE_GROUPS, ...FEMALE_GROUPS]
+    : BASE_GROUPS;
 
   // Tách phẳng trước khi dùng trong effect — react-hooks/set-state-in-effect
   // chỉ nhận identifier phẳng làm dependency ổn định (xem section-operations).
@@ -74,6 +78,22 @@ export function SectionMoney({
   useEffect(() => {
     setPolicies(groupPoliciesSetting);
   }, [groupPoliciesSetting]);
+
+  useEffect(() => {
+    setGenderOn(settings.genderPricingEnabled);
+  }, [settings.genderPricingEnabled]);
+
+  function toggleGender(next: boolean) {
+    const prev = genderOn;
+    setGenderOn(next);
+    fireAction(
+      () =>
+        enqueue("genderPricingEnabled", () =>
+          updateSetting("genderPricingEnabled", next),
+        ),
+      () => setGenderOn(prev),
+    );
+  }
 
   function commitMinDeduction(n: number) {
     fireAction(() =>
@@ -151,9 +171,26 @@ export function SectionMoney({
   return (
     <SectionCard tone="emerald" icon={Coins} title={t("moneyPolicy")}>
       <div className="space-y-4">
+        {/* Công tắc tính tiền theo giới tính. TẮT là mặc định, và tắt thì không
+            ai đọc cột `members.gender`, ba nhóm nữ cũng không hiện — tiền chia
+            y như khi chưa có tính năng này. */}
+        <div className="flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3">
+          <div>
+            <div className="text-sm font-medium">{t("genderPricing")}</div>
+            <p className="text-muted-foreground text-xs">
+              {t("genderPricingHint")}
+            </p>
+          </div>
+          <Switch
+            checked={genderOn}
+            onCheckedChange={toggleGender}
+            aria-label={t("genderPricing")}
+          />
+        </div>
+
         {/* Chỉ cảnh báo khi công tắc giới tính ĐANG BẬT. Tắt thì cột gender
             không ai đọc, nhắc chỉ gây nhiễu. */}
-        {settings.genderPricingEnabled && unsetGenderCount > 0 && (
+        {genderOn && unsetGenderCount > 0 && (
           <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
             <p>{t("genderUnsetWarning", { count: unsetGenderCount })}</p>
             <Link

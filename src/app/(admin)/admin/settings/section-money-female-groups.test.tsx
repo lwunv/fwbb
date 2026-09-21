@@ -59,6 +59,24 @@ function renderSection(genderOn: boolean) {
 const countText = (label: string) => screen.queryAllByText(label).length;
 
 describe("ba nhóm nữ trên trang Cài đặt", () => {
+  it("gạt công tắc: ba nhóm nữ hiện ra NGAY, không đợi server", async () => {
+    renderSection(false);
+    expect(countText("Thành viên nữ")).toBe(0);
+
+    // Trước 21/9/2026 KHÔNG có control nào để bật công tắc này: cả tính năng
+    // giới tính nằm sau một cái công tắc admin không bấm được. Bài này khoá
+    // luôn việc công tắc phải tồn tại.
+    const sw = screen.getByRole("switch", {
+      name: "Tính tiền theo giới tính",
+    });
+    fireEvent.click(sw);
+
+    // Hiện ngay theo state cục bộ, không chờ prop server quay lại.
+    expect(countText("Thành viên nữ")).toBeGreaterThan(0);
+    expect(countText("Khách nữ của thành viên")).toBeGreaterThan(0);
+    expect(countText("Khách nữ của admin")).toBeGreaterThan(0);
+  });
+
   it("công tắc TẮT: không có dòng nhóm nữ nào trong DOM", () => {
     renderSection(false);
     expect(countText("Thành viên nữ")).toBe(0);

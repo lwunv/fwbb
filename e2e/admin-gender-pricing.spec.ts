@@ -61,7 +61,11 @@ test.describe("công tắc giới tính", () => {
     await setGenderPricing(false);
     await page.goto("/admin/settings", { waitUntil: "domcontentloaded" });
     for (const label of FEMALE_LABELS) {
-      await expect(page.getByText(label)).toHaveCount(0);
+      // `exact: true` bắt buộc: mặc định `getByText` khớp CHUỖI CON và KHÔNG
+      // phân biệt hoa thường, nên dòng mô tả công tắc ("Bật để đặt mức riêng
+      // cho thành viên nữ và khách nữ...") cũng bị tính là một nhóm nữ đang
+      // hiện. Ta chỉ muốn đếm đúng nhãn của DÒNG NHÓM.
+      await expect(page.getByText(label, { exact: true })).toHaveCount(0);
     }
     // Nhóm thường vẫn còn — chứng minh section có render, không phải trang lỗi.
     await expect(
@@ -73,7 +77,9 @@ test.describe("công tắc giới tính", () => {
     for (const label of FEMALE_LABELS) {
       // Mỗi nhãn hiện ở thẻ nhóm + ô xem trước + dòng kết quả, nên chỉ cần
       // "có ít nhất một".
-      await expect(page.getByText(label).first()).toBeVisible();
+      await expect(
+        page.getByText(label, { exact: true }).first(),
+      ).toBeVisible();
     }
   });
 
