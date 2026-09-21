@@ -105,10 +105,20 @@ test("khách trong dòng vote của admin tính theo giá khách-của-admin tr�
     waitUntil: "domcontentloaded",
   });
 
-  await expect(page.getByText("💰 Tổng chi")).toBeVisible();
+  // `.first()` KHÔNG phải để né lỗi: trang này gọi `usePolling()` →
+  // `router.refresh()` mỗi 5 GIÂY (`session-detail.tsx:97`). Mỗi lần refresh,
+  // React tráo cây cũ sang cây mới và trong khoảnh khắc đó khối chi phí tồn
+  // tại HAI bản trong DOM. Locator chặt assert trúng đúng lúc tráo sẽ chết vì
+  // "resolved to 2 elements", nên bài này xanh/đỏ theo chu kỳ 5 giây — đã tái
+  // hiện: chạy 2 lượt liền thì lượt sau đỏ, chèn thêm một lệnh đọc DOM cho
+  // chậm lại vài chục ms thì cả 2 lượt xanh, và DB trước/sau giống hệt nhau.
+  //
+  // Cũng KHÔNG dùng `waitForLoadState("networkidle")` được: trang poll liên
+  // tục nên mạng không bao giờ idle, chờ nó là treo tới hết timeout.
+  await expect(page.getByText("💰 Tổng chi").first()).toBeVisible();
   // Đúng: rổ chia đều (admin + member khác) trả 45.000/người sau khi khách-
   // của-admin trả sàn 60K riêng.
-  await expect(page.getByText("🏸 45.000")).toBeVisible();
+  await expect(page.getByText("🏸 45.000").first()).toBeVisible();
   // Sai (bug cũ): nếu khách bị gộp nhầm vào khách-của-member (fixed 15K), rổ
   // chia đều sẽ ra 68.000/người — số này KHÔNG được xuất hiện.
   await expect(page.getByText("🏸 68.000")).toHaveCount(0);
