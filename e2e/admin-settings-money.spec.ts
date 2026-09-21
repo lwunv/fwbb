@@ -78,7 +78,10 @@ test.describe("admin settings — money policy section", () => {
 
       await page.reload({ waitUntil: "domcontentloaded" });
 
-      await expect(amountField(page, "Khách của admin")).toHaveValue("50000");
+      // Ô tiền giờ hiện kiểu Việt (MoneyInput dùng chung), nên giá trị đọc ra là
+      // "50.000" chứ không phải "50000". Khẳng định luôn cả phần format:
+      // vừa chứng minh đã lưu đúng, vừa chốt cách hiển thị.
+      await expect(amountField(page, "Khách của admin")).toHaveValue("50.000");
       await expect(capField(page, "Khách của admin")).toBeChecked();
     } finally {
       // Trả về đúng mặc định (floor 60.000, cap=false) để không lệch cho các
@@ -107,7 +110,7 @@ test.describe("admin settings — money policy section", () => {
       await page.waitForLoadState("networkidle");
 
       await page.reload({ waitUntil: "domcontentloaded" });
-      await expect(amountField(page, "Khách của admin")).toHaveValue("60000");
+      await expect(amountField(page, "Khách của admin")).toHaveValue("60.000");
     }
   });
 });

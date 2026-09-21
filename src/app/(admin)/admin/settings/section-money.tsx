@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Coins } from "lucide-react";
 import { SectionCard } from "@/components/shared/section-card";
-import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/shared/money-input";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { fireAction } from "@/lib/optimistic-action";
@@ -32,13 +32,6 @@ const GROUP_LABEL_KEY: Record<VisibleGroupKey, string> = {
   guestAdmin: "groupGuestAdmin",
 };
 
-function parseMoneyInput(raw: string): number | null {
-  const digits = raw.replace(/[^\d]/g, "");
-  if (digits === "") return null;
-  const n = parseInt(digits, 10);
-  return Number.isFinite(n) ? n : null;
-}
-
 export function SectionMoney({ settings }: { settings: AppSettings }) {
   const t = useTranslations("adminSettings");
 
@@ -49,18 +42,10 @@ export function SectionMoney({ settings }: { settings: AppSettings }) {
     groupPolicies: groupPoliciesSetting,
   } = settings;
 
-  const [minDeductionDraft, setMinDeductionDraft] = useState(
-    String(minDeductionSetting),
-  );
+  // Không giữ chuỗi nháp ở đây nữa: `MoneyInput` tự lo phần đó, kể cả việc
+  // phân biệt ô trống với số 0 và việc đồng bộ lại khi giá trị chốt đổi.
   const [policies, setPolicies] =
     useState<Record<GroupKey, GroupPolicy>>(groupPoliciesSetting);
-  const [amountDrafts, setAmountDrafts] = useState<
-    Record<VisibleGroupKey, string>
-  >({
-    member: String(groupPoliciesSetting.member.amount),
-    guestMember: String(groupPoliciesSetting.guestMember.amount),
-    guestAdmin: String(groupPoliciesSetting.guestAdmin.amount),
-  });
 
   // Hàng đợi ghi tuần tự — `updateSetting` là upsert last-write-wins đơn
   // thuần, không có version check. Đổi mode rồi gõ số tiền ngay sau (thao
@@ -90,29 +75,12 @@ export function SectionMoney({ settings }: { settings: AppSettings }) {
   }
 
   useEffect(() => {
-    setMinDeductionDraft(String(minDeductionSetting));
-  }, [minDeductionSetting]);
-
-  useEffect(() => {
     setPolicies(groupPoliciesSetting);
-    setAmountDrafts({
-      member: String(groupPoliciesSetting.member.amount),
-      guestMember: String(groupPoliciesSetting.guestMember.amount),
-      guestAdmin: String(groupPoliciesSetting.guestAdmin.amount),
-    });
   }, [groupPoliciesSetting]);
 
-  function commitMinDeduction(raw: string) {
-    const n = parseMoneyInput(raw);
-    if (n === null || n < 0) {
-      setMinDeductionDraft(String(minDeductionSetting));
-      return;
-    }
-    const prev = minDeductionSetting;
-    setMinDeductionDraft(String(n));
-    fireAction(
-      () => enqueueWrite(() => updateSetting("minDeductionAmount", n)),
-      () => setMinDeductionDraft(String(prev)),
+  function commitMinDeduction(n: number) {
+    fireAction(() =>
+      enqueueWrite(() => updateSetting("minDeductionAmount", n)),
     );
   }
 
@@ -143,14 +111,8 @@ export function SectionMoney({ settings }: { settings: AppSettings }) {
     updateRow(key, { capAtEqual });
   }
 
-  function commitAmount(key: VisibleGroupKey, raw: string) {
-    const n = parseMoneyInput(raw);
-    if (n === null || n < 0) {
-      setAmountDrafts((d) => ({ ...d, [key]: String(policies[key].amount) }));
-      return;
-    }
-    setAmountDrafts((d) => ({ ...d, [key]: String(n) }));
-    updateRow(key, { amount: n });
+  function commitAmount(key: VisibleGroupKey, amount: number) {
+    updateRow(key, { amount });
   }
 
   const MODE_OPTIONS = useMemo(
@@ -192,17 +154,11 @@ export function SectionMoney({ settings }: { settings: AppSettings }) {
           <span className="text-muted-foreground mb-1 block text-sm font-medium">
             {t("minDeduction")}
           </span>
-          <div className="flex items-center gap-2">
-            <Input
-              type="text"
-              inputMode="numeric"
-              value={minDeductionDraft}
-              className="min-h-11"
-              onChange={(e) => setMinDeductionDraft(e.target.value)}
-              onBlur={(e) => commitMinDeduction(e.target.value)}
-            />
-            <span className="text-muted-foreground shrink-0 text-sm">đ</span>
-          </div>
+          <MoneyInput
+            value={minDeductionSetting}
+            onCommit={commitMinDeduction}
+            suffix="đ"
+          />
         </label>
 
         <div className="space-y-3 border-t pt-3">
@@ -231,24 +187,11 @@ export function SectionMoney({ settings }: { settings: AppSettings }) {
                       <span className="text-muted-foreground mb-1 block text-sm font-medium">
                         {t("amountLabel", { group: groupLabel })}
                       </span>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          value={amountDrafts[key]}
-                          className="min-h-11"
-                          onChange={(e) =>
-                            setAmountDrafts((d) => ({
-                              ...d,
-                              [key]: e.target.value,
-                            }))
-                          }
-                          onBlur={(e) => commitAmount(key, e.target.value)}
-                        />
-                        <span className="text-muted-foreground shrink-0 text-sm">
-                          đ
-                        </span>
-                      </div>
+                      <MoneyInput
+                        value={policy.amount}
+                        onCommit={(n) => commitAmount(key, n)}
+                        suffix="đ"
+                      />
                     </label>
                   )}
                 </div>
