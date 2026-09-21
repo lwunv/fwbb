@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -193,27 +193,60 @@ export function SessionList({
     status: string | null;
   }[];
 }) {
+  // Mọi filter dưới đây chạy `shallow: false`, tức là phải đợi server fetch lại
+  // slice mới. Nếu control lấy value thẳng từ prop server thì bấm xong nó đứng
+  // im cho tới khi request về, nhìn như bấm hụt (đúng lỗi user báo 21/9). Cách
+  // sửa theo rubric optimistic UI: giữ một bản nháp cục bộ đổi NGAY, `useEffect`
+  // đồng bộ lại khi prop server về, và `startTransition` cho nuqs để biết lúc
+  // nào đang tải mà làm mờ danh sách.
+  const [isFiltering, startFilterTransition] = useTransition();
   const [, setPage] = useQueryState(
     "page",
-    parseAsInteger.withDefault(1).withOptions({ shallow: false }),
+    parseAsInteger
+      .withDefault(1)
+      .withOptions({ shallow: false, startTransition: startFilterTransition }),
   );
   // Status filter — đổi filter reset page về 1 (server fetch lại slice mới).
   const [, setStatusFilter] = useQueryState("status", {
     defaultValue: "all",
     shallow: false,
     clearOnDefault: true,
+    startTransition: startFilterTransition,
   });
   // Date-range — shallow:false để server fetch lại slice theo filter.
   const [, setFrom] = useQueryState("from", {
     defaultValue: "",
     shallow: false,
     clearOnDefault: true,
+    startTransition: startFilterTransition,
   });
   const [, setTo] = useQueryState("to", {
     defaultValue: "",
     shallow: false,
     clearOnDefault: true,
+    startTransition: startFilterTransition,
   });
+
+  // Bản nháp cục bộ của ba filter + trang. Khởi tạo từ prop server, và
+  // `useEffect` kéo về đúng prop mỗi khi server trả slice mới (kể cả khi user
+  // bấm Back, hoặc khi server từ chối và giữ nguyên filter cũ).
+  const [draftStatus, setDraftStatus] =
+    useState<StatusFilter>(currentStatusFilter);
+  const [draftFrom, setDraftFrom] = useState<string | null>(currentFrom);
+  const [draftTo, setDraftTo] = useState<string | null>(currentTo);
+  const [draftPage, setDraftPage] = useState<number>(currentPage);
+  useEffect(() => {
+    setDraftStatus(currentStatusFilter);
+  }, [currentStatusFilter]);
+  useEffect(() => {
+    setDraftFrom(currentFrom);
+  }, [currentFrom]);
+  useEffect(() => {
+    setDraftTo(currentTo);
+  }, [currentTo]);
+  useEffect(() => {
+    setDraftPage(currentPage);
+  }, [currentPage]);
   // View (thẻ/list) chỉ là cách RENDER cùng data → shallow (client-side, KHÔNG
   // refetch server) nên đổi TỨC THÌ, mượt, không cần loading. Đọc value từ
   // nuqs để render (thay cho prop server trước đây phải round-trip).
@@ -529,8 +562,13 @@ export function SessionList({
             variant="pills"
             scrollable={false}
             className="flex-wrap"
-            value={currentStatusFilter}
-            onChange={(v) => setStatusFilter(v === "all" ? null : v)}
+            value={draftStatus}
+            onChange={(v) => {
+              setDraftStatus(v);
+              setDraftPage(1);
+              setPage(1);
+              setStatusFilter(v === "all" ? null : v);
+            }}
             options={[
               { value: "all", label: t("filterAll") },
               { value: "voting", label: t("filterUpcoming") },
@@ -543,18 +581,25 @@ export function SessionList({
             {/* Khoảng ngày — bỏ label chữ (theo yêu cầu), chỉ còn control ngày. */}
             <div className="min-w-0 flex-1">
               <DateRangePicker
-                from={currentFrom}
-                to={currentTo}
+                from={draftFrom}
+                to={draftTo}
                 placeholder={t("filterDateRange")}
                 onFromChange={(v) => {
+                  setDraftFrom(v);
+                  setDraftPage(1);
                   setPage(1);
                   setFrom(v);
                 }}
                 onToChange={(v) => {
+                  setDraftTo(v);
+                  setDraftPage(1);
                   setPage(1);
                   setTo(v);
                 }}
                 onClear={() => {
+                  setDraftFrom(null);
+                  setDraftTo(null);
+                  setDraftPage(1);
                   setPage(1);
                   setFrom(null);
                   setTo(null);
@@ -603,353 +648,172 @@ export function SessionList({
           </div>
         </div>
 
-        {sessions.length === 0 && (
-          <p className="text-muted-foreground py-10 text-center text-sm">
-            {t("noSessionsFilter")}
-          </p>
-        )}
+        {/* Đang đợi server trả slice mới: làm mờ + chặn bấm phần danh sách.
+            Chip/ô ngày ở trên KHÔNG bị mờ, chúng đã đổi ngay theo bản nháp, nên
+            admin thấy rõ "lựa chọn đã ăn, dữ liệu đang về". `aria-busy` để trình
+            đọc màn hình cũng biết. */}
+        <div
+          aria-busy={isFiltering}
+          className={cn(
+            "transition-opacity duration-150",
+            isFiltering && "pointer-events-none opacity-50",
+          )}
+        >
+          {sessions.length === 0 && (
+            <p className="text-muted-foreground py-10 text-center text-sm">
+              {t("noSessionsFilter")}
+            </p>
+          )}
 
-        {/* Chế độ danh sách gọn: 1 dòng/buổi, bấm mở trang quản lý chi tiết. */}
-        {/* Mobile (dưới md): dòng gọn 1 buổi. Desktop dùng bảng bên dưới. */}
-        {viewMode === "list" && sessions.length > 0 && (
-          <div className="divide-border/60 bg-card overflow-hidden rounded-xl border md:hidden">
-            {sessions.map((session) => {
-              const rawStatus = cancelledSessions.has(session.id)
-                ? "cancelled"
-                : finalizingSessions.has(session.id)
-                  ? "completed"
-                  : unlockedSessions.has(session.id)
-                    ? "voting"
-                    : (session.status ?? "voting");
-              const {
-                variant: badgeVariant,
-                labelKey,
-                isPastPending,
-              } = deriveSessionBadge(rawStatus, session.date, todayYmd);
-              const badgeText = isPastPending
-                ? tF("needsConfirm")
-                : t(labelKey);
-              const unpaidCount = session.unpaidDebts.filter(
-                (d) => !paidDebtIds.has(d.debtId),
-              ).length;
-              // Tiền cho list (tổng chi + /người + Lãi/Lỗ) — DÙNG CÙNG helper
-              // với card view để số KHÔNG lệch.
-              const listAg = getAdminGuests(session.id, session);
-              // Phân loại khách CHƠI đúng luật finalize (Task 14): khách nằm
-              // trong CHÍNH phiếu vote của admin cũng là khách-của-admin, MỘT
-              // hàm dùng chung cho cả khối mobile lẫn desktop bên dưới — không
-              // tính tay `guestPlayCount - adminGuestPlayCount` nữa (cách cũ bỏ
-              // sót đúng phần khách nằm trong phiếu của admin).
-              const {
-                guestMemberPlayHeads: listGuestMemberPlayHeads,
-                adminGuestPlayHeads: listEffectiveAdminGuestPlayHeads,
-              } = classifyGuestPlayHeads({
-                votes: session.votes,
-                adminMemberId,
-                adminGuestCounter: listAg.play,
-              });
-              const listGuestPlay =
-                listGuestMemberPlayHeads + listEffectiveAdminGuestPlayHeads;
-              const listGuestDine =
-                session.guestDineCount +
-                listAg.dine -
-                session.adminGuestDineCount;
-              const listShuttleCost = computeShuttlecockTotal(
-                session.shuttlecocks,
-              );
-              const listPlayers = session.playerCount + listGuestPlay;
-              const listDiners = session.dinerCount + listGuestDine;
-              const {
-                playCostPerHead: listPlayPerHead,
-                adminGuestPlayCostPerHead: listAgPlayPerHead,
-                guestMemberPlayCostPerHead: listGuestMemberPerHead,
-                dineCostPerHead: listDinePerHead,
-              } = computePerHeadCharges({
-                courtPrice: session.courtPrice ?? 0,
-                shuttlecockCost: listShuttleCost,
-                diningBill: session.diningBill,
-                playerCount: listPlayers,
-                dinerCount: listDiners,
-                adminGuestPlayHeads: listEffectiveAdminGuestPlayHeads,
-                guestMemberPlayHeads: listGuestMemberPlayHeads,
-                policies: groupPolicies,
-              });
-              const listTotalExpense =
-                (session.courtPrice ?? 0) +
-                listShuttleCost +
-                session.diningBill;
-              const listShowRevenue =
-                rawStatus === "completed" || isPastPending;
-              const listRevenue =
-                rawStatus === "completed"
-                  ? session.totalDebt
-                  : computePredictedPlayRevenue({
-                      totalPlayHeads: listPlayers,
-                      adminGuestPlayHeads: listEffectiveAdminGuestPlayHeads,
-                      playCostPerHead: listPlayPerHead,
-                      adminGuestPlayCostPerHead: listAgPlayPerHead,
-                      guestMemberPlayHeads: listGuestMemberPlayHeads,
-                      guestMemberPlayCostPerHead: listGuestMemberPerHead,
-                    }) +
-                    listDiners * listDinePerHead +
-                    (session.useMinDeduction
-                      ? computePredictedMinDeductionSurplus({
-                          playingMemberIds: session.votes
-                            .filter((v) => v.willPlay)
-                            .map((v) => v.member.id),
-                          memberBalances,
-                          exemptMemberIds: session.exemptMemberIds,
-                          playCostPerHead: listPlayPerHead,
-                          floor: minDeductionAmount,
-                        })
-                      : 0);
-              const listProfit = listShowRevenue
-                ? listRevenue - listTotalExpense
-                : null;
-              return (
-                <Link
-                  key={session.id}
-                  href={`/admin/sessions/${session.id}`}
-                  className="hover:bg-muted/40 flex min-h-[3.25rem] items-center gap-3 border-b px-3 py-2.5 transition-colors last:border-b-0"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                      <span className="text-sm font-semibold capitalize">
-                        {fmtSessionDate(session.date, "weekdayName")}
-                      </span>
-                      <span className="text-muted-foreground text-xs tabular-nums">
-                        {fmtSessionDate(session.date, "short")}
-                      </span>
-                      {(session.startTime || session.endTime) && (
-                        <span className="text-muted-foreground text-xs tabular-nums">
-                          · {session.startTime ?? "—"}–{session.endTime ?? "—"}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-                      <span className="tabular-nums">
-                        🏸 {session.playerCount + session.guestPlayCount}
-                      </span>
-                      <span className="tabular-nums">
-                        🍻 {session.dinerCount + session.guestDineCount}
-                      </span>
-                      <span className="tabular-nums">
-                        💰 {formatK(listTotalExpense)}
-                      </span>
-                      {session.courtName && (
-                        <span className="min-w-0 truncate">
-                          · {session.courtName}
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-                      {listPlayPerHead > 0 && (
-                        <span className="text-primary tabular-nums">
-                          🏸 {formatK(listPlayPerHead)}/ng
-                        </span>
-                      )}
-                      {listDinePerHead > 0 && (
-                        <span className="text-orange-600 tabular-nums dark:text-orange-400">
-                          🍻 {formatK(listDinePerHead)}/ng
-                        </span>
-                      )}
-                      {listProfit !== null && (
-                        <span
-                          className={cn(
-                            "font-semibold tabular-nums",
-                            listProfit > 0
-                              ? "text-green-600 dark:text-green-400"
-                              : listProfit < 0
-                                ? "text-rose-600 dark:text-rose-400"
-                                : "text-muted-foreground",
-                          )}
-                        >
-                          📊{" "}
-                          {listProfit > 0
-                            ? "Lãi"
-                            : listProfit < 0
-                              ? "Lỗ"
-                              : "Hòa"}{" "}
-                          {listProfit > 0 ? "+" : listProfit < 0 ? "−" : ""}
-                          {formatK(Math.abs(listProfit))}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  {unpaidCount > 0 && (
-                    <span className="bg-destructive/15 text-destructive shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums">
-                      {t("unpaidCountShort", { count: unpaidCount })}
-                    </span>
-                  )}
-                  <StatusBadge variant={badgeVariant}>{badgeText}</StatusBadge>
-                  <ChevronRight className="text-muted-foreground h-4 w-4 shrink-0" />
-                </Link>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Desktop (md+): bảng full-width giống /admin/members. Cuộn ngang
-            trong container riêng khi hẹp. Compute tiền MIRROR block mobile trên
-            (cùng helper cost-calculator → số không lệch). */}
-        {viewMode === "list" && sessions.length > 0 && (
-          <div className="bg-card border-border/60 hidden overflow-x-auto rounded-xl border shadow-sm md:block">
-            <table className="w-full min-w-[720px] border-collapse text-sm">
-              <thead>
-                <tr className="bg-muted/40 border-border/60 text-muted-foreground border-b text-left text-xs font-medium tracking-wide uppercase">
-                  <th className="px-3 py-2.5">{t("date")}</th>
-                  <th className="px-3 py-2.5">{t("court")}</th>
-                  <th className="px-3 py-2.5 text-center">🏸</th>
-                  <th className="px-3 py-2.5 text-center">🍻</th>
-                  <th className="px-3 py-2.5 text-right">💰</th>
-                  <th className="px-3 py-2.5 text-right">/ng</th>
-                  <th className="px-3 py-2.5 text-right">📊</th>
-                  <th className="px-3 py-2.5 text-right" />
-                </tr>
-              </thead>
-              <tbody>
-                {sessions.map((session) => {
-                  const rawStatus = cancelledSessions.has(session.id)
-                    ? "cancelled"
-                    : finalizingSessions.has(session.id)
-                      ? "completed"
-                      : unlockedSessions.has(session.id)
-                        ? "voting"
-                        : (session.status ?? "voting");
-                  const {
-                    variant: badgeVariant,
-                    labelKey,
-                    isPastPending,
-                  } = deriveSessionBadge(rawStatus, session.date, todayYmd);
-                  const badgeText = isPastPending
-                    ? tF("needsConfirm")
-                    : t(labelKey);
-                  const unpaidCount = session.unpaidDebts.filter(
-                    (d) => !paidDebtIds.has(d.debtId),
-                  ).length;
-                  const listAg = getAdminGuests(session.id, session);
-                  // Xem comment ở khối mobile phía trên — cùng công thức, y
-                  // hệt để 2 khối mobile/desktop không lệch nhau.
-                  const {
-                    guestMemberPlayHeads: listGuestMemberPlayHeads,
-                    adminGuestPlayHeads: listEffectiveAdminGuestPlayHeads,
-                  } = classifyGuestPlayHeads({
-                    votes: session.votes,
-                    adminMemberId,
-                    adminGuestCounter: listAg.play,
-                  });
-                  const listGuestPlay =
-                    listGuestMemberPlayHeads + listEffectiveAdminGuestPlayHeads;
-                  const listGuestDine =
-                    session.guestDineCount +
-                    listAg.dine -
-                    session.adminGuestDineCount;
-                  const listShuttleCost = computeShuttlecockTotal(
-                    session.shuttlecocks,
-                  );
-                  const listPlayers = session.playerCount + listGuestPlay;
-                  const listDiners = session.dinerCount + listGuestDine;
-                  const {
-                    playCostPerHead: listPlayPerHead,
-                    adminGuestPlayCostPerHead: listAgPlayPerHead,
-                    guestMemberPlayCostPerHead: listGuestMemberPerHead,
-                    dineCostPerHead: listDinePerHead,
-                  } = computePerHeadCharges({
-                    courtPrice: session.courtPrice ?? 0,
-                    shuttlecockCost: listShuttleCost,
-                    diningBill: session.diningBill,
-                    playerCount: listPlayers,
-                    dinerCount: listDiners,
-                    adminGuestPlayHeads: listEffectiveAdminGuestPlayHeads,
-                    guestMemberPlayHeads: listGuestMemberPlayHeads,
-                    policies: groupPolicies,
-                  });
-                  const listTotalExpense =
-                    (session.courtPrice ?? 0) +
-                    listShuttleCost +
-                    session.diningBill;
-                  const listShowRevenue =
-                    rawStatus === "completed" || isPastPending;
-                  const listRevenue =
-                    rawStatus === "completed"
-                      ? session.totalDebt
-                      : computePredictedPlayRevenue({
-                          totalPlayHeads: listPlayers,
-                          adminGuestPlayHeads: listEffectiveAdminGuestPlayHeads,
-                          playCostPerHead: listPlayPerHead,
-                          adminGuestPlayCostPerHead: listAgPlayPerHead,
-                          guestMemberPlayHeads: listGuestMemberPlayHeads,
-                          guestMemberPlayCostPerHead: listGuestMemberPerHead,
-                        }) +
-                        listDiners * listDinePerHead +
-                        (session.useMinDeduction
-                          ? computePredictedMinDeductionSurplus({
-                              playingMemberIds: session.votes
-                                .filter((v) => v.willPlay)
-                                .map((v) => v.member.id),
-                              memberBalances,
-                              exemptMemberIds: session.exemptMemberIds,
-                              playCostPerHead: listPlayPerHead,
-                              floor: minDeductionAmount,
-                            })
-                          : 0);
-                  const listProfit = listShowRevenue
-                    ? listRevenue - listTotalExpense
-                    : null;
-                  return (
-                    <tr
-                      key={session.id}
-                      onClick={() =>
-                        router.push(`/admin/sessions/${session.id}`)
-                      }
-                      className="border-border/40 hover:bg-muted/30 cursor-pointer border-b align-middle tabular-nums last:border-0"
-                    >
-                      <td className="px-3 py-2.5">
-                        <div className="font-semibold capitalize">
+          {/* Chế độ danh sách gọn: 1 dòng/buổi, bấm mở trang quản lý chi tiết. */}
+          {/* Mobile (dưới md): dòng gọn 1 buổi. Desktop dùng bảng bên dưới. */}
+          {viewMode === "list" && sessions.length > 0 && (
+            <div className="divide-border/60 bg-card overflow-hidden rounded-xl border md:hidden">
+              {sessions.map((session) => {
+                const rawStatus = cancelledSessions.has(session.id)
+                  ? "cancelled"
+                  : finalizingSessions.has(session.id)
+                    ? "completed"
+                    : unlockedSessions.has(session.id)
+                      ? "voting"
+                      : (session.status ?? "voting");
+                const {
+                  variant: badgeVariant,
+                  labelKey,
+                  isPastPending,
+                } = deriveSessionBadge(rawStatus, session.date, todayYmd);
+                const badgeText = isPastPending
+                  ? tF("needsConfirm")
+                  : t(labelKey);
+                const unpaidCount = session.unpaidDebts.filter(
+                  (d) => !paidDebtIds.has(d.debtId),
+                ).length;
+                // Tiền cho list (tổng chi + /người + Lãi/Lỗ) — DÙNG CÙNG helper
+                // với card view để số KHÔNG lệch.
+                const listAg = getAdminGuests(session.id, session);
+                // Phân loại khách CHƠI đúng luật finalize (Task 14): khách nằm
+                // trong CHÍNH phiếu vote của admin cũng là khách-của-admin, MỘT
+                // hàm dùng chung cho cả khối mobile lẫn desktop bên dưới — không
+                // tính tay `guestPlayCount - adminGuestPlayCount` nữa (cách cũ bỏ
+                // sót đúng phần khách nằm trong phiếu của admin).
+                const {
+                  guestMemberPlayHeads: listGuestMemberPlayHeads,
+                  adminGuestPlayHeads: listEffectiveAdminGuestPlayHeads,
+                } = classifyGuestPlayHeads({
+                  votes: session.votes,
+                  adminMemberId,
+                  adminGuestCounter: listAg.play,
+                });
+                const listGuestPlay =
+                  listGuestMemberPlayHeads + listEffectiveAdminGuestPlayHeads;
+                const listGuestDine =
+                  session.guestDineCount +
+                  listAg.dine -
+                  session.adminGuestDineCount;
+                const listShuttleCost = computeShuttlecockTotal(
+                  session.shuttlecocks,
+                );
+                const listPlayers = session.playerCount + listGuestPlay;
+                const listDiners = session.dinerCount + listGuestDine;
+                const {
+                  playCostPerHead: listPlayPerHead,
+                  adminGuestPlayCostPerHead: listAgPlayPerHead,
+                  guestMemberPlayCostPerHead: listGuestMemberPerHead,
+                  dineCostPerHead: listDinePerHead,
+                } = computePerHeadCharges({
+                  courtPrice: session.courtPrice ?? 0,
+                  shuttlecockCost: listShuttleCost,
+                  diningBill: session.diningBill,
+                  playerCount: listPlayers,
+                  dinerCount: listDiners,
+                  adminGuestPlayHeads: listEffectiveAdminGuestPlayHeads,
+                  guestMemberPlayHeads: listGuestMemberPlayHeads,
+                  policies: groupPolicies,
+                });
+                const listTotalExpense =
+                  (session.courtPrice ?? 0) +
+                  listShuttleCost +
+                  session.diningBill;
+                const listShowRevenue =
+                  rawStatus === "completed" || isPastPending;
+                const listRevenue =
+                  rawStatus === "completed"
+                    ? session.totalDebt
+                    : computePredictedPlayRevenue({
+                        totalPlayHeads: listPlayers,
+                        adminGuestPlayHeads: listEffectiveAdminGuestPlayHeads,
+                        playCostPerHead: listPlayPerHead,
+                        adminGuestPlayCostPerHead: listAgPlayPerHead,
+                        guestMemberPlayHeads: listGuestMemberPlayHeads,
+                        guestMemberPlayCostPerHead: listGuestMemberPerHead,
+                      }) +
+                      listDiners * listDinePerHead +
+                      (session.useMinDeduction
+                        ? computePredictedMinDeductionSurplus({
+                            playingMemberIds: session.votes
+                              .filter((v) => v.willPlay)
+                              .map((v) => v.member.id),
+                            memberBalances,
+                            exemptMemberIds: session.exemptMemberIds,
+                            playCostPerHead: listPlayPerHead,
+                            floor: minDeductionAmount,
+                          })
+                        : 0);
+                const listProfit = listShowRevenue
+                  ? listRevenue - listTotalExpense
+                  : null;
+                return (
+                  <Link
+                    key={session.id}
+                    href={`/admin/sessions/${session.id}`}
+                    className="hover:bg-muted/40 flex min-h-[3.25rem] items-center gap-3 border-b px-3 py-2.5 transition-colors last:border-b-0"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <span className="text-sm font-semibold capitalize">
                           {fmtSessionDate(session.date, "weekdayName")}
-                        </div>
-                        <div className="text-muted-foreground text-xs">
+                        </span>
+                        <span className="text-muted-foreground text-xs tabular-nums">
                           {fmtSessionDate(session.date, "short")}
-                          {(session.startTime || session.endTime) &&
-                            ` · ${session.startTime ?? "—"}–${session.endTime ?? "—"}`}
-                        </div>
-                      </td>
-                      <td className="text-muted-foreground max-w-[200px] truncate px-3 py-2.5">
-                        {session.courtName ?? "—"}
-                      </td>
-                      <td className="text-primary px-3 py-2.5 text-center font-medium">
-                        {session.playerCount + session.guestPlayCount}
-                      </td>
-                      <td className="px-3 py-2.5 text-center font-medium text-orange-600 dark:text-orange-400">
-                        {session.dinerCount + session.guestDineCount}
-                      </td>
-                      <td className="px-3 py-2.5 text-right font-medium">
-                        {formatK(listTotalExpense)}
-                      </td>
-                      <td className="px-3 py-2.5 text-right">
-                        <div className="flex flex-col items-end gap-0.5">
-                          {listPlayPerHead > 0 && (
-                            <span className="text-primary">
-                              🏸 {formatK(listPlayPerHead)}
-                            </span>
-                          )}
-                          {listDinePerHead > 0 && (
-                            <span className="text-orange-600 dark:text-orange-400">
-                              🍻 {formatK(listDinePerHead)}
-                            </span>
-                          )}
-                          {listPlayPerHead <= 0 && listDinePerHead <= 0 && (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2.5 text-right">
-                        {listProfit === null ? (
-                          <span className="text-muted-foreground">—</span>
-                        ) : (
+                        </span>
+                        {(session.startTime || session.endTime) && (
+                          <span className="text-muted-foreground text-xs tabular-nums">
+                            · {session.startTime ?? "—"}–
+                            {session.endTime ?? "—"}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+                        <span className="tabular-nums">
+                          🏸 {session.playerCount + session.guestPlayCount}
+                        </span>
+                        <span className="tabular-nums">
+                          🍻 {session.dinerCount + session.guestDineCount}
+                        </span>
+                        <span className="tabular-nums">
+                          💰 {formatK(listTotalExpense)}
+                        </span>
+                        {session.courtName && (
+                          <span className="min-w-0 truncate">
+                            · {session.courtName}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+                        {listPlayPerHead > 0 && (
+                          <span className="text-primary tabular-nums">
+                            🏸 {formatK(listPlayPerHead)}/ng
+                          </span>
+                        )}
+                        {listDinePerHead > 0 && (
+                          <span className="text-orange-600 tabular-nums dark:text-orange-400">
+                            🍻 {formatK(listDinePerHead)}/ng
+                          </span>
+                        )}
+                        {listProfit !== null && (
                           <span
                             className={cn(
-                              "font-semibold",
+                              "font-semibold tabular-nums",
                               listProfit > 0
                                 ? "text-green-600 dark:text-green-400"
                                 : listProfit < 0
@@ -957,190 +821,397 @@ export function SessionList({
                                   : "text-muted-foreground",
                             )}
                           >
+                            📊{" "}
                             {listProfit > 0
-                              ? "Lãi +"
+                              ? "Lãi"
                               : listProfit < 0
-                                ? "Lỗ −"
-                                : "Hòa "}
+                                ? "Lỗ"
+                                : "Hòa"}{" "}
+                            {listProfit > 0 ? "+" : listProfit < 0 ? "−" : ""}
                             {formatK(Math.abs(listProfit))}
                           </span>
                         )}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <div className="flex items-center justify-end gap-2">
-                          {unpaidCount > 0 && (
-                            <span className="bg-destructive/15 text-destructive shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold">
-                              {t("unpaidCountShort", { count: unpaidCount })}
+                      </div>
+                    </div>
+                    {unpaidCount > 0 && (
+                      <span className="bg-destructive/15 text-destructive shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums">
+                        {t("unpaidCountShort", { count: unpaidCount })}
+                      </span>
+                    )}
+                    <StatusBadge variant={badgeVariant}>
+                      {badgeText}
+                    </StatusBadge>
+                    <ChevronRight className="text-muted-foreground h-4 w-4 shrink-0" />
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Desktop (md+): bảng full-width giống /admin/members. Cuộn ngang
+            trong container riêng khi hẹp. Compute tiền MIRROR block mobile trên
+            (cùng helper cost-calculator → số không lệch). */}
+          {viewMode === "list" && sessions.length > 0 && (
+            <div className="bg-card border-border/60 hidden overflow-x-auto rounded-xl border shadow-sm md:block">
+              <table className="w-full min-w-[720px] border-collapse text-sm">
+                <thead>
+                  <tr className="bg-muted/40 border-border/60 text-muted-foreground border-b text-left text-xs font-medium tracking-wide uppercase">
+                    <th className="px-3 py-2.5">{t("date")}</th>
+                    <th className="px-3 py-2.5">{t("court")}</th>
+                    <th className="px-3 py-2.5 text-center">🏸</th>
+                    <th className="px-3 py-2.5 text-center">🍻</th>
+                    <th className="px-3 py-2.5 text-right">💰</th>
+                    <th className="px-3 py-2.5 text-right">/ng</th>
+                    <th className="px-3 py-2.5 text-right">📊</th>
+                    <th className="px-3 py-2.5 text-right" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {sessions.map((session) => {
+                    const rawStatus = cancelledSessions.has(session.id)
+                      ? "cancelled"
+                      : finalizingSessions.has(session.id)
+                        ? "completed"
+                        : unlockedSessions.has(session.id)
+                          ? "voting"
+                          : (session.status ?? "voting");
+                    const {
+                      variant: badgeVariant,
+                      labelKey,
+                      isPastPending,
+                    } = deriveSessionBadge(rawStatus, session.date, todayYmd);
+                    const badgeText = isPastPending
+                      ? tF("needsConfirm")
+                      : t(labelKey);
+                    const unpaidCount = session.unpaidDebts.filter(
+                      (d) => !paidDebtIds.has(d.debtId),
+                    ).length;
+                    const listAg = getAdminGuests(session.id, session);
+                    // Xem comment ở khối mobile phía trên — cùng công thức, y
+                    // hệt để 2 khối mobile/desktop không lệch nhau.
+                    const {
+                      guestMemberPlayHeads: listGuestMemberPlayHeads,
+                      adminGuestPlayHeads: listEffectiveAdminGuestPlayHeads,
+                    } = classifyGuestPlayHeads({
+                      votes: session.votes,
+                      adminMemberId,
+                      adminGuestCounter: listAg.play,
+                    });
+                    const listGuestPlay =
+                      listGuestMemberPlayHeads +
+                      listEffectiveAdminGuestPlayHeads;
+                    const listGuestDine =
+                      session.guestDineCount +
+                      listAg.dine -
+                      session.adminGuestDineCount;
+                    const listShuttleCost = computeShuttlecockTotal(
+                      session.shuttlecocks,
+                    );
+                    const listPlayers = session.playerCount + listGuestPlay;
+                    const listDiners = session.dinerCount + listGuestDine;
+                    const {
+                      playCostPerHead: listPlayPerHead,
+                      adminGuestPlayCostPerHead: listAgPlayPerHead,
+                      guestMemberPlayCostPerHead: listGuestMemberPerHead,
+                      dineCostPerHead: listDinePerHead,
+                    } = computePerHeadCharges({
+                      courtPrice: session.courtPrice ?? 0,
+                      shuttlecockCost: listShuttleCost,
+                      diningBill: session.diningBill,
+                      playerCount: listPlayers,
+                      dinerCount: listDiners,
+                      adminGuestPlayHeads: listEffectiveAdminGuestPlayHeads,
+                      guestMemberPlayHeads: listGuestMemberPlayHeads,
+                      policies: groupPolicies,
+                    });
+                    const listTotalExpense =
+                      (session.courtPrice ?? 0) +
+                      listShuttleCost +
+                      session.diningBill;
+                    const listShowRevenue =
+                      rawStatus === "completed" || isPastPending;
+                    const listRevenue =
+                      rawStatus === "completed"
+                        ? session.totalDebt
+                        : computePredictedPlayRevenue({
+                            totalPlayHeads: listPlayers,
+                            adminGuestPlayHeads:
+                              listEffectiveAdminGuestPlayHeads,
+                            playCostPerHead: listPlayPerHead,
+                            adminGuestPlayCostPerHead: listAgPlayPerHead,
+                            guestMemberPlayHeads: listGuestMemberPlayHeads,
+                            guestMemberPlayCostPerHead: listGuestMemberPerHead,
+                          }) +
+                          listDiners * listDinePerHead +
+                          (session.useMinDeduction
+                            ? computePredictedMinDeductionSurplus({
+                                playingMemberIds: session.votes
+                                  .filter((v) => v.willPlay)
+                                  .map((v) => v.member.id),
+                                memberBalances,
+                                exemptMemberIds: session.exemptMemberIds,
+                                playCostPerHead: listPlayPerHead,
+                                floor: minDeductionAmount,
+                              })
+                            : 0);
+                    const listProfit = listShowRevenue
+                      ? listRevenue - listTotalExpense
+                      : null;
+                    return (
+                      <tr
+                        key={session.id}
+                        onClick={() =>
+                          router.push(`/admin/sessions/${session.id}`)
+                        }
+                        className="border-border/40 hover:bg-muted/30 cursor-pointer border-b align-middle tabular-nums last:border-0"
+                      >
+                        <td className="px-3 py-2.5">
+                          <div className="font-semibold capitalize">
+                            {fmtSessionDate(session.date, "weekdayName")}
+                          </div>
+                          <div className="text-muted-foreground text-xs">
+                            {fmtSessionDate(session.date, "short")}
+                            {(session.startTime || session.endTime) &&
+                              ` · ${session.startTime ?? "—"}–${session.endTime ?? "—"}`}
+                          </div>
+                        </td>
+                        <td className="text-muted-foreground max-w-[200px] truncate px-3 py-2.5">
+                          {session.courtName ?? "—"}
+                        </td>
+                        <td className="text-primary px-3 py-2.5 text-center font-medium">
+                          {session.playerCount + session.guestPlayCount}
+                        </td>
+                        <td className="px-3 py-2.5 text-center font-medium text-orange-600 dark:text-orange-400">
+                          {session.dinerCount + session.guestDineCount}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-medium">
+                          {formatK(listTotalExpense)}
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          <div className="flex flex-col items-end gap-0.5">
+                            {listPlayPerHead > 0 && (
+                              <span className="text-primary">
+                                🏸 {formatK(listPlayPerHead)}
+                              </span>
+                            )}
+                            {listDinePerHead > 0 && (
+                              <span className="text-orange-600 dark:text-orange-400">
+                                🍻 {formatK(listDinePerHead)}
+                              </span>
+                            )}
+                            {listPlayPerHead <= 0 && listDinePerHead <= 0 && (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          {listProfit === null ? (
+                            <span className="text-muted-foreground">—</span>
+                          ) : (
+                            <span
+                              className={cn(
+                                "font-semibold",
+                                listProfit > 0
+                                  ? "text-green-600 dark:text-green-400"
+                                  : listProfit < 0
+                                    ? "text-rose-600 dark:text-rose-400"
+                                    : "text-muted-foreground",
+                              )}
+                            >
+                              {listProfit > 0
+                                ? "Lãi +"
+                                : listProfit < 0
+                                  ? "Lỗ −"
+                                  : "Hòa "}
+                              {formatK(Math.abs(listProfit))}
                             </span>
                           )}
-                          <StatusBadge variant={badgeVariant}>
-                            {badgeText}
-                          </StatusBadge>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <div className="flex items-center justify-end gap-2">
+                            {unpaidCount > 0 && (
+                              <span className="bg-destructive/15 text-destructive shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold">
+                                {t("unpaidCountShort", { count: unpaidCount })}
+                              </span>
+                            )}
+                            <StatusBadge variant={badgeVariant}>
+                              {badgeText}
+                            </StatusBadge>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-        {viewMode === "cards" && (
-          // grid-cols-1 = minmax(0,1fr) cho phép cột CO dưới content: nếu
-          // 1 thẻ có child rộng (vd hàng deadline) sẽ tự truncate/wrap trong
-          // thẻ thay vì kéo cả grid rộng hơn viewport → hết cắt bên phải.
-          <div className="grid grid-cols-1 gap-3">
-            {sessions.map((session) => {
-              // Optimistic status overrides — priority order matters:
-              // 1. cancelledSessions: cancel optimistic (pending server)
-              // 2. finalizingSessions: finalize optimistic → past-pending vừa bấm
-              //    "Xác nhận" → hiển thị như completed cho tới khi server revalidate.
-              // 3. unlockedSessions: unlock optimistic → đã completed nhưng admin
-              //    vừa bấm "Mở lại" → hiển thị như voting.
-              // Assumption: 1 buổi không thể đồng thời ở nhiều set tại 1 thời
-              // điểm — finalizing chỉ flip từ voting/confirmed; unlock chỉ flip
-              // từ completed; cancel có thể từ bất kỳ active state nào và win
-              // tất cả. Auto-prune ở useEffect bên trên drop entry khi server
-              // converge nên không tích lũy stale.
-              const rawStatus = cancelledSessions.has(session.id)
-                ? "cancelled"
-                : finalizingSessions.has(session.id)
-                  ? "completed"
-                  : unlockedSessions.has(session.id)
-                    ? "voting"
-                    : (session.status ?? "voting");
-              const effectiveStatus: SessionStatus = (
-                ["voting", "confirmed", "completed", "cancelled"].includes(
-                  rawStatus,
-                )
-                  ? rawStatus
-                  : "voting"
-              ) as SessionStatus;
-              const isActive =
-                effectiveStatus === "voting" || effectiveStatus === "confirmed";
-              // Badge derivation shared with AdminSessionCard + session-detail.
-              const badge = deriveSessionBadge(
-                effectiveStatus,
-                session.date,
-                todayYmd,
-              );
-              const isPastPending = badge.isPastPending;
-              // Cho phép admin finalize từ HÔM NAY (đánh xong là chốt được ngay).
-              // Future session vẫn block — chốt sớm thì lỗi thiếu attendees thật.
-              const canFinalize = isActive && session.date <= todayYmd;
-              const isFinalizing = finalizingSessions.has(session.id);
-              const isExpanded = expandedId === session.id;
-              const ag = getAdminGuests(session.id, session);
-              return (
-                <div
-                  key={session.id}
-                  id={`session-${session.id}`}
-                  className="min-w-0 scroll-mt-4"
-                >
-                  <AdminSessionCard
-                    session={session}
-                    effectiveStatus={effectiveStatus}
-                    isPastPending={isPastPending}
-                    badge={badge}
-                    courts={courts}
-                    brands={brands}
-                    members={members}
-                    memberBalances={memberBalances}
-                    defaultCourtId={defaultCourtId}
-                    sessionDays={sessionDays}
-                    adminMemberId={adminMemberId}
-                    adminGuestPlay={ag.play}
-                    adminGuestDine={ag.dine}
-                    onAdminGuestChange={(play, dine) => {
-                      // Optimistic local update + revert on server fail. Cùng
-                      // path với handleAdminGuestChange cũ — hợp nhất 2 field
-                      // thành 1 callback.
-                      const prev = getAdminGuests(session.id, session);
-                      const next = { play, dine };
-                      setLocalAdminGuests((s) => ({
-                        ...s,
-                        [session.id]: next,
-                      }));
-                      fireAction(
-                        () =>
-                          setAdminGuestCount(session.id, next.play, next.dine),
-                        () =>
-                          setLocalAdminGuests((s) => ({
-                            ...s,
-                            [session.id]: prev,
-                          })),
-                      );
-                    }}
-                    paidDebtIds={paidDebtIds}
-                    onConfirmPayment={(debtId, memberName) => {
-                      const idempotencyKey = crypto.randomUUID();
-                      // Wrap action để toast lỗi gắn member name — admin click
-                      // nhiều row liên tiếp vẫn biết row nào fail.
-                      paidDebts.addOptimistically(debtId, async () => {
-                        const r = await confirmPaymentByAdmin(
-                          debtId,
-                          idempotencyKey,
+          {viewMode === "cards" && (
+            // grid-cols-1 = minmax(0,1fr) cho phép cột CO dưới content: nếu
+            // 1 thẻ có child rộng (vd hàng deadline) sẽ tự truncate/wrap trong
+            // thẻ thay vì kéo cả grid rộng hơn viewport → hết cắt bên phải.
+            <div className="grid grid-cols-1 gap-3">
+              {sessions.map((session) => {
+                // Optimistic status overrides — priority order matters:
+                // 1. cancelledSessions: cancel optimistic (pending server)
+                // 2. finalizingSessions: finalize optimistic → past-pending vừa bấm
+                //    "Xác nhận" → hiển thị như completed cho tới khi server revalidate.
+                // 3. unlockedSessions: unlock optimistic → đã completed nhưng admin
+                //    vừa bấm "Mở lại" → hiển thị như voting.
+                // Assumption: 1 buổi không thể đồng thời ở nhiều set tại 1 thời
+                // điểm — finalizing chỉ flip từ voting/confirmed; unlock chỉ flip
+                // từ completed; cancel có thể từ bất kỳ active state nào và win
+                // tất cả. Auto-prune ở useEffect bên trên drop entry khi server
+                // converge nên không tích lũy stale.
+                const rawStatus = cancelledSessions.has(session.id)
+                  ? "cancelled"
+                  : finalizingSessions.has(session.id)
+                    ? "completed"
+                    : unlockedSessions.has(session.id)
+                      ? "voting"
+                      : (session.status ?? "voting");
+                const effectiveStatus: SessionStatus = (
+                  ["voting", "confirmed", "completed", "cancelled"].includes(
+                    rawStatus,
+                  )
+                    ? rawStatus
+                    : "voting"
+                ) as SessionStatus;
+                const isActive =
+                  effectiveStatus === "voting" ||
+                  effectiveStatus === "confirmed";
+                // Badge derivation shared with AdminSessionCard + session-detail.
+                const badge = deriveSessionBadge(
+                  effectiveStatus,
+                  session.date,
+                  todayYmd,
+                );
+                const isPastPending = badge.isPastPending;
+                // Cho phép admin finalize từ HÔM NAY (đánh xong là chốt được ngay).
+                // Future session vẫn block — chốt sớm thì lỗi thiếu attendees thật.
+                const canFinalize = isActive && session.date <= todayYmd;
+                const isFinalizing = finalizingSessions.has(session.id);
+                const isExpanded = expandedId === session.id;
+                const ag = getAdminGuests(session.id, session);
+                return (
+                  <div
+                    key={session.id}
+                    id={`session-${session.id}`}
+                    className="min-w-0 scroll-mt-4"
+                  >
+                    <AdminSessionCard
+                      session={session}
+                      effectiveStatus={effectiveStatus}
+                      isPastPending={isPastPending}
+                      badge={badge}
+                      courts={courts}
+                      brands={brands}
+                      members={members}
+                      memberBalances={memberBalances}
+                      defaultCourtId={defaultCourtId}
+                      sessionDays={sessionDays}
+                      adminMemberId={adminMemberId}
+                      adminGuestPlay={ag.play}
+                      adminGuestDine={ag.dine}
+                      onAdminGuestChange={(play, dine) => {
+                        // Optimistic local update + revert on server fail. Cùng
+                        // path với handleAdminGuestChange cũ — hợp nhất 2 field
+                        // thành 1 callback.
+                        const prev = getAdminGuests(session.id, session);
+                        const next = { play, dine };
+                        setLocalAdminGuests((s) => ({
+                          ...s,
+                          [session.id]: next,
+                        }));
+                        fireAction(
+                          () =>
+                            setAdminGuestCount(
+                              session.id,
+                              next.play,
+                              next.dine,
+                            ),
+                          () =>
+                            setLocalAdminGuests((s) => ({
+                              ...s,
+                              [session.id]: prev,
+                            })),
                         );
-                        if (r && "error" in r && r.error) {
-                          return { error: `${memberName}: ${r.error}` };
-                        }
-                        return r;
-                      });
-                    }}
-                    onCancel={() => {
-                      setCancelTarget(session.id);
-                      setCancelPassed(true);
-                      setCancelPassRevenue(
-                        String(session.courtPrice ?? 200000),
-                      );
-                    }}
-                    canFinalize={canFinalize}
-                    isFinalizing={isFinalizing}
-                    onFinalize={() => {
-                      finalizing.addOptimistically(
-                        session.id,
-                        () => finalizeSessionAuto(session.id),
-                        { successMsg: t("confirmedSuccess") },
-                      );
-                    }}
-                    onReopenCompleted={() => setUnlockTarget(session.id)}
-                    onReopenCancelled={() => {
-                      // Optimistic: bỏ khỏi cancelledSessions set để hiện lại
-                      // như active (sau revalidate về voting thật).
-                      setCancelledSessions((prev) => {
-                        const n = new Set(prev);
-                        n.delete(session.id);
-                        return n;
-                      });
-                      fireAction(
-                        () => reopenSession(session.id),
-                        () =>
-                          setCancelledSessions((prev) =>
-                            new Set(prev).add(session.id),
-                          ),
-                      );
-                    }}
-                    membersCollapsible
-                    expanded={isExpanded}
-                    onToggleExpand={(e) => toggleExpand(e, session.id)}
-                    onExpandedChange={(next) =>
-                      setExpandedId(next ? session.id : null)
-                    }
-                  />
-                </div>
-              );
-            })}
-          </div>
-        )}
+                      }}
+                      paidDebtIds={paidDebtIds}
+                      onConfirmPayment={(debtId, memberName) => {
+                        const idempotencyKey = crypto.randomUUID();
+                        // Wrap action để toast lỗi gắn member name — admin click
+                        // nhiều row liên tiếp vẫn biết row nào fail.
+                        paidDebts.addOptimistically(debtId, async () => {
+                          const r = await confirmPaymentByAdmin(
+                            debtId,
+                            idempotencyKey,
+                          );
+                          if (r && "error" in r && r.error) {
+                            return { error: `${memberName}: ${r.error}` };
+                          }
+                          return r;
+                        });
+                      }}
+                      onCancel={() => {
+                        setCancelTarget(session.id);
+                        setCancelPassed(true);
+                        setCancelPassRevenue(
+                          String(session.courtPrice ?? 200000),
+                        );
+                      }}
+                      canFinalize={canFinalize}
+                      isFinalizing={isFinalizing}
+                      onFinalize={() => {
+                        finalizing.addOptimistically(
+                          session.id,
+                          () => finalizeSessionAuto(session.id),
+                          { successMsg: t("confirmedSuccess") },
+                        );
+                      }}
+                      onReopenCompleted={() => setUnlockTarget(session.id)}
+                      onReopenCancelled={() => {
+                        // Optimistic: bỏ khỏi cancelledSessions set để hiện lại
+                        // như active (sau revalidate về voting thật).
+                        setCancelledSessions((prev) => {
+                          const n = new Set(prev);
+                          n.delete(session.id);
+                          return n;
+                        });
+                        fireAction(
+                          () => reopenSession(session.id),
+                          () =>
+                            setCancelledSessions((prev) =>
+                              new Set(prev).add(session.id),
+                            ),
+                        );
+                      }}
+                      membersCollapsible
+                      expanded={isExpanded}
+                      onToggleExpand={(e) => toggleExpand(e, session.id)}
+                      onExpandedChange={(next) =>
+                        setExpandedId(next ? session.id : null)
+                      }
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         {totalPages > 1 && (
           <div className="mt-4 flex items-center justify-center gap-3">
             <Button
               variant="outline"
               size="icon"
-              disabled={currentPage <= 1}
-              onClick={() => setPage(Math.max(1, currentPage - 1))}
+              disabled={draftPage <= 1 || isFiltering}
+              onClick={() => {
+                const next = Math.max(1, draftPage - 1);
+                setDraftPage(next);
+                setPage(next);
+              }}
               className="h-11 w-11"
               aria-label={t("ariaPrevPage")}
             >
@@ -1148,7 +1219,7 @@ export function SessionList({
             </Button>
             <span className="text-muted-foreground min-w-[5rem] text-center text-sm tabular-nums">
               {t.rich("pageOf", {
-                current: currentPage,
+                current: draftPage,
                 total: totalPages,
                 b: (chunks) => (
                   <strong className="text-foreground">{chunks}</strong>
@@ -1158,8 +1229,12 @@ export function SessionList({
             <Button
               variant="outline"
               size="icon"
-              disabled={currentPage >= totalPages}
-              onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
+              disabled={draftPage >= totalPages || isFiltering}
+              onClick={() => {
+                const next = Math.min(totalPages, draftPage + 1);
+                setDraftPage(next);
+                setPage(next);
+              }}
               className="h-11 w-11"
               aria-label={t("ariaNextPage")}
             >

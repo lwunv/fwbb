@@ -41,6 +41,28 @@ export function formatK(amount: number): string {
 }
 
 /**
+ * Format một CHUỖI CHỮ SỐ thô thành kiểu Việt: "100000" → "100.000".
+ *
+ * Khác `formatK` ở chỗ nhận string chứ không nhận number, nên dùng được cho ô
+ * nhập liệu: state giữ nguyên chuỗi chữ số người dùng gõ (kể cả chuỗi rỗng khi
+ * họ xoá trắng), display thì có dấu chấm. Đi `Number()` qua lại mỗi lần gõ sẽ
+ * làm rỗng biến thành 0 và nuốt số 0 đứng đầu.
+ *
+ * Bỏ qua mọi ký tự không phải chữ số, nên paste "200.000đ" hay "200 000" đều ra
+ * "200.000".
+ */
+export function formatDigitsVi(raw: string): string {
+  const digits = raw.replace(/[^\d]/g, "");
+  if (!digits) return "";
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+/** Lấy phần chữ số của một chuỗi người dùng gõ/paste. "200.000đ" → "200000". */
+export function onlyDigits(raw: string): string {
+  return raw.replace(/[^\d]/g, "");
+}
+
+/**
  * Chuẩn hoá text tiếng Việt cho tìm kiếm: lowercase + bỏ dấu (NFD tách dấu
  * kết hợp rồi xoá) + đổi đ→d + gộp khoảng trắng. Cho phép gõ "phieu" khớp
  * "Phiêu", "DUONG" khớp "Dương". Dùng cho search phía client (member list…).
