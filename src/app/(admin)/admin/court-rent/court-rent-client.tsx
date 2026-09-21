@@ -25,6 +25,7 @@ import { InlineNotice } from "@/components/shared/inline-notice";
 import { formatK, cn } from "@/lib/utils";
 import { getMonthLabels } from "@/lib/i18n-labels";
 import { fireAction } from "@/lib/optimistic-action";
+import { useFireAction } from "@/lib/use-fire-action";
 import {
   getCourtRentReport,
   getCourtRentPayments,
@@ -153,6 +154,10 @@ export function CourtRentClient({
 
   const monthData = report.months.find((m) => m.month === selectedMonth);
 
+  // Ghi thanh toán thuê sân là thao tác TẠO BẢN GHI TIỀN, nên cú bấm thứ hai
+  // phải bị BỎ QUA chứ không xếp hàng — xếp hàng vẫn tạo hai bản ghi.
+  const { fire: fireRent, pending: submittingRent } = useFireAction();
+
   function handleSubmit() {
     const amount = parseInt(formAmount, 10) || 0;
     if (amount <= 0) {
@@ -198,15 +203,18 @@ export function CourtRentClient({
     setFormAmount("2400000");
     setFormNote("");
 
-    // Stable idempotencyKey per submit — DB UNIQUE chặn double-write nếu
-    // admin click 2 lần liên tiếp (form đã reset → trông như có thể submit lại)
-    // hoặc fireAction retry trên transient error.
+    // idempotencyKey sinh MỚI cho mỗi lần submit, nên nó CHỈ chặn được retry
+    // nội bộ của fireAction — KHÔNG chặn được admin bấm hai lần, vì hai cú bấm
+    // sinh hai key khác nhau và DB coi đó là hai thanh toán khác nhau. Comment
+    // cũ ở đây khẳng định ngược lại và sai: đã ghi hai payment thật nếu bấm
+    // đúp. Chốt chặn thật nằm ở `useFireAction` bên dưới (bỏ qua cú bấm sau
+    // khi cú trước còn đang bay) cộng với `disabled={submitting}` trên nút.
     const idempotencyKey =
       typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
         : `rent-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-    fireAction(
+    fireRent(
       () =>
         recordCourtRentPayment({
           year: submittedYear,
@@ -691,8 +699,17 @@ export function CourtRentClient({
               className="mt-1"
             />
           </div>
-          <Button type="button" onClick={handleSubmit} className="w-full">
-            <Plus className="mr-1 h-4 w-4" />
+          <Button
+            type="button"
+            onClick={handleSubmit}
+            disabled={submittingRent}
+            className="w-full"
+          >
+            {submittingRent ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="mr-1 h-4 w-4" />
+            )}
             {t("recordPayment")}
           </Button>
         </CardContent>
