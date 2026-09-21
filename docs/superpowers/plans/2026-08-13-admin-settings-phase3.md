@@ -740,15 +740,200 @@ git commit -m "feat(settings): add money policy section with live preview"
 
 ### Chặng 2: giới tính (task 6-9)
 
-Chi tiết hoá khi tới lượt, dựa trên code thật sau chặng 1. Phạm vi từng task:
+**Cái gì đã có sẵn, đừng làm lại.** `src/lib/cost-calculator.ts` đã gender-aware trọn vẹn và đang ngủ: `AttendeeInput.gender` có sẵn (dòng 63), `classifyHead` đã xếp ba nhóm nữ (dòng 564-575), `genderPricingEnabled` mặc định false nên tắt thì không ai đọc `gender` của ai. Chặng 2 KHÔNG sửa công thức. Nó chỉ làm ba việc: thêm cột vào DB, rót dữ liệu giới tính thật vào chỗ công thức đang đọc, và mở UI cho admin khai.
 
-**Task 6:** migration bốn cột — `members.gender`, `votes.guest_play_female_count`, `votes.guest_dine_female_count`, `sessions.admin_guest_play_female_count`, `sessions.admin_guest_dine_female_count`, `session_attendees.gender`. Toàn bộ ADD COLUMN thuần, kiểm file `.sql` bằng mắt trước khi commit, tuyệt đối không recreate table.
+**Sửa một chỗ sai trong bản nháp trước (7/9, phát hiện khi đọc code thật).** Bản nháp viết ô "trong đó nữ" nằm ở màn vote của member. SAI. Member KHÔNG còn thêm được khách từ 7/7/2026: `vote-buttons.tsx:103` gọi `submitVote(sessionId, play, dine, 0, 0, partner)` với hai số 0 cứng, và server CỐ TÌNH bỏ qua hai tham số đó (comment ở `votes.ts:81-83`: ép 0 ở server để member không set khách qua RPC dù client không còn UI). Ô "trong đó nữ" phải nằm đúng chỗ khách được nhập thật:
 
-**Task 7:** gán giới tính khi bung số đếm khách thành từng dòng attendee (`src/actions/finance.ts:541-630`), và zero cột đếm nữ cùng câu lệnh xoá counter ở `src/actions/votes.ts:201` để không còn khách nữ ma sau khi member rút phiếu. Ràng buộc "số khách nữ không vượt tổng khách" thêm vào zod `src/lib/validators.ts`.
+- khách CỦA MEMBER: `admin-vote-manager.tsx` (`handleGuestChange` dòng 495-509 gọi `adminSetGuestCount`)
+- khách CỦA ADMIN: control gọi `setAdminGuestCount` (`src/actions/sessions.ts:1430`)
 
-**Task 8:** admin khai giới tính member ở trang thành viên. Trang Cài đặt hiện cảnh báo còn bao nhiêu member chưa khai, kèm link sang đó.
+**Năm đường ghi số đếm khách, task 7 phải đi hết cả năm.** Bỏ sót một đường là để lại khách nữ ma, hoặc số nữ vượt tổng khách:
 
-**Task 9:** ô "trong đó nữ" ở màn vote, chỉ mọc khi công tắc bật, tối đa bằng tổng khách. Tắt thì màn vote không đổi một chữ.
+| Đường                                          | Vai trò                                                                                |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `votes.ts:114-134` (`submitVote`)              | member tự vote. Ghi cứng 0 cho khách, nên phải ghi cứng 0 cho cả hai cột nữ            |
+| `votes.ts:180-205` (`adminSetVote`)            | admin bật/tắt cờ chơi/nhậu. Đang zero khách khi cờ tắt, phải zero cột nữ cùng câu lệnh |
+| `votes.ts:253-295` (`adminSetGuestCount`)      | admin nhập khách của member. Đây là đường nhập thật                                    |
+| `sessions.ts:1430-1470` (`setAdminGuestCount`) | admin nhập khách của chính mình                                                        |
+| `votes.ts:299` (`adminRemoveVote`)             | xoá cả dòng vote nên không cần đụng, nhưng phải kiểm lại đúng là xoá dòng              |
+
+---
+
+### Task 6: Migration sáu cột cho giới tính
+
+**Files:**
+
+- Modify: `src/db/schema.ts`
+- Create: `src/db/migrations/0024_*.sql` và cập nhật `src/db/migrations/meta/_journal.json` (sinh bằng drizzle-kit, KHÔNG viết tay journal)
+
+- [ ] **Step 1: Khai cột trong schema**
+
+Sáu cột, toàn bộ nullable hoặc có default, để `ALTER TABLE ... ADD COLUMN` chạy được trên bảng đang có dữ liệu:
+
+- `members.gender`: `text("gender", { enum: ["male", "female"] })`, nullable. Null = chưa khai, và calculator coi chưa khai là không-nữ (doc comment dòng 61-63: thà tính đủ còn hơn ưu đãi nhầm).
+- `votes.guest_play_female_count`: integer, default 0
+- `votes.guest_dine_female_count`: integer, default 0
+- `sessions.admin_guest_play_female_count`: integer, default 0
+- `sessions.admin_guest_dine_female_count`: integer, default 0
+- `session_attendees.gender`: `text("gender", { enum: ["male", "female"] })`, nullable
+
+Ràng buộc "số nữ không vượt tổng khách" giữ ở tầng app (zod), KHÔNG thêm `check()` vào DB. Lý do đã ghi sẵn trong schema cho cột `headcount` (`schema.ts:310-313`): thêm CHECK làm drizzle-kit sinh migration recreate-table, mà recreate-table trên Turso prod đã từng âm thầm làm rớt index.
+
+- [ ] **Step 2: Sinh migration rồi ĐỌC file .sql bằng mắt**
+
+Sinh bằng `pnpm db:generate`. TUYỆT ĐỐI không chạy `db:push`, `db:seed`, `db:clone-local`: `.env.local` trỏ DB PROD.
+
+Mở file `.sql` vừa sinh, đọc từng dòng. Phải thấy đúng sáu câu `ALTER TABLE ... ADD ...` và không có bất kỳ câu nào trong nhóm: `CREATE TABLE __new_`, `DROP TABLE`, `INSERT INTO ... SELECT`, `PRAGMA`. Thấy một câu thuộc nhóm đó thì DỪNG, báo lại, không commit. Đối chiếu `0023_lean_storm.sql` để biết migration cộng cột thuần trông thế nào.
+
+- [ ] **Step 3: Test lược đồ**
+
+Chạy `pnpm test` để chắc mọi test tích hợp dựng DB từ schema vẫn xanh. Thêm một ca vào file integration sẵn có: ghi rồi đọc lại một member có `gender = "female"`, và một vote có `guestPlayFemaleCount = 2`. Ca này rẻ nhưng bắt được lỗi lệch tên cột giữa schema và migration.
+
+- [ ] **Step 4: Verify và commit**
+
+`npx tsc --noEmit`, `pnpm lint`, `pnpm test`, `pnpm build`. Đọc mã thoát thật từng lệnh.
+
+```bash
+git commit -m "feat(db): add gender columns for members, guest counters and attendees"
+```
+
+⚠️ **Thứ tự deploy, ghi vào đây để lúc deploy không phải nhớ lại:** migration áp lên Turso prod TRƯỚC khi deploy code. Schema Drizzle khai cột mới thì mọi query `sessions`/`votes`/`members` sẽ liệt kê cột đó, nên code mới trên DB cũ là lỗi ngay từ request đầu. Đúng thứ tự đã chạy hôm 5/8: `node scripts/backup-db.mjs`, `node scripts/apply-migration.mjs`, kiểm `sqlite_master`, rồi mới deploy.
+
+---
+
+### Task 7: Rót giới tính thật vào đường chốt sổ
+
+**Files:**
+
+- Modify: `src/actions/finance.ts` (`FinalizeAttendee` dòng 41-49, insert attendee dòng 346-355, bung khách dòng 640-685)
+- Modify: `src/actions/votes.ts` (bốn chỗ ở bảng đầu chặng)
+- Modify: `src/actions/sessions.ts` (`setAdminGuestCount`)
+- Modify: `src/lib/validators.ts`
+- Create: `src/actions/finalize-gender.integration.test.ts`
+
+- [ ] **Step 1: Ràng buộc số nữ trong zod**
+
+Thêm cột nữ vào `voteSchema` và `adminGuestCountSchema` (`validators.ts:43-44, 106-110`), rồi thêm `.refine` trên cả hai object: số nữ chơi không vượt tổng khách chơi, số nữ nhậu không vượt tổng khách nhậu. Đặt `.refine` ở tầng object chứ không phải từng field, vì đây là ràng buộc giữa hai field.
+
+Thông báo lỗi phải nói được số nào sai, đừng để lộ "invalid input" trần.
+
+- [ ] **Step 2: `FinalizeAttendee` mang giới tính**
+
+Thêm `gender?: "male" | "female"` vào `FinalizeAttendee` (finance.ts:41). Optional để mọi caller cũ và mọi test cũ biên dịch y nguyên.
+
+Ghi nó vào DB ở câu insert attendee (finance.ts:346): thêm `gender: a.gender ?? null`. Đây là mắt xích quyết định, vì `session_attendees.gender` chính là chỗ calculator đọc lại khi tính từ attendee rows. Thiếu dòng này thì mọi thứ khác vô nghĩa.
+
+- [ ] **Step 3: Bung số đếm khách thành dòng, có giới tính**
+
+Ở `finalizeSessionAuto` (finance.ts:640-685):
+
+- Dòng member: `gender: v.member?.gender ?? undefined`.
+- Khách của member: có `gp` khách chơi, trong đó `gpf` nữ. Bung `gpf` dòng đầu với `gender: "female"`, `gp - gpf` dòng còn lại `gender: "male"`. Làm y hệt cho khách nhậu.
+- Khách của admin: y hệt, đọc hai cột `admin_guest_*_female_count` của session.
+
+Kẹp `gpf` bằng `Math.min(gpf, gp)` ngay tại đây, đừng chỉ tin zod. Zod chặn đường ghi mới, nhưng dòng dữ liệu cũ hoặc một đường ghi bị bỏ sót vẫn có thể cho `gpf > gp`, và khi đó vòng lặp sinh ra nhiều khách hơn số khách thật, tức là chia tiền cho người không tồn tại. Đây là lỗi tiền, phải chặn ở chỗ dùng.
+
+Query `session.votes` trong `finalizeSessionAuto` (finance.ts:597-599) dùng `with: { member: true }` nên đã có `gender`, không cần sửa query. Kiểm lại bằng mắt trước khi code, đừng tin dòng này.
+
+- [ ] **Step 4: Zero cột nữ ở mọi đường ghi**
+
+Đi hết năm đường ở bảng đầu chặng 2. `submitVote` ghi cứng 0 cho hai cột nữ. `adminSetVote` zero cột nữ trong CÙNG câu `onConflictDoUpdate` đang zero cột khách (`votes.ts:201-202`), không thêm câu update thứ hai.
+
+- [ ] **Step 5: Test tích hợp qua DB thật**
+
+Tạo `src/actions/finalize-gender.integration.test.ts`. Năm ca:
+
+1. **Công tắc TẮT (mặc định): tiền y hệt trước khi có chặng 2.** Dựng buổi có member nữ và khách nữ, chốt sổ, khẳng định từng `totalAmount` khớp số tính tay theo cách chia cũ. Đây là ca chống hồi quy quan trọng nhất của cả chặng.
+2. Công tắc BẬT, nhóm nữ đặt mức cố định: member nữ trả đúng mức đó, phần thiếu chia lại cho nhóm chia đều.
+3. Khách nữ của member và khách nữ của admin vào đúng hai nhóm khác nhau (`guestMemberFemale` và `guestAdminFemale`), không lẫn.
+4. `members.gender` null thì tính như không-nữ: không lỗi, không suất ưu đãi.
+5. Sau mọi ca: `Σ fund_deduction` khớp `Σ debt.totalAmount` (I1), và không dòng nợ nào có cờ confirmed mà thiếu dòng ledger (I8).
+
+Thêm một ca cho đường zero: bật cờ chơi, đặt 3 khách trong đó 2 nữ, tắt cờ chơi, đọc lại dòng vote, cả `guest_play_count` lẫn `guest_play_female_count` phải về 0.
+
+- [ ] **Step 6: Verify và commit**
+
+Bốn cổng tĩnh, `pnpm test:e2e`, và skill `reconcile-check` (bắt buộc, task này đụng đường chốt sổ).
+
+```bash
+git commit -m "feat(finance): carry member and guest gender into session attendees"
+```
+
+---
+
+### Task 8: Admin khai giới tính cho member
+
+**Files:**
+
+- Modify: trang thành viên `src/app/(admin)/admin/members/member-list.tsx` và action tạo/sửa member trong `src/actions/members.ts`
+- Modify: `src/app/(admin)/admin/settings/section-money.tsx` (cảnh báo còn ai chưa khai)
+- Modify: `src/i18n/messages/{vi,en,zh}.json`
+
+- [ ] **Step 1: Ô chọn giới tính ở form member**
+
+Ba trạng thái: chưa khai (mặc định, giữ null), nam, nữ. KHÔNG ép admin chọn. Bắt buộc chọn sẽ chặn admin sửa việc khác trên member cũ chỉ vì thiếu một field họ chưa cần.
+
+Server action validate qua zod enum, cho phép null. Optimistic và rollback theo `fireAction` như mọi control khác trên trang này.
+
+- [ ] **Step 2: Cảnh báo trên trang Cài đặt**
+
+Trong section chia tiền, và chỉ khi `genderPricingEnabled` bật: hiện dòng "còn N thành viên chưa khai giới tính, họ đang được tính như nam", kèm link sang trang thành viên. Tắt công tắc thì không hiện gì.
+
+Đếm ở server (trang Cài đặt là Server Component), truyền xuống một con số. Không truyền danh sách tên: đó là dữ liệu cá nhân không cần thiết để hiển thị một con số.
+
+- [ ] **Step 3: Test, verify, commit**
+
+Test component cho ô chọn (ba trạng thái, rollback khi action lỗi) và cho cảnh báo (tắt công tắc thì không render; bật mà N=0 thì không render; bật và N>0 thì render đúng số). Bốn cổng tĩnh.
+
+```bash
+git commit -m "feat(members): let admin declare member gender"
+```
+
+---
+
+### Task 9: Ô "trong đó nữ" cho khách, và mở ba nhóm nữ trên trang Cài đặt
+
+**Files:**
+
+- Modify: `src/components/sessions/admin-vote-manager.tsx`
+- Modify: control khách-của-admin (chỗ gọi `setAdminGuestCount`)
+- Modify: `src/lib/cost-calculator.ts` (`classifyGuestPlayHeads`, dòng 448-470)
+- Modify: `src/app/(admin)/admin/settings/section-money.tsx` (`VISIBLE_GROUPS`)
+- Modify: `src/i18n/messages/{vi,en,zh}.json`
+
+- [ ] **Step 1: Ô nhập số khách nữ**
+
+Mọc ngay dưới ô đếm khách đang có, chỉ khi `genderPricingEnabled` bật. Tắt thì màn quản lý vote không đổi một chữ, và phải có test khẳng định điều đó.
+
+Chặn trên là tổng khách của chính ô đó. Giảm tổng khách xuống dưới số nữ thì kẹp số nữ xuống theo, ngay trên client. Đừng để server trả lỗi cho một thao tác mà admin không hiểu vì sao sai.
+
+Vùng chạm tối thiểu 44px. Giữ optimistic và rollback đang có.
+
+- [ ] **Step 2: Đường xem trước phải tách được khách nữ**
+
+`classifyGuestPlayHeads` hiện trả hai số (`guestMemberPlayHeads`, `adminGuestPlayHeads`). Mở rộng thành bốn, tách phần nữ ra. Đây chính là hàm Task 14 vừa tạo để màn xem trước khớp lúc chốt sổ; không mở rộng nó thì xem trước hiện một số, chốt sổ ra số khác, đúng cái bệnh Task 14 vừa chữa.
+
+Test hàm thuần trước, rồi mới nối vào UI.
+
+- [ ] **Step 3: Mở ba nhóm nữ trên trang Cài đặt**
+
+Task 5 để ba nhóm nữ ngoài `VISIBLE_GROUPS` (`section-money.tsx:26`) trong khi giá trị vẫn round-trip nguyên vẹn. Giờ cho chúng vào danh sách, nhưng chỉ render khi `genderPricingEnabled` bật.
+
+Kiểm lại hai thứ sau khi sửa: chỗ ghi vẫn gửi trọn sáu nhóm (ràng buộc chặn của Task 5), và cách xếp hàng ghi mà Task 5 vừa thêm vẫn còn nguyên.
+
+- [ ] **Step 4: Mở rộng e2e**
+
+Thêm vào `e2e/admin-money-policy.spec.ts` một luồng: bật công tắc, đặt nhóm nữ mức cố định, khai một member là nữ, nhập một khách nữ, chốt sổ, khẳng định số tiền từng người bằng số tính tay. Đây là ca đầu cuối duy nhất chứng minh cả chặng 2 chạy thật.
+
+Giữ ca cũ (công tắc tắt) trong cùng file. Hai ca cạnh nhau mới chứng minh bật tắt đúng cả hai chiều.
+
+- [ ] **Step 5: Verify và commit**
+
+Bốn cổng tĩnh, `pnpm test:e2e` chạy MỘT MÌNH, và skill `reconcile-check`.
+
+```bash
+git commit -m "feat(sessions): add female guest count and reveal female money groups"
+```
 
 ### Chặng 3: đóng băng cấu hình (task 10-11)
 
@@ -891,7 +1076,82 @@ git add src/lib/session-money-settings.ts src/lib/session-money-settings.test.ts
 git commit -m "feat(finance): freeze money settings into session snapshot on finalize"
 ```
 
-**Task 11:** nút xoá snapshot cho admin chủ động áp cấu hình mới lên buổi cũ, có bước xác nhận vì nó làm đổi tiền lịch sử.
+### Task 11: Bỏ đóng băng cấu hình cho một buổi cũ
+
+Task 10 đóng băng cấu hình để chốt lại một buổi cũ không âm thầm tính lại tiền đã settled. Task 11 là cái van xả có chủ ý: admin muốn buổi cũ đó tính theo cấu hình hiện tại thì phải tự tay chọn, và phải biết mình đang làm đổi tiền lịch sử.
+
+**Quyết định thiết kế, đọc trước khi code.** Xoá snapshot MỘT MÌNH không đổi một đồng nào. Buổi `completed` chỉ tính lại tiền khi được chốt lại, mà `finalizeSessionAuto` từ chối buổi `completed` (`src/actions/finance.ts:603`), nên đường duy nhất là mở lại buổi rồi chốt lại. Vì vậy KHÔNG làm một nút "xoá snapshot" đứng riêng: nó để lại trạng thái lơ lửng mà admin không thấy hiệu lực, rồi quên. Gộp nó thành một ô tích trong hộp xác nhận mở lại buổi đang có sẵn (`session-list.tsx:1224-1248`), mặc định TẮT. Admin tích thì mở khoá và bỏ đóng băng cùng lúc, lần chốt kế tiếp tính theo cấu hình hiện tại.
+
+**Files:**
+
+- Modify: `src/actions/sessions.ts` (`unlockSession`, dòng 704)
+- Modify: `src/app/(admin)/admin/sessions/page.tsx` (thêm 1 field vào map `sessionCards`, dòng 230-323)
+- Modify: `src/app/(admin)/admin/sessions/session-list.tsx` (`SessionCard` dòng 97-131, hộp xác nhận dòng 1224-1248)
+- Modify: `src/i18n/messages/{vi,en,zh}.json`
+- Create: `src/actions/unlock-clear-snapshot.integration.test.ts`
+
+- [ ] **Step 1: Thêm tham số opt-in vào `unlockSession`**
+
+Đổi chữ ký thành `unlockSession(sessionId: number, clearSettingsSnapshot = false)`. Mặc định `false` là điều kiện bắt buộc, không phải cho gọn: `unlockSession` là action đang chạy production, có sẵn test tích hợp ở `src/actions/sessions-reopen-unlock.integration.test.ts`. Mặc định false thì mọi caller cũ và mọi test cũ hành xử y hệt, thay đổi này là thuần cộng thêm.
+
+Trong transaction đã có, khi và chỉ khi `clearSettingsSnapshot` là true thì thêm `settingsSnapshot: null` vào câu `tx.update(sessions)` đang đổi status. Ghi CÙNG câu lệnh đó, không thêm câu update thứ hai: hai câu là hai cơ hội để một câu thành công còn câu kia rollback, để lại buổi mở khoá mà vẫn đóng băng (hoặc ngược lại).
+
+Không thêm nhánh nào khác. Cụ thể là KHÔNG tự động chốt lại buổi sau khi mở khoá.
+
+- [ ] **Step 2: Đưa cờ "buổi này đang đóng băng" ra client**
+
+`SessionCard` (`session-list.tsx:97`) là shape đã whitelist tay, nên phải thêm field mới vào cả interface lẫn map ở `page.tsx`.
+
+Thêm `hasSettingsSnapshot: boolean`, tính bằng `s.settingsSnapshot !== null`. Truyền BOOLEAN, tuyệt đối không truyền chuỗi JSON thô: gửi cả cấu hình đã đóng băng của mười buổi vào payload RSC là phình vô ích, và trái nguyên tắc chỉ whitelist cột cho payload ra client ([[feedback-redact-public-payload]]).
+
+Query ở `page.tsx:159` không có `columns:` nên đã lấy sẵn mọi cột, không cần sửa query.
+
+- [ ] **Step 3: Ô tích trong hộp xác nhận mở lại buổi**
+
+`ConfirmDialog` nhận `children` render giữa phần mô tả và hàng nút (xem doc comment ở `src/components/shared/confirm-dialog.tsx`), dùng đúng chỗ đó.
+
+Hành vi:
+
+- Ô tích CHỈ mọc khi buổi đang mở hộp xác nhận có `hasSettingsSnapshot === true`. Buổi chưa từng chốt thì không có gì để bỏ đóng băng, hiện ô tích ở đó chỉ làm admin hoang mang.
+- Mặc định KHÔNG tích. Đây là hành vi mặc định an toàn: mở khoá để sửa nhầm một dòng attendee thì không nên kéo theo tính lại toàn bộ tiền theo cấu hình mới.
+- Reset về không tích mỗi lần hộp xác nhận đóng, kể cả khi admin bấm huỷ. Trạng thái tích còn sót lại từ lần trước là bẫy: lần sau admin mở buổi khác và bấm xác nhận là tiền đổi mà họ không hề tích.
+- Nhãn nói rõ hậu quả, không nói kỹ thuật. Không dùng chữ "snapshot" trong text người dùng đọc.
+- Vùng chạm tối thiểu 44px (rubric mobile-first), ô tích và nhãn cùng bấm được.
+
+Giữ nguyên optimistic + rollback đang có ở `onConfirm`: chỉ truyền thêm tham số thứ hai vào `unlockSession(id, clear)`.
+
+Khoá i18n mới, thêm cả ba file `vi`/`en`/`zh`:
+
+- tiêu đề/nhãn ô tích: đại ý "Tính lại tiền theo cài đặt hiện tại"
+- dòng giải thích: đại ý "Buổi này đang giữ cài đặt chia tiền lúc chốt lần đầu. Tích vào đây thì lần chốt tới sẽ tính lại theo cài đặt hiện tại, số tiền của từng người có thể đổi."
+
+- [ ] **Step 4: Test tích hợp qua DB thật**
+
+Tạo `src/actions/unlock-clear-snapshot.integration.test.ts`, chép cách dựng DB thử từ `sessions-reopen-unlock.integration.test.ts`.
+
+Bốn ca:
+
+1. `unlockSession(id)` không truyền cờ: `settings_snapshot` GIỮ NGUYÊN. Đây là ca chống hồi quy cho hành vi production hiện tại, quan trọng nhất trong bốn ca.
+2. `unlockSession(id, true)`: `settings_snapshot` về null, và status vẫn đổi đúng như ca 1.
+3. Chốt lại sau khi đã bỏ đóng băng thì tiền tính theo cấu hình HIỆN TẠI. Cụ thể: chốt với sàn khách 60K, ghi lại `totalAmount` từng người, đổi `groupPolicies.guestAdmin.amount` lên 90K, mở khoá CÓ tích, chốt lại, khẳng định số tiền đã đổi theo 90K. Ca này là cặp đối chiếu của ca 2 trong Task 10 (ở đó số tiền phải KHÔNG đổi); hai ca đứng cạnh nhau mới chứng minh cái van xả hoạt động đúng chiều.
+4. Sau ca 3, `Σ fund_deduction` vẫn khớp `Σ debt.totalAmount` (I1), và không dòng nợ nào mang cờ confirmed mà thiếu dòng ledger (I8).
+
+- [ ] **Step 5: Verify**
+
+- `npx vitest run` trên file test mới cộng `sessions-reopen-unlock.integration.test.ts` và `finalize-snapshot.integration.test.ts`
+- `npx tsc --noEmit`, `pnpm lint`, `pnpm test`, `pnpm build`
+- `pnpm test:e2e`
+- Chạy skill `reconcile-check`, bắt buộc vì task này đụng đường mở khoá tài chính.
+
+Đọc mã thoát THẬT của từng lệnh. `grep -c` không khớp gì thì thoát 1, trông như đỏ nhưng không phải.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git commit -m "feat(sessions): let admin drop frozen money settings when unlocking a session"
+```
+
+**Ngoài phạm vi task này:** nút bỏ đóng băng đứng riêng (không kèm mở khoá), sửa cấu hình riêng cho từng buổi (`settings_override` hiện chưa có UI nào ghi vào), và tính lại hàng loạt nhiều buổi một lượt.
 
 ### Task 12: Kiểm thử đầu cuối cho cả giai đoạn
 
