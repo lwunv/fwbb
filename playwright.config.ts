@@ -11,6 +11,11 @@ const PORT = 3101;
 export default defineConfig({
   testDir: "./e2e",
   testMatch: "**/*.spec.ts",
+  // Loại file kiểm PROD ra khỏi bộ local. Chúng chạy bằng
+  // `playwright.prod.config.ts` và trỏ vào site đã deploy; để lọt vào đây thì
+  // chúng chạy nhầm vào localhost, và bài admin sẽ đỏ vì thiếu phiên đăng nhập
+  // do project `setup` riêng của cấu hình prod tạo ra.
+  testIgnore: ["**/prod-readonly.spec.ts", "**/prod-auth.setup.ts"],
   // Shared DB + a single server → run serially for determinism.
   fullyParallel: false,
   workers: 1,
