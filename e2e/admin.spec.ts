@@ -37,7 +37,15 @@ test.describe("fund + inventory flows (read-only)", () => {
   }) => {
     await page.goto("/admin/fund");
     // Roster = members active+approved → có dòng "N thành viên".
-    await expect(page.getByText(/\d+ thành viên/)).toBeVisible();
+    //
+    // `.first()`: trong lúc React tráo cây (re-render sau khi dữ liệu về),
+    // dòng này tồn tại HAI bản trong DOM một khoảnh khắc, và locator chặt
+    // assert trúng lúc đó sẽ chết vì "resolved to 2 elements". Bài này chạy
+    // RIÊNG thì xanh 3/3, chỉ đỏ khi chạy cả bộ (máy bận hơn, dễ rơi trúng
+    // khoảnh khắc tráo) — và ảnh chụp DOM lúc lỗi chỉ thấy MỘT bản, đúng chữ
+    // ký của bản thừa tạm thời. Cùng họ với ca đã xử ở
+    // `admin-guest-classification.spec.ts`.
+    await expect(page.getByText(/\d+ thành viên/).first()).toBeVisible();
     // Có ít nhất 1 card member trong roster.
     await expect(
       page.getByText(/Quỹ đã hết|Còn nợ|Vẫn còn quỹ/).first(),
