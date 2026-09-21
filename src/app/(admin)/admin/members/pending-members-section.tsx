@@ -120,9 +120,16 @@ export function PendingMembersSection({
     });
     if (!ok) return;
     setBusyId(pendingId);
+    // Bỏ dòng khỏi danh sách NGAY, không đợi server: gộp xong mà hàng vẫn nằm
+    // đó cả giây thì admin tưởng bấm hụt và bấm lại. Hỏng thì trả lại đúng chỗ.
+    const before = list;
+    setList((cur) => cur.filter((m) => m.id !== pendingId));
     fireAction(
       () => approveAndMergeMember(pendingId, targetId),
-      () => setBusyId(null),
+      () => {
+        setBusyId(null);
+        setList(before);
+      },
       {
         successMsg: t("toastMerged", { name: targetName }),
         onSuccess: () => {

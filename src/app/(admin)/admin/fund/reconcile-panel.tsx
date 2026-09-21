@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import { useTranslations, useLocale } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,8 +24,17 @@ export function ReconcilePanel() {
 
   function run() {
     start(async () => {
-      const r = await reconcileFund();
-      setReport(r);
+      try {
+        const r = await reconcileFund();
+        setReport(r);
+      } catch (err) {
+        // Trước đây action ném là màn đứng im: nút hết quay, không báo cáo,
+        // không lỗi. Admin không biết đối soát đã chạy hay chưa — mà đây là
+        // thứ họ mở ra chính vì đang nghi sổ có vấn đề.
+        toast.error(
+          err instanceof Error ? err.message : "Không chạy được đối soát",
+        );
+      }
     });
   }
 
