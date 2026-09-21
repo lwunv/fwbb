@@ -257,7 +257,17 @@ export function MeClient({
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="overflow-hidden"
+                // `overflow-hidden` là bắt buộc cho animation chiều cao, nhưng
+                // nó cắt luôn vòng sáng focus của input (`focus-visible:ring-3`
+                // vẽ 3px RA NGOÀI khung). Trên dưới không thấy vì form có
+                // padding dọc; trái phải sát mép nên bị lẹm (user báo 21/9).
+                //
+                // `-mx-1 px-1` đẩy mép cắt ra ngoài 4px mỗi bên rồi thụt nội
+                // dung vào đúng 4px: vị trí nhìn thấy của input KHÔNG đổi, mà
+                // vòng 3px có chỗ để hiện. Không dùng được `overflow-x-visible`
+                // vì CSS quy định một trục hidden thì trục kia tính là auto,
+                // sinh thanh cuộn.
+                className="-mx-1 overflow-hidden px-1"
               >
                 <form onSubmit={handleProfileSubmit} className="space-y-3 pt-1">
                   <div className="space-y-1.5">
