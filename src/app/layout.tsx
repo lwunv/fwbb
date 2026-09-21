@@ -35,6 +35,16 @@ export async function generateMetadata(): Promise<Metadata> {
     description: t("description"),
     other: {
       google: "notranslate",
+      // Nhãn dưới icon khi thêm ra màn hình chính iPhone. Không đặt thì iOS lấy
+      // <title> đầy đủ rồi cắt cụt thành "FWBB-Friendswi...".
+      //
+      // Cố tình KHÔNG dùng `appleWebApp` của Next metadata dù nó có sẵn field
+      // `title`: nó phát ra kèm `mobile-web-app-capable`, tức bật chế độ
+      // standalone (mở app không có thanh Safari). App này đăng nhập bằng
+      // Facebook/Google, mà standalone trên iOS hay làm đứt phiên OAuth vì
+      // trình duyệt bật ra là một ngữ cảnh khác. Đổi hành vi đó chỉ để sửa một
+      // cái nhãn là không đáng.
+      "apple-mobile-web-app-title": "FWBB",
     },
   };
 }
