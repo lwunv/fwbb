@@ -87,6 +87,19 @@ export const members = sqliteTable(
      *  này tồn tại). */
     approvedBy: integer("approved_by"),
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    /**
+     * Giới tính, CHỈ dùng để xếp nhóm chia tiền khi admin bật công tắc
+     * `genderPricingEnabled` (giai đoạn 3, chặng 2). Tắt công tắc thì không ai
+     * đọc cột này.
+     *
+     * NULL = chưa khai, và cost-calculator coi chưa khai là không-nữ (trả suất
+     * đầy đủ). Cố ý chọn hướng đó: thà tính đủ rồi admin sửa, còn hơn tự động
+     * cho ai đó suất ưu đãi vì thiếu dữ liệu. Ràng buộc enum giữ ở tầng app
+     * (zod + drizzle enum), KHÔNG thêm CHECK ở DB vì CHECK làm drizzle-kit sinh
+     * migration recreate-table, mà recreate-table trên Turso từng âm thầm làm
+     * rớt index.
+     */
+    gender: text("gender", { enum: ["male", "female"] }),
     /** "Đi 2 người": acc này mặc định mỗi buổi đi 1 hay 2 người (vợ/chồng/bạn
      *  đi cùng). Snapshot vào votes.with_partner lúc vote; đổi đây KHÔNG hồi tố. */
     defaultWithPartner: integer("default_with_partner", { mode: "boolean" })
@@ -224,6 +237,17 @@ export const sessions = sqliteTable(
     diningBill: integer("dining_bill"),
     adminGuestPlayCount: integer("admin_guest_play_count").default(0),
     adminGuestDineCount: integer("admin_guest_dine_count").default(0),
+    /** Trong số khách-của-admin ở trên, bao nhiêu là nữ. Chỉ có nghĩa khi
+     *  `genderPricingEnabled` bật. Bất biến "nữ <= tổng" giữ ở zod, và
+     *  finalize còn kẹp lại bằng Math.min một lần nữa trước khi bung thành
+     *  từng dòng attendee — dữ liệu cũ hoặc một đường ghi bị bỏ sót vẫn có thể
+     *  lệch, mà lệch ở đây là chia tiền cho người không tồn tại. */
+    adminGuestPlayFemaleCount: integer("admin_guest_play_female_count").default(
+      0,
+    ),
+    adminGuestDineFemaleCount: integer("admin_guest_dine_female_count").default(
+      0,
+    ),
     /** Số tiền pass sân (nếu admin hủy buổi và pass cho team khác).
      * Khi cancelled + passRevenue > 0 → admin đã thu được tiền và nộp vào quỹ. */
     passRevenue: integer("pass_revenue"),
@@ -280,6 +304,12 @@ export const votes = sqliteTable(
     willDine: integer("will_dine", { mode: "boolean" }).default(false),
     guestPlayCount: integer("guest_play_count").default(0),
     guestDineCount: integer("guest_dine_count").default(0),
+    /** Trong số khách của member ở trên, bao nhiêu là nữ. Xem ghi chú ở
+     *  `sessions.admin_guest_play_female_count`. Phải được zero CÙNG câu lệnh
+     *  zero cột khách tương ứng (votes.ts), nếu không sẽ còn khách nữ ma sau
+     *  khi member tắt cờ chơi/nhậu. */
+    guestPlayFemaleCount: integer("guest_play_female_count").default(0),
+    guestDineFemaleCount: integer("guest_dine_female_count").default(0),
     /** Snapshot "đi 2 người" của phiếu này. true → member + người đi cùng = 2
      *  đầu (cả chơi lẫn nhậu, theo những mục member tham gia). Default theo
      *  members.default_with_partner lúc UI mở; ghi giá trị thật khi submit. */
@@ -312,6 +342,11 @@ export const sessionAttendees = sqliteTable("session_attendees", {
    *  (zod) — KHÔNG thêm CHECK ở DB để migration là ADD COLUMN thuần (tránh
    *  recreate-table làm rớt index trên Turso; cùng cách courtPrice giữ invariant ở app). */
   headcount: integer("headcount").notNull().default(1),
+  /** Giới tính CHỐT tại lúc chốt sổ. Đây là chỗ cost-calculator đọc lại khi
+   *  tính từ attendee rows, nên nó phải được ghi lúc finalize chứ không suy
+   *  ngược từ `members.gender` về sau: member đổi khai báo giới tính không
+   *  được phép làm đổi tiền của một buổi đã chốt. NULL = không khai. */
+  gender: text("gender", { enum: ["male", "female"] }),
   attendsPlay: integer("attends_play", { mode: "boolean" }).default(false),
   attendsDine: integer("attends_dine", { mode: "boolean" }).default(false),
 });

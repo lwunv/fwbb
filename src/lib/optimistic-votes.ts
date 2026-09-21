@@ -66,6 +66,10 @@ export function applyMemberVotePatch(
       willDine: patch.willDine,
       guestPlayCount: patch.guestPlayCount,
       guestDineCount: patch.guestDineCount,
+      // Phần khách nữ luôn 0 ở dòng vote dựng lạc quan phía client: chỉ admin
+      // nhập được số này, và màn vote của member không có ô nào cho nó.
+      guestPlayFemaleCount: 0,
+      guestDineFemaleCount: 0,
       withPartner: patch.withPartner ?? false,
       createdAt: now,
       updatedAt: now,

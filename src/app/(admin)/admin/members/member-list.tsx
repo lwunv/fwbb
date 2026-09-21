@@ -545,6 +545,9 @@ export function MemberList({
       approvedAt: null,
       approvedBy: null,
       isActive: true,
+      // Chưa khai giới tính. Form tạo nhanh không hỏi, admin khai sau ở form
+      // sửa; chưa khai thì chia tiền tính như không-nữ.
+      gender: null,
       defaultWithPartner: withPartner,
       createdAt: new Date().toISOString(),
     };

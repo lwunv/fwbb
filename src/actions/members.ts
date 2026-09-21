@@ -102,6 +102,10 @@ export async function getActiveMembers() {
     approvalStatus: "approved" as const,
     approvedAt: null,
     approvedBy: null,
+    // Giới tính KHÔNG được nạp từ DB ở đây và luôn trả null. Đây là payload đi
+    // ra trang công khai (trang chủ, màn vote), mà giới tính là thông tin cá
+    // nhân và không màn công khai nào cần. Chỉ màn admin đọc cột thật.
+    gender: null,
   }));
 }
 
