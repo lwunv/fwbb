@@ -6,6 +6,7 @@ import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { Providers } from "@/components/providers";
 import { PinkThemeEffects } from "@/components/shared/pink-theme-effects";
+import { Toaster } from "@/components/ui/sonner";
 import { getSettings } from "@/actions/settings";
 import "./globals.css";
 
@@ -65,6 +66,13 @@ export default async function RootLayout({
               disableTransitionOnChange
             >
               <Providers settings={settings}>{children}</Providers>
+              {/* Chỗ render cho mọi `toast.*` trong app. Thiếu nó thì sonner
+                  vẫn chạy không lỗi nhưng không vẽ gì, nên mọi thất bại đều
+                  im lặng — admin bấm xóa thành viên chỉ thấy hàng biến mất
+                  rồi hiện lại, không biết vì sao. Đặt TRONG ThemeProvider vì
+                  Toaster đọc useTheme, và ngoài Providers để mọi route
+                  (admin/public/auth) đều có. */}
+              <Toaster position="top-center" richColors closeButton />
               <PinkThemeEffects />
             </ThemeProvider>
           </NuqsAdapter>
