@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { formatK } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { NumberStepper } from "@/components/ui/number-stepper";
+import { useEffect, useRef } from "react";
 import { PaymentQR } from "@/components/payment/payment-qr";
 
 /** Bước ±50K cho ô nhập tiền nạp quỹ. */
@@ -44,6 +45,23 @@ export function FundTopUpCard({ memberId, debtAmount, bare = false }: Props) {
   const [amount, setAmount] = useState<number>(
     defaultToDebt ? debtAmount : DEFAULT_CONTRIBUTE_AMOUNT,
   );
+
+  // `amount` khởi tạo MỘT LẦN từ `debtAmount`. Sau khi member trả bớt nợ và
+  // trang revalidate, prop đổi nhưng số trong ô (và trong mã QR) vẫn là số nợ
+  // CŨ — member quét rồi chuyển sai số tiền. Đây là tiền thật nên phải đồng bộ.
+  //
+  // Nhưng KHÔNG đồng bộ mù: member có thể đã tự gõ một số khác, ghi đè là nuốt
+  // mất thứ họ vừa nhập. Chỉ cập nhật khi số đang hiển thị vẫn đúng bằng số nợ
+  // CŨ, tức là nó còn là giá trị tự điền chưa ai đụng vào.
+  const prevDebt = useRef(debtAmount);
+  useEffect(() => {
+    const old = prevDebt.current;
+    prevDebt.current = debtAmount;
+    if (old === debtAmount) return;
+    setAmount((current) =>
+      mode === "payDebt" && current === old ? debtAmount : current,
+    );
+  }, [debtAmount, mode]);
 
   function pickMode(next: "contribute" | "payDebt") {
     setMode(next);
