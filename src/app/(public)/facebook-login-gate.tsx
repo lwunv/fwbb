@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2 } from "lucide-react";
 import {
   initFacebookSDK,
@@ -167,8 +168,20 @@ export function FacebookLoginGate({ appName = "FWBB" }: { appName?: string }) {
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center py-4">
-            <Loader2 className="text-primary h-6 w-6 animate-spin" />
+          // Skeleton khớp đúng hình dạng phần sẽ hiện ra (form email/mật khẩu +
+          // nút đăng nhập, rồi dải "hoặc", rồi nút OAuth), thay cho spinner nhỏ
+          // trong `py-4`. Đây là màn ĐẦU TIÊN người dùng thấy khi mở app trong
+          // Zalo/Messenger; spinner cao ~56px rồi bung ra một khối cao gấp mấy
+          // lần là cú nhảy layout ngay ấn tượng đầu.
+          <div className="space-y-3" aria-busy="true">
+            <Skeleton className="h-11 w-full rounded-xl" />
+            <Skeleton className="h-11 w-full rounded-xl" />
+            <Skeleton className="h-11 w-full rounded-xl" />
+            <div className="relative py-2">
+              <div className="absolute inset-x-0 top-1/2 border-t" />
+              <Skeleton className="bg-card relative mx-auto h-4 w-16" />
+            </div>
+            <Skeleton className="h-12 w-full rounded-xl" />
           </div>
         ) : (
           <div className="space-y-3">

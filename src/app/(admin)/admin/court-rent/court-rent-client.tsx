@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
@@ -722,9 +723,24 @@ export function CourtRentClient({
             {t("listTitle", { month: selectedMonth, year })}
           </h3>
           {paymentsLoading || loading ? (
-            <div className="flex justify-center py-6">
-              <Loader2 className="text-muted-foreground h-5 w-5 animate-spin" />
-            </div>
+            // Skeleton khớp đúng dòng thanh toán thật (khối `p-3` viền bo, hai
+            // dòng chữ bên trái + nút xoá bên phải) thay cho spinner trong
+            // `py-6`. Spinner cao ~68px rồi bung thành n dòng ~76px là nhảy
+            // layout mỗi lần đổi tháng.
+            <ul className="space-y-2" aria-busy="true">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <li
+                  key={i}
+                  className="bg-muted/30 flex items-center justify-between gap-2 rounded-lg border p-3"
+                >
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-3 w-40" />
+                  </div>
+                  <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
+                </li>
+              ))}
+            </ul>
           ) : payments.length === 0 ? (
             <p className="text-muted-foreground py-4 text-center text-sm">
               {t("listEmpty")}
