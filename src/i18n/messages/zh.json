@@ -199,7 +199,9 @@
     "passRevenueLabel": "收到的金额 (VND)",
     "passRevenueHint": "默认为本场场地租金。如有不同可调整。",
     "createFailed": "创建场次失败",
-    "playCountTitle": "投票打球人数"
+    "playCountTitle": "投票打球人数",
+    "recalcWithCurrent": "按当前设置重新计算",
+    "recalcWithCurrentHint": "本场次仍沿用首次结算时的分摊设置。勾选后，下次结算将改用当前设置，每人金额可能变化。"
   },
   "voting": {
     "play": "羽毛球",

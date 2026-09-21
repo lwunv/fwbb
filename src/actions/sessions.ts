@@ -701,7 +701,10 @@ export async function reopenSession(sessionId: number) {
  * Idempotent: chạy lại an toàn nhờ check `reversalOfId IS NULL` trước khi
  * insert reversal mới.
  */
-export async function unlockSession(sessionId: number) {
+export async function unlockSession(
+  sessionId: number,
+  clearSettingsSnapshot = false,
+) {
   const auth = await requireAdmin();
   if (auth && "error" in auth) return auth;
   const t = await getTranslations("serverErrors");
@@ -834,6 +837,13 @@ export async function unlockSession(sessionId: number) {
           // Completed-session unlock: old deadline is past. Clear so admin
           // can re-collect votes without time pressure.
           voteDeadline: null,
+          // Bỏ đóng băng cấu hình tiền, CHỈ khi admin tích chọn. Mặc định
+          // false nên mọi caller và test cũ hành xử y hệt.
+          //
+          // Ghi CÙNG câu update đổi status, không tách câu thứ hai: hai câu là
+          // hai cơ hội để một câu thành công còn câu kia rollback, để lại buổi
+          // đã mở khoá mà vẫn đóng băng (hoặc ngược lại).
+          ...(clearSettingsSnapshot ? { settingsSnapshot: null } : {}),
           updatedAt: new Date().toISOString(),
         })
         .where(eq(sessions.id, sessionId));

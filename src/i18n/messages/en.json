@@ -199,7 +199,9 @@
     "passRevenueLabel": "Amount received (VND)",
     "passRevenueHint": "Defaults to the session's court rent. Adjust if different.",
     "createFailed": "Failed to create session",
-    "playCountTitle": "Members voting to play"
+    "playCountTitle": "Members voting to play",
+    "recalcWithCurrent": "Recalculate with current settings",
+    "recalcWithCurrentHint": "This session still uses the cost settings from when it was first finalized. Tick this and the next finalize will use today's settings, which may change what each person owes."
   },
   "voting": {
     "play": "Badminton",

@@ -320,6 +320,10 @@ export default async function SessionsPage({
       debtMap,
       voteDeadline: s.voteDeadline ?? null,
       maxPlayers: s.maxPlayers ?? 16,
+      // CHỈ truyền boolean, không truyền chuỗi JSON cấu hình đã đóng băng:
+      // gửi cả cấu hình của mười buổi vào payload là phình vô ích, và trái
+      // nguyên tắc chỉ whitelist thứ client thật sự cần.
+      hasSettingsSnapshot: s.settingsSnapshot !== null,
       // attendees gắn member + invitedBy để client render expanded list cho
       // completed sessions. Map về shape gọn để không nhồi cả member object.
       attendees: s.attendees.map((a) => ({

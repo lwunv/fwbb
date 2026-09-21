@@ -128,6 +128,9 @@ interface SessionCard {
   attendees: AttendeeInfo[];
   voteDeadline: string | null;
   maxPlayers: number;
+  /** Buổi này có đang giữ cấu hình tiền đóng băng từ lần chốt đầu không.
+   *  Quyết định việc hiện ô tích "tính lại theo cài đặt hiện tại". */
+  hasSettingsSnapshot?: boolean;
 }
 
 type SessionStatus = "voting" | "confirmed" | "completed" | "cancelled";
@@ -274,6 +277,10 @@ export function SessionList({
   const [unlockedSessions, setUnlockedSessions] = useState<Set<number>>(
     new Set(),
   );
+  // Ô tích "tính lại theo cài đặt hiện tại" trong hộp xác nhận mở lại buổi.
+  // MẶC ĐỊNH TẮT: mở khoá để sửa nhầm một dòng điểm danh thì không nên kéo
+  // theo tính lại toàn bộ tiền theo cấu hình mới.
+  const [unlockClearSnapshot, setUnlockClearSnapshot] = useState(false);
   // Optimistic finalize — admin bấm "Xác nhận buổi chơi" → status đổi ngay
   // sang "completed" cho UI; rollback tự động nếu finalize fail. useOptimisticSet
   // dùng functional updater nên 2 buổi finalize concurrent không stomp nhau.
@@ -1300,7 +1307,13 @@ export function SessionList({
         <ConfirmDialog
           open={unlockTarget !== null}
           onOpenChange={(open) => {
-            if (!open) setUnlockTarget(null);
+            if (!open) {
+              setUnlockTarget(null);
+              // Reset ô tích mỗi lần đóng, KỂ CẢ khi admin bấm huỷ. Trạng thái
+              // tích còn sót từ lần trước là bẫy: lần sau mở buổi khác rồi bấm
+              // xác nhận là tiền đổi mà họ không hề tích.
+              setUnlockClearSnapshot(false);
+            }
           }}
           title={t("reopenCompletedTitle")}
           description={t("reopenCompletedDesc")}
@@ -1308,11 +1321,13 @@ export function SessionList({
           onConfirm={() => {
             if (!unlockTarget) return;
             const id = unlockTarget;
+            const clearSnapshot = unlockClearSnapshot;
             setUnlockTarget(null);
+            setUnlockClearSnapshot(false);
             // Optimistic: đánh dấu đã unlock để UI đổi style ngay; rollback nếu fail
             setUnlockedSessions((prev) => new Set(prev).add(id));
             fireAction(
-              () => unlockSession(id),
+              () => unlockSession(id, clearSnapshot),
               () =>
                 setUnlockedSessions((prev) => {
                   const n = new Set(prev);
@@ -1321,7 +1336,29 @@ export function SessionList({
                 }),
             );
           }}
-        />
+        >
+          {/* Chỉ hỏi khi buổi này THẬT SỰ đang giữ cấu hình đóng băng. Buổi
+              chưa từng chốt thì không có gì để bỏ đóng băng, hiện ô tích ở đó
+              chỉ làm admin hoang mang. */}
+          {unlockTarget !== null &&
+            sessions.find((s) => s.id === unlockTarget)?.hasSettingsSnapshot ===
+              true && (
+              <label className="hover:bg-muted flex min-h-11 cursor-pointer items-start gap-3 rounded-lg p-2 text-left">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-5 w-5 shrink-0"
+                  checked={unlockClearSnapshot}
+                  onChange={(e) => setUnlockClearSnapshot(e.target.checked)}
+                />
+                <span className="text-sm">
+                  <span className="font-medium">{t("recalcWithCurrent")}</span>
+                  <span className="text-muted-foreground mt-0.5 block">
+                    {t("recalcWithCurrentHint")}
+                  </span>
+                </span>
+              </label>
+            )}
+        </ConfirmDialog>
       </div>
     </Dialog>
   );
