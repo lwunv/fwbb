@@ -602,29 +602,33 @@ export function MemberList({
     [addedMembers, members, deletedIds],
   );
   const statusCounts = useMemo(() => {
-    // Ghost (chưa từng đi + chưa vào quỹ) KHÔNG tính vào bất kỳ count nào.
-    const countable = liveMembers.filter((m) => !isGhost(m.id));
-    // Người đã khóa bị ẩn khỏi mọi tab trừ "Đã khóa" (xem filter ở trên), nên
-    // mọi con số khác cũng phải trừ họ ra. Không trừ thì chip hiện một số mà
-    // danh sách bên dưới không bao giờ đếm đủ.
+    // QUY TẮC: số trên mỗi chip phải bằng ĐÚNG số dòng tab đó hiện ra. Trước
+    // đây "Tất cả" loại ghost khỏi phép đếm trong khi tab "Tất cả" vẫn liệt kê
+    // họ (dồn xuống cuối), nên số luôn nhỏ hơn thực tế và xoá một ghost thì
+    // con số đứng im — admin tưởng xoá không ăn (báo 21/9/2026).
     const activeNow = (m: { id: number; isActive: boolean }) =>
       toggledMembers[m.id] ?? m.isActive;
-    const visible = countable.filter(activeNow);
+    // Người đã khóa chỉ hiện ở tab "Đã khóa", nên mọi bucket khác trừ họ ra.
+    const visible = liveMembers.filter(activeNow);
+    // Các tab CỤ THỂ vẫn ẩn ghost (filter ở trên), nên phép đếm của chúng cũng
+    // phải trừ ghost. Riêng "Tất cả" thì đếm cả ghost, đúng bằng cái nó hiện.
+    const visibleNonGhost = visible.filter((m) => !isGhost(m.id));
     return {
       all: visible.length,
-      active: visible.length,
-      locked: countable.filter((m) => !activeNow(m)).length,
-      hasDebt: visible.filter(
+      active: visibleNonGhost.length,
+      locked: liveMembers.filter((m) => !activeNow(m)).length,
+      hasDebt: visibleNonGhost.filter(
         (m) =>
           getFundStatus(memberBalances[m.id] ?? 0, lowFundThreshold) ===
           "owing",
       ).length,
-      lowFund: visible.filter(
+      lowFund: visibleNonGhost.filter(
         (m) =>
           getFundStatus(memberBalances[m.id] ?? 0, lowFundThreshold) ===
           "lowFund",
       ).length,
-      lowInteraction: visible.filter((m) => isLowInteraction(m.id)).length,
+      lowInteraction: visibleNonGhost.filter((m) => isLowInteraction(m.id))
+        .length,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
