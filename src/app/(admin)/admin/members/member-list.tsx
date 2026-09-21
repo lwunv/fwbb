@@ -357,9 +357,19 @@ export function MemberList({
       // Ghost chỉ hiện ở "Tất cả" (dồn cuối); ẩn khỏi mọi filter cụ thể để
       // khớp với count (count cũng loại ghost — xem statusCounts).
       if (statusFilter !== "all" && isGhost(m.id)) return false;
+      // Đọc trạng thái khóa qua `toggledMembers` trước: bấm Khóa là hàng phải
+      // biến mất NGAY, không đợi server revalidate (rubric optimistic UI).
+      // fireAction rollback set này nếu server từ chối → hàng hiện lại.
+      const activeNow = toggledMembers[m.id] ?? m.isActive;
+      // Người đã "Vô hiệu hóa" coi như đã rời nhóm: KHÔNG hiện ở bất kỳ tab
+      // nào ngoài tab "Đã khóa". Xóa cứng bị chặn khi họ còn nợ hoặc còn giao
+      // dịch quỹ (giữ dấu vết tài chính), nên vô hiệu hóa là cách duy nhất để
+      // cho ai đó rời nhóm — và sau khi rời thì họ không nên còn nằm lẫn trong
+      // danh sách làm việc hằng ngày. Tab "Đã khóa" vẫn giữ để gỡ khi khóa nhầm.
+      if (statusFilter !== "locked" && !activeNow) return false;
       // status filter
-      if (statusFilter === "active" && !m.isActive) return false;
-      if (statusFilter === "locked" && m.isActive) return false;
+      if (statusFilter === "active" && !activeNow) return false;
+      if (statusFilter === "locked" && activeNow) return false;
       // "Còn nợ" = balance ÂM (mô hình Quỹ+Nợ gộp). KHÔNG dùng debtsByMember
       // (các session_debts chưa được admin xác nhận) vì finalizeSession đánh
       // dấu chúng đã-ghi-sổ ngay → bucket đó gần như luôn rỗng dù member đang nợ.
@@ -451,6 +461,7 @@ export function MemberList({
     statusFilter,
     sortMode,
     deletedIds,
+    toggledMembers,
     memberBalances,
     playStats,
     today,
@@ -593,25 +604,32 @@ export function MemberList({
   const statusCounts = useMemo(() => {
     // Ghost (chưa từng đi + chưa vào quỹ) KHÔNG tính vào bất kỳ count nào.
     const countable = liveMembers.filter((m) => !isGhost(m.id));
+    // Người đã khóa bị ẩn khỏi mọi tab trừ "Đã khóa" (xem filter ở trên), nên
+    // mọi con số khác cũng phải trừ họ ra. Không trừ thì chip hiện một số mà
+    // danh sách bên dưới không bao giờ đếm đủ.
+    const activeNow = (m: { id: number; isActive: boolean }) =>
+      toggledMembers[m.id] ?? m.isActive;
+    const visible = countable.filter(activeNow);
     return {
-      all: countable.length,
-      active: countable.filter((m) => m.isActive).length,
-      locked: countable.filter((m) => !m.isActive).length,
-      hasDebt: countable.filter(
+      all: visible.length,
+      active: visible.length,
+      locked: countable.filter((m) => !activeNow(m)).length,
+      hasDebt: visible.filter(
         (m) =>
           getFundStatus(memberBalances[m.id] ?? 0, lowFundThreshold) ===
           "owing",
       ).length,
-      lowFund: countable.filter(
+      lowFund: visible.filter(
         (m) =>
           getFundStatus(memberBalances[m.id] ?? 0, lowFundThreshold) ===
           "lowFund",
       ).length,
-      lowInteraction: countable.filter((m) => isLowInteraction(m.id)).length,
+      lowInteraction: visible.filter((m) => isLowInteraction(m.id)).length,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     liveMembers,
+    toggledMembers,
     memberBalances,
     playStats,
     today,
