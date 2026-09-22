@@ -1,0 +1,10 @@
+t muốn lên plan thương mại hóa site này, sẽ cho nhiều clb dùng site, mỗi clb sẽ có 1 hoặc nhiều Admin (chỉ cho CLB ấy thôi), còn sẽ có 1 superAdmin sẽ xem đc all CLB.
+Các member sẽ đc thêm vào 1 hoặc nhiều CLB, khi login sẽ đc chọn CLB hoặc login rồi vẫn có dropdown chọn clb nếu Member thuộc nhiều CLB
+Thêm chức năng mở sân Giao lưu 1 lần. 1 Member bất kỳ có thể tạo sân tuyển giao lưu, các member khác không phân biệt CLB có thể nhìn đc danh sách sân, có bảng lọc theo giờ, khu vực (thành phố/ tỉnh -> xã/phường), trình độ, phí tham gia, độ uy tín của chủ sân, tên sân, số lượng sân mở (có thể chủ sân tạo thuế 1,2,3 sân 1 buổi), số lượng hiện sẽ tham gia. Các member sau khi tham gia buổi chơi có thể lên đánh giá sân, cũng như đánh giá chủ sân (người mở giao lưu). Có 1 vấn đề là cần đảm bảo người vote sẽ tham gia chơi, hoặc bất cứ ai tham gia chơi cùng cũng có thể vào đánh giá 1 member khác. với t cũng muốn mày tư vấn làm sao để giảm tỷ lệ bị bùng kèo nhất có thể. Mỗi member đều có thể flollow hoặc chặn nhau, flollow thì sẽ cần người kia duyệt, khi follow thì ngta mở sân giao lưu bạn sẽ nhận đc thông báo. Chặn thì sẽ k nhìn đc bất cứ thông tin gì của nhau.
+
+Khi user đăng ký sẽ cần nhập luôn là ở khu vực nào, tỉnh, xã, trình độ (Mới chơi, Yếu, Trung bình yếu, Trung bình, Trung bình khá, Khá, Bán chuyên), SĐT
+
+Cách tính tiền t cũng muốn mở rộng:
+-  chia đều cuối buổi, giá sân, giá cầu phải đc công khai luôn từ lúc tạo sân giao lưu
+-  Phí cố định, người tạo sân tự đưa ra phí cố định (có thể  nam 1 giá, nữ 1 giá hoặc giống nhau), có tùy chọn là nếu quá bn quả cầu thì chia thêm tiền (cho nam, nữ hoặc cả 2)
+-  Câu lạc bộ cũng vậy, admin có thể setting là phí chia đều hay cố định
