@@ -62,15 +62,23 @@ test("buổi đã xác nhận mà hết hạn vote: LED tắt, đồng hồ báo
   await expect(page.getByText("Đã đóng vote")).toBeVisible();
   // Nút cũng phải mời mở lại vote.
   await expect(page.getByRole("button", { name: "Mở vote" })).toBeVisible();
-  // LedBorder bọc Card khi active; tắt thì không còn wrapper .led-border nào.
-  await expect(page.locator('.led-border [data-slot="card"]')).toHaveCount(0);
+  // Đèn TẮT nhưng KHUNG vẫn còn (đổi 22/9/2026).
+  //
+  // Bản cũ kiểm "đèn tắt" bằng cách đòi lớp bọc `.led-border` biến mất. Bỏ hẳn
+  // lớp bọc cũng bỏ luôn 3px padding của nó, nên thẻ tắt đèn hụt 6px so với
+  // thẻ sáng đèn và nhảy một cái mỗi lần đổi buổi. Giờ lớp bọc luôn ở đó, chỉ
+  // thêm `led-off` để thôi vẽ, nên phải kiểm đúng cái đó: còn khung, và không
+  // còn lớp bọc nào đang sáng.
+  await expect(page.locator(".led-border.led-off")).toHaveCount(1);
+  await expect(page.locator(".led-border:not(.led-off)")).toHaveCount(0);
 });
 
 test("buổi đã xác nhận còn hạn vote: LED vẫn sáng", async ({ page }) => {
   await page.goto(`/admin/sessions/${openId}`);
 
   await expect(page.getByRole("button", { name: "Khóa vote" })).toBeVisible();
+  // Đang sáng = lớp bọc KHÔNG mang `led-off`.
   await expect(
-    page.locator('.led-border [data-slot="card"]').first(),
+    page.locator('.led-border:not(.led-off) [data-slot="card"]').first(),
   ).toBeVisible();
 });

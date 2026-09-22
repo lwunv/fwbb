@@ -385,6 +385,27 @@ body {
   border-radius: calc(0.9rem - 3px);
 }
 
+/* TẮT đèn nhưng GIỮ NGUYÊN khung.
+ *
+ * Trước 22/9/2026 chỗ gọi bỏ hẳn wrapper khi buổi không còn vote, nên thẻ hụt
+ * đúng 2 × 3px padding cả chiều ngang lẫn chiều dọc. Đổi qua lại giữa các buổi
+ * là thấy thẻ nảy một cái. Giữ padding, chỉ thôi vẽ, thì hai trạng thái đo ra
+ * cùng kích thước.
+ *
+ * `overflow: visible` để bóng đổ của thẻ bên trong không bị cắt như lúc đang
+ * sáng (lúc sáng phải cắt để tia sáng không tràn ra ngoài). */
+.led-border.led-off,
+.led-border-sm.led-off {
+  overflow: visible;
+  isolation: auto;
+}
+.led-border.led-off::before,
+.led-border.led-off::after,
+.led-border-sm.led-off::before,
+.led-border-sm.led-off::after {
+  content: none;
+}
+
 /* GREEN variant — legacy. Cùng style cũ, hue xanh. */
 .led-border.green::before {
   background: conic-gradient(

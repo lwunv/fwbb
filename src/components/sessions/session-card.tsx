@@ -197,8 +197,9 @@ export function SessionCard({
     </Card>
   );
 
-  if (isVoting) {
-    return <div className="led-border">{card}</div>;
-  }
-  return card;
+  // Wrapper LUÔN có mặt, kể cả khi không chạy đèn: nó góp 3px padding mỗi
+  // bên, bỏ đi thì thẻ hụt 6px và nảy một cái mỗi lần đổi buổi.
+  return (
+    <div className={isVoting ? "led-border" : "led-border led-off"}>{card}</div>
+  );
 }

@@ -22,7 +22,10 @@ interface LedBorderProps {
  * color của FWBB và visible trên cả light + pink + dark theme.
  *
  * Pattern: bọc card-content vào `<LedBorder active={isVoting}>...</LedBorder>`.
- * Khi `active=false` chỉ render plain wrapper (không có animation).
+ *
+ * `active=false` vẫn render ĐÚNG cái wrapper đó, chỉ thêm `led-off` để thôi
+ * vẽ. Bản đầu trả thẳng `children` và bỏ wrapper, làm thẻ hụt phần padding
+ * viền: hai thẻ cạnh nhau lệch kích thước, đổi qua lại thì giật.
  */
 export function LedBorder({
   active = true,
@@ -31,11 +34,14 @@ export function LedBorder({
   className,
   children,
 }: LedBorderProps) {
-  if (!active) return <>{children}</>;
   const baseClass = size === "sm" ? "led-border-sm" : "led-border";
   // pink = default → no extra class needed
   const variantClass = variant === "pink" ? "" : variant;
   return (
-    <div className={cn(baseClass, variantClass, className)}>{children}</div>
+    <div
+      className={cn(baseClass, active ? variantClass : "led-off", className)}
+    >
+      {children}
+    </div>
   );
 }
