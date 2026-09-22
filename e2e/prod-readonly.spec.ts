@@ -90,22 +90,34 @@ test.describe("PROD chỉ-đọc", () => {
     }
   });
 
-  test("trang Cài đặt: công tắc giới tính đang TẮT nên không có nhóm nữ nào", async ({
+  test("trang Cài đặt: ba nhóm nữ hiện đúng theo trạng thái công tắc", async ({
     page,
   }) => {
     await page.goto("/admin/settings", { waitUntil: "domcontentloaded" });
     // Ba nhóm thường phải có — chứng minh section tiền render thật.
+    // `exact: true`: bật công tắc lên thì có thêm nút "Cách tính: Thành viên
+    // nữ", và khớp chuỗi con sẽ trúng cả hai.
     await expect(
-      page.getByRole("button", { name: "Cách tính: Thành viên" }),
+      page.getByRole("button", { name: "Cách tính: Thành viên", exact: true }),
     ).toBeVisible({ timeout: 20_000 });
-    // Ba nhóm nữ phải VẮNG: chặng 2 vừa deploy nhưng công tắc mặc định tắt,
-    // nên tiền phải đang chạy y như trước.
+
+    // ĐỌC trạng thái công tắc rồi mới khẳng định, thay vì chốt cứng "phải
+    // TẮT". Bản đầu chốt cứng và hỏng ngay hôm sau khi admin bật nó lên —
+    // một bài kiểm prod không nên vỡ chỉ vì người dùng đổi một cài đặt hợp lệ.
+    const sw = page.getByRole("switch", { name: "Tính tiền theo giới tính" });
+    await expect(sw).toBeVisible();
+    const on = (await sw.getAttribute("aria-checked")) === "true";
+
+    // `exact: true`: dòng mô tả của chính công tắc cũng chứa chữ "thành viên
+    // nữ", mà `getByText` mặc định khớp chuỗi con không phân biệt hoa thường.
     for (const label of [
       "Thành viên nữ",
       "Khách nữ của thành viên",
       "Khách nữ của admin",
     ]) {
-      await expect(page.getByText(label)).toHaveCount(0);
+      const rows = page.getByText(label, { exact: true });
+      if (on) await expect(rows.first()).toBeVisible();
+      else await expect(rows).toHaveCount(0);
     }
   });
 
