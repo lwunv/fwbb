@@ -119,6 +119,15 @@ test.describe("PROD chỉ-đọc", () => {
       if (on) await expect(rows.first()).toBeVisible();
       else await expect(rows).toHaveCount(0);
     }
+
+    // Từ 22/9/2026 công tắc và ba nhóm nữ nằm chung một cụm có tiêu đề riêng.
+    // Chỉ ĐỌC, không sửa gì: tiêu đề này có mặt đúng khi công tắc bật, nên nó
+    // vừa là bằng chứng bản deploy mới đã lên, vừa chốt lại cách gom cụm.
+    const clusterTitle = page.getByText("Mức riêng cho nhóm nữ", {
+      exact: true,
+    });
+    if (on) await expect(clusterTitle).toBeVisible();
+    else await expect(clusterTitle).toHaveCount(0);
   });
 
   test("ô nhập tiền hiện kiểu Việt, không phải chuỗi số trần", async ({
