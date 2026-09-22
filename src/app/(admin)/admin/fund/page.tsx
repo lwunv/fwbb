@@ -6,6 +6,7 @@ import {
   getAllFundTransactions,
   getFundOverview,
   getSessionFinanceReport,
+  getFundCashFlowByMonth,
 } from "@/actions/fund";
 import { mergeLegacyDebtsIntoFund } from "@/actions/merge-debt-fund";
 import { db } from "@/db";
@@ -16,6 +17,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ymdInVN } from "@/lib/date-format";
 import { FundDashboard } from "./fund-dashboard";
 import { FundReport } from "./fund-report";
+import { FundCashflowReport } from "./fund-cashflow-report";
 import { ReconcilePanel } from "./reconcile-panel";
 
 export default async function AdminFundPage() {
@@ -32,6 +34,7 @@ export default async function AdminFundPage() {
     brandList,
     t,
     sessionFinanceEntries,
+    cashFlowMonths,
   ] = await Promise.all([
     getFundOverview(),
     getFundMembersWithBalances(),
@@ -49,6 +52,7 @@ export default async function AdminFundPage() {
     }),
     getTranslations("fundAdmin"),
     getSessionFinanceReport(),
+    getFundCashFlowByMonth(),
   ]);
 
   // Merged Quỹ + Nợ: "Nợ chưa thu" = sum of negative balances.
@@ -80,6 +84,8 @@ export default async function AdminFundPage() {
         currentMonth={currentMonth}
         sessionFinanceEntries={sessionFinanceEntries}
       />
+      <FundCashflowReport months={cashFlowMonths} />
+
       <FundReport
         fundMembers={fundMembersWithBalances}
         transactions={transactions}

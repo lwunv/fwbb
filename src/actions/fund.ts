@@ -1140,3 +1140,103 @@ export async function updateMemberBankAccount(
   revalidatePath("/admin/fund");
   return { success: true };
 }
+
+// ─── Báo cáo dòng tiền quỹ theo kỳ ───
+
+export interface FundCashFlowMonth {
+  /** "YYYY-MM" */
+  key: string;
+  /** Member nộp quỹ. */
+  contributions: number;
+  /** Thu từ khách của admin (tiền thật vào két, không gắn balance ai). */
+  guestIncome: number;
+  /** Hoàn trả cho member. */
+  refunds: number;
+  /** Chi thuê sân. */
+  courtRent: number;
+  /** Chi mua cầu. */
+  shuttlecock: number;
+}
+
+/**
+ * Gom dòng tiền THẬT của quỹ theo từng tháng, để trang quỹ dựng báo cáo
+ * thu/chi mà không cần thêm truy vấn khi admin đổi mốc xem (tháng/năm/tất cả)
+ * — client tự cộng dồn từ mảng này.
+ *
+ * CỐ Ý không gồm `fund_deduction`: đó là phân bổ cho member mỗi buổi, tiền
+ * không rời két. Cùng lý do `cashOnHand` không trừ nó.
+ *
+ * Mốc thời gian: dùng `createdAt` cho mọi loại, RIÊNG tiền sân dùng
+ * `metadata.targetMonth` (tháng được trả tiền) khi có. Lý do: admin nghĩ theo
+ * "tiền sân tháng 9 hết bao nhiêu", chứ không phải "hôm nào bấm nút trả".
+ * Trả chậm sang tháng sau vẫn phải nằm ở tháng của nó.
+ */
+export async function getFundCashFlowByMonth(): Promise<FundCashFlowMonth[]> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return [];
+
+  const rows = await db.query.financialTransactions.findMany({
+    where: inArray(financialTransactions.type, [
+      "fund_contribution",
+      "fund_refund",
+      "session_guest_income",
+      "court_rent_payment",
+      "inventory_purchase",
+    ]),
+  });
+
+  // Bỏ cặp gốc + đảo để không đếm hai lần khi admin xoá một khoản cũ.
+  const reversedIds = new Set(
+    rows.map((t) => t.reversalOfId).filter((id): id is number => id !== null),
+  );
+
+  const byMonth = new Map<string, FundCashFlowMonth>();
+  const bucket = (key: string) => {
+    let b = byMonth.get(key);
+    if (!b) {
+      b = {
+        key,
+        contributions: 0,
+        guestIncome: 0,
+        refunds: 0,
+        courtRent: 0,
+        shuttlecock: 0,
+      };
+      byMonth.set(key, b);
+    }
+    return b;
+  };
+
+  for (const t of rows) {
+    if (reversedIds.has(t.id)) continue;
+    if (t.reversalOfId !== null) continue;
+
+    let key = (t.createdAt ?? "").slice(0, 7);
+    if (t.type === "court_rent_payment" && t.metadataJson) {
+      // Cột là `metadata_json` (chuỗi), không phải object — phải parse. Bọc
+      // try/catch: một hàng metadata hỏng không được làm chết cả báo cáo, chỉ
+      // rơi về mốc theo ngày ghi.
+      try {
+        const m = JSON.parse(t.metadataJson) as { targetMonth?: unknown };
+        if (typeof m.targetMonth === "string") key = m.targetMonth;
+      } catch {
+        // giữ nguyên key theo createdAt
+      }
+    }
+    if (!/^\d{4}-\d{2}$/.test(key)) continue;
+
+    const b = bucket(key);
+    const amt = t.amount;
+    if (t.type === "fund_contribution" && t.memberId !== null)
+      b.contributions += amt;
+    else if (t.type === "fund_refund" && t.memberId !== null) b.refunds += amt;
+    else if (t.type === "session_guest_income")
+      b.guestIncome += t.direction === "in" ? amt : -amt;
+    else if (t.type === "court_rent_payment")
+      b.courtRent += t.direction === "out" ? amt : -amt;
+    else if (t.type === "inventory_purchase")
+      b.shuttlecock += t.direction === "out" ? amt : -amt;
+  }
+
+  return [...byMonth.values()].sort((a, b) => b.key.localeCompare(a.key));
+}
