@@ -18,6 +18,7 @@ vi.mock("@/actions/settings", () => ({
 }));
 
 const { SectionMoney } = await import("./section-money");
+const { SettingsDraftProvider } = await import("./settings-draft");
 
 afterEach(cleanup);
 
@@ -28,7 +29,9 @@ function renderSection(opts: { genderOn: boolean; unsetCount: number }) {
   };
   render(
     <NextIntlClientProvider locale="vi" messages={viMessages}>
-      <SectionMoney settings={settings} unsetGenderCount={opts.unsetCount} />
+      <SettingsDraftProvider settings={settings}>
+        <SectionMoney unsetGenderCount={opts.unsetCount} />
+      </SettingsDraftProvider>
     </NextIntlClientProvider>,
   );
 }

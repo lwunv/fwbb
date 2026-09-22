@@ -1,18 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Coins } from "lucide-react";
 import { SectionCard } from "@/components/shared/section-card";
 import { MoneyInput } from "@/components/shared/money-input";
 import { Switch } from "@/components/ui/switch";
+import { useSettingsDraft } from "./settings-draft";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { NumberStepper } from "@/components/ui/number-stepper";
-import { fireAction } from "@/lib/optimistic-action";
-import { useWriteQueue } from "@/lib/use-write-queue";
-import { updateSetting } from "@/actions/settings";
-import type { AppSettings } from "@/lib/settings-registry";
 import {
   computeGroupPlayRates,
   type GroupKey,
@@ -45,82 +42,41 @@ const GROUP_LABEL_KEY: Record<VisibleGroupKey, string> = {
 };
 
 export function SectionMoney({
-  settings,
   unsetGenderCount = 0,
 }: {
-  settings: AppSettings;
   /** Số thành viên còn hoạt động chưa khai giới tính (chỉ con số, không tên). */
   unsetGenderCount?: number;
 }) {
   const t = useTranslations("adminSettings");
-  const [genderOn, setGenderOn] = useState(settings.genderPricingEnabled);
+  // Mọi thay đổi ở đây chỉ vào bản nháp chung; server nhận khi bấm Lưu.
+  const { get, set } = useSettingsDraft();
 
-  // Đọc từ state cục bộ, KHÔNG từ prop: gạt công tắc là ba nhóm nữ hiện/ẩn
-  // ngay, không đợi server revalidate.
+  const genderOn = get("genderPricingEnabled");
+  const policies = get("groupPolicies");
+  const minDeductionSetting = get("minDeductionAmount");
+
   const visibleGroups: readonly VisibleGroupKey[] = genderOn
     ? [...BASE_GROUPS, ...FEMALE_GROUPS]
     : BASE_GROUPS;
 
-  // Tách phẳng trước khi dùng trong effect — react-hooks/set-state-in-effect
-  // chỉ nhận identifier phẳng làm dependency ổn định (xem section-operations).
-  const {
-    minDeductionAmount: minDeductionSetting,
-    groupPolicies: groupPoliciesSetting,
-  } = settings;
-
-  // Không giữ chuỗi nháp ở đây nữa: `MoneyInput` tự lo phần đó, kể cả việc
-  // phân biệt ô trống với số 0 và việc đồng bộ lại khi giá trị chốt đổi.
-  const [policies, setPolicies] =
-    useState<Record<GroupKey, GroupPolicy>>(groupPoliciesSetting);
-
-  const enqueue = useWriteQueue();
-
-  useEffect(() => {
-    setPolicies(groupPoliciesSetting);
-  }, [groupPoliciesSetting]);
-
-  useEffect(() => {
-    setGenderOn(settings.genderPricingEnabled);
-  }, [settings.genderPricingEnabled]);
-
   function toggleGender(next: boolean) {
-    const prev = genderOn;
-    setGenderOn(next);
-    fireAction(
-      () =>
-        enqueue("genderPricingEnabled", () =>
-          updateSetting("genderPricingEnabled", next),
-        ),
-      () => setGenderOn(prev),
-    );
+    set("genderPricingEnabled", next);
   }
 
   function commitMinDeduction(n: number) {
-    fireAction(() =>
-      enqueue("minDeductionAmount", () =>
-        updateSetting("minDeductionAmount", n),
-      ),
-    );
+    set("minDeductionAmount", n);
   }
 
   // Ghi `groupPolicies` LUÔN gửi cả sáu nhóm — schema `.strict()` ở registry
   // chặn patch một phần, thiếu nhóm sẽ bị coi là lỗi và rơi về default (xem
-  // comment trên `groupPolicies` trong settings-registry.ts). `policies` ở
-  // đây luôn là object đủ sáu nhóm (khởi tạo + đồng bộ từ settings prop, vốn
-  // luôn đủ sáu nhóm nhờ resolveGlobal), nên spread rồi đổi đúng một nhóm là
-  // đủ để không bao giờ gửi thiếu.
+  // comment trên `groupPolicies` trong settings-registry.ts). `policies` luôn
+  // đủ sáu nhóm (nháp hoặc giá trị server, cả hai đều đủ nhờ resolveGlobal),
+  // nên spread rồi đổi đúng một nhóm là đủ để không bao giờ gửi thiếu.
   function updateRow(key: VisibleGroupKey, patch: Partial<GroupPolicy>) {
-    const prevAll = policies;
-    const nextAll: Record<GroupKey, GroupPolicy> = {
+    set("groupPolicies", {
       ...policies,
       [key]: { ...policies[key], ...patch },
-    };
-    setPolicies(nextAll);
-    fireAction(
-      () =>
-        enqueue("groupPolicies", () => updateSetting("groupPolicies", nextAll)),
-      () => setPolicies(prevAll),
-    );
+    });
   }
 
   function commitMode(key: VisibleGroupKey, mode: GroupPolicy["mode"]) {
@@ -158,49 +114,71 @@ export function SectionMoney({
     guestAdminFemale: 0,
   });
 
+  // Đọc policies qua `get` NGAY TRONG memo thay vì phụ thuộc vào biến
+  // `policies` ở trên: `get` đổi mỗi khi bản nháp hoặc giá trị server đổi, tức
+  // đúng lúc cần tính lại, mà không bắt eslint phải tin một object lấy từ hàm
+  // ngoài là bất biến.
   const previewRates = useMemo(
     () =>
       computeGroupPlayRates({
         totalPlayCost: previewTotal,
         headsByGroup: previewHeads,
-        policies,
+        policies: get("groupPolicies"),
       }),
-    [previewTotal, previewHeads, policies],
+    [previewTotal, previewHeads, get],
   );
+
+  /** Một thẻ cấu hình cho MỘT nhóm. Dùng chung cho ba nhóm thường và ba nhóm
+   *  nữ để hai chỗ không bao giờ lệch nhau về cách hiển thị. */
+  function groupRow(key: VisibleGroupKey) {
+    const policy = policies[key];
+    const groupLabel = t(GROUP_LABEL_KEY[key]);
+    return (
+      <div key={key} className="bg-card rounded-lg border p-3">
+        <div className="mb-2 text-sm font-semibold">{groupLabel}</div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-muted-foreground mb-1 block text-sm font-medium">
+              {t("modeLabel", { group: groupLabel })}
+            </span>
+            <CustomSelect
+              value={policy.mode}
+              onChange={(v) => commitMode(key, v as GroupPolicy["mode"])}
+              options={MODE_OPTIONS}
+            />
+          </label>
+          {policy.mode !== "equal" && (
+            <label className="block">
+              <span className="text-muted-foreground mb-1 block text-sm font-medium">
+                {t("amountLabel", { group: groupLabel })}
+              </span>
+              <MoneyInput
+                value={policy.amount}
+                onCommit={(n) => commitAmount(key, n)}
+                suffix="đ"
+              />
+            </label>
+          )}
+        </div>
+        {policy.mode === "fixed" && (
+          <label className="hover:bg-muted mt-2 flex min-h-11 cursor-pointer items-center gap-3 rounded-lg p-2">
+            <input
+              type="checkbox"
+              checked={policy.capAtEqual}
+              onChange={(e) => commitCapAtEqual(key, e.target.checked)}
+              className="accent-primary h-6 w-6 rounded"
+              aria-label={t("capAtEqualLabel", { group: groupLabel })}
+            />
+            <span className="text-sm">{t("capAtEqual")}</span>
+          </label>
+        )}
+      </div>
+    );
+  }
 
   return (
     <SectionCard tone="emerald" icon={Coins} title={t("moneyPolicy")}>
       <div className="space-y-4">
-        {/* Công tắc tính tiền theo giới tính. TẮT là mặc định, và tắt thì không
-            ai đọc cột `members.gender`, ba nhóm nữ cũng không hiện — tiền chia
-            y như khi chưa có tính năng này. */}
-        <div className="flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3">
-          <div>
-            <div className="text-sm font-medium">{t("genderPricing")}</div>
-            <p className="text-muted-foreground text-xs">
-              {t("genderPricingHint")}
-            </p>
-          </div>
-          <Switch
-            checked={genderOn}
-            onCheckedChange={toggleGender}
-            aria-label={t("genderPricing")}
-          />
-        </div>
-
-        {/* Chỉ cảnh báo khi công tắc giới tính ĐANG BẬT. Tắt thì cột gender
-            không ai đọc, nhắc chỉ gây nhiễu. */}
-        {genderOn && unsetGenderCount > 0 && (
-          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-            <p>{t("genderUnsetWarning", { count: unsetGenderCount })}</p>
-            <Link
-              href="/admin/members"
-              className="text-primary mt-1 inline-block min-h-11 font-medium underline underline-offset-4"
-            >
-              {t("genderUnsetLink")}
-            </Link>
-          </div>
-        )}
         <label className="block">
           <span className="text-muted-foreground mb-1 block text-sm font-medium">
             {t("minDeduction")}
@@ -214,53 +192,51 @@ export function SectionMoney({
 
         <div className="space-y-3 border-t pt-3">
           <div className="text-sm font-medium">{t("groupPoliciesTitle")}</div>
-          {visibleGroups.map((key) => {
-            const policy = policies[key];
-            const groupLabel = t(GROUP_LABEL_KEY[key]);
-            return (
-              <div key={key} className="rounded-lg border p-3">
-                <div className="mb-2 text-sm font-semibold">{groupLabel}</div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block">
-                    <span className="text-muted-foreground mb-1 block text-sm font-medium">
-                      {t("modeLabel", { group: groupLabel })}
-                    </span>
-                    <CustomSelect
-                      value={policy.mode}
-                      onChange={(v) =>
-                        commitMode(key, v as GroupPolicy["mode"])
-                      }
-                      options={MODE_OPTIONS}
-                    />
-                  </label>
-                  {policy.mode !== "equal" && (
-                    <label className="block">
-                      <span className="text-muted-foreground mb-1 block text-sm font-medium">
-                        {t("amountLabel", { group: groupLabel })}
-                      </span>
-                      <MoneyInput
-                        value={policy.amount}
-                        onCommit={(n) => commitAmount(key, n)}
-                        suffix="đ"
-                      />
-                    </label>
-                  )}
-                </div>
-                {policy.mode === "fixed" && (
-                  <label className="hover:bg-muted mt-2 flex min-h-11 cursor-pointer items-center gap-3 rounded-lg p-2">
-                    <input
-                      type="checkbox"
-                      checked={policy.capAtEqual}
-                      onChange={(e) => commitCapAtEqual(key, e.target.checked)}
-                      className="accent-primary h-6 w-6 rounded"
-                      aria-label={t("capAtEqualLabel", { group: groupLabel })}
-                    />
-                    <span className="text-sm">{t("capAtEqual")}</span>
-                  </label>
-                )}
+          {BASE_GROUPS.map(groupRow)}
+        </div>
+
+        {/* Cụm giới tính: công tắc và ba nhóm nữ nằm liền nhau trong MỘT khung
+            riêng. Trước đây công tắc ở trên cùng còn ba nhóm nữ lẫn vào danh
+            sách nhóm thường, nhìn không ra chúng là một tính năng và tắt công
+            tắc thì cả cụm hết tác dụng. Khung có nền riêng để phân biệt với
+            các cài đặt luôn-có-hiệu-lực ở trên. */}
+        <div className="border-primary/30 bg-primary/5 space-y-3 rounded-xl border p-3">
+          <div className="flex min-h-11 items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold">{t("genderPricing")}</div>
+              <p className="text-muted-foreground text-xs">
+                {t("genderPricingHint")}
+              </p>
+            </div>
+            <Switch
+              checked={genderOn}
+              onCheckedChange={toggleGender}
+              aria-label={t("genderPricing")}
+            />
+          </div>
+
+          {/* Chỉ cảnh báo khi công tắc ĐANG BẬT. Tắt thì cột gender không ai
+              đọc, nhắc chỉ gây nhiễu. */}
+          {genderOn && unsetGenderCount > 0 && (
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+              <p>{t("genderUnsetWarning", { count: unsetGenderCount })}</p>
+              <Link
+                href="/admin/members"
+                className="text-primary mt-1 inline-block min-h-11 font-medium underline underline-offset-4"
+              >
+                {t("genderUnsetLink")}
+              </Link>
+            </div>
+          )}
+
+          {genderOn && (
+            <div className="space-y-3">
+              <div className="text-sm font-medium">
+                {t("genderGroupsTitle")}
               </div>
-            );
-          })}
+              {FEMALE_GROUPS.map(groupRow)}
+            </div>
+          )}
         </div>
 
         <div className="space-y-3 border-t pt-3">

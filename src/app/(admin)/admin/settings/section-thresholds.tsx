@@ -1,39 +1,20 @@
 "use client";
 
-import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { TriangleAlert } from "lucide-react";
 import { SectionCard } from "@/components/shared/section-card";
 import { MoneyInput } from "@/components/shared/money-input";
-import { fireAction } from "@/lib/optimistic-action";
-import { useWriteQueue } from "@/lib/use-write-queue";
-import { updateSetting } from "@/actions/settings";
-import type { AppSettings } from "@/lib/settings-registry";
+import { useSettingsDraft } from "./settings-draft";
 
 type ThresholdKey =
   | "lowFundThreshold"
   | "voteBlockDebtThreshold"
   | "lowStockThresholdQua";
 
-export function SectionThresholds({ settings }: { settings: AppSettings }) {
+export function SectionThresholds() {
   const t = useTranslations("adminSettings");
-  const [values, setValues] = useState<Record<ThresholdKey, number>>({
-    lowFundThreshold: settings.lowFundThreshold,
-    voteBlockDebtThreshold: settings.voteBlockDebtThreshold,
-    lowStockThresholdQua: settings.lowStockThresholdQua,
-  });
-
-  const enqueue = useWriteQueue();
-
-  function commit(key: ThresholdKey, next: number) {
-    const prev = values[key];
-    if (next === prev) return;
-    setValues((v) => ({ ...v, [key]: next }));
-    fireAction(
-      () => enqueue(key, () => updateSetting(key, next)),
-      () => setValues((v) => ({ ...v, [key]: prev })),
-    );
-  }
+  // Ghi vào bản nháp chung, server chỉ nhận khi admin bấm Lưu.
+  const { get, set } = useSettingsDraft();
 
   const fields: { key: ThresholdKey; label: string; suffix: string }[] = [
     { key: "lowFundThreshold", label: t("lowFund"), suffix: "đ" },
@@ -50,8 +31,8 @@ export function SectionThresholds({ settings }: { settings: AppSettings }) {
               {f.label}
             </span>
             <MoneyInput
-              value={values[f.key]}
-              onCommit={(next) => commit(f.key, next)}
+              value={get(f.key)}
+              onCommit={(next) => set(f.key, next)}
               suffix={f.suffix}
               aria-label={f.label}
             />

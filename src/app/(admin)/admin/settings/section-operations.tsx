@@ -1,18 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Cog } from "lucide-react";
 import { SectionCard } from "@/components/shared/section-card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { CustomSelect } from "@/components/ui/custom-select";
-import { fireAction } from "@/lib/optimistic-action";
-import { updateSetting } from "@/actions/settings";
-import {
-  normalizeContactHotline,
-  type AppSettings,
-} from "@/lib/settings-registry";
+import { useSettingsDraft } from "./settings-draft";
+import { normalizeContactHotline } from "@/lib/settings-registry";
 import { VN_BANKS } from "@/lib/vn-banks";
 import { AUTO_MATCH_BANK_BIN } from "@/lib/bank-account";
 
@@ -24,145 +19,40 @@ const BANK_OPTIONS = VN_BANKS.filter((b) => b.transferSupported).map((b) => ({
   label: b.shortName,
 }));
 
-export function SectionOperations({ settings }: { settings: AppSettings }) {
+export function SectionOperations() {
   const t = useTranslations("adminSettings");
-  // Tách từng field ra biến phẳng trước khi dùng trong effect —
-  // react-hooks/set-state-in-effect không nhận diện `settings.foo` (member
-  // expression) là một dependency ổn định để sync, chỉ nhận identifier phẳng.
-  const {
-    autoCreateSessions,
-    appName: appNameSetting,
-    bankBin: bankBinSetting,
-    bankAccountNo: bankAccountNoSetting,
-    bankAccountName: bankAccountNameSetting,
-    contactHotline: contactHotlineSetting,
-    contactEmail: contactEmailSetting,
-  } = settings;
+  // Đọc/ghi thẳng bản nháp chung, server chỉ nhận khi bấm Lưu. Bảy cặp
+  // state + useEffect đồng bộ trước đây không còn cần: bản nháp tự trả về
+  // giá trị server cho khoá nào chưa sửa.
+  const { get, set, reset } = useSettingsDraft();
 
-  const [autoCreate, setAutoCreate] = useState(autoCreateSessions);
-  const [appName, setAppName] = useState(appNameSetting);
-  const [bankBin, setBankBin] = useState(bankBinSetting);
-  const [bankAccountNo, setBankAccountNo] = useState(bankAccountNoSetting);
-  const [bankAccountName, setBankAccountName] = useState(
-    bankAccountNameSetting,
-  );
-  const [contactHotline, setContactHotline] = useState(contactHotlineSetting);
-  const [contactEmail, setContactEmail] = useState(contactEmailSetting);
+  const autoCreate = get("autoCreateSessions");
+  const appName = get("appName");
+  const bankBin = get("bankBin");
+  const bankAccountNo = get("bankAccountNo");
+  const bankAccountName = get("bankAccountName");
+  const contactHotline = get("contactHotline");
+  const contactEmail = get("contactEmail");
 
-  // Sync khi server revalidate (settings đổi từ nơi khác, hoặc sau khi action
-  // của chính component này resolve và router.refresh() props mới về) — 5 ô
-  // của section này đều mirror prop server nên phải tự đồng bộ lại, xem mẫu
-  // MaxPlayersToggle.
-  useEffect(() => {
-    setAutoCreate(autoCreateSessions);
-  }, [autoCreateSessions]);
-  useEffect(() => {
-    setAppName(appNameSetting);
-  }, [appNameSetting]);
-  useEffect(() => {
-    setBankBin(bankBinSetting);
-  }, [bankBinSetting]);
-  useEffect(() => {
-    setBankAccountNo(bankAccountNoSetting);
-  }, [bankAccountNoSetting]);
-  useEffect(() => {
-    setBankAccountName(bankAccountNameSetting);
-  }, [bankAccountNameSetting]);
-  useEffect(() => {
-    setContactHotline(contactHotlineSetting);
-  }, [contactHotlineSetting]);
-  useEffect(() => {
-    setContactEmail(contactEmailSetting);
-  }, [contactEmailSetting]);
-
-  function toggleAutoCreate(next: boolean) {
-    const prev = autoCreate;
-    setAutoCreate(next);
-    fireAction(
-      () => updateSetting("autoCreateSessions", next),
-      () => setAutoCreate(prev),
-    );
+  // Gõ tới đâu vào nháp tới đó; lúc RỜI ô mới chuẩn hoá (trim, hotline bỏ dấu
+  // cách/chấm/gạch). Chuẩn hoá ngay khi gõ sẽ nhảy con trỏ giữa chừng.
+  function blurTrim(
+    key: "appName" | "bankAccountNo" | "bankAccountName" | "contactEmail",
+    raw: string,
+  ) {
+    const trimmed = raw.trim();
+    // Tên app để trống thì registry chặn, lưu lên chắc chắn lỗi. Trả ô về
+    // đúng giá trị server thay vì giữ chuỗi rỗng chờ báo lỗi lúc bấm Lưu.
+    if (key === "appName" && !trimmed) {
+      reset("appName");
+      return;
+    }
+    set(key, trimmed);
   }
 
-  function commitAppName(next: string) {
-    const trimmed = next.trim();
-    if (!trimmed) return;
-    const prev = appName;
-    setAppName(next);
-    fireAction(
-      () => updateSetting("appName", trimmed),
-      () => setAppName(prev),
-    );
-  }
-
-  // retry: false — lỗi ở đây (BIN không có trong danh bạ VN_BANKS) là lỗi
-  // validate xác định từ input, gọi lại y hệt chắc chắn lỗi lần hai. Retry
-  // mặc định chỉ có ý nghĩa với lỗi tạm thời (mạng/server), không phải lỗi
-  // do dữ liệu nhập sai.
-  function commitBankBin(next: string) {
-    const prev = bankBin;
-    setBankBin(next);
-    fireAction(
-      () => updateSetting("bankBin", next),
-      () => setBankBin(prev),
-      { retry: false },
-    );
-  }
-
-  // Ghi lúc rời ô (onBlur), không phải mỗi ký tự — tránh spam server action
-  // lúc đang gõ dở số tài khoản. Lỗi từ server (BIN sai/số không hợp lệ)
-  // không bao giờ echo lại giá trị người dùng gõ (xem message trong registry).
-  // retry: false — cùng lý do commitBankBin, số không khớp regex 6-20 chữ số
-  // thì gọi lại vẫn lỗi y hệt.
-  function commitBankAccountNo(next: string) {
-    const trimmed = next.trim();
-    const prev = bankAccountNo;
-    setBankAccountNo(trimmed);
-    fireAction(
-      () => updateSetting("bankAccountNo", trimmed),
-      () => setBankAccountNo(prev),
-      { retry: false },
-    );
-  }
-
-  function commitBankAccountName(next: string) {
-    const trimmed = next.trim();
-    const prev = bankAccountName;
-    setBankAccountName(trimmed);
-    fireAction(
-      () => updateSetting("bankAccountName", trimmed),
-      () => setBankAccountName(prev),
-    );
-  }
-
-  // retry: false — cùng lý do commitBankBin/commitBankAccountNo: sai định
-  // dạng hotline/email thì gọi lại lần hai vẫn sai y hệt, retry chỉ tốn thêm
-  // một vòng round-trip trước khi rollback. Chuẩn hoá NGAY Ở ĐÂY bằng đúng
-  // hàm registry export ra (không tự chép lại regex) — setting này
-  // `revalidate: []` và component không gọi `router.refresh()`, nên nếu chỉ
-  // trim() rồi set state lạc quan như cũ, ô nhập sẽ đứng yên với chuỗi có dấu
-  // cách/chấm/gạch ngang cho tới khi reload cả trang, dù DB đã lưu đúng giá
-  // trị sạch — admin nhìn vào tưởng lưu chưa xong.
-  function commitContactHotline(next: string) {
-    const normalized = normalizeContactHotline(next);
-    const prev = contactHotline;
-    setContactHotline(normalized);
-    fireAction(
-      () => updateSetting("contactHotline", normalized),
-      () => setContactHotline(prev),
-      { retry: false },
-    );
-  }
-
-  function commitContactEmail(next: string) {
-    const trimmed = next.trim();
-    const prev = contactEmail;
-    setContactEmail(trimmed);
-    fireAction(
-      () => updateSetting("contactEmail", trimmed),
-      () => setContactEmail(prev),
-      { retry: false },
-    );
+  function blurHotline(raw: string) {
+    // Dùng đúng hàm registry export ra, không chép lại regex.
+    set("contactHotline", normalizeContactHotline(raw));
   }
 
   return (
@@ -175,7 +65,10 @@ export function SectionOperations({ settings }: { settings: AppSettings }) {
               {t("autoCreateHint")}
             </p>
           </div>
-          <Switch checked={autoCreate} onCheckedChange={toggleAutoCreate} />
+          <Switch
+            checked={autoCreate}
+            onCheckedChange={(v) => set("autoCreateSessions", v)}
+          />
         </div>
         <label className="block">
           <span className="text-muted-foreground mb-1 block text-xs font-medium">
@@ -184,8 +77,8 @@ export function SectionOperations({ settings }: { settings: AppSettings }) {
           <Input
             value={appName}
             className="min-h-11"
-            onChange={(e) => setAppName(e.target.value)}
-            onBlur={(e) => commitAppName(e.target.value)}
+            onChange={(e) => set("appName", e.target.value)}
+            onBlur={(e) => blurTrim("appName", e.target.value)}
           />
         </label>
 
@@ -197,7 +90,7 @@ export function SectionOperations({ settings }: { settings: AppSettings }) {
             </span>
             <CustomSelect
               value={bankBin}
-              onChange={commitBankBin}
+              onChange={(v) => set("bankBin", v)}
               placeholder={t("bankPlaceholder")}
               searchable
               options={BANK_OPTIONS}
@@ -224,8 +117,8 @@ export function SectionOperations({ settings }: { settings: AppSettings }) {
                 inputMode="numeric"
                 maxLength={20}
                 className="min-h-11"
-                onChange={(e) => setBankAccountNo(e.target.value)}
-                onBlur={(e) => commitBankAccountNo(e.target.value)}
+                onChange={(e) => set("bankAccountNo", e.target.value)}
+                onBlur={(e) => blurTrim("bankAccountNo", e.target.value)}
               />
             </label>
             <label className="block">
@@ -235,8 +128,8 @@ export function SectionOperations({ settings }: { settings: AppSettings }) {
               <Input
                 value={bankAccountName}
                 className="min-h-11"
-                onChange={(e) => setBankAccountName(e.target.value)}
-                onBlur={(e) => commitBankAccountName(e.target.value)}
+                onChange={(e) => set("bankAccountName", e.target.value)}
+                onBlur={(e) => blurTrim("bankAccountName", e.target.value)}
               />
             </label>
           </div>
@@ -254,8 +147,8 @@ export function SectionOperations({ settings }: { settings: AppSettings }) {
                 type="tel"
                 inputMode="tel"
                 className="min-h-11"
-                onChange={(e) => setContactHotline(e.target.value)}
-                onBlur={(e) => commitContactHotline(e.target.value)}
+                onChange={(e) => set("contactHotline", e.target.value)}
+                onBlur={(e) => blurHotline(e.target.value)}
               />
             </label>
             <label className="block">
@@ -267,8 +160,8 @@ export function SectionOperations({ settings }: { settings: AppSettings }) {
                 type="email"
                 inputMode="email"
                 className="min-h-11"
-                onChange={(e) => setContactEmail(e.target.value)}
-                onBlur={(e) => commitContactEmail(e.target.value)}
+                onChange={(e) => set("contactEmail", e.target.value)}
+                onBlur={(e) => blurTrim("contactEmail", e.target.value)}
               />
             </label>
           </div>

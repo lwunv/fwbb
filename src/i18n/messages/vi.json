@@ -80,7 +80,8 @@
     "groupGuestMemberFemale": "Khách nữ của thành viên",
     "groupGuestAdminFemale": "Khách nữ của admin",
     "genderPricing": "Tính tiền theo giới tính",
-    "genderPricingHint": "Bật để đặt mức riêng cho thành viên nữ và khách nữ. Tắt thì mọi người chia như nhau."
+    "genderPricingHint": "Bật để đặt mức riêng cho thành viên nữ và khách nữ. Tắt thì mọi người chia như nhau.",
+    "genderGroupsTitle": "Mức riêng cho nhóm nữ"
   },
   "adminMisc": {
     "minDeductionAria": "Bật/tắt rule tối thiểu 60K cho member thiếu quỹ",

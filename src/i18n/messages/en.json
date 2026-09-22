@@ -80,7 +80,8 @@
     "groupGuestMemberFemale": "Female guest of member",
     "groupGuestAdminFemale": "Female guest of admin",
     "genderPricing": "Gender-based pricing",
-    "genderPricingHint": "Turn on to set separate rates for female members and guests. Off means everyone splits the same."
+    "genderPricingHint": "Turn on to set separate rates for female members and guests. Off means everyone splits the same.",
+    "genderGroupsTitle": "Separate rates for female groups"
   },
   "adminMisc": {
     "minDeductionAria": "Toggle 60K minimum rule for members with low fund",

@@ -17,6 +17,7 @@ import { defaultSettings } from "@/lib/settings-registry";
 import type { GroupKey, GroupPolicy } from "@/lib/group-policy";
 
 const saved = vi.hoisted(() => ({ groupPolicies: null as unknown }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/actions/settings", () => ({
   updateSetting: vi.fn(async (key: string, value: unknown) => {
     if (key === "groupPolicies") saved.groupPolicies = value;
@@ -25,6 +26,8 @@ vi.mock("@/actions/settings", () => ({
 }));
 
 const { SectionMoney } = await import("./section-money");
+const { SettingsDraftProvider } = await import("./settings-draft");
+const { SettingsSaveBar } = await import("./settings-save-bar");
 
 afterEach(() => {
   cleanup();
@@ -48,7 +51,10 @@ function settingsWith(genderOn: boolean) {
 function renderSection(genderOn: boolean) {
   render(
     <NextIntlClientProvider locale="vi" messages={viMessages}>
-      <SectionMoney settings={settingsWith(genderOn)} />
+      <SettingsDraftProvider settings={settingsWith(genderOn)}>
+        <SectionMoney />
+        <SettingsSaveBar />
+      </SettingsDraftProvider>
     </NextIntlClientProvider>,
   );
 }
@@ -96,11 +102,12 @@ describe("ba nhóm nữ trên trang Cài đặt", () => {
   it("đang ẩn nhóm nữ mà sửa một nhóm thường: giá trị nhóm nữ vẫn được gửi nguyên", async () => {
     renderSection(false);
 
-    // Đổi cách tính của nhóm "Thành viên" → kích hoạt một lần lưu.
+    // Đổi cách tính của nhóm "Thành viên" rồi bấm Lưu.
     fireEvent.click(
-      screen.getByRole("button", { name: "Cách tính: Thành viên" }),
+      screen.getByRole("button", { name: /^Cách tính: Thành viên$/ }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Cố định" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
 
     await vi.waitFor(() => expect(saved.groupPolicies).not.toBeNull());
     const sent = saved.groupPolicies as Record<GroupKey, GroupPolicy>;

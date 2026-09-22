@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { expectNoAppError } from "./utils";
+import { expectNoAppError, saveSettings } from "./utils";
 
 // Section chia tiền (Task 5, giai đoạn 3): chỉ ba nhóm không phân biệt giới
 // được hiện, và đổi một dòng phải ghi cả sáu nhóm (schema .strict() ở
@@ -47,7 +47,7 @@ test.describe("admin settings — money policy section", () => {
     await expect(modeButton(page, "Cách tính: Khách của admin")).toBeVisible();
   });
 
-  test("đổi chính sách nhóm khách-của-admin rồi reload thấy giá trị mới", async ({
+  test("đổi chính sách nhóm khách-của-admin, bấm Lưu rồi reload thấy giá trị mới", async ({
     page,
   }) => {
     await page.goto("/admin/settings", { waitUntil: "domcontentloaded" });
@@ -55,26 +55,19 @@ test.describe("admin settings — money policy section", () => {
 
     try {
       // Mặc định guestAdmin: floor 60.000, capAtEqual=false. Đổi sang fixed
-      // 50.000 + bật cap. Mỗi bước lưu qua fireAction là fire-and-forget
-      // (không có gì để đợi trên UI — không toast, không disable nút), nên
-      // đợi networkidle sau MỖI lần ghi trước khi ghi tiếp/reload: nếu không,
-      // request ghi còn dở có thể bị reload cắt ngang giữa chừng, và phần
-      // còn dở đó chạy tiếp trên server, lấn sang timing của bài test SAU —
-      // đã thấy đúng kiểu này (bài admin-settings.spec.ts ăn field "8" do
-      // request ghi rớt lại từ bài này).
+      // 50.000 + bật cap. Cả ba thay đổi nằm chung một bản nháp nên chỉ cần
+      // MỘT lần Lưu; `saveSettings` đợi thanh Lưu biến mất, tức mọi khoá đã
+      // ghi xong dưới server trước khi reload.
       await modeButton(page, "Cách tính: Khách của admin").click();
       await page.getByRole("button", { name: "Cố định", exact: true }).click();
-      await page.waitForLoadState("networkidle");
 
       const amount = amountField(page, "Khách của admin");
       await expect(amount).toBeVisible();
       await amount.fill("50000");
       await amount.blur();
-      await page.waitForLoadState("networkidle");
 
-      const cap = capField(page, "Khách của admin");
-      await cap.check();
-      await page.waitForLoadState("networkidle");
+      await capField(page, "Khách của admin").check();
+      await saveSettings(page);
 
       await page.reload({ waitUntil: "domcontentloaded" });
 
@@ -90,24 +83,19 @@ test.describe("admin settings — money policy section", () => {
       // dừng ở bước nào.
       await modeButton(page, "Cách tính: Khách của admin").click();
       await page.getByRole("button", { name: "Cố định", exact: true }).click();
-      await page.waitForLoadState("networkidle");
 
       const cap = capField(page, "Khách của admin");
-      if (await cap.isChecked()) {
-        await cap.uncheck();
-        await page.waitForLoadState("networkidle");
-      }
+      if (await cap.isChecked()) await cap.uncheck();
 
       const amount = amountField(page, "Khách của admin");
       await amount.fill("60000");
       await amount.blur();
-      await page.waitForLoadState("networkidle");
 
       await modeButton(page, "Cách tính: Khách của admin").click();
       await page
         .getByRole("button", { name: "Sàn tối thiểu", exact: true })
         .click();
-      await page.waitForLoadState("networkidle");
+      await saveSettings(page);
 
       await page.reload({ waitUntil: "domcontentloaded" });
       await expect(amountField(page, "Khách của admin")).toHaveValue("60.000");

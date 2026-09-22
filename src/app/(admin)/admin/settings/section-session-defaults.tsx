@@ -1,15 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Settings2, X } from "lucide-react";
 import { SectionCard } from "@/components/shared/section-card";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
-import { fireAction } from "@/lib/optimistic-action";
-import { useWriteQueue } from "@/lib/use-write-queue";
-import { updateSetting } from "@/actions/settings";
-import type { AppSettings } from "@/lib/settings-registry";
+import { useSettingsDraft } from "./settings-draft";
 import { formatK, cn } from "@/lib/utils";
 
 interface CourtOpt {
@@ -35,140 +32,53 @@ const DAY_PILLS: { dow: number; label: string }[] = [
 ];
 
 export function SectionSessionDefaults({
-  settings,
   courts,
   brands,
 }: {
-  settings: AppSettings;
   courts: CourtOpt[];
   brands: BrandOpt[];
 }) {
   const t = useTranslations("adminSettings");
   const td = useTranslations("dashboard");
 
-  const [courtId, setCourtId] = useState(
-    settings.defaultCourtId ? String(settings.defaultCourtId) : "",
-  );
-  const [brandId, setBrandId] = useState(
-    settings.defaultBrandId ? String(settings.defaultBrandId) : "",
-  );
-  const [sessionDays, setSessionDays] = useState<Set<number>>(
-    new Set(settings.sessionDaysOfWeek),
-  );
-  const [startTime, setStartTime] = useState(settings.defaultStartTime);
-  const [endTime, setEndTime] = useState(settings.defaultEndTime);
-  const [courtQty, setCourtQty] = useState(settings.defaultCourtQuantity);
-  const [deadlineHours, setDeadlineHours] = useState(
-    settings.voteDeadlineOffsetHours,
-  );
-  const [maxPlayers, setMaxPlayers] = useState(settings.defaultMaxPlayers);
-  const [options, setOptions] = useState<number[]>(settings.maxPlayersOptions);
-  const [draft, setDraft] = useState("");
+  // Mọi ô đọc thẳng từ bản nháp chung. Trước đây mỗi ô giữ một bản sao của
+  // prop `settings` kèm một `useEffect` đồng bộ lại; bản nháp đã làm đúng việc
+  // đó ở một chỗ (nháp nếu có, không thì giá trị server) nên chín cặp
+  // state/effect kia bỏ được hết.
+  const { get, set } = useSettingsDraft();
 
-  // Chín ô trên đều là bản sao của prop `settings`, và trước đây KHÔNG đồng bộ
-  // lại bao giờ: sau khi server revalidate (hoặc admin sửa từ tab khác) thì
-  // form vẫn hiện giá trị cũ, và lần lưu kế tiếp ghi đè bằng số đã lỗi thời.
-  //
-  // Tách phẳng từng field làm dependency thay vì để cả object `settings`: prop
-  // đó là object mới mỗi lần render của cha, dùng nguyên nó sẽ chạy effect
-  // liên tục và giật ô đang chỉnh. `draft` KHÔNG đồng bộ — nó là ô người dùng
-  // đang gõ, không phải bản sao của server.
-  const {
-    defaultCourtId,
-    defaultBrandId,
-    sessionDaysOfWeek,
-    defaultStartTime,
-    defaultEndTime,
-    defaultCourtQuantity,
-    voteDeadlineOffsetHours,
-    defaultMaxPlayers,
-    maxPlayersOptions,
-  } = settings;
-  useEffect(() => {
-    setCourtId(defaultCourtId ? String(defaultCourtId) : "");
-  }, [defaultCourtId]);
-  useEffect(() => {
-    setBrandId(defaultBrandId ? String(defaultBrandId) : "");
-  }, [defaultBrandId]);
-  useEffect(() => {
-    setSessionDays(new Set(sessionDaysOfWeek));
-  }, [sessionDaysOfWeek]);
-  useEffect(() => {
-    setStartTime(defaultStartTime);
-  }, [defaultStartTime]);
-  useEffect(() => {
-    setEndTime(defaultEndTime);
-  }, [defaultEndTime]);
-  useEffect(() => {
-    setCourtQty(defaultCourtQuantity);
-  }, [defaultCourtQuantity]);
-  useEffect(() => {
-    setDeadlineHours(voteDeadlineOffsetHours);
-  }, [voteDeadlineOffsetHours]);
-  useEffect(() => {
-    setMaxPlayers(defaultMaxPlayers);
-  }, [defaultMaxPlayers]);
-  useEffect(() => {
-    setOptions(maxPlayersOptions);
-  }, [maxPlayersOptions]);
+  const courtId = get("defaultCourtId") ? String(get("defaultCourtId")) : "";
+  const brandId = get("defaultBrandId") ? String(get("defaultBrandId")) : "";
+  const sessionDays = new Set(get("sessionDaysOfWeek"));
+  const startTime = get("defaultStartTime");
+  const endTime = get("defaultEndTime");
+  const courtQty = get("defaultCourtQuantity");
+  const deadlineHours = get("voteDeadlineOffsetHours");
+  const maxPlayers = get("defaultMaxPlayers");
+  const options = get("maxPlayersOptions");
 
-  // Mọi ô ở đây đều ghi kiểu upsert ai-đến-sau-thắng. Bấm nhanh hai lần trên
-  // CÙNG một ô (tick liên tiếp hai ngày trong tuần, thêm rồi xoá một mức sĩ
-  // số) là hai request gần như đồng thời, không có gì đảm bảo thứ tự chúng về.
-  // Xếp hàng theo khoá để bản cũ không đè bản mới.
-  const enqueue = useWriteQueue();
+  // Ô gõ số để THÊM một mức sĩ số. Đây là state màn hình thuần tuý, không phải
+  // một setting, nên không nằm trong bản nháp.
+  const [newOption, setNewOption] = useState("");
 
   function handleCourtChange(v: string) {
-    const prev = courtId;
-    setCourtId(v);
     const id = parseInt(v, 10);
     if (!Number.isFinite(id)) return;
-    fireAction(
-      () =>
-        enqueue("defaultCourtId", () => updateSetting("defaultCourtId", id)),
-      () => setCourtId(prev),
-    );
+    set("defaultCourtId", id);
   }
 
   function handleBrandChange(v: string) {
-    const prev = brandId;
-    setBrandId(v);
     const id = parseInt(v, 10);
     if (!Number.isFinite(id)) return;
-    fireAction(
-      () =>
-        enqueue("defaultBrandId", () => updateSetting("defaultBrandId", id)),
-      () => setBrandId(prev),
-    );
+    set("defaultBrandId", id);
   }
 
   function toggleDay(dow: number) {
-    const prev = new Set(sessionDays);
     const next = new Set(sessionDays);
     if (next.has(dow)) next.delete(dow);
     else next.add(dow);
     if (next.size === 0) return; // ít nhất 1 ngày — khớp validate registry
-    setSessionDays(next);
-    fireAction(
-      () =>
-        enqueue("sessionDaysOfWeek", () =>
-          updateSetting("sessionDaysOfWeek", Array.from(next).sort()),
-        ),
-      () => setSessionDays(prev),
-    );
-  }
-
-  function commitTime(
-    key: "defaultStartTime" | "defaultEndTime",
-    next: string,
-    prev: string,
-    set: (v: string) => void,
-  ) {
-    set(next);
-    fireAction(
-      () => enqueue(key, () => updateSetting(key, next)),
-      () => set(prev),
-    );
+    set("sessionDaysOfWeek", Array.from(next).sort());
   }
 
   function commitNumber(
@@ -177,34 +87,20 @@ export function SectionSessionDefaults({
       | "voteDeadlineOffsetHours"
       | "defaultMaxPlayers",
     next: number,
-    prev: number,
-    set: (v: number) => void,
   ) {
     if (!Number.isInteger(next) || next < 0) return;
-    set(next);
-    fireAction(
-      () => enqueue(key, () => updateSetting(key, next)),
-      () => set(prev),
-    );
+    set(key, next);
   }
 
   function commitOptions(next: number[]) {
     if (next.length === 0) return; // registry bắt buộc ít nhất một mức
-    const prev = options;
-    setOptions(next);
-    fireAction(
-      () =>
-        enqueue("maxPlayersOptions", () =>
-          updateSetting("maxPlayersOptions", next),
-        ),
-      () => setOptions(prev),
-    );
+    set("maxPlayersOptions", next);
   }
 
   function addOption() {
-    const n = Number(draft);
+    const n = Number(newOption);
     if (!Number.isInteger(n) || n < 1 || n > 100 || options.includes(n)) return;
-    setDraft("");
+    setNewOption("");
     commitOptions([...options, n].sort((a, b) => a - b));
   }
 
@@ -287,14 +183,7 @@ export function SectionSessionDefaults({
               type="time"
               value={startTime}
               className="min-h-11"
-              onChange={(e) =>
-                commitTime(
-                  "defaultStartTime",
-                  e.target.value,
-                  startTime,
-                  setStartTime,
-                )
-              }
+              onChange={(e) => set("defaultStartTime", e.target.value)}
             />
           </label>
           <label className="block">
@@ -305,14 +194,7 @@ export function SectionSessionDefaults({
               type="time"
               value={endTime}
               className="min-h-11"
-              onChange={(e) =>
-                commitTime(
-                  "defaultEndTime",
-                  e.target.value,
-                  endTime,
-                  setEndTime,
-                )
-              }
+              onChange={(e) => set("defaultEndTime", e.target.value)}
             />
           </label>
           <label className="block">
@@ -326,12 +208,7 @@ export function SectionSessionDefaults({
               value={courtQty}
               className="min-h-11"
               onChange={(e) =>
-                commitNumber(
-                  "defaultCourtQuantity",
-                  Number(e.target.value),
-                  courtQty,
-                  setCourtQty,
-                )
+                commitNumber("defaultCourtQuantity", Number(e.target.value))
               }
             />
           </label>
@@ -346,12 +223,7 @@ export function SectionSessionDefaults({
               value={deadlineHours}
               className="min-h-11"
               onChange={(e) =>
-                commitNumber(
-                  "voteDeadlineOffsetHours",
-                  Number(e.target.value),
-                  deadlineHours,
-                  setDeadlineHours,
-                )
+                commitNumber("voteDeadlineOffsetHours", Number(e.target.value))
               }
             />
           </label>
@@ -366,12 +238,7 @@ export function SectionSessionDefaults({
               value={maxPlayers}
               className="min-h-11"
               onChange={(e) =>
-                commitNumber(
-                  "defaultMaxPlayers",
-                  Number(e.target.value),
-                  maxPlayers,
-                  setMaxPlayers,
-                )
+                commitNumber("defaultMaxPlayers", Number(e.target.value))
               }
             />
           </label>
@@ -397,10 +264,10 @@ export function SectionSessionDefaults({
               type="number"
               min={1}
               inputMode="numeric"
-              value={draft}
+              value={newOption}
               placeholder={t("addOption")}
               className="min-h-11 w-24"
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) => setNewOption(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
