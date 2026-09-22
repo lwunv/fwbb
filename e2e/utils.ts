@@ -31,13 +31,12 @@ export async function expectNoAppError(page: Page) {
  * Bấm Lưu trên trang Cài đặt và đợi ghi xong thật.
  *
  * Từ 22/9/2026 trang này không lưu ngay khi đổi nữa: mọi thay đổi nằm trong
- * một bản nháp, server chỉ nhận khi bấm Lưu. Thanh Lưu chỉ biến mất sau khi
- * mọi khoá đã ghi xuống xong, nên nó là mốc chờ xác định — không phải
- * `networkidle` đoán chừng (trang admin còn poll 5 giây một lần nên gần như
- * không bao giờ thật sự idle).
+ * một bản nháp, server chỉ nhận khi bấm Lưu. Thanh Lưu luôn hiện, nên mốc chờ
+ * là dòng chữ đổi về "Chưa có thay đổi" — nó chỉ xuất hiện sau khi mọi khoá đã
+ * ghi xuống xong. Không dùng `networkidle` đoán chừng: trang admin poll 5 giây
+ * một lần nên gần như không bao giờ thật sự idle.
  */
 export async function saveSettings(page: Page) {
-  const save = page.getByRole("button", { name: "Lưu", exact: true });
-  await save.click();
-  await expect(save).toBeHidden();
+  await page.getByRole("button", { name: "Lưu", exact: true }).click();
+  await expect(page.getByText("Chưa có thay đổi")).toBeVisible();
 }

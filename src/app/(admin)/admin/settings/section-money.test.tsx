@@ -89,8 +89,9 @@ describe("SectionMoney — nháp rồi mới lưu", () => {
     // Cho mọi microtask đang chờ chạy hết rồi mới kết luận "không gửi gì".
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(settingsActions.updateSetting).not.toHaveBeenCalled();
-    // Thanh Lưu phải hiện lên, nếu không admin không có cách nào lưu.
-    expect(screen.getByRole("button", { name: "Lưu" })).toBeTruthy();
+    // Thanh Lưu phải báo có thay đổi, nếu không admin không biết còn gì chưa
+    // lưu. (Nút Lưu luôn hiện, nên sự tồn tại của nó không chứng minh gì.)
+    expect(screen.getByText("1 thay đổi chưa lưu")).toBeTruthy();
   });
 
   it("đổi cách tính rồi gõ số tiền, bấm Lưu: gửi MỘT lần, mang giá trị mới nhất", async () => {
@@ -123,9 +124,13 @@ describe("SectionMoney — nháp rồi mới lưu", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Hoàn tác" }));
 
-    // Thanh Lưu biến mất vì không còn gì chưa lưu, và ô số tiền (chỉ hiện ở
-    // mode khác "Chia đều") cũng ẩn theo.
-    expect(screen.queryByRole("button", { name: "Lưu" })).toBeNull();
+    // Không còn gì chưa lưu: nút Lưu mờ đi, nút Hoàn tác biến mất, và ô số
+    // tiền (chỉ hiện ở mode khác "Chia đều") cũng ẩn theo.
+    expect(screen.getByText("Chưa có thay đổi")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Lưu" }).hasAttribute("disabled"),
+    ).toBe(true);
+    expect(screen.queryByRole("button", { name: "Hoàn tác" })).toBeNull();
     expect(screen.queryByLabelText(/^Số tiền: Thành viênđ$/)).toBeNull();
     expect(settingsActions.updateSetting).not.toHaveBeenCalled();
   });
