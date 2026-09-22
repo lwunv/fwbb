@@ -46,7 +46,7 @@
     "lowStock": "Cảnh báo cầu còn dưới",
     "quaUnit": "quả",
     "autoCreate": "Tự động tạo buổi",
-    "autoCreateHint": "Cron tự tạo buổi vote vào các ngày đã chọn",
+    "autoCreateHint": "Tự tạo buổi vote vào các ngày chọn bên dưới, admin không phải tạo tay.",
     "appName": "Tên nhóm",
     "bankAccount": "Tài khoản nhận tiền",
     "bankName": "Ngân hàng",

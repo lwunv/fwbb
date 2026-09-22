@@ -4,7 +4,6 @@ import { useTranslations } from "next-intl";
 import { Cog } from "lucide-react";
 import { SectionCard } from "@/components/shared/section-card";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { useSettingsDraft } from "./settings-draft";
 import { normalizeContactHotline } from "@/lib/settings-registry";
@@ -26,7 +25,6 @@ export function SectionOperations() {
   // giá trị server cho khoá nào chưa sửa.
   const { get, set, reset } = useSettingsDraft();
 
-  const autoCreate = get("autoCreateSessions");
   const appName = get("appName");
   const bankBin = get("bankBin");
   const bankAccountNo = get("bankAccountNo");
@@ -58,18 +56,6 @@ export function SectionOperations() {
   return (
     <SectionCard tone="slate" icon={Cog} title={t("operations")}>
       <div className="space-y-3">
-        <div className="flex min-h-11 items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-medium">{t("autoCreate")}</div>
-            <p className="text-muted-foreground text-xs">
-              {t("autoCreateHint")}
-            </p>
-          </div>
-          <Switch
-            checked={autoCreate}
-            onCheckedChange={(v) => set("autoCreateSessions", v)}
-          />
-        </div>
         <label className="block">
           <span className="text-muted-foreground mb-1 block text-xs font-medium">
             {t("appName")}

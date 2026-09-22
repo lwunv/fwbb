@@ -46,7 +46,7 @@
     "lowStock": "Low-stock warning below",
     "quaUnit": "shuttles",
     "autoCreate": "Auto-create sessions",
-    "autoCreateHint": "Cron auto-creates voting sessions on chosen days",
+    "autoCreateHint": "The app creates voting sessions automatically on the days picked below.",
     "appName": "Group name",
     "bankAccount": "Receiving account",
     "bankName": "Bank",

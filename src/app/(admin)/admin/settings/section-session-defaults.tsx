@@ -6,6 +6,7 @@ import { Settings2, X } from "lucide-react";
 import { SectionCard } from "@/components/shared/section-card";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { useSettingsDraft } from "./settings-draft";
 import { formatK, cn } from "@/lib/utils";
 
@@ -146,6 +147,23 @@ export function SectionSessionDefaults({
               }))}
             />
           </label>
+        </div>
+
+        {/* Công tắc tự tạo buổi đứng NGAY TRÊN bộ chọn ngày vì nó điều khiển
+            đúng mấy ngày đó. Trước 22/9/2026 nó nằm tận mục "Vận hành", cách
+            xa thứ nó tác động, nhìn không ra hai cái liên quan nhau. */}
+        <div className="flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3">
+          <div>
+            <div className="text-sm font-medium">{t("autoCreate")}</div>
+            <p className="text-muted-foreground text-xs">
+              {t("autoCreateHint")}
+            </p>
+          </div>
+          <Switch
+            checked={get("autoCreateSessions")}
+            onCheckedChange={(v) => set("autoCreateSessions", v)}
+            aria-label={t("autoCreate")}
+          />
         </div>
 
         <div>
