@@ -68,6 +68,8 @@
     "modeEqual": "Split evenly",
     "modeFloor": "Minimum floor",
     "modeFixed": "Fixed",
+    "modePercent": "% of the male group",
+    "percentLabel": "Percent of the male group: {group}",
     "capAtEqual": "Do not charge more than the even split",
     "capAtEqualLabel": "Do not charge more than the even split: {group}",
     "previewTitle": "Preview",

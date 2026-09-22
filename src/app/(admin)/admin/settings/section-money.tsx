@@ -80,7 +80,19 @@ export function SectionMoney({
   }
 
   function commitMode(key: VisibleGroupKey, mode: GroupPolicy["mode"]) {
+    // Cấu hình lưu từ trước khi có cách tính phần trăm không mang field này.
+    // Điền 80 ngay lúc đổi cách tính, nếu không ô phần trăm mở ra trống trơn
+    // và bộ tính tiền hiểu là 100% (nữ trả bằng nam), tức chọn xong mà không
+    // thấy gì đổi.
+    if (mode === "percent" && policies[key].percent === undefined) {
+      updateRow(key, { mode, percent: 80 });
+      return;
+    }
     updateRow(key, { mode });
+  }
+
+  function commitPercent(key: VisibleGroupKey, percent: number) {
+    updateRow(key, { percent });
   }
 
   function commitCapAtEqual(key: VisibleGroupKey, capAtEqual: boolean) {
@@ -98,6 +110,14 @@ export function SectionMoney({
       { value: "fixed", label: t("modeFixed") },
     ],
     [t],
+  );
+
+  // "% của nhóm nam" CHỈ hiện ở ba nhóm nữ: nó lấy theo suất của nhóm nam
+  // tương ứng, nhóm nam thì không có gốc nào để lấy. Registry cũng chặn lưu,
+  // đây là lớp đầu để admin không chọn được thứ vô nghĩa.
+  const FEMALE_MODE_OPTIONS = useMemo(
+    () => [...MODE_OPTIONS, { value: "percent", label: t("modePercent") }],
+    [MODE_OPTIONS, t],
   );
 
   // ─── Khối xem thử — gọi ĐÚNG computeGroupPlayRates mà đường chốt sổ dùng,
@@ -133,6 +153,7 @@ export function SectionMoney({
   function groupRow(key: VisibleGroupKey) {
     const policy = policies[key];
     const groupLabel = t(GROUP_LABEL_KEY[key]);
+    const isFemale = (FEMALE_GROUPS as readonly string[]).includes(key);
     return (
       <div key={key} className="bg-card rounded-lg border p-3">
         <div className="mb-2 text-sm font-semibold">{groupLabel}</div>
@@ -144,10 +165,10 @@ export function SectionMoney({
             <CustomSelect
               value={policy.mode}
               onChange={(v) => commitMode(key, v as GroupPolicy["mode"])}
-              options={MODE_OPTIONS}
+              options={isFemale ? FEMALE_MODE_OPTIONS : MODE_OPTIONS}
             />
           </label>
-          {policy.mode !== "equal" && (
+          {(policy.mode === "floor" || policy.mode === "fixed") && (
             <label className="block">
               <span className="text-muted-foreground mb-1 block text-sm font-medium">
                 {t("amountLabel", { group: groupLabel })}
@@ -158,6 +179,26 @@ export function SectionMoney({
                 suffix="đ"
               />
             </label>
+          )}
+          {policy.mode === "percent" && (
+            // `div` chứ không phải `label`: bọc `<label>` quanh stepper thì
+            // nhãn rơi vào nút trừ, ô số lại không có tên. Đặt tên thẳng lên
+            // ô số qua `inputAriaLabel`.
+            <div className="block">
+              <span className="text-muted-foreground mb-1 block text-sm font-medium">
+                {t("percentLabel", { group: groupLabel })}
+              </span>
+              <NumberStepper
+                value={policy.percent ?? 80}
+                onChange={(n) => commitPercent(key, n)}
+                inputAriaLabel={t("percentLabel", { group: groupLabel })}
+                min={0}
+                max={100}
+                step={5}
+                className="w-full"
+                inputClassName="text-center px-2"
+              />
+            </div>
           )}
         </div>
         {policy.mode === "fixed" && (

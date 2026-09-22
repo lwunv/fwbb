@@ -68,6 +68,8 @@
     "modeEqual": "Chia đều",
     "modeFloor": "Sàn tối thiểu",
     "modeFixed": "Cố định",
+    "modePercent": "% của nhóm nam",
+    "percentLabel": "Phần trăm so với nhóm nam: {group}",
     "capAtEqual": "Không trả cao hơn suất chia đều",
     "capAtEqualLabel": "Không trả cao hơn suất chia đều: {group}",
     "previewTitle": "Xem thử",

@@ -30,11 +30,25 @@ const hhmm = z
 // lộ ra sau ở số tiền member bị tính.
 const groupPolicySchema = z
   .object({
-    mode: z.enum(["equal", "floor", "fixed"]),
+    mode: z.enum(["equal", "floor", "fixed", "percent"]),
     amount: z.number().int().nonnegative(),
     capAtEqual: z.boolean(),
+    // `.optional()` ở ĐÂY là bắt buộc, không phải nới lỏng cho tiện.
+    //
+    // `sessions.settings_snapshot` của mọi buổi đã chốt sổ trước 22/9/2026
+    // đều KHÔNG có field này. `parseSnapshot` coi "có mặt nhưng sai schema"
+    // là hỏng CẢ snapshot và rơi về cấu hình hiện tại, nên bắt buộc field
+    // mới đồng nghĩa với việc mọi buổi lịch sử bị tính lại theo cấu hình
+    // hôm nay. Khuyết thì `percentFactor` tính như 100% (trả bằng nam), tức
+    // hướng thu đủ. Lưu ý phân biệt với quy tắc cấm `.optional()` cho SÁU
+    // NHÓM bên dưới: thiếu cả một nhóm là mất cấu hình, còn thiếu field này
+    // chỉ là bản ghi cũ chưa biết tới cách tính mới.
+    percent: z.number().int().min(0).max(100).optional(),
   })
   .strict();
+
+/** Ba nhóm không phải nữ: không có nhóm gốc nào để lấy phần trăm. */
+const NON_FEMALE_GROUPS = ["member", "guestMember", "guestAdmin"] as const;
 
 function def<T>(d: SettingDef<T>): SettingDef<T> {
   return d;
@@ -275,7 +289,38 @@ export const SETTINGS = {
         guestAdmin: groupPolicySchema,
         guestAdminFemale: groupPolicySchema,
       })
-      .strict(),
+      .strict()
+      // Cách tính phần trăm chỉ có nghĩa với nhóm nữ (nữ = X% nhóm nam tương
+      // ứng). Đặt cho nhóm nam thì không có gốc để nhân: bộ tính tiền coi như
+      // chia đều, và một cài đặt không có tác dụng nhưng vẫn hiện trên màn
+      // hình là kiểu sai âm thầm. Chặn ngay lúc lưu để admin thấy lỗi.
+      .superRefine((v, ctx) => {
+        // Chọn cách tính phần trăm mà không kèm số thì `percentInt` hiểu là
+        // 100% (nữ trả bằng nam) — màn hình ghi một đằng, tiền tính một nẻo.
+        // Giao diện đã điền sẵn 80, đây là chốt chặn cho đường ghi setting
+        // không qua giao diện. Không đụng bản chụp cũ: bản chụp cũ không có
+        // nhóm nào ở mode percent.
+        for (const [k, p] of Object.entries(v)) {
+          if (p.mode === "percent" && p.percent === undefined) {
+            ctx.addIssue({
+              code: "custom",
+              path: [k, "percent"],
+              message:
+                "Chọn cách tính theo phần trăm thì phải kèm số phần trăm.",
+            });
+          }
+        }
+        for (const k of NON_FEMALE_GROUPS) {
+          if (v[k].mode === "percent") {
+            ctx.addIssue({
+              code: "custom",
+              path: [k, "mode"],
+              message:
+                "Cách tính theo phần trăm chỉ dùng được cho nhóm nữ, vì nó lấy theo suất của nhóm nam tương ứng.",
+            });
+          }
+        }
+      }),
     default: DEFAULT_GROUP_POLICIES,
     perSession: true,
     revalidate: ["/admin/sessions", "/admin/dashboard", "/"],

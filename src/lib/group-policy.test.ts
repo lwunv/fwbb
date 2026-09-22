@@ -143,6 +143,10 @@ describe("DEFAULT_GROUP_POLICIES — giữ hành vi hôm nay", () => {
       mode: "floor",
       amount: 60_000,
       capAtEqual: false,
+      // Chỉ là số điền sẵn cho ô phần trăm (thêm 22/9/2026). Nó KHÔNG tác
+      // động đồng nào khi mode còn là "floor"; phần tiền được khoá ở khối
+      // "tương đương hành vi cũ" bên dưới.
+      percent: 80,
     });
     expect(DEFAULT_GROUP_POLICIES.member.mode).toBe("equal");
     expect(DEFAULT_GROUP_POLICIES.memberFemale.mode).toBe("equal");

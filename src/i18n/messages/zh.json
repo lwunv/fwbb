@@ -68,6 +68,8 @@
     "modeEqual": "平均分摊",
     "modeFloor": "最低金额",
     "modeFixed": "固定金额",
+    "modePercent": "男性组的百分比",
+    "percentLabel": "相对男性组的百分比：{group}",
     "capAtEqual": "不高于平均分摊金额",
     "capAtEqualLabel": "不高于平均分摊金额：{group}",
     "previewTitle": "预览",

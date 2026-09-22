@@ -20,6 +20,12 @@ interface NumberStepperProps {
   autoFocus?: boolean;
   /** Override input width — default w-14 (raw) hoặc flex-1 (vnd-wide). */
   inputClassName?: string;
+  /**
+   * Tên riêng cho Ô NHẬP. Bọc cả stepper trong một `<label>` thì nhãn đó rơi
+   * vào NÚT TRỪ (button cũng là phần tử gắn nhãn được), còn ô số thì không có
+   * tên nào. Truyền tên vào đây để ô số tự có tên.
+   */
+  inputAriaLabel?: string;
 }
 
 export function NumberStepper({
@@ -34,6 +40,7 @@ export function NumberStepper({
   displayFormat = "raw",
   autoFocus,
   inputClassName,
+  inputAriaLabel,
 }: NumberStepperProps) {
   function set(next: number) {
     const clamped = Math.max(min, Math.min(max, next));
@@ -64,6 +71,7 @@ export function NumberStepper({
         <input
           type="text"
           inputMode="numeric"
+          aria-label={inputAriaLabel}
           value={value > 0 ? value.toLocaleString("vi-VN") : ""}
           disabled={disabled}
           autoFocus={autoFocus}
@@ -81,6 +89,7 @@ export function NumberStepper({
       ) : (
         <input
           type="number"
+          aria-label={inputAriaLabel}
           min={min}
           max={max === Infinity ? undefined : max}
           step={step}

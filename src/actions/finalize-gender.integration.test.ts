@@ -78,6 +78,28 @@ async function enableGenderPricing(amount: number) {
   });
 }
 
+/** Bật công tắc + cho ba nhóm nữ trả `percent`% suất của nhóm nam tương ứng. */
+async function enablePercentPricing(percent: number) {
+  const base = defaultSettings().groupPolicies;
+  await setSetting("genderPricingEnabled", true);
+  await setSetting("groupPolicies", {
+    ...base,
+    memberFemale: { mode: "percent", amount: 0, capAtEqual: false, percent },
+    guestMemberFemale: {
+      mode: "percent",
+      amount: 0,
+      capAtEqual: false,
+      percent,
+    },
+    guestAdminFemale: {
+      mode: "percent",
+      amount: 0,
+      capAtEqual: false,
+      percent,
+    },
+  });
+}
+
 async function seedActors() {
   const inserted = await testDb
     .insert(members)
@@ -308,6 +330,63 @@ describe("chốt sổ với giới tính", () => {
     // thấp hơn sàn thì với người hết quỹ, mức đó không có tác dụng.
     const d = await debtsByMember(sid);
     expect(d[nuId]).toBe(60_000);
+    await expectMoneyInvariants(sid, adminMemberId);
+  });
+
+  it("NỮ = 80% NAM: đi qua đường chốt sổ thật, tiền ra đúng tỷ lệ", async () => {
+    const { adminMemberId, namId, nuId } = await seedActors();
+    await enablePercentPricing(80);
+    // 900K sân, 5 đầu: 4 nam-hoặc-chưa-khai + 1 nữ.
+    // Trọng số 4 × 1 + 1 × 0,8 = 4,8 → nam 187.500 (làm tròn lên 188.000),
+    // nữ 150.000.
+    const sid = await seedSession(900_000);
+    await vote(sid, namId, { guestPlayCount: 3 }); // 3 khách nam của Nam
+    await vote(sid, nuId);
+
+    const r = await finalizeSessionAuto(sid);
+    expect(r).not.toHaveProperty("error");
+
+    const d = await debtsByMember(sid);
+    expect(d[nuId]).toBe(150_000);
+    // Nam gánh suất của mình + 3 khách: 4 × 188.000.
+    expect(d[namId]).toBe(752_000);
+    // Thu phải PHỦ ĐỦ tiền sân, không được hụt.
+    expect(d[namId] + d[nuId]).toBeGreaterThanOrEqual(900_000);
+    await expectMoneyInvariants(sid, adminMemberId);
+  });
+
+  it("đổi phần trăm thì tiền đổi theo: 50% cho ra đúng một nửa suất nam", async () => {
+    const { adminMemberId, namId, nuId } = await seedActors();
+    await enablePercentPricing(50);
+    // 600K, 4 nam + 1 nữ → trọng số 4,5 → nam 133.333 (làm tròn 134.000),
+    // nữ 66.666 (làm tròn 67.000).
+    const sid = await seedSession(600_000);
+    await vote(sid, namId, { guestPlayCount: 3 });
+    await vote(sid, nuId);
+
+    const r = await finalizeSessionAuto(sid);
+    expect(r).not.toHaveProperty("error");
+
+    const d = await debtsByMember(sid);
+    expect(d[nuId]).toBe(67_000);
+    expect(d[namId]).toBe(536_000); // 4 × 134.000
+    expect(d[namId] + d[nuId]).toBeGreaterThanOrEqual(600_000);
+    await expectMoneyInvariants(sid, adminMemberId);
+  });
+
+  it("100% cho ra ĐÚNG số tiền của chia đều — bật cách tính này không tự ý đổi tiền", async () => {
+    const { adminMemberId, namId, nuId } = await seedActors();
+    await enablePercentPricing(100);
+    const sid = await seedSession(300_000);
+    await vote(sid, namId);
+    await vote(sid, nuId);
+
+    const r = await finalizeSessionAuto(sid);
+    expect(r).not.toHaveProperty("error");
+
+    const d = await debtsByMember(sid);
+    expect(d[namId]).toBe(150_000);
+    expect(d[nuId]).toBe(150_000);
     await expectMoneyInvariants(sid, adminMemberId);
   });
 
