@@ -70,6 +70,7 @@ function member(id: number, name: string, isActive = true): Member {
     name,
     nickname: null,
     avatarKey: null,
+    skillLevel: null,
     facebookId: null,
     googleId: null,
     avatarUrl: null,

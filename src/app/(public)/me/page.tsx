@@ -7,6 +7,7 @@ import { getFundBalance, isFundMember } from "@/lib/fund-calculator";
 import { getMemberIdentities, isUsablePassword } from "@/lib/oauth-identity";
 import { ymdInVN } from "@/lib/date-format";
 import { MeClient } from "./me-client";
+import { SkillLevelSection } from "./skill-level-section";
 import { SetPasswordSection } from "./set-password-section";
 import { LinkedAccountsSection } from "./linked-accounts-section";
 
@@ -60,6 +61,7 @@ export default async function MePage() {
         outstandingDebt={outstandingDebt}
         fundBalance={fundBalance}
       />
+      <SkillLevelSection current={member.skillLevel ?? null} />
       <SetPasswordSection
         hasPassword={!!member.passwordHash}
         hasEmail={!!member.email}

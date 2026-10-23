@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MemberAvatar } from "@/components/shared/member-avatar";
+import { SkillChip } from "@/components/shared/skill-chip";
 import { Badge } from "@/components/ui/badge";
 import { useTranslations } from "next-intl";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -78,6 +79,7 @@ export function VoteList({
                           ({member.nickname})
                         </span>
                       )}
+                      <SkillChip level={member.skillLevel} className="ml-1.5" />
                     </p>
                     <div className="mt-1 flex flex-wrap gap-1.5">
                       {vote.willPlay && (
@@ -161,6 +163,10 @@ export function VoteList({
                             ({member.nickname})
                           </span>
                         )}
+                        <SkillChip
+                          level={member.skillLevel}
+                          className="ml-1.5"
+                        />
                       </p>
                     </div>
                   ))}

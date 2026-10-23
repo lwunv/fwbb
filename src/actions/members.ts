@@ -20,6 +20,7 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { getTranslations } from "next-intl/server";
 import { getUserFromCookie } from "@/lib/user-identity";
+import { isSkillLevel, parseSkillLevel } from "@/lib/skill-level";
 import { requireAdmin } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { memberSchema } from "@/lib/validators";
@@ -85,6 +86,10 @@ export async function getActiveMembers() {
       avatarUrl: true,
       isActive: true,
       defaultWithPartner: true,
+      // Trình độ member tự khai: hiện cạnh tên ở danh sách vote trang chủ
+      // (yêu cầu 23/10/2026). Member tự viết ra để mọi người thấy, nên đây
+      // KHÔNG phải thông tin cá nhân cần giấu như số điện thoại hay email.
+      skillLevel: true,
       createdAt: true,
     },
   });
@@ -411,6 +416,44 @@ export async function updateMyProfile(
   revalidatePath("/");
   revalidatePath("/history");
   revalidatePath("/my-debts");
+  return { success: true };
+}
+
+/**
+ * Member tự đổi trình độ của chính mình.
+ *
+ * Tách khỏi `updateMyProfile` có chủ ý, KHÔNG phải cho gọn. Hàm kia đọc
+ * `nickname` và `withPartner` vô điều kiện từ formData, nên gửi một form chỉ
+ * có mỗi trình độ sẽ xoá sạch biệt danh và cờ "đi 2 người" của member mà không
+ * báo gì. Một thao tác một chỗ thì không dính bẫy đó.
+ */
+export async function updateMySkillLevel(
+  raw: string,
+): Promise<{ success: true } | { error: string }> {
+  const t = await getTranslations("me");
+  const user = await getUserFromCookie();
+  if (!user) return { error: t("profileNotSignedIn") };
+
+  const rl = await checkRateLimit(`skill:${user.memberId}`, 20, 60_000);
+  if (!rl.ok) {
+    const tErr = await getTranslations("serverErrors");
+    return { error: tErr("tooManyActions", { seconds: rl.retryAfter ?? 60 }) };
+  }
+
+  // Chuỗi rỗng nghĩa là member bỏ khai, đó là thao tác hợp lệ. Giá trị lạ thì
+  // BÁO LỖI chứ không âm thầm coi như bỏ khai: cả hai đều ghi NULL xuống DB
+  // nên nếu nuốt lỗi, một lỗi gõ sai ở phía gọi sẽ im lặng xoá lựa chọn của
+  // member và không ai biết.
+  if (raw !== "" && !isSkillLevel(raw)) {
+    return { error: t("skillInvalid") };
+  }
+
+  await db
+    .update(members)
+    .set({ skillLevel: parseSkillLevel(raw) })
+    .where(eq(members.id, user.memberId));
+
+  revalidatePath("/me");
   return { success: true };
 }
 

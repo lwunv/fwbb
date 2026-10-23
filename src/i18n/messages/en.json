@@ -499,7 +499,25 @@
     },
     "withPartnerLabel": "Two people (default)",
     "profileSaved": "Saved",
-    "saving": "Saving…"
+    "saving": "Saving…",
+    "skillTitle": "Skill level",
+    "skillHint": "Tell everyone how you play. Tap the one you picked to clear it.",
+    "skillShort": {
+      "tapChoi": "Learning",
+      "yeu": "Weak",
+      "tby": "TBY",
+      "tb": "TB",
+      "tbk": "TBK"
+    },
+    "skillBlurb": {
+      "tapChoi": "Here for the badminton, nothing else",
+      "yeu": "Weak, but always first on court",
+      "tby": "As weak as Weak, just more confident",
+      "tb": "Wins are mine, losses are my partner's",
+      "tbk": "A bit below average"
+    },
+    "skillInvalid": "That skill level is not valid.",
+    "skillNone": "Not set"
   },
   "dashboard": {
     "overview": "Overview",

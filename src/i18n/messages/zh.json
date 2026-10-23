@@ -499,7 +499,25 @@
     },
     "withPartnerLabel": "默认两人同行",
     "profileSaved": "已保存",
-    "saving": "保存中…"
+    "saving": "保存中…",
+    "skillTitle": "水平",
+    "skillHint": "自己填着玩，再点一次已选的就取消。",
+    "skillShort": {
+      "tapChoi": "新手",
+      "yeu": "弱",
+      "tby": "TBY",
+      "tb": "TB",
+      "tbk": "TBK"
+    },
+    "skillBlurb": {
+      "tapChoi": "来打球的，不是来谈恋爱的",
+      "yeu": "虽然弱，但总是第一个上场",
+      "tby": "和弱一样，只是更自信",
+      "tb": "赢是我厉害，输是队友的锅",
+      "tbk": "中等偏下"
+    },
+    "skillInvalid": "水平选项无效。",
+    "skillNone": "未填写"
   },
   "dashboard": {
     "overview": "概览",

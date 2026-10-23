@@ -499,7 +499,25 @@
     },
     "withPartnerLabel": "Đi 2 mình (mặc định)",
     "profileSaved": "Đã lưu",
-    "saving": "Đang lưu…"
+    "saving": "Đang lưu…",
+    "skillTitle": "Trình độ",
+    "skillHint": "Tự khai cho vui, bấm lại vào mức đang chọn để bỏ.",
+    "skillShort": {
+      "tapChoi": "Tập chơi",
+      "yeu": "Yếu",
+      "tby": "TBY",
+      "tb": "TB",
+      "tbk": "TBK"
+    },
+    "skillBlurb": {
+      "tapChoi": "Chơi cầu, không chơi đùa tình cảm",
+      "yeu": "Yếu nhưng hay ra gió",
+      "tby": "Trình bằng Yếu mà ảo tưởng hơn",
+      "tb": "Thắng do Tao Bao, thua do Thằng Bạn",
+      "tbk": "Trung bình kém"
+    },
+    "skillInvalid": "Mức trình độ không hợp lệ.",
+    "skillNone": "Chưa khai"
   },
   "dashboard": {
     "overview": "Tổng quan",

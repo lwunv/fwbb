@@ -531,6 +531,7 @@ export function MemberList({
       name,
       nickname,
       avatarKey: null,
+      skillLevel: null,
       facebookId: null,
       googleId: null,
       avatarUrl: null,

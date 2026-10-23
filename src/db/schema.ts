@@ -8,6 +8,7 @@ import {
   type AnySQLiteColumn,
 } from "drizzle-orm/sqlite-core";
 import { sql, relations } from "drizzle-orm";
+import { SKILL_LEVELS } from "@/lib/skill-level";
 
 export const admins = sqliteTable(
   "admins",
@@ -100,6 +101,17 @@ export const members = sqliteTable(
      * rớt index.
      */
     gender: text("gender", { enum: ["male", "female"] }),
+    /**
+     * Trình độ member TỰ KHAI (23/10/2026). CHỈ để hiển thị: không chỗ nào
+     * trong tính tiền, xếp cặp hay chia đội đọc cột này.
+     *
+     * NULL = chưa khai, và đó là trạng thái mặc định hợp lệ, không phải thiếu
+     * dữ liệu. Enum lấy thẳng từ `SKILL_LEVELS` để danh sách mức chỉ có một
+     * nguồn. Không thêm CHECK ở DB, cùng lý do với cột `gender` ngay trên:
+     * CHECK làm drizzle-kit sinh migration tạo lại bảng, mà tạo lại bảng trên
+     * Turso từng âm thầm làm rớt index.
+     */
+    skillLevel: text("skill_level", { enum: SKILL_LEVELS }),
     /** "Đi 2 người": acc này mặc định mỗi buổi đi 1 hay 2 người (vợ/chồng/bạn
      *  đi cùng). Snapshot vào votes.with_partner lúc vote; đổi đây KHÔNG hồi tố. */
     defaultWithPartner: integer("default_with_partner", { mode: "boolean" })
