@@ -66,7 +66,12 @@ import { fireAction } from "@/lib/optimistic-action";
 import { getFundStatus } from "@/lib/fund-core";
 import { useSettings } from "@/components/settings-provider";
 import { cn, formatK, normalizeVietnamese } from "@/lib/utils";
-import { SKILL_LEVELS } from "@/lib/skill-level";
+import { SkillChip } from "@/components/shared/skill-chip";
+import {
+  SKILL_LEVELS,
+  parseSkillLevel,
+  type SkillLevel,
+} from "@/lib/skill-level";
 import { ymdInVN } from "@/lib/date-format";
 import { usePolling } from "@/lib/use-polling";
 import type { MemberPlayStat } from "@/actions/stats";
@@ -498,7 +503,10 @@ export function MemberList({
   // khi fireAction, revert trong rollback; prop mới sau revalidate vẫn hiển thị
   // đúng vì override chỉ đè khi có entry.
   const [infoOverrides, setInfoOverrides] = useState<
-    Record<number, { name: string; nickname: string }>
+    Record<
+      number,
+      { name: string; nickname: string; skillLevel: SkillLevel | null }
+    >
   >({});
 
   // Optimistic toggle "đi 2 người" cho member. updateMember chỉ đổi
@@ -587,7 +595,11 @@ export function MemberList({
     const prev = infoOverrides[memberId];
     setInfoOverrides((o) => ({
       ...o,
-      [memberId]: { name: values.name, nickname: values.nickname },
+      [memberId]: {
+        name: values.name,
+        nickname: values.nickname,
+        skillLevel: parseSkillLevel(values.skillLevel),
+      },
     }));
     setInfoEditTarget(null);
     fireAction(
@@ -741,6 +753,13 @@ export function MemberList({
     const displayName = infoOverrides[member.id]?.name ?? member.name;
     const displayNickname =
       infoOverrides[member.id]?.nickname ?? member.nickname;
+    // `in` chứ không phải `??`: admin xoá khai báo thì override mang giá trị
+    // `null`, mà `??` sẽ coi null là "chưa có" rồi rơi về giá trị cũ của
+    // server, làm nhãn vẫn đứng đó sau khi vừa xoá.
+    const displaySkill =
+      member.id in infoOverrides
+        ? infoOverrides[member.id].skillLevel
+        : member.skillLevel;
     const balance = memberBalances[member.id] ?? 0;
     const stat = playStats[member.id];
     const rest = restDaysFrom(stat?.lastPlayedDate, today);
@@ -753,6 +772,7 @@ export function MemberList({
       memberIsActive,
       displayName,
       displayNickname,
+      displaySkill,
       balance,
       stat,
       rest,
@@ -1073,6 +1093,7 @@ export function MemberList({
                 memberIsActive,
                 displayName,
                 displayNickname,
+                displaySkill,
                 balance,
                 stat,
                 rest,
@@ -1116,6 +1137,7 @@ export function MemberList({
                                 ({displayNickname})
                               </span>
                             )}
+                            <SkillChip level={displaySkill} />
                             {adminMemberId === member.id && (
                               <span
                                 className="bg-primary/15 text-primary inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
@@ -1273,6 +1295,7 @@ export function MemberList({
               memberIsActive,
               displayName,
               displayNickname,
+              displaySkill,
               stat,
               rest,
             } = derive(member);
@@ -1327,6 +1350,7 @@ export function MemberList({
                                 ({displayNickname})
                               </span>
                             )}
+                            <SkillChip level={displaySkill} />
                             {adminMemberId === member.id && (
                               <span
                                 className="bg-primary/15 text-primary inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"

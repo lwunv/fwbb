@@ -84,4 +84,16 @@ test("admin đặt trình độ và giới tính LGBT cho member rồi lưu xu�
 
   await expect.poll(() => read("skill_level"), { timeout: 10_000 }).toBe("tby");
   await expect.poll(() => read("gender"), { timeout: 10_000 }).toBe("lgbt");
+
+  // Nhãn phải hiện NGAY trong danh sách, không bắt admin tải lại trang.
+  await expect(page.getByText("TBY", { exact: true }).first()).toBeVisible({
+    timeout: 10_000,
+  });
+
+  // Và sống qua reload, tức nó đọc từ server chứ không chỉ là state màn hình.
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.getByPlaceholder(/Tìm theo tên/).fill(memberName);
+  await expect(page.getByText("TBY", { exact: true }).first()).toBeVisible({
+    timeout: 10_000,
+  });
 });
