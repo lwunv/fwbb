@@ -73,10 +73,10 @@ describe("gập mở khối", () => {
   it("bấm tiêu đề thì mở ra, bấm lần nữa thì gập lại", () => {
     renderSection(null);
     expand();
-    expect(screen.getByText("Yếu nhưng hay ra gió")).toBeTruthy();
+    expect(screen.getByText("Yếu nhưng thích ra gió")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { expanded: true }));
-    expect(screen.queryByText("Yếu nhưng hay ra gió")).toBeNull();
+    expect(screen.queryByText("Yếu nhưng thích ra gió")).toBeNull();
   });
 });
 
@@ -147,7 +147,7 @@ describe("chọn trình độ", () => {
     expand();
     fireEvent.click(badge("Trung bình kém"));
 
-    expect(badge("Yếu nhưng hay ra gió").getAttribute("aria-pressed")).toBe(
+    expect(badge("Yếu nhưng thích ra gió").getAttribute("aria-pressed")).toBe(
       "false",
     );
     expect(badge("Trung bình kém").getAttribute("aria-pressed")).toBe("true");
@@ -166,7 +166,7 @@ describe("chọn trình độ", () => {
     expect(badge("Trung bình kém").getAttribute("aria-pressed")).toBe("true");
 
     await vi.waitFor(() => expect(toasts.error).toHaveBeenCalled());
-    expect(badge("Yếu nhưng hay ra gió").getAttribute("aria-pressed")).toBe(
+    expect(badge("Yếu nhưng thích ra gió").getAttribute("aria-pressed")).toBe(
       "true",
     );
     expect(badge("Trung bình kém").getAttribute("aria-pressed")).toBe("false");

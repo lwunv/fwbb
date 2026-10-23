@@ -79,7 +79,11 @@ export function VoteList({
                           ({member.nickname})
                         </span>
                       )}
-                      <SkillChip level={member.skillLevel} className="ml-1.5" />
+                      <SkillChip
+                        level={member.skillLevel}
+                        className="ml-1.5"
+                        withBlurb
+                      />
                     </p>
                     <div className="mt-1 flex flex-wrap gap-1.5">
                       {vote.willPlay && (
@@ -166,6 +170,7 @@ export function VoteList({
                         <SkillChip
                           level={member.skillLevel}
                           className="ml-1.5"
+                          withBlurb
                         />
                       </p>
                     </div>

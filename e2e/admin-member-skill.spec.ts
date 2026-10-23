@@ -94,6 +94,16 @@ test("admin đặt trình độ và giới tính LGBT cho member rồi lưu xu�
     page.getByText("Trình bằng Yếu mà ảo tưởng hơn").first(),
   ).toBeVisible({ timeout: 10_000 });
 
+  // Trình độ phải nằm ở CỘT RIÊNG, không nhét chung ô tên. Kiểm bằng cách
+  // đếm ô: ô thứ 2 của dòng là ô trình độ, và ô thứ 1 (tên) KHÔNG được chứa
+  // nhãn nữa.
+  await expect(
+    page.getByRole("columnheader", { name: "Trình độ" }),
+  ).toBeVisible();
+  const row = page.locator("tbody tr").first();
+  await expect(row.locator("td").nth(1)).toContainText("TBY");
+  await expect(row.locator("td").nth(0)).not.toContainText("TBY");
+
   // Và sống qua reload, tức nó đọc từ server chứ không chỉ là state màn hình.
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.getByPlaceholder(/Tìm theo tên/).fill(memberName);

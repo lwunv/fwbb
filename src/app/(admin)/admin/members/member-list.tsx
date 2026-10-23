@@ -1041,12 +1041,13 @@ export function MemberList({
       {/* Desktop: bảng thead/tbody (md+). Cuộn ngang trong container riêng khi
           hẹp — không để body trang cuộn ngang. Mobile dùng card bên dưới. */}
       <div className="bg-card border-border/60 hidden overflow-x-auto rounded-xl border shadow-sm md:block">
-        <table className="w-full min-w-[820px] border-collapse text-sm">
+        <table className="w-full min-w-[960px] border-collapse text-sm">
           <thead>
             <tr className="bg-muted/40 border-border/60 text-muted-foreground border-b text-left text-xs font-medium tracking-wide uppercase">
               <th className="px-3 py-2.5">
                 {sortHeader(t("colMember"), "nameAsc", "nameDesc", "nameAsc")}
               </th>
+              <th className="px-3 py-2.5">{t("colSkill")}</th>
               <th className="px-3 py-2.5">
                 {sortHeader(
                   t("colFund"),
@@ -1137,7 +1138,6 @@ export function MemberList({
                                 ({displayNickname})
                               </span>
                             )}
-                            <SkillChip level={displaySkill} withBlurb />
                             {adminMemberId === member.id && (
                               <span
                                 className="bg-primary/15 text-primary inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
@@ -1163,6 +1163,10 @@ export function MemberList({
                           </div>
                         </div>
                       </div>
+                    </td>
+                    {/* Trình độ: cột riêng, không nhét chung ô tên. */}
+                    <td className="px-3 py-2.5 align-middle">
+                      <SkillChip level={displaySkill} withBlurb />
                     </td>
                     {/* Quỹ / Nợ */}
                     <td className="px-3 py-2.5 align-middle">
@@ -1268,7 +1272,7 @@ export function MemberList({
                   </tr>
                   {isExpanded && totalDebt > 0 && (
                     <tr className="border-border/40 border-b last:border-0">
-                      <td colSpan={7} className="bg-muted/20 px-3 py-2.5">
+                      <td colSpan={8} className="bg-muted/20 px-3 py-2.5">
                         <div className="ml-12 space-y-1.5">
                           {renderDebtDetail(visibleDebts)}
                         </div>

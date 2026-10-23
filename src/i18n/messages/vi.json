@@ -511,7 +511,7 @@
     },
     "skillBlurb": {
       "tapChoi": "Chơi cầu, không chơi đùa tình cảm",
-      "yeu": "Yếu nhưng hay ra gió",
+      "yeu": "Yếu nhưng thích ra gió",
       "tby": "Trình bằng Yếu mà ảo tưởng hơn",
       "tb": "Thắng do Tao Bao, thua do Thằng Bạn",
       "tbk": "Trung bình kém"
@@ -852,6 +852,7 @@
     "toastSaved": "Đã lưu",
     "toastMemberAdded": "Đã thêm thành viên",
     "colMember": "Thành viên",
+    "colSkill": "Trình độ",
     "colFund": "Quỹ / Nợ",
     "colMonth": "30 ngày gần đây",
     "colYear": "Buổi đi 1 năm",
