@@ -15,10 +15,13 @@ import { SKILL_LEVELS, SKILL_BADGE_CLASS } from "@/lib/skill-level";
 
 afterEach(cleanup);
 
-function renderChip(level: Parameters<typeof SkillChip>[0]["level"]) {
+function renderChip(
+  level: Parameters<typeof SkillChip>[0]["level"],
+  withBlurb = false,
+) {
   return render(
     <NextIntlClientProvider locale="vi" messages={viMessages}>
-      <SkillChip level={level} />
+      <SkillChip level={level} withBlurb={withBlurb} />
     </NextIntlClientProvider>,
   );
 }
@@ -49,5 +52,33 @@ describe("nhãn trình độ", () => {
     renderChip("tb");
     const el = screen.getByText("TB");
     expect(el.className).toContain("text-[11px]");
+  });
+});
+
+describe("kèm câu mô tả", () => {
+  it("mặc định KHÔNG kèm: danh sách vote trang chủ phải gọn", () => {
+    renderChip("tb");
+    expect(screen.queryByText(/Thắng do Tao Bao/)).toBeNull();
+  });
+
+  it("bật lên thì hiện câu mô tả cạnh tên ngắn", () => {
+    renderChip("tb", true);
+    expect(screen.getByText("TB")).toBeTruthy();
+    expect(
+      screen.getByText("Thắng do Tao Bao, thua do Thằng Bạn"),
+    ).toBeTruthy();
+  });
+
+  it("chữ mô tả nhỏ hơn tên ngắn, không lấn át", () => {
+    renderChip("tby", true);
+    const blurb = screen.getByText("Trình bằng Yếu mà ảo tưởng hơn");
+    expect(blurb.className).toContain("text-[10px]");
+    // Câu dài phải cắt bớt chứ không đẩy vỡ hàng tên.
+    expect(blurb.className).toContain("truncate");
+  });
+
+  it("chưa khai thì bật hay tắt cũng không hiện gì", () => {
+    const { container } = renderChip(null, true);
+    expect(container.innerHTML).toBe("");
   });
 });

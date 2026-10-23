@@ -89,6 +89,10 @@ test("admin đặt trình độ và giới tính LGBT cho member rồi lưu xu�
   await expect(page.getByText("TBY", { exact: true }).first()).toBeVisible({
     timeout: 10_000,
   });
+  // Kèm câu mô tả, vì ở màn quản lý admin cần đọc được ý nghĩa của mức.
+  await expect(
+    page.getByText("Trình bằng Yếu mà ảo tưởng hơn").first(),
+  ).toBeVisible({ timeout: 10_000 });
 
   // Và sống qua reload, tức nó đọc từ server chứ không chỉ là state màn hình.
   await page.reload({ waitUntil: "domcontentloaded" });
