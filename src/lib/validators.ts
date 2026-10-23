@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { GENDERS } from "./gender";
 
 export const loginSchema = z.object({
   username: z.string().min(1, "Bat buoc"),
@@ -129,7 +130,7 @@ export const finalizeAttendeeSchema = z.object({
   headcount: z.number().int().min(1).max(2).default(1),
   /** Giới tính chốt cho đầu người này, dùng xếp nhóm chia tiền khi công tắc
    *  `genderPricingEnabled` bật. Bỏ trống = không khai = tính như không-nữ. */
-  gender: z.enum(["male", "female"]).nullable().optional(),
+  gender: z.enum(GENDERS).nullable().optional(),
 });
 
 export const finalizeSessionSchema = z.object({

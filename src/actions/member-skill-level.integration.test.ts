@@ -38,7 +38,7 @@ vi.mock("@/lib/user-identity", () => identity);
 const { db: testDb, client } = await createTestDb();
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { updateMySkillLevel } = await import("./members");
+const { updateMySkillLevel, updateMember } = await import("./members");
 
 let memberId: number;
 
@@ -123,5 +123,72 @@ describe("member tự khai trình độ", () => {
       where: eq(members.id, other.id),
     });
     expect(o?.skillLevel).toBe("yeu");
+  });
+});
+
+describe("admin khai trình độ hộ member", () => {
+  /** Form "Sửa thông tin thành viên" luôn gửi đủ các field của nó. */
+  function infoForm(extra: Record<string, string>) {
+    const fd = new FormData();
+    fd.set("name", "Người test");
+    fd.set("nickname", "Bi");
+    for (const [k, v] of Object.entries(extra)) fd.set(k, v);
+    return fd;
+  }
+
+  it("đặt được trình độ cho member", async () => {
+    const r = await updateMember(memberId, infoForm({ skillLevel: "tby" }));
+    expect(r).not.toHaveProperty("error");
+    expect((await row())?.skillLevel).toBe("tby");
+  });
+
+  it("để trống thì xoá khai báo, về NULL", async () => {
+    await updateMember(memberId, infoForm({ skillLevel: "tb" }));
+    await updateMember(memberId, infoForm({ skillLevel: "" }));
+    expect((await row())?.skillLevel).toBeNull();
+  });
+
+  it("giá trị lạ bị TỪ CHỐI, mức đang có giữ nguyên", async () => {
+    await updateMember(memberId, infoForm({ skillLevel: "tb" }));
+    const r = await updateMember(memberId, infoForm({ skillLevel: "pro" }));
+    expect(r).toHaveProperty("error");
+    expect((await row())?.skillLevel).toBe("tb");
+  });
+
+  it("form KHÔNG gửi field thì giữ nguyên lựa chọn của member", async () => {
+    // Admin sửa mỗi cái tên thì không được xoá mất trình độ member tự chọn.
+    await updateMySkillLevel("tbk");
+    await updateMember(memberId, infoForm({}));
+    expect((await row())?.skillLevel).toBe("tbk");
+  });
+});
+
+describe("giới tính LGBT", () => {
+  function infoForm(gender: string) {
+    const fd = new FormData();
+    fd.set("name", "Người test");
+    fd.set("nickname", "Bi");
+    fd.set("gender", gender);
+    return fd;
+  }
+
+  it("admin đặt được LGBT", async () => {
+    const r = await updateMember(memberId, infoForm("lgbt"));
+    expect(r).not.toHaveProperty("error");
+    expect((await row())?.gender).toBe("lgbt");
+  });
+
+  it("nam và nữ vẫn đặt được như cũ", async () => {
+    await updateMember(memberId, infoForm("male"));
+    expect((await row())?.gender).toBe("male");
+    await updateMember(memberId, infoForm("female"));
+    expect((await row())?.gender).toBe("female");
+  });
+
+  it("giá trị lạ vẫn bị chặn", async () => {
+    await updateMember(memberId, infoForm("female"));
+    const r = await updateMember(memberId, infoForm("khac"));
+    expect(r).toHaveProperty("error");
+    expect((await row())?.gender).toBe("female");
   });
 });

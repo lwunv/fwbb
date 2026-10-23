@@ -9,6 +9,7 @@ import {
 } from "drizzle-orm/sqlite-core";
 import { sql, relations } from "drizzle-orm";
 import { SKILL_LEVELS } from "@/lib/skill-level";
+import { GENDERS } from "@/lib/gender";
 
 export const admins = sqliteTable(
   "admins",
@@ -100,7 +101,7 @@ export const members = sqliteTable(
      * migration recreate-table, mà recreate-table trên Turso từng âm thầm làm
      * rớt index.
      */
-    gender: text("gender", { enum: ["male", "female"] }),
+    gender: text("gender", { enum: GENDERS }),
     /**
      * Trình độ member TỰ KHAI (23/10/2026). CHỈ để hiển thị: không chỗ nào
      * trong tính tiền, xếp cặp hay chia đội đọc cột này.
@@ -358,7 +359,7 @@ export const sessionAttendees = sqliteTable("session_attendees", {
    *  tính từ attendee rows, nên nó phải được ghi lúc finalize chứ không suy
    *  ngược từ `members.gender` về sau: member đổi khai báo giới tính không
    *  được phép làm đổi tiền của một buổi đã chốt. NULL = không khai. */
-  gender: text("gender", { enum: ["male", "female"] }),
+  gender: text("gender", { enum: GENDERS }),
   attendsPlay: integer("attends_play", { mode: "boolean" }).default(false),
   attendsDine: integer("attends_dine", { mode: "boolean" }).default(false),
 });

@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/db";
+import type { Gender } from "@/lib/gender";
 import { PUBLIC_MEMBER_COLUMNS } from "@/lib/optimistic-votes";
 import {
   sessions,
@@ -48,7 +49,7 @@ export interface FinalizeAttendee {
   headcount?: number;
   /** Giới tính CHỐT cho đầu người này. Optional để mọi caller cũ và mọi test
    *  cũ biên dịch y nguyên; không truyền = không khai = tính như không-nữ. */
-  gender?: "male" | "female";
+  gender?: Gender;
 }
 
 export async function finalizeSession(

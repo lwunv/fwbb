@@ -1,4 +1,5 @@
 import { roundToThousand } from "./utils";
+import type { Gender } from "./gender";
 import { isDefaultSessionDay } from "./date-format";
 import {
   computeGroupPlayRates,
@@ -60,7 +61,7 @@ export interface AttendeeInput {
   headcount?: number;
   /** Dùng để xếp nhóm khi `genderPricingEnabled` bật (giai đoạn 3). Không khai
    *  → coi như không nữ, trả suất đầy đủ (thà tính đủ còn hơn ưu đãi nhầm). */
-  gender?: "male" | "female";
+  gender?: Gender;
 }
 
 export interface ShuttlecockInput {

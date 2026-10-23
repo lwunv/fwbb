@@ -66,6 +66,7 @@ import { fireAction } from "@/lib/optimistic-action";
 import { getFundStatus } from "@/lib/fund-core";
 import { useSettings } from "@/components/settings-provider";
 import { cn, formatK, normalizeVietnamese } from "@/lib/utils";
+import { SKILL_LEVELS } from "@/lib/skill-level";
 import { ymdInVN } from "@/lib/date-format";
 import { usePolling } from "@/lib/use-polling";
 import type { MemberPlayStat } from "@/actions/stats";
@@ -572,6 +573,7 @@ export function MemberList({
       phoneNumber: string;
       username: string;
       gender: string;
+      skillLevel: string;
     },
   ) {
     const formData = new FormData();
@@ -581,6 +583,7 @@ export function MemberList({
     formData.set("phoneNumber", values.phoneNumber);
     formData.set("username", values.username);
     formData.set("gender", values.gender);
+    formData.set("skillLevel", values.skillLevel);
     const prev = infoOverrides[memberId];
     setInfoOverrides((o) => ({
       ...o,
@@ -1620,6 +1623,7 @@ function MemberInfoDialog({
       phoneNumber: string;
       username: string;
       gender: string;
+      skillLevel: string;
     },
   ) => void;
 }) {
@@ -1654,11 +1658,14 @@ function MemberInfoForm({
       phoneNumber: string;
       username: string;
       gender: string;
+      skillLevel: string;
     },
   ) => void;
 }) {
   const t = useTranslations("adminMembers");
   const tCommon = useTranslations("common");
+  // Nhãn các mức trình độ dùng chung với trang /me, không chép lại.
+  const tMe = useTranslations("me");
   const [name, setName] = useState(member.name);
   const [nickname, setNickname] = useState(member.nickname ?? "");
   const [email, setEmail] = useState(member.email ?? "");
@@ -1666,6 +1673,9 @@ function MemberInfoForm({
   const [username, setUsername] = useState(member.username ?? "");
   // "" = chưa khai. Ba trạng thái, KHÔNG bắt buộc chọn.
   const [gender, setGender] = useState<string>(member.gender ?? "");
+  // Trình độ: member tự khai ở /me, admin khai hộ được cho người ngại vào sửa.
+  // "" = chưa khai, cùng ba-trạng-thái như giới tính.
+  const [skillLevel, setSkillLevel] = useState<string>(member.skillLevel ?? "");
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -1677,6 +1687,7 @@ function MemberInfoForm({
       phoneNumber,
       username,
       gender,
+      skillLevel,
     });
   }
 
@@ -1744,6 +1755,24 @@ function MemberInfoForm({
               { value: "", label: t("genderUnset") },
               { value: "male", label: t("genderMale") },
               { value: "female", label: t("genderFemale") },
+              { value: "lgbt", label: t("genderLgbt") },
+            ]}
+          />
+        </label>
+      </div>
+      <div className="space-y-2">
+        <label className="block space-y-2">
+          <span className="block text-sm font-medium">{tMe("skillTitle")}</span>
+          <CustomSelect
+            name="info-skill"
+            value={skillLevel}
+            onChange={setSkillLevel}
+            options={[
+              { value: "", label: tMe("skillNone") },
+              ...SKILL_LEVELS.map((lv) => ({
+                value: lv,
+                label: tMe(`skillShort.${lv}`),
+              })),
             ]}
           />
         </label>

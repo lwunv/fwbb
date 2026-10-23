@@ -21,6 +21,7 @@ import { after } from "next/server";
 import { getTranslations } from "next-intl/server";
 import { getUserFromCookie } from "@/lib/user-identity";
 import { isSkillLevel, parseSkillLevel } from "@/lib/skill-level";
+import { isGender, parseGender } from "@/lib/gender";
 import { requireAdmin } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { memberSchema } from "@/lib/validators";
@@ -491,10 +492,20 @@ export async function updateMember(id: number, formData: FormData) {
   // như không-nữ (xem doc comment cột `members.gender`).
   if (formData.has("gender")) {
     const g = (formData.get("gender") as string)?.trim() ?? "";
-    if (g !== "" && g !== "male" && g !== "female") {
+    if (g !== "" && !isGender(g)) {
       return { error: t("invalidData", { detail: "gender" }) };
     }
-    setValues.gender = g === "" ? null : (g as "male" | "female");
+    setValues.gender = parseGender(g);
+  }
+  // Trình độ: admin khai hộ cho member ngại tự vào /me sửa. Cùng pattern
+  // `has()` — form không gửi field thì giữ nguyên giá trị member đã tự chọn,
+  // admin sửa tên không được xoá mất trình độ của người ta.
+  if (formData.has("skillLevel")) {
+    const lv = (formData.get("skillLevel") as string)?.trim() ?? "";
+    if (lv !== "" && !isSkillLevel(lv)) {
+      return { error: t("invalidData", { detail: "skillLevel" }) };
+    }
+    setValues.skillLevel = parseSkillLevel(lv);
   }
   // Email/SĐT: chỉ đụng khi form CÓ gửi field (cùng pattern withPartner) —
   // dialog "Sửa thông tin" luôn gửi cả 2 (rỗng = xoá), còn các form khác

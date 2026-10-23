@@ -246,6 +246,33 @@ describe("chốt sổ với giới tính", () => {
     await expectMoneyInvariants(sid, adminMemberId);
   });
 
+  it("LGBT tính như KHÔNG-NỮ: trả suất đầy đủ y như nam", async () => {
+    // Bộ chia tiền hỏi đúng một câu `gender === "female"`. Thêm một giá trị
+    // giới tính mới mà quên chuyện đó là có người được suất ưu đãi (hoặc mất
+    // suất ưu đãi) mà không ai báo. Bài này khoá hướng đã chọn: thu đủ.
+    const { adminMemberId, nuId } = await seedActors();
+    await enableGenderPricing(40_000);
+
+    const [lgbt] = await testDb
+      .insert(members)
+      .values({ name: "Người LGBT", facebookId: "fb-lgbt", gender: "lgbt" })
+      .returning({ id: members.id });
+
+    // 200K sân, 2 người: 1 LGBT + 1 nữ. Nữ cố định 40K → người còn lại gánh
+    // 160K, đúng bằng con số nam phải trả ở ca ngay trên.
+    const sid = await seedSession(200_000);
+    await vote(sid, lgbt.id);
+    await vote(sid, nuId);
+
+    const r = await finalizeSessionAuto(sid);
+    expect(r).not.toHaveProperty("error");
+
+    const d = await debtsByMember(sid);
+    expect(d[nuId]).toBe(40_000);
+    expect(d[lgbt.id]).toBe(160_000);
+    await expectMoneyInvariants(sid, adminMemberId);
+  });
+
   it("khách nữ của member và khách nữ của admin vào hai nhóm khác nhau", async () => {
     const { adminMemberId, namId } = await seedActors();
     await enableGenderPricing(40_000);
