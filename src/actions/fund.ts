@@ -5,11 +5,7 @@ import { financialTransactions, members, sessions } from "@/db/schema";
 import { eq, and, desc, inArray, isNotNull, notInArray } from "drizzle-orm";
 import { computeShuttlecockTotal } from "@/lib/cost-calculator";
 import { revalidatePath } from "next/cache";
-import {
-  getFundBalance,
-  getAllFundBalances,
-  isFundMember,
-} from "@/lib/fund-calculator";
+import { getAllFundBalances, isFundMember } from "@/lib/fund-calculator";
 import { computeBalanceFromTransactions } from "@/lib/fund-core";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
 import { requireAdmin, getAdminFromCookie } from "@/lib/auth";
@@ -239,14 +235,31 @@ export async function getFundMembersWithBalances() {
   if ("error" in auth) return [];
 
   const roster = await db.query.members.findMany({ where: rosterWhere });
+  if (roster.length === 0) return [];
 
-  const result = [];
-  for (const m of roster) {
-    const balance = await getFundBalance(m.id);
-    result.push({ ...toFundMemberShape(m), balance });
+  // Đọc TOÀN BỘ giao dịch của cả danh sách trong một câu, rồi gom theo người.
+  //
+  // Bản cũ gọi `getFundBalance(m.id)` trong vòng lặp, tức một câu truy vấn cho
+  // mỗi thành viên. Với 50 người trong quỹ là 50 lượt đọc mỗi lần mở trang, mà
+  // màn quản lý còn tự làm mới theo nhịp. Đây là cùng một loại lỗi với phần
+  // gợi ý trùng tên, và cộng lại chúng làm cháy hạn mức đọc ngày 24/10/2026.
+  const ids = roster.map((m) => m.id);
+  const allTxs = await db.query.financialTransactions.findMany({
+    where: inArray(financialTransactions.memberId, ids),
+  });
+
+  const byMember = new Map<number, typeof allTxs>();
+  for (const id of ids) byMember.set(id, []);
+  for (const tx of allTxs) {
+    if (tx.memberId != null) byMember.get(tx.memberId)?.push(tx);
   }
 
-  return result.sort((a, b) => b.balance.balance - a.balance.balance);
+  return roster
+    .map((m) => ({
+      ...toFundMemberShape(m),
+      balance: computeBalanceFromTransactions(m.id, byMember.get(m.id) ?? []),
+    }))
+    .sort((a, b) => b.balance.balance - a.balance.balance);
 }
 
 /**

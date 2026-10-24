@@ -9,7 +9,7 @@ import { db } from "@/db";
 import { financialTransactions, members as membersTable } from "@/db/schema";
 import { eq, inArray, asc, and } from "drizzle-orm";
 import { computeBalancesForMembers } from "@/lib/fund-core";
-import { getNameMatches } from "@/actions/member-approval";
+import { getNameMatchesBatch } from "@/actions/member-approval";
 import { MemberList } from "./member-list";
 import { DuplicateMembersBanner } from "./duplicate-members-banner";
 import {
@@ -45,23 +45,28 @@ export default async function MembersPage() {
     getMemberPlayStats(),
   ]);
 
-  // Build pending list with name-match suggestions per row.
-  const pendingMembers: PendingMember[] = await Promise.all(
-    pendingRows.map(async (p) => ({
-      id: p.id,
-      name: p.name,
-      nickname: p.nickname,
-      email: p.email,
-      phoneNumber: p.phoneNumber,
-      bankAccountNo: p.bankAccountNo,
-      avatarKey: p.avatarKey,
-      avatarUrl: p.avatarUrl,
-      facebookId: p.facebookId,
-      googleId: p.googleId,
-      createdAt: p.createdAt,
-      suggestions: await getNameMatches(p.id),
-    })),
-  );
+  // Gợi ý trùng tên cho TẤT CẢ pending trong một lượt.
+  //
+  // Bản cũ gọi `getNameMatches(p.id)` trong vòng lặp, mà mỗi lần gọi lại nạp
+  // nguyên danh sách member đã duyệt. Với 182 người chờ duyệt, một lần mở
+  // trang là 380 truy vấn và hơn 8.000 dòng đọc, nhân thêm việc màn này tự
+  // tải lại vài giây một lần. Đó là thứ làm cháy hạn mức đọc và sập web ngày
+  // 24/10/2026. Bản này đọc hai lần, bất kể bao nhiêu người chờ.
+  const suggestionMap = await getNameMatchesBatch(pendingRows.map((p) => p.id));
+  const pendingMembers: PendingMember[] = pendingRows.map((p) => ({
+    id: p.id,
+    name: p.name,
+    nickname: p.nickname,
+    email: p.email,
+    phoneNumber: p.phoneNumber,
+    bankAccountNo: p.bankAccountNo,
+    avatarKey: p.avatarKey,
+    avatarUrl: p.avatarUrl,
+    facebookId: p.facebookId,
+    googleId: p.googleId,
+    createdAt: p.createdAt,
+    suggestions: suggestionMap[p.id] ?? [],
+  }));
 
   // Merge targets cho dropdown "gộp thủ công" ở mỗi pending card — TẤT CẢ
   // member đã duyệt (kể cả không trùng tên), để admin chủ động gộp pending

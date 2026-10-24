@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { members } from "@/db/schema";
-import { eq, and, ne } from "drizzle-orm";
+import { eq, and, ne, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { getUserFromCookie, clearUserCookie } from "@/lib/user-identity";
@@ -64,6 +64,120 @@ export interface NameMatchSuggestion {
  * thường là row admin nhập tay vào quỹ. Đúng kịch bản user mô tả: admin tạo
  * sẵn "Nguyễn Văn A", giờ A signup → gợi ý merge.
  */
+/** Một ứng viên trong pool để chấm điểm. Chỉ các field thật sự cần. */
+type MatchPoolRow = {
+  id: number;
+  name: string;
+  nickname: string | null;
+  facebookId: string | null;
+  googleId: string | null;
+  passwordHash: string | null;
+};
+
+/**
+ * Chấm điểm trùng tên. HÀM THUẦN, không đụng DB.
+ *
+ * Tách ra khỏi phần truy vấn để bản-một-người và bản-nhiều-người dùng CHUNG
+ * đúng một cách tính. Trước đây chỉ có bản một người, và trang quản lý gọi nó
+ * trong vòng lặp.
+ */
+function rankNameMatches(
+  pending: { id: number; name: string; nickname: string | null },
+  pool: MatchPoolRow[],
+): NameMatchSuggestion[] {
+  const pendingNorm = normalizeName(pending.name);
+  const pendingNickNorm = pending.nickname
+    ? normalizeName(pending.nickname)
+    : "";
+
+  return (
+    pool
+      .filter((m) => m.id !== pending.id)
+      // Ưu tiên row chưa link OAuth (admin tạo). Row đã link là chính chủ đã
+      // login trước đó → không phải gợi ý merge.
+      .filter((m) => !m.facebookId && !m.googleId)
+      .map((m) => {
+        const a = normalizeName(m.name);
+        const b = m.nickname ? normalizeName(m.nickname) : "";
+        // 4 chiều so sánh + token-set (cùng từ nhưng đổi thứ tự).
+        const scoreNameName = scoreSimilarity(pendingNorm, a);
+        const scoreNickName = pendingNickNorm
+          ? scoreSimilarity(pendingNickNorm, a)
+          : 0;
+        const scoreNameNick = b ? scoreSimilarity(pendingNorm, b) : 0;
+        const scoreNickNick =
+          pendingNickNorm && b ? scoreSimilarity(pendingNickNorm, b) : 0;
+        // Token-set: "Hữu Nguyễn" vs "Nguyễn Hữu" → cùng tokens, score = 1.
+        const scoreTokenSet = scoreTokenSetSimilarity(pendingNorm, a);
+        const score = Math.max(
+          scoreNameName,
+          scoreNickName,
+          scoreNameNick,
+          scoreNickNick,
+          scoreTokenSet,
+        );
+        return {
+          memberId: m.id,
+          name: m.name,
+          nickname: m.nickname,
+          score,
+          hasPassword: !!m.passwordHash,
+        };
+      })
+      .filter((s) => s.score >= 0.5)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5)
+  );
+}
+
+/** Pool ứng viên: member đã duyệt. Đọc MỘT LẦN rồi chấm cho mọi pending. */
+async function loadMatchPool(): Promise<MatchPoolRow[]> {
+  return db.query.members.findMany({
+    where: eq(members.approvalStatus, "approved"),
+    columns: {
+      id: true,
+      name: true,
+      nickname: true,
+      facebookId: true,
+      googleId: true,
+      passwordHash: true,
+    },
+  });
+}
+
+/**
+ * Gợi ý trùng tên cho NHIỀU pending cùng lúc.
+ *
+ * Lý do tồn tại là chi phí đọc: bản một-người nạp lại TOÀN BỘ pool cho từng
+ * pending, nên trang quản lý với 182 người chờ duyệt ngốn 380 truy vấn và hơn
+ * 8.000 dòng đọc MỖI LẦN TẢI, mà màn đó còn tự tải lại mỗi vài giây. Đây là
+ * thứ đã làm cháy hạn mức đọc của Turso ngày 24/10/2026 và sập cả web.
+ * Bản này đọc đúng hai lần bất kể bao nhiêu người chờ.
+ */
+export async function getNameMatchesBatch(
+  pendingMemberIds: number[],
+): Promise<Record<number, NameMatchSuggestion[]>> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return {};
+  if (pendingMemberIds.length === 0) return {};
+
+  const [pendings, pool] = await Promise.all([
+    db.query.members.findMany({
+      where: inArray(members.id, pendingMemberIds),
+      columns: { id: true, name: true, nickname: true },
+    }),
+    loadMatchPool(),
+  ]);
+
+  const out: Record<number, NameMatchSuggestion[]> = {};
+  for (const p of pendings) out[p.id] = rankNameMatches(p, pool);
+  return out;
+}
+
+/**
+ * Bản một người. Giữ lại cho chỗ gọi lẻ; trang quản lý dùng
+ * `getNameMatchesBatch` vì nó có cả danh sách.
+ */
 export async function getNameMatches(
   pendingMemberId: number,
 ): Promise<NameMatchSuggestion[]> {
@@ -76,63 +190,7 @@ export async function getNameMatches(
   });
   if (!pending) return [];
 
-  const pool = await db.query.members.findMany({
-    where: and(
-      eq(members.approvalStatus, "approved"),
-      ne(members.id, pendingMemberId),
-    ),
-    columns: {
-      id: true,
-      name: true,
-      nickname: true,
-      facebookId: true,
-      googleId: true,
-      passwordHash: true,
-    },
-  });
-
-  const pendingNorm = normalizeName(pending.name);
-  const pendingNickNorm = pending.nickname
-    ? normalizeName(pending.nickname)
-    : "";
-
-  const scored = pool
-    // Ưu tiên row chưa link OAuth (admin tạo). Row đã link là chính chủ đã
-    // login trước đó → không phải gợi ý merge.
-    .filter((m) => !m.facebookId && !m.googleId)
-    .map((m) => {
-      const a = normalizeName(m.name);
-      const b = m.nickname ? normalizeName(m.nickname) : "";
-      // 4 chiều so sánh + token-set (cùng từ nhưng đổi thứ tự).
-      const scoreNameName = scoreSimilarity(pendingNorm, a);
-      const scoreNickName = pendingNickNorm
-        ? scoreSimilarity(pendingNickNorm, a)
-        : 0;
-      const scoreNameNick = b ? scoreSimilarity(pendingNorm, b) : 0;
-      const scoreNickNick =
-        pendingNickNorm && b ? scoreSimilarity(pendingNickNorm, b) : 0;
-      // Token-set: "Hữu Nguyễn" vs "Nguyễn Hữu" → cùng tokens, score = 1.
-      const scoreTokenSet = scoreTokenSetSimilarity(pendingNorm, a);
-      const score = Math.max(
-        scoreNameName,
-        scoreNickName,
-        scoreNameNick,
-        scoreNickNick,
-        scoreTokenSet,
-      );
-      return {
-        memberId: m.id,
-        name: m.name,
-        nickname: m.nickname,
-        score,
-        hasPassword: !!m.passwordHash,
-      };
-    })
-    .filter((s) => s.score >= 0.5)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 5);
-
-  return scored;
+  return rankNameMatches(pending, await loadMatchPool());
 }
 
 /**
