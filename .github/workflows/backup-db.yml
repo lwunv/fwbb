@@ -1,0 +1,97 @@
+# Sao lưu database tự động, chạy trên máy của GitHub nên không cần máy ai bật.
+#
+# Vì sao tồn tại: ngày 24/10/2026 tài khoản Turso bị khoá do vượt hạn mức đọc,
+# và lúc đó mới phát hiện KHÔNG LẤY ĐƯỢC DỮ LIỆU RA, vì export cũng bị tính là
+# đọc. Không có bản sao lưu nào ở ngoài thì dữ liệu của cả nhóm bị nhốt trong
+# một tài khoản bị khoá. Lịch này để chuyện đó không lặp lại.
+#
+# ━━━ CẦN BA BÍ MẬT TRONG REPO (Settings → Secrets and variables → Actions) ━━━
+#   TURSO_DATABASE_URL   đường dẫn database
+#   TURSO_AUTH_TOKEN     token đọc
+#   BACKUP_PASSPHRASE    mật khẩu mã hoá bản dump (tự đặt, LƯU CHỖ KHÁC)
+#
+# Mất BACKUP_PASSPHRASE là mất luôn mọi bản sao lưu. Cất nó vào trình quản lý
+# mật khẩu, đừng để duy nhất trong GitHub.
+#
+# ━━━ GIẢI MÃ MỘT BẢN SAO LƯU ━━━
+#   openssl enc -d -aes-256-cbc -pbkdf2 -iter 300000 \
+#     -in fwbb-backup-<ngay>.json.enc -out dump.json -pass pass:'<mat khau>'
+#
+# ━━━ KHÔI PHỤC ━━━
+#   node scripts/restore-db.mjs dump.json --target=file:./khoi-phuc.db
+#   (bỏ --apply ra để chạy thử trước; xem thêm docs/backup-restore.md)
+
+name: Sao lưu database
+
+on:
+  schedule:
+    # 4 lần mỗi ngày (giờ UTC). Mất nhiều nhất 6 tiếng dữ liệu nếu phải khôi phục.
+    # Một bản dump chỉ đọc vài nghìn dòng nên không đáng kể so với hạn mức.
+    - cron: "0 */6 * * *"
+  workflow_dispatch: {}
+
+# Chạy chồng lên nhau không có ích gì, chỉ tốn lượt đọc.
+concurrency:
+  group: backup-db
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Cài phụ thuộc
+        run: pnpm install --frozen-lockfile
+
+      - name: Dump database
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+        run: node scripts/backup-db.mjs ./backup.json
+
+      - name: Kiểm bản dump có thật sự chứa dữ liệu
+        # Một hệ thống sao lưu âm thầm lưu file rỗng còn tệ hơn là không có:
+        # nó cho cảm giác an toàn giả. Thà đỏ còn hơn.
+        run: |
+          node -e "
+            const d = require('./backup.json');
+            const tables = Object.keys(d.tables ?? {});
+            const rows = tables.reduce((n, t) => n + d.tables[t].length, 0);
+            console.log('Bảng: ' + tables.length + ', dòng: ' + rows);
+            if (tables.length < 10) { console.error('Quá ít bảng, nghi dump hỏng'); process.exit(1); }
+            if (!d.tables.members || d.tables.members.length === 0) { console.error('Bảng members rỗng'); process.exit(1); }
+            if (rows < 100) { console.error('Tổng số dòng quá ít, nghi dump hỏng'); process.exit(1); }
+          "
+
+      - name: Mã hoá
+        # Bản dump chứa họ tên, email, số điện thoại, SỐ TÀI KHOẢN NGÂN HÀNG và
+        # mã băm mật khẩu. Không bao giờ để nó nằm dạng đọc được ngoài máy chủ.
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          test -n "$BACKUP_PASSPHRASE" || { echo "Thiếu BACKUP_PASSPHRASE"; exit 1; }
+          openssl enc -aes-256-cbc -pbkdf2 -iter 300000 -salt \
+            -in ./backup.json \
+            -out "./fwbb-backup-$(date -u +%Y-%m-%d_%H-%M).json.enc" \
+            -pass env:BACKUP_PASSPHRASE
+          shred -u ./backup.json 2>/dev/null || rm -f ./backup.json
+          ls -la ./fwbb-backup-*.json.enc
+
+      - name: Cất bản mã hoá
+        uses: actions/upload-artifact@v4
+        with:
+          name: fwbb-backup-${{ github.run_id }}
+          path: ./fwbb-backup-*.json.enc
+          retention-days: 90
+          if-no-files-found: error
