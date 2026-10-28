@@ -72,19 +72,25 @@ export function VoteList({
                     size={44}
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-lg font-semibold">
-                      {member.name}
-                      {member.nickname && (
-                        <span className="text-muted-foreground ml-1.5 text-sm font-normal">
-                          ({member.nickname})
-                        </span>
-                      )}
-                      <SkillChip
-                        level={member.skillLevel}
-                        className="ml-1.5"
-                        withBlurb
-                      />
+                    {/* Tên và nhãn trình độ ở hàng trên, biệt danh XUỐNG DÒNG
+                        riêng. Nhét cả ba vào một hàng thì trên điện thoại tên
+                        dài cộng câu mô tả làm vỡ hàng hoặc bị cắt cụt. */}
+                    {/* flex + items-center: tên, nhãn và câu mô tả có ba cỡ
+                        chữ khác nhau, để chúng chảy theo dòng chữ thường thì
+                        lệch đường chân chữ, nhìn như bị xô. `min-w-0` + 
+                        `truncate` ở riêng phần tên để tên dài không đẩy nhãn
+                        ra khỏi hàng. */}
+                    <p className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate text-lg font-semibold">
+                        {member.name}
+                      </span>
+                      <SkillChip level={member.skillLevel} withBlurb />
                     </p>
+                    {member.nickname && (
+                      <p className="text-muted-foreground truncate text-sm font-normal">
+                        ({member.nickname})
+                      </p>
+                    )}
                     <div className="mt-1 flex flex-wrap gap-1.5">
                       {vote.willPlay && (
                         <Badge
@@ -160,19 +166,19 @@ export function VoteList({
                         avatarUrl={member.avatarUrl}
                         size={40}
                       />
-                      <p className="truncate text-base font-medium">
-                        {member.name}
-                        {member.nickname && (
-                          <span className="text-muted-foreground ml-1.5 text-sm font-normal">
-                            ({member.nickname})
+                      <div className="min-w-0">
+                        <p className="flex min-w-0 items-center gap-1.5">
+                          <span className="truncate text-base font-medium">
+                            {member.name}
                           </span>
+                          <SkillChip level={member.skillLevel} withBlurb />
+                        </p>
+                        {member.nickname && (
+                          <p className="text-muted-foreground truncate text-sm font-normal">
+                            ({member.nickname})
+                          </p>
                         )}
-                        <SkillChip
-                          level={member.skillLevel}
-                          className="ml-1.5"
-                          withBlurb
-                        />
-                      </p>
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -55,7 +55,13 @@ test("vô hiệu hóa thành viên: biến khỏi danh sách, chỉ còn ở tab
   page,
 }) => {
   const member = await pickActiveMember();
-  const search = page.getByPlaceholder("Tìm theo tên, biệt danh hoặc SĐT...");
+  // `.first()`: trang quản lý render CẢ bản bảng (máy tính) lẫn bản thẻ (điện
+  // thoại), mỗi bản một ô tìm kiếm, nên locator chặt khớp 2 phần tử và Playwright
+  // báo lỗi strict mode. Đây cũng là bẫy đã gặp với usePolling: lúc React tráo
+  // cây có thể tồn tại hai bản DOM cùng lúc.
+  const search = page
+    .getByPlaceholder("Tìm theo tên, biệt danh hoặc SĐT...")
+    .first();
   const row = () => page.getByText(member.name, { exact: true }).first();
 
   // Chip lọc là TabSegment → role="tab", không phải button.

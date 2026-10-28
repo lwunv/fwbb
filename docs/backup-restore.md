@@ -10,7 +10,7 @@ nhà cung cấp chết.
 
 ## Sao lưu tự động
 
-`.github/workflows/backup-db.yml` chạy 6 tiếng một lần trên máy của GitHub, nên
+`.github/workflows/backup-db.yml` chạy **mỗi giờ** trên máy của GitHub, nên
 không phụ thuộc máy ai có bật hay không. Nó dump toàn bộ database ra JSON, kiểm
 sơ bộ xem dump có thật sự chứa dữ liệu, mã hoá, rồi cất vào kho lưu trữ của
 Actions trong 90 ngày.
@@ -30,8 +30,25 @@ Bản dump chứa họ tên, email, số điện thoại, **số tài khoản ng
 mật khẩu của cả nhóm. Vì vậy bước mã hoá là bắt buộc, không phải tuỳ chọn, và
 file dạng đọc được bị xoá ngay trong cùng bước đó.
 
-Chi phí lượt đọc: một bản dump đọc vài nghìn dòng. Bốn lần mỗi ngày vẫn chưa tới
-một phần triệu hạn mức miễn phí.
+### Vì sao mỗi giờ, không dày hơn
+
+| Nhịp            | Hạn mức đọc DB | Phút Actions (repo riêng tư, 2.000 phút/tháng) |
+| --------------- | -------------- | ---------------------------------------------- |
+| 6 tiếng/lần     | 0,12%          | 6%                                             |
+| **1 tiếng/lần** | **0,72%**      | **18%**                                        |
+| 15 phút/lần     | 2,88%          | 72%                                            |
+
+Lượt đọc thì rẻ, nhưng phút Actions mới là thứ cạn trước. 15 phút/lần ngốn gần
+hết chỗ dự phòng cho mọi việc khác. Job cố ý chỉ cài hai gói cần dùng thay vì
+`pnpm install` cả dự án, để mỗi lần chạy không tốn thêm vài chục giây.
+
+### Cửa sổ mất mát
+
+**Mất nhiều nhất là số phút kể từ lần chạy gần nhất, tức dưới một tiếng.** Không
+phải số 0, và không có cách nào thành 0 với kiểu sao lưu theo lịch. Muốn 0 thì
+app phải ghi song song sang nơi thứ hai ngay lúc ghi, đó là đổi kiến trúc lớn và
+tự nó đẻ ra lỗi mới khi một bên ghi hỏng. Với một nhóm cầu lông, dưới một tiếng
+là đánh đổi hợp lý.
 
 ## Giải mã một bản sao lưu
 
@@ -84,6 +101,27 @@ Nó băm từng bảng sau khi sắp xếp ổn định và so, thoát 0 nếu m
 
 Lần kiểm gần nhất: 24/10/2026, 18/18 bảng khớp từng bit sau khi khôi phục một
 database đã bị xoá bảng `votes`, `session_debts` và đổi tên 20 thành viên.
+
+## Cảnh báo trước khi bị khoá
+
+`.github/workflows/turso-quota-alert.yml` chạy 4 lần mỗi ngày, gọi Platform API
+của Turso lấy mức dùng của chu kỳ hiện tại, và **làm job đỏ khi vượt 70%**.
+GitHub mặc định gửi mail khi workflow đỏ nên không cần dựng kênh báo riêng.
+
+Cần hai bí mật nữa:
+
+| Tên               | Là gì                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------- |
+| `TURSO_API_TOKEN` | token Platform, tạo bằng `turso auth api-tokens mint canh-bao`. **Khác** `TURSO_AUTH_TOKEN` |
+| `TURSO_ORG`       | slug tổ chức, nhìn trên thanh địa chỉ `app.turso.tech/<slug>`                               |
+
+Thiếu bí mật thì job cũng đỏ, có chủ ý: một cảnh báo chưa lắp mà im lặng còn tệ
+hơn không có cảnh báo.
+
+Script cũng báo đỏ khi API trả về hình dạng lạ, thay vì đoán bừa một con số rồi
+báo "an toàn". Phần quyết định đó có test riêng
+(`scripts/check-turso-quota.test.mjs`), gồm cả ca dựng lại đúng con số của sự cố
+24/10 (653.834.434 dòng trên hạn mức 500 triệu = 131%) để chắc chắn nó sẽ kêu.
 
 ## Khi nhà cung cấp chết hoặc bị khoá
 

@@ -1,0 +1,54 @@
+# Cảnh báo hạn mức đọc của Turso TRƯỚC khi nó chạm trần.
+#
+# Vì sao tồn tại: ngày 24/10/2026 tài khoản bị khoá vì vượt hạn mức đọc, cả web
+# trả 500, và lúc đó mới biết là xuất dữ liệu ra cũng không được vì export cũng
+# tính là một lượt đọc. Nhìn lại thì con số leo dần suốt nhiều ngày, hoàn toàn
+# thấy trước được, chỉ là không ai nhìn. Việc này để lần sau có người nhìn hộ.
+#
+# Cách báo: job ĐỎ khi vượt ngưỡng. GitHub mặc định gửi mail khi workflow đỏ,
+# nên không cần dựng thêm kênh thông báo nào.
+#
+# ━━━ CẦN HAI BÍ MẬT ━━━
+#   TURSO_API_TOKEN   token Platform, tạo bằng: turso auth api-tokens mint canh-bao
+#                     (KHÁC với TURSO_AUTH_TOKEN dùng để đọc database)
+#   TURSO_ORG         slug tổ chức, nhìn trên thanh địa chỉ app.turso.tech/<slug>
+#
+# Thiếu bí mật thì job CŨNG ĐỎ, có chủ ý: một cảnh báo không được lắp mà im
+# lặng còn tệ hơn không có cảnh báo, vì nó tạo cảm giác an toàn giả.
+
+name: Cảnh báo hạn mức Turso
+
+on:
+  schedule:
+    # 4 lần mỗi ngày là đủ để thấy xu hướng mà không gây nhiễu.
+    - cron: "0 */6 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: turso-quota-alert
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Đo mức dùng
+        # Script không cần gói ngoài nào, dùng fetch có sẵn của Node.
+        env:
+          TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
+          TURSO_ORG: ${{ secrets.TURSO_ORG }}
+          # Hạn mức gói miễn phí. Đổi nếu nâng gói.
+          ROWS_READ_LIMIT: "500000000"
+          # Kêu từ 70% để còn kịp tìm và vá chỗ đọc lãng phí.
+          ALERT_PERCENT: "70"
+        run: node scripts/check-turso-quota.mjs

@@ -22,7 +22,11 @@ test.beforeAll(async () => {
   await c.execute("PRAGMA busy_timeout = 5000");
   const m = (
     await c.execute(
-      "SELECT id, name FROM members WHERE is_active=1 AND approval_status='approved' ORDER BY id LIMIT 1",
+      // OFFSET 1 có chủ ý: `me-skill-level.spec.ts` lấy member ĐẦU TIÊN và
+      // cũng đặt rồi xoá `skill_level` của nó. Hai bài cùng giành một hàng thì
+      // phần dọn dẹp của bài này xoá mất thứ bài kia vừa đặt, và bài kia đỏ
+      // một cách ngẫu nhiên tuỳ thứ tự chạy. Mỗi bài một member thì hết.
+      "SELECT id, name FROM members WHERE is_active=1 AND approval_status='approved' ORDER BY id LIMIT 1 OFFSET 1",
     )
   ).rows[0];
   memberId = Number(m.id);

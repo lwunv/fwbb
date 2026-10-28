@@ -25,9 +25,15 @@ name: Sao lưu database
 
 on:
   schedule:
-    # 4 lần mỗi ngày (giờ UTC). Mất nhiều nhất 6 tiếng dữ liệu nếu phải khôi phục.
-    # Một bản dump chỉ đọc vài nghìn dòng nên không đáng kể so với hạn mức.
-    - cron: "0 */6 * * *"
+    # MỖI GIỜ. Đây là cửa sổ mất mát: hỏng lúc nào thì mất nhiều nhất là số
+    # phút kể từ lần chạy gần nhất.
+    #
+    # Vì sao không dày hơn: một bản dump đọc ~5.000 dòng, nên mỗi giờ chỉ tốn
+    # 0,72% hạn mức đọc mỗi tháng (thoải mái). Nhưng mỗi lần chạy còn tốn phút
+    # Actions, và repo riêng tư chỉ có 2.000 phút miễn phí mỗi tháng. Mỗi giờ
+    # với job gọn là ~18% số phút đó; 15 phút/lần sẽ ngốn 72%, ăn gần hết chỗ
+    # dự phòng cho mọi việc khác.
+    - cron: "0 * * * *"
   workflow_dispatch: {}
 
 # Chạy chồng lên nhau không có ích gì, chỉ tốn lượt đọc.
@@ -45,11 +51,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
 
       - name: Kiểm ba bí mật trước khi làm gì
         # Thiếu secret thì GitHub thay bằng chuỗi RỖNG chứ không báo lỗi, và
@@ -77,8 +81,11 @@ jobs:
           fi
           echo "Du ca ba bi mat."
 
-      - name: Cài phụ thuộc
-        run: pnpm install --frozen-lockfile
+      - name: Cài đúng hai gói cần dùng
+        # KHÔNG `pnpm install` cả dự án: script dump chỉ cần hai gói này, còn
+        # cài cả cây phụ thuộc Next.js thì mỗi lần chạy tốn thêm vài chục giây.
+        # Job chạy mỗi giờ nên khoản đó cộng dồn thành hàng trăm phút mỗi tháng.
+        run: npm install --no-save --no-audit --no-fund @libsql/client dotenv
 
       - name: Dump database
         env:

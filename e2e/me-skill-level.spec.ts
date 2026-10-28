@@ -199,6 +199,14 @@ test.describe("trình độ hiện ở trang chủ", () => {
 
     await page.goto("/", { waitUntil: "domcontentloaded" });
 
+    // Bấm ĐÚNG chip của ngày đã seed. Trang chủ mặc định mở buổi gần nhất, mà
+    // bài này seed vào thứ Sáu, nên chạy hôm thứ Sáu thì trùng còn hôm khác
+    // thì lệch sang buổi khác và danh sách rỗng. Bản đầu xanh chỉ vì tình cờ
+    // chạy đúng thứ Sáu; sang thứ Tư là đỏ.
+    const chips = page.getByRole("button", { name: /Thứ/ });
+    await expect(chips).toHaveCount(3, { timeout: 20_000 });
+    await chips.nth(2).click();
+
     // Tìm ĐÚNG dòng của member này rồi mới tìm nhãn bên trong, chứ không tìm
     // chữ "TB" trên cả trang: chữ đó ngắn và dễ trùng với thứ khác.
     const row = page
@@ -216,6 +224,8 @@ test.describe("trình độ hiện ở trang chủ", () => {
     c.close();
 
     await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(chips).toHaveCount(3, { timeout: 20_000 });
+    await chips.nth(2).click();
     await expect(
       page.locator("p", { hasText: new RegExp(memberName) }).first(),
     ).toBeVisible({ timeout: 20_000 });
