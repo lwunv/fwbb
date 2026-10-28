@@ -51,9 +51,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
 
       - name: Kiểm ba bí mật trước khi làm gì
         # Thiếu secret thì GitHub thay bằng chuỗi RỖNG chứ không báo lỗi, và
@@ -81,11 +83,13 @@ jobs:
           fi
           echo "Du ca ba bi mat."
 
-      - name: Cài đúng hai gói cần dùng
-        # KHÔNG `pnpm install` cả dự án: script dump chỉ cần hai gói này, còn
-        # cài cả cây phụ thuộc Next.js thì mỗi lần chạy tốn thêm vài chục giây.
-        # Job chạy mỗi giờ nên khoản đó cộng dồn thành hàng trăm phút mỗi tháng.
-        run: npm install --no-save --no-audit --no-fund @libsql/client dotenv
+      - name: Cài phụ thuộc
+        # Phải dùng pnpm, không phải npm. Dự án này quản lý phụ thuộc bằng
+        # pnpm, và `npm install` trong đó chết với "Cannot read properties of
+        # null (reading 'edgesOut')" vì npm không đọc được cây của pnpm.
+        # Đã thử đổi sang npm cho nhanh hơn và hỏng đúng kiểu đó (run #16).
+        # Có cache nên bước này chỉ mất vài giây.
+        run: pnpm install --frozen-lockfile
 
       - name: Dump database
         env:
