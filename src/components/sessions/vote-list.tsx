@@ -63,25 +63,35 @@ export function VoteList({
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                  className="flex items-center gap-3 px-3 py-2.5"
+                  /* `data-slot` là chỗ bám cho bài e2e đo chiều cao các dòng,
+                     đặt theo đúng lối sẵn có của bộ UI trong dự án.
+
+                     `min-h` để MỌI dòng cao bằng nhau: người có biệt danh thì
+                     hai dòng chữ, người không có chỉ một, mà cụm badge bên
+                     phải lúc một hàng lúc hai. Không chốt chiều cao thì danh
+                     sách lệch nhấp nhô. 72px là ca cao nhất (hai hàng badge
+                     cộng padding) thêm vài pixel dư, để dòng nhiều badge nhất
+                     cũng không nhỉnh hơn mấy dòng kia. */
+                  data-slot="vote-row"
+                  className="flex min-h-[72px] items-center gap-3 px-3 py-2"
                 >
                   <MemberAvatar
                     memberId={member.id}
                     avatarKey={member.avatarKey}
                     avatarUrl={member.avatarUrl}
-                    size={44}
+                    size={40}
                   />
                   <div className="min-w-0 flex-1">
                     {/* Tên và nhãn trình độ ở hàng trên, biệt danh XUỐNG DÒNG
-                        riêng. Nhét cả ba vào một hàng thì trên điện thoại tên
-                        dài cộng câu mô tả làm vỡ hàng hoặc bị cắt cụt. */}
-                    {/* flex + items-center: tên, nhãn và câu mô tả có ba cỡ
-                        chữ khác nhau, để chúng chảy theo dòng chữ thường thì
-                        lệch đường chân chữ, nhìn như bị xô. `min-w-0` + 
-                        `truncate` ở riêng phần tên để tên dài không đẩy nhãn
-                        ra khỏi hàng. */}
+                        riêng. Nhét cả hai vào một hàng thì trên điện thoại
+                        tên dài làm vỡ hàng hoặc bị cắt cụt. */}
+                    {/* flex + items-center: tên và nhãn có hai cỡ chữ khác
+                        nhau, để chúng chảy theo dòng chữ thường thì lệch
+                        đường chân chữ, nhìn như bị xô. `min-w-0` + `truncate`
+                        ở riêng phần tên để tên dài không đẩy nhãn ra khỏi
+                        hàng. */}
                     <p className="flex min-w-0 items-center gap-1.5">
-                      <span className="truncate text-lg font-semibold">
+                      <span className="truncate text-base font-semibold">
                         {member.name}
                       </span>
                       <SkillChip level={member.skillLevel} withBlurb />
@@ -91,34 +101,40 @@ export function VoteList({
                         ({member.nickname})
                       </p>
                     )}
-                    <div className="mt-1 flex flex-wrap gap-1.5">
-                      {vote.willPlay && (
-                        <Badge
-                          variant="votePlay"
-                          className="h-7 px-3 py-1 text-sm font-semibold"
-                        >
-                          🏸 {t("badmintonShort")}
-                          {(vote.guestPlayCount ?? 0) > 0 &&
-                            ` ${t("plusGuest", { count: vote.guestPlayCount ?? 0 })}`}
-                        </Badge>
-                      )}
-                      {vote.willDine && (
-                        <Badge
-                          variant="voteDine"
-                          className="h-7 px-3 py-1 text-sm font-semibold"
-                        >
-                          🍻 {t("diningShort")}
-                          {(vote.guestDineCount ?? 0) > 0 &&
-                            ` ${t("plusGuest", { count: vote.guestDineCount ?? 0 })}`}
-                        </Badge>
-                      )}
-                      {/* Đi 2 người → 1 chip gọn "👫 +2" (badge Cầu/Nhậu giữ sạch). */}
-                      {vote.withPartner && (vote.willPlay || vote.willDine) && (
-                        <span className="border-primary/40 bg-primary/10 text-primary inline-flex h-7 items-center gap-1 rounded-md border px-2.5 text-sm font-semibold">
-                          👫 +2
-                        </span>
-                      )}
-                    </div>
+                  </div>
+                  {/* Cụm badge sang hẳn bên phải và tự xuống thành hai hàng.
+                      Chặn bề ngang ở 46% để ba badge không nằm thành một hàng
+                      dài đẩy tên member cụt mất. */}
+                  <div
+                    data-slot="vote-row-badges"
+                    className="flex max-w-[46%] shrink-0 flex-wrap justify-end gap-1"
+                  >
+                    {vote.willPlay && (
+                      <Badge
+                        variant="votePlay"
+                        className="h-6 px-2 py-0 text-sm font-semibold"
+                      >
+                        🏸 {t("badmintonShort")}
+                        {(vote.guestPlayCount ?? 0) > 0 &&
+                          ` ${t("plusGuest", { count: vote.guestPlayCount ?? 0 })}`}
+                      </Badge>
+                    )}
+                    {vote.willDine && (
+                      <Badge
+                        variant="voteDine"
+                        className="h-6 px-2 py-0 text-sm font-semibold"
+                      >
+                        🍻 {t("diningShort")}
+                        {(vote.guestDineCount ?? 0) > 0 &&
+                          ` ${t("plusGuest", { count: vote.guestDineCount ?? 0 })}`}
+                      </Badge>
+                    )}
+                    {/* Đi 2 người → 1 chip gọn "👫 +2" (badge Cầu/Nhậu giữ sạch). */}
+                    {vote.withPartner && (vote.willPlay || vote.willDine) && (
+                      <span className="border-primary/40 bg-primary/10 text-primary inline-flex h-6 items-center gap-1 rounded-md border px-2 text-sm font-semibold">
+                        👫 +2
+                      </span>
+                    )}
                   </div>
                 </motion.div>
               );
@@ -158,7 +174,9 @@ export function VoteList({
                   {notVotedMembers.map((member) => (
                     <div
                       key={member.id}
-                      className="flex items-center gap-3 px-3 py-2 opacity-60"
+                      /* Cùng lý do min-h như danh sách đã vote: người có biệt
+                         danh thì hai dòng, người không có thì một. */
+                      className="flex min-h-[56px] items-center gap-3 px-3 py-2 opacity-60"
                     >
                       <MemberAvatar
                         memberId={member.id}
