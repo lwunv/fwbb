@@ -1340,31 +1340,36 @@ export function MemberList({
                           />
                         </button>
                         <div className="min-w-0 flex-1">
-                          <button
-                            type="button"
-                            onClick={() => setInfoEditTarget(member)}
-                            title={t("menuEditInfo")}
-                            className="flex w-full min-w-0 items-center gap-1.5 text-left hover:underline"
-                          >
-                            <span className="truncate text-base font-semibold">
-                              {displayName}
-                            </span>
-                            {displayNickname && (
-                              <span className="text-muted-foreground shrink-0 text-sm font-normal">
-                                ({displayNickname})
+                          {/* Nhãn trình độ đứng NGOÀI nút mở hồ sơ: bản thân
+                              nó đã là một nút (chạm để xem mô tả), mà nút lồng
+                              trong nút là HTML sai và React hydrate lỗi. */}
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setInfoEditTarget(member)}
+                              title={t("menuEditInfo")}
+                              className="flex min-w-0 items-center gap-1.5 text-left hover:underline"
+                            >
+                              <span className="truncate text-base font-semibold">
+                                {displayName}
                               </span>
-                            )}
+                              {displayNickname && (
+                                <span className="text-muted-foreground shrink-0 text-sm font-normal">
+                                  ({displayNickname})
+                                </span>
+                              )}
+                              {adminMemberId === member.id && (
+                                <span
+                                  className="bg-primary/15 text-primary inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+                                  title={t("thisIsAdminBadge")}
+                                >
+                                  <Crown className="h-3 w-3" />
+                                  {t("adminBadge")}
+                                </span>
+                              )}
+                            </button>
                             <SkillChip level={displaySkill} withBlurb />
-                            {adminMemberId === member.id && (
-                              <span
-                                className="bg-primary/15 text-primary inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
-                                title={t("thisIsAdminBadge")}
-                              >
-                                <Crown className="h-3 w-3" />
-                                {t("adminBadge")}
-                              </span>
-                            )}
-                          </button>
+                          </div>
                           {/* SUBROW: chấm + trạng thái quỹ · số người. Switch đã
                               lên góc phải row 1 — ở đây chỉ HIỂN THỊ số người. */}
                           <div className="text-muted-foreground mt-0.5 flex items-center gap-1.5 text-sm">

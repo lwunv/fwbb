@@ -7,7 +7,7 @@
  * một dấu gạch cho mỗi người là tự làm danh sách rối thêm.
  */
 import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import viMessages from "@/i18n/messages/vi.json";
 import { SkillChip } from "./skill-chip";
@@ -55,26 +55,71 @@ describe("nhãn trình độ", () => {
   });
 });
 
-describe("kèm câu mô tả", () => {
+describe("câu mô tả của mức trình độ", () => {
   it("mặc định KHÔNG kèm: danh sách vote trang chủ phải gọn", () => {
     renderChip("tb");
     expect(screen.queryByText(/Thắng do Tao Bao/)).toBeNull();
   });
 
-  it("bật lên thì hiện câu mô tả cạnh tên ngắn", () => {
+  /**
+   * Điều quan trọng nhất của lần sửa 28/10/2026: ngay cả khi BẬT, câu mô tả
+   * vẫn không nằm sẵn trên dòng. Nó dài hơn cả tên người; để nó thường trực
+   * thì hàng tên bị đẩy vỡ hoặc cắt cụt trên điện thoại.
+   */
+  it("bật lên nhưng chưa ai hỏi: câu mô tả không có trong DOM", () => {
     renderChip("tb", true);
     expect(screen.getByText("TB")).toBeTruthy();
     expect(
-      screen.getByText("Thắng do Tao Bao, thua do Thằng Bạn"),
-    ).toBeTruthy();
+      screen.queryByText("Thắng do Tao Bao, thua do Thằng Bạn"),
+    ).toBeNull();
   });
 
-  it("chữ mô tả nhỏ hơn tên ngắn, không lấn át", () => {
+  it("chạm vào nhãn thì câu mô tả hiện ra, chạm lần nữa thì mất", () => {
     renderChip("tby", true);
-    const blurb = screen.getByText("Trình bằng Yếu mà ảo tưởng hơn");
-    expect(blurb.className).toContain("text-[10px]");
-    // Câu dài phải cắt bớt chứ không đẩy vỡ hàng tên.
-    expect(blurb.className).toContain("truncate");
+    const chip = screen.getByRole("button", { name: "TBY" });
+    expect(chip.getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(chip);
+    const tip = screen.getByRole("tooltip");
+    expect(tip.textContent).toBe("Trình bằng Yếu mà ảo tưởng hơn");
+    expect(chip.getAttribute("aria-expanded")).toBe("true");
+    // Bong bóng phải được mô tả cho trình đọc màn hình, không chỉ là chữ nổi.
+    expect(chip.getAttribute("aria-describedby")).toBe(tip.getAttribute("id"));
+
+    fireEvent.click(chip);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("rê chuột vào thì hiện, rê ra thì mất, không cần bấm", () => {
+    renderChip("tb", true);
+    const chip = screen.getByRole("button", { name: "TB" });
+
+    fireEvent.pointerEnter(chip, { pointerType: "mouse" });
+    expect(screen.getByRole("tooltip").textContent).toContain("Tao Bao");
+
+    fireEvent.pointerLeave(chip);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  /**
+   * Ngón tay chạm cũng bắn `pointerenter`. Nếu coi đó là rê chuột thì nhãn
+   * hiện ra rồi mất ngay khi nhấc tay, mà cú `click` ngay sau đó lại ghim rồi
+   * bỏ ghim, thành ra chạm một cái không ra gì cả.
+   */
+  it("chạm ngón tay KHÔNG tính là rê chuột", () => {
+    renderChip("tb", true);
+    const chip = screen.getByRole("button", { name: "TB" });
+    fireEvent.pointerEnter(chip, { pointerType: "touch" });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("chạm ra ngoài thì bong bóng tự đóng", () => {
+    renderChip("tb", true);
+    fireEvent.click(screen.getByRole("button", { name: "TB" }));
+    expect(screen.getByRole("tooltip")).toBeTruthy();
+
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
   it("chưa khai thì bật hay tắt cũng không hiện gì", () => {

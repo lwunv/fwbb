@@ -93,11 +93,6 @@ test("admin đặt trình độ và giới tính LGBT cho member rồi lưu xu�
   await expect(page.getByText("TBY", { exact: true }).first()).toBeVisible({
     timeout: 10_000,
   });
-  // Kèm câu mô tả, vì ở màn quản lý admin cần đọc được ý nghĩa của mức.
-  await expect(
-    page.getByText("Trình bằng Yếu mà ảo tưởng hơn").first(),
-  ).toBeVisible({ timeout: 10_000 });
-
   // Trình độ phải nằm ở CỘT RIÊNG, không nhét chung ô tên. Kiểm bằng cách
   // đếm ô: ô thứ 2 của dòng là ô trình độ, và ô thứ 1 (tên) KHÔNG được chứa
   // nhãn nữa.
@@ -107,6 +102,17 @@ test("admin đặt trình độ và giới tính LGBT cho member rồi lưu xu�
   const row = page.locator("tbody tr").first();
   await expect(row.locator("td").nth(1)).toContainText("TBY");
   await expect(row.locator("td").nth(0)).not.toContainText("TBY");
+
+  // Câu mô tả KHÔNG nằm sẵn trên dòng (sửa 28/10/2026): nó dài hơn cả tên
+  // người. Admin rê chuột vào nhãn thì mới hiện, rê ra thì tắt.
+  const blurb = page.getByRole("tooltip");
+  await expect(blurb).toHaveCount(0);
+  await row.locator("td").nth(1).getByRole("button", { name: "TBY" }).hover();
+  await expect(blurb).toHaveText("Trình bằng Yếu mà ảo tưởng hơn", {
+    timeout: 10_000,
+  });
+  await page.getByRole("columnheader", { name: "Trình độ" }).hover();
+  await expect(blurb).toHaveCount(0);
 
   // Và sống qua reload, tức nó đọc từ server chứ không chỉ là state màn hình.
   await page.reload({ waitUntil: "domcontentloaded" });
