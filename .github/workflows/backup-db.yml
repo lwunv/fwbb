@@ -51,6 +51,32 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      - name: Kiểm ba bí mật trước khi làm gì
+        # Thiếu secret thì GitHub thay bằng chuỗi RỖNG chứ không báo lỗi, và
+        # script dump sẽ than "thiếu trong .env.local" - đúng với máy cá nhân
+        # nhưng sai hoàn toàn khi chạy ở đây. Chặn sớm và nói thẳng thiếu cái gì.
+        env:
+          URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          PASS: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          missing=""
+          test -n "$URL"   || missing="$missing TURSO_DATABASE_URL"
+          test -n "$TOKEN" || missing="$missing TURSO_AUTH_TOKEN"
+          test -n "$PASS"  || missing="$missing BACKUP_PASSPHRASE"
+          if [ -n "$missing" ]; then
+            echo "::error::Chua khai bi mat:$missing"
+            echo ""
+            echo "Them o: Settings -> Secrets and variables -> Actions -> New repository secret"
+            echo "  TURSO_DATABASE_URL  duong dan database"
+            echo "  TURSO_AUTH_TOKEN    token doc"
+            echo "  BACKUP_PASSPHRASE   mat khau ma hoa ban dump (tu dat, luu cho khac)"
+            echo ""
+            echo "Chi tiet: docs/backup-restore.md"
+            exit 1
+          fi
+          echo "Du ca ba bi mat."
+
       - name: Cài phụ thuộc
         run: pnpm install --frozen-lockfile
 
