@@ -48,6 +48,16 @@ jobs:
     permissions:
       contents: read
 
+    # Khai ở cấp job vì `if:` của một bước KHÔNG đọc được `env:` của chính
+    # bước đó. Chưa khai bí mật nào thì các bước nhân bản tự bỏ qua, và
+    # workflow chạy đúng như trước khi có chúng.
+    env:
+      STANDBY_DATABASE_URL: ${{ secrets.STANDBY_DATABASE_URL }}
+      STANDBY_AUTH_TOKEN: ${{ secrets.STANDBY_AUTH_TOKEN }}
+      D1_DATABASE_NAME: ${{ secrets.D1_DATABASE_NAME }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -111,6 +121,36 @@ jobs:
             if (rows < 100) { console.error('Tổng số dòng quá ít, nghi dump hỏng'); process.exit(1); }
           "
 
+      - name: Nhân bản sang database dự phòng (ghi được)
+        id: replicate
+        if: env.STANDBY_DATABASE_URL != ''
+        # Dùng lại ĐÚNG bản chụp vừa tạo, không chụp lần nữa: chụp thêm một
+        # lần là thêm một lượt đọc trên bản chính mà chẳng được gì.
+        #
+        # `continue-on-error`: nhân bản hỏng thì vẫn phải mã hoá và cất bản
+        # sao lưu đã chụp được. Mất bản sao lưu vì một việc phụ hỏng là đánh
+        # đổi sai. Bước cuối cùng của job sẽ làm đỏ nếu nó hỏng.
+        continue-on-error: true
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+        run: node scripts/replicate-to-standby.mjs --apply --dump=./backup.json
+
+      - name: Đẩy sang Cloudflare D1 (kho dự phòng, chỉ đọc)
+        id: d1
+        if: env.D1_DATABASE_NAME != ''
+        continue-on-error: true
+        # 6 TIẾNG MỘT LẦN, không phải mỗi giờ. D1 gói miễn phí cho 100.000
+        # dòng GHI mỗi ngày, mà mỗi lần đẩy là ghi lại toàn bộ database. Chạy
+        # hàng giờ là vượt hạn mức, rồi lớp dự phòng lại thành thứ gây sự cố.
+        run: |
+          hour=$(date -u +%H)
+          if [ $((10#$hour % 6)) -ne 0 ]; then
+            echo "Bỏ qua: chỉ đẩy vào các giờ 0, 6, 12, 18 UTC (giờ này là $hour)."
+            exit 0
+          fi
+          node scripts/sync-to-d1.mjs --dump=./backup.json --apply
+
       - name: Mã hoá
         # Bản dump chứa họ tên, email, số điện thoại, SỐ TÀI KHOẢN NGÂN HÀNG và
         # mã băm mật khẩu. Không bao giờ để nó nằm dạng đọc được ngoài máy chủ.
@@ -132,3 +172,14 @@ jobs:
           path: ./fwbb-backup-*.json.enc
           retention-days: 90
           if-no-files-found: error
+
+      - name: Báo đỏ nếu việc nhân bản hỏng
+        # Đặt CUỐI cùng, sau khi bản sao lưu đã nằm an toàn trong kho lưu trữ.
+        # Tới đây mới được phép làm đỏ.
+        if: steps.replicate.outcome == 'failure' || steps.d1.outcome == 'failure'
+        run: |
+          echo "::error::Sao luu xong nhung NHAN BAN that bai."
+          echo "  replicate: ${{ steps.replicate.outcome }}"
+          echo "  d1:        ${{ steps.d1.outcome }}"
+          echo "Ban sao luu ma hoa VAN duoc cat an toan. Xem log hai buoc tren."
+          exit 1

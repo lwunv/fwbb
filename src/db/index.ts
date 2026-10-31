@@ -2,6 +2,7 @@ import { drizzle } from "drizzle-orm/libsql";
 import { createClient } from "@libsql/client";
 import * as schema from "./schema";
 import { createRetryingFetch } from "../lib/db-fetch";
+import { createFailoverClient, type DbRole } from "./failover";
 
 const rawClient = createClient({
   url: process.env.TURSO_DATABASE_URL!,
@@ -82,4 +83,42 @@ function withQueryLog(c: typeof rawClient): typeof rawClient {
   });
 }
 
-export const db = drizzle(withQueryLog(rawClient), { schema });
+/**
+ * Database dự phòng, dùng khi bản chính không phục vụ nữa.
+ *
+ * KHÔNG khai hai biến này thì mọi thứ chạy đúng như trước khi có lớp tự
+ * chuyển: `createFailoverClient` trả thẳng client chính về. Nhờ vậy bản vá
+ * này lên prod được trước khi bản dự phòng dựng xong, và nếu bản dự phòng có
+ * trục trặc thì gỡ biến môi trường ra là quay về trạng thái cũ ngay.
+ */
+const standbyUrl = process.env.STANDBY_DATABASE_URL;
+const standbyClient = standbyUrl
+  ? createClient({
+      url: standbyUrl,
+      authToken: process.env.STANDBY_AUTH_TOKEN,
+      fetch: createRetryingFetch(),
+    })
+  : null;
+
+let activeRole: DbRole = "primary";
+
+/** Hiện app đang ghi vào đâu. Dùng để hiện băng báo cho người dùng. */
+export function getDbRole(): DbRole {
+  return activeRole;
+}
+
+export const db = drizzle(
+  createFailoverClient({
+    primary: withQueryLog(rawClient),
+    standby: standbyClient,
+    onSwitch: (role) => {
+      activeRole = role;
+      // Một dòng duy nhất, không kèm nội dung lỗi: thông báo lỗi của DB có
+      // thể chứa mảnh câu truy vấn, tức là dữ liệu cá nhân.
+      console.error(
+        `[db] đã chuyển sang database dự phòng lúc ${new Date().toISOString()}`,
+      );
+    },
+  }),
+  { schema },
+);

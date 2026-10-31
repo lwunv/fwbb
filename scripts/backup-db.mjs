@@ -41,8 +41,14 @@ console.log(`Database: ${url}`);
 console.log(`Output:   ${outPath}\n`);
 
 // Liệt kê mọi user table (bỏ sqlite_* internal).
+//
+// `replica_state` bị loại có chủ ý: nó là CỜ ĐIỀU KHIỂN của việc chuyển sang
+// database dự phòng, không phải dữ liệu của app. Nó chỉ có nghĩa trên đúng
+// database đang giữ nó. Chép nó sang nơi khác thì bản chính vừa khôi phục
+// xong đã mang sẵn cờ "đang chạy ở dự phòng", và cả cụm quay lại vòng luẩn
+// quẩn. (Phát hiện 30/10/2026 khi diễn tập copy ngược về bản chính.)
 const tablesRes = await client.execute(
-  `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_litestream%' AND name NOT LIKE '__drizzle%' ORDER BY name`,
+  `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_litestream%' AND name NOT LIKE '__drizzle%' AND name <> 'replica_state' ORDER BY name`,
 );
 const tables = tablesRes.rows.map((r) => String(r.name));
 
@@ -75,5 +81,7 @@ for (const t of tables) {
 mkdirSync(dirname(outPath), { recursive: true });
 writeFileSync(outPath, JSON.stringify(dump, null, 2), "utf8");
 
-console.log(`\n✅ Đã backup ${grandTotal} rows / ${tables.length} bảng → ${outPath}`);
+console.log(
+  `\n✅ Đã backup ${grandTotal} rows / ${tables.length} bảng → ${outPath}`,
+);
 client.close();

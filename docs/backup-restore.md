@@ -150,3 +150,103 @@ một lần kể cả khi không ai nhìn. Một database 1 MB mà bị đọc 6
 trong một tháng. Phần đó đã vá (xem `perf(db): batch two n+1 queries and stop
 polling hidden tabs`), và có test đếm truy vấn chặn nó quay lại. Sao lưu là lưới
 an toàn, không phải thứ thay cho việc đừng đọc lãng phí.
+
+---
+
+# Bản dự phòng chạy được (thêm 30/10/2026)
+
+Sao lưu cứu được dữ liệu nhưng không cứu được việc site đang chết. Phần này là
+lớp thứ hai: khi Turso không phục vụ nữa, app tự chuyển sang một database khác
+và **vẫn ghi được**, không chỉ xem.
+
+## Bốn lớp, ba công ty
+
+| Lớp            | Ở đâu                  | Vai trò                      | Ghi được |
+| -------------- | ---------------------- | ---------------------------- | -------- |
+| Bản chính      | Turso                  | chạy hàng ngày               | có       |
+| Bản dự phòng   | máy chủ libsql tự dựng | thay thế khi Turso chết      | có       |
+| Kho phòng thân | Cloudflare D1          | còn dữ liệu khi mất cả hai   | không    |
+| Sao lưu        | GitHub Actions, mã hoá | dựng lại từ đầu ở bất cứ đâu | không    |
+
+Bản dự phòng phải là **libsql**, không phải D1. D1 không có giao dịch kiểu
+đọc-rồi-ghi, mà 35 chỗ trong app đang dựa vào đúng thứ đó để hai người bấm cùng
+lúc không ghi đè số tiền của nhau. Trỏ app vào D1 để ghi là mở lại đúng loại
+lỗi mà `db.transaction` sinh ra để chặn.
+
+## App tự chuyển thế nào
+
+`src/db/failover.ts` bọc client database. Luật của nó:
+
+1. **Chưa khai `STANDBY_DATABASE_URL` thì không đổi gì cả.** Nó trả thẳng
+   client chính về, không thêm một lần gọi mạng nào. Gỡ biến môi trường ra là
+   quay lại trạng thái cũ ngay, không cần deploy lại code.
+2. Gặp lỗi kiểu **máy chủ không phục vụ** (kết nối đứt, DNS chết, 403 tài khoản
+   bị khoá, 5xx) thì chuyển sang bản dự phòng và chạy lại câu lệnh đó.
+3. Gặp lỗi **tầng SQL** (trùng khoá, sai cú pháp) thì ném lên như cũ. Chuyển vì
+   một câu INSERT trùng khoá nghĩa là từ đó cả nhóm ghi vào một nơi khác trong
+   khi bản chính vẫn sống: hai nơi cùng được ghi là kiểu hỏng không sửa tự động
+   được.
+4. Cờ trạng thái nằm ở **chính bản dự phòng** (bảng `replica_state`), vì lúc
+   cần đọc cờ là lúc bản chính đang chết. Mọi instance đọc chung một cờ nên
+   chúng chuyển cùng nhau.
+5. **Không bao giờ tự quay về.** Quay về phải có người đồng bộ ngược trước.
+
+## Lệnh
+
+```bash
+# Đang chạy ở đâu
+node scripts/failover.mjs --status
+
+# Chuyển tay sang bản dự phòng (diễn tập, hoặc biết trước sắp có sự cố)
+node scripts/failover.mjs --to-standby --apply
+
+# Turso sống lại: copy NGƯỢC về rồi mới hạ cờ. Đúng thứ tự này.
+node scripts/failover.mjs --recover --apply
+
+# Copy bản chính sang bản dự phòng (workflow sao lưu tự gọi mỗi lần chạy)
+node scripts/replicate-to-standby.mjs --apply
+```
+
+`replicate-to-standby.mjs` **tự bỏ qua** khi cờ đang là `standby`. Nếu không,
+mỗi lần sao lưu chạy là một lần xoá sạch những gì cả nhóm vừa nhập trong lúc sự
+cố.
+
+## Bí mật cần khai thêm
+
+| Tên                     | Là gì                             |
+| ----------------------- | --------------------------------- |
+| `STANDBY_DATABASE_URL`  | đường dẫn máy chủ libsql dự phòng |
+| `STANDBY_AUTH_TOKEN`    | token của nó                      |
+| `D1_DATABASE_NAME`      | tên database D1                   |
+| `CLOUDFLARE_API_TOKEN`  | token có quyền D1 Edit            |
+| `CLOUDFLARE_ACCOUNT_ID` | id tài khoản Cloudflare           |
+
+Khai ở hai nơi: **GitHub** (để workflow nhân bản) và **Vercel** (để app chuyển
+được). Hai cái D1 chỉ cần ở GitHub, vì app không bao giờ nói chuyện với D1.
+
+## Cửa sổ mất mát của lớp này
+
+Bản dự phòng chỉ mới bằng lần nhân bản gần nhất. Nhân bản đi kèm workflow sao
+lưu, mà GitHub giãn lịch của repo ít hoạt động nên thực tế là **khoảng 5 tiếng
+một lần**, không phải mỗi giờ như đặt trong cron. Mất tối đa là chừng đó.
+
+Muốn 0 mất mát thì app phải ghi đồng thời cả hai nơi và chỉ báo thành công khi
+cả hai xong. Cái đó làm mọi thao tác ghi chậm lại và đẻ ra tình huống một bên
+ghi được một bên hỏng. Với một nhóm cầu lông, không đáng.
+
+## Đã kiểm tới đâu (30/10/2026)
+
+Chạy thật trên máy, hai database dạng file, không đụng prod:
+
+- Nhân bản bản chính sang bản dự phòng: **18/18 bảng khớp từng bit**.
+- Bật cờ `standby` rồi chạy lại nhân bản: **tự bỏ qua**, không ghi đè.
+- Ghi một bản ghi mới vào bản dự phòng (giả lập người dùng nhập trong lúc sự
+  cố), rồi `--recover --apply`: dữ liệu đó **về tới bản chính**, cờ hạ sau khi
+  dữ liệu đã về.
+- Sinh SQL cho D1 từ bản chụp thật rồi nạp vào một database sạch: **18/18 bảng
+  khớp từng bit**.
+- 14 bài kiểm tự động cho phần quyết định "khi nào được chuyển", gồm ca tên cột
+  có chữ `quota` làm lỗi ràng buộc bị đọc nhầm thành tài khoản bị khoá.
+
+Chưa kiểm: đường chạy thật với một máy chủ libsql ở xa và với D1 thật. Hai cái
+đó cần tài khoản đã dựng xong.
