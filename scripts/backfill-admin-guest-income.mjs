@@ -27,7 +27,9 @@ const DRY = process.argv.includes("--dry");
 const SINCE = "2026-06-01"; // mốc reset court-rent; KHÔNG đụng tháng <6 (đã tất toán)
 const fmt = (n) => Number(n).toLocaleString("vi-VN");
 
-console.log(`\nMode: ${DRY ? "DRY RUN" : "EXECUTE"}  (sessions date >= ${SINCE})\n`);
+console.log(
+  `\nMode: ${DRY ? "DRY RUN" : "EXECUTE"}  (sessions date >= ${SINCE})\n`,
+);
 
 // 1. Admin member id(s)
 const admins = await client.execute(`SELECT member_id AS mid FROM admins`);
@@ -55,7 +57,10 @@ for (const r of incomeRows.rows) {
   if (r.rev != null) continue;
   if (voided.has(Number(r.id))) continue;
   const sid = Number(r.sid);
-  liveIncomeBySession.set(sid, (liveIncomeBySession.get(sid) ?? 0) + Number(r.amount));
+  liveIncomeBySession.set(
+    sid,
+    (liveIncomeBySession.get(sid) ?? 0) + Number(r.amount),
+  );
 }
 
 // 4. Admin debt rows (guest amounts) by session
@@ -84,12 +89,21 @@ for (const s of sessions.rows) {
     console.log(`  #${sid} ${s.date}: đã có income ${fmt(live)} → bỏ qua`);
     continue;
   }
-  toInsert.push({ sid, date: String(s.date), debtId: ag.debtId, amount: ag.amount });
-  console.log(`  #${sid} ${s.date}: SẼ CHÈN session_guest_income +${fmt(ag.amount)} (debt#${ag.debtId})`);
+  toInsert.push({
+    sid,
+    date: String(s.date),
+    debtId: ag.debtId,
+    amount: ag.amount,
+  });
+  console.log(
+    `  #${sid} ${s.date}: SẼ CHÈN session_guest_income +${fmt(ag.amount)} (debt#${ag.debtId})`,
+  );
 }
 
 const total = toInsert.reduce((s, r) => s + r.amount, 0);
-console.log(`\nTổng sẽ cộng vào quỹ: +${fmt(total)}  (${toInsert.length} buổi)\n`);
+console.log(
+  `\nTổng sẽ cộng vào quỹ: +${fmt(total)}  (${toInsert.length} buổi)\n`,
+);
 
 if (DRY) {
   console.log("DRY RUN — không ghi gì.");

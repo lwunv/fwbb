@@ -158,8 +158,7 @@ async function main() {
 
   // I7: orphan debt refs
   const debtIdSet = new Set();
-  for (const t of debtScopedTxs)
-    if (t.debtId) debtIdSet.add(Number(t.debtId));
+  for (const t of debtScopedTxs) if (t.debtId) debtIdSet.add(Number(t.debtId));
   let debtRows = [];
   if (debtIdSet.size > 0) {
     const ids = [...debtIdSet].join(",");
@@ -260,9 +259,7 @@ async function main() {
 
   const errors = issues.filter((i) => i.severity === "error");
   const warns = issues.filter((i) => i.severity === "warn");
-  console.log(
-    `\n=== ${errors.length} ERROR(s), ${warns.length} WARN(s) ===`,
-  );
+  console.log(`\n=== ${errors.length} ERROR(s), ${warns.length} WARN(s) ===`);
   for (const i of issues) {
     console.log(`  [${i.severity.toUpperCase()}] ${i.code}: ${i.message}`);
   }

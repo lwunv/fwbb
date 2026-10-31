@@ -30,7 +30,9 @@ const originals = await client.execute(`
 `);
 
 console.log(`\nMode: ${DRY_RUN ? "DRY RUN (không ghi DB)" : "EXECUTE"}\n`);
-console.log(`Tìm thấy ${originals.rows.length} khoản manual "Tiền chơi cầu 27/4":\n`);
+console.log(
+  `Tìm thấy ${originals.rows.length} khoản manual "Tiền chơi cầu 27/4":\n`,
+);
 
 const fmt = (n) => Number(n).toLocaleString("vi-VN") + " đ";
 
@@ -46,17 +48,23 @@ for (const row of originals.rows) {
     args: [row.id],
   });
   if (existing.rows.length > 0) {
-    console.log(`  ✓ ${String(row.name).padEnd(15)} #${row.id}  ${fmt(row.amount)}  (ĐÃ reverse trước đó)`);
+    console.log(
+      `  ✓ ${String(row.name).padEnd(15)} #${row.id}  ${fmt(row.amount)}  (ĐÃ reverse trước đó)`,
+    );
     alreadyReversed++;
   } else {
-    console.log(`  → ${String(row.name).padEnd(15)} #${row.id}  ${fmt(row.amount)}  (sẽ reverse)`);
+    console.log(
+      `  → ${String(row.name).padEnd(15)} #${row.id}  ${fmt(row.amount)}  (sẽ reverse)`,
+    );
     toReverse.push(row);
     totalAmount += Number(row.amount);
     willReverseCount++;
   }
 }
 
-console.log(`\nTổng: sẽ reverse ${willReverseCount} khoản = ${fmt(totalAmount)}`);
+console.log(
+  `\nTổng: sẽ reverse ${willReverseCount} khoản = ${fmt(totalAmount)}`,
+);
 console.log(`Đã reverse trước đó: ${alreadyReversed} khoản`);
 
 if (DRY_RUN) {
@@ -86,7 +94,9 @@ for (const r of toReverse) {
   console.log(`  ✓ ${String(r.name).padEnd(15)} reversed ${fmt(r.amount)}`);
 }
 
-console.log(`\n✅ Hoàn tất — reverse ${toReverse.length} khoản (${fmt(totalAmount)})\n`);
+console.log(
+  `\n✅ Hoàn tất — reverse ${toReverse.length} khoản (${fmt(totalAmount)})\n`,
+);
 
 // 3) Verify new balances for affected members
 console.log("Số dư mới của 12 member:\n");

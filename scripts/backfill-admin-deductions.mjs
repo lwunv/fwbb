@@ -34,7 +34,9 @@ const debts = await client.execute({
 
 const fmt = (n) => Number(n).toLocaleString("vi-VN") + " đ";
 
-console.log(`Châu (#${ADMIN_MEMBER_ID}) có ${debts.rows.length} debt rows đã chốt:\n`);
+console.log(
+  `Châu (#${ADMIN_MEMBER_ID}) có ${debts.rows.length} debt rows đã chốt:\n`,
+);
 let totalAmount = 0;
 const toInsert = [];
 
@@ -59,15 +61,21 @@ for (const r of debts.rows) {
   });
 
   if (existing.rows.length > 0) {
-    console.log(`  ✓ ${r.date}  debt#${debtId}  ${fmt(amount).padStart(11)}  (ĐÃ có fund_deduction #${existing.rows[0].id})`);
+    console.log(
+      `  ✓ ${r.date}  debt#${debtId}  ${fmt(amount).padStart(11)}  (ĐÃ có fund_deduction #${existing.rows[0].id})`,
+    );
   } else {
-    console.log(`  → ${r.date}  debt#${debtId}  ${fmt(amount).padStart(11)}  (sẽ insert)`);
+    console.log(
+      `  → ${r.date}  debt#${debtId}  ${fmt(amount).padStart(11)}  (sẽ insert)`,
+    );
     toInsert.push({ sessionId, debtId, amount, date: String(r.date) });
     totalAmount += amount;
   }
 }
 
-console.log(`\nSẽ insert ${toInsert.length} fund_deduction cho Châu, tổng ${fmt(totalAmount)}`);
+console.log(
+  `\nSẽ insert ${toInsert.length} fund_deduction cho Châu, tổng ${fmt(totalAmount)}`,
+);
 
 if (DRY_RUN || toInsert.length === 0) {
   if (DRY_RUN) console.log("DRY RUN — không thay đổi DB.");
@@ -97,7 +105,9 @@ for (const t of toInsert) {
   console.log(`  ✓ ${t.date}  inserted fund_deduction ${fmt(t.amount)}`);
 }
 
-console.log(`\n✅ Backfill xong ${toInsert.length} khoản (${fmt(totalAmount)})`);
+console.log(
+  `\n✅ Backfill xong ${toInsert.length} khoản (${fmt(totalAmount)})`,
+);
 
 const bal = await client.execute({
   sql: `SELECT

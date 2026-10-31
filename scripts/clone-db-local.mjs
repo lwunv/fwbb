@@ -12,7 +12,13 @@
 import { config } from "dotenv";
 config({ path: ".env.local" });
 import { createClient } from "@libsql/client";
-import { readFileSync, readdirSync, mkdirSync, rmSync, existsSync } from "node:fs";
+import {
+  readFileSync,
+  readdirSync,
+  mkdirSync,
+  rmSync,
+  existsSync,
+} from "node:fs";
 import { join, dirname } from "node:path";
 
 const url = process.env.TURSO_DATABASE_URL;
@@ -84,7 +90,9 @@ for (const t of tables) {
   const colList = cols.map((c) => `"${c}"`).join(", ");
   const stmts = rows.map((row) => ({
     sql: `INSERT INTO "${t}" (${colList}) VALUES (${placeholders})`,
-    args: cols.map((c) => (typeof row[c] === "bigint" ? Number(row[c]) : row[c])),
+    args: cols.map((c) =>
+      typeof row[c] === "bigint" ? Number(row[c]) : row[c],
+    ),
   }));
   // batch theo lô 500 để tránh quá lớn.
   for (let i = 0; i < stmts.length; i += 500) {

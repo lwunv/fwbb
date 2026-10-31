@@ -82,7 +82,9 @@ async function count(table) {
   }
 }
 
-console.log(`\n${APPLY ? "🟢 APPLY MODE — SẼ GHI VÀO DB" : "🟡 DRY-RUN — không ghi gì"}`);
+console.log(
+  `\n${APPLY ? "🟢 APPLY MODE — SẼ GHI VÀO DB" : "🟡 DRY-RUN — không ghi gì"}`,
+);
 console.log(`Database: ${url}\n`);
 
 // ─── BEFORE snapshot ────────────────────────────────────────────────────
@@ -107,7 +109,9 @@ const sessFin = await client.execute(
    FROM sessions`,
 );
 const sf = sessFin.rows[0];
-console.log("\nUPDATE sessions (về NULL/0) — GIỮ status/ngày/giờ/court/vote/điểm danh:");
+console.log(
+  "\nUPDATE sessions (về NULL/0) — GIỮ status/ngày/giờ/court/vote/điểm danh:",
+);
 console.log(`  tổng sessions:          ${num(sf.total)} (giữ nguyên rows)`);
 console.log(`  có court_price:         ${num(sf.withCourt)}  → NULL`);
 console.log(`  có dining_bill:         ${num(sf.withDine)}  → NULL`);
@@ -117,7 +121,9 @@ console.log(`  court_price_overridden: ${num(sf.overridden)}  → 0`);
 const brandAdj = await client.execute(
   `SELECT COUNT(*) AS c FROM shuttlecock_brands WHERE stock_adjust_qua <> 0`,
 );
-console.log(`\nUPDATE shuttlecock_brands.stock_adjust_qua → 0 (${num(brandAdj.rows[0].c)} brand đang khác 0; GIỮ tên + giá)`);
+console.log(
+  `\nUPDATE shuttlecock_brands.stock_adjust_qua → 0 (${num(brandAdj.rows[0].c)} brand đang khác 0; GIỮ tên + giá)`,
+);
 
 console.log("\nGIỮ NGUYÊN:");
 for (const t of KEEP_TABLES) {
@@ -216,6 +222,10 @@ console.log(
 );
 if (nonZero !== 0) ok = false;
 
-console.log(ok ? "\n✅ RESET THÀNH CÔNG — mọi số liệu tài chính = 0." : "\n❌ CÓ MISMATCH — kiểm tra lại + dùng backup nếu cần!");
+console.log(
+  ok
+    ? "\n✅ RESET THÀNH CÔNG — mọi số liệu tài chính = 0."
+    : "\n❌ CÓ MISMATCH — kiểm tra lại + dùng backup nếu cần!",
+);
 client.close();
 process.exit(ok ? 0 : 1);

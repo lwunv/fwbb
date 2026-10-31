@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SessionTimeEdit } from "./session-time-edit";
 import { useTranslations } from "next-intl";
 import { formatK, cn } from "@/lib/utils";
 import {
@@ -466,11 +467,22 @@ export function AdminSessionCard({
               <Calendar className="text-muted-foreground h-5 w-5 shrink-0" />
               {fmtSessionDate(session.date, "weekdayLong")}
             </p>
-            {(session.startTime || session.endTime) && (
-              <span className="text-muted-foreground inline-flex items-center gap-1.5 text-sm whitespace-nowrap tabular-nums">
-                <Clock className="h-4 w-4" />
-                {session.startTime ?? "—"} – {session.endTime ?? "—"}
-              </span>
+            {/* Buổi còn sửa được thì giờ chơi bấm vào đổi được; buổi đã chốt
+                sổ hoặc đã huỷ thì chỉ hiện ra. Server cũng chặn, nhưng bày
+                một cái nút chỉ để báo lỗi khi bấm là làm phiền. */}
+            {effectiveStatus === "voting" || effectiveStatus === "confirmed" ? (
+              <SessionTimeEdit
+                sessionId={session.id}
+                startTime={session.startTime}
+                endTime={session.endTime}
+              />
+            ) : (
+              (session.startTime || session.endTime) && (
+                <span className="text-muted-foreground inline-flex items-center gap-1.5 text-sm whitespace-nowrap tabular-nums">
+                  <Clock className="h-4 w-4" />
+                  {session.startTime ?? "—"} – {session.endTime ?? "—"}
+                </span>
+              )
             )}
           </div>
 

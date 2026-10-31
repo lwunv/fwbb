@@ -36,6 +36,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { TimeSelect15 } from "@/components/shared/time-select-15";
 import {
   Plus,
   ChevronLeft,
@@ -1361,56 +1362,5 @@ export function SessionList({
         </ConfirmDialog>
       </div>
     </Dialog>
-  );
-}
-
-/**
- * Time picker giới hạn phút theo mốc 15p (00 / 15 / 30 / 45). Native
- * `<input type="time">` Chrome vẫn cho chọn mọi phút dù có `step="900"`,
- * nên dùng 2 select tùy chọn + hidden input để form chấp nhận giá trị HH:MM.
- *
- * Khi `defaultValue` không nằm trên mốc (e.g. "20:35"), round xuống mốc gần
- * nhất (35 → 30) để dropdown match được option hiện có.
- */
-function TimeSelect15({
-  name,
-  defaultValue,
-}: {
-  name: string;
-  defaultValue: string;
-}) {
-  const [hRaw, mRaw] = defaultValue.split(":");
-  const hInit = String(parseInt(hRaw ?? "0", 10) || 0).padStart(2, "0");
-  const mInitNum = parseInt(mRaw ?? "0", 10) || 0;
-  const mInit = String(Math.floor(mInitNum / 15) * 15).padStart(2, "0");
-  const [hh, setHh] = useState(hInit);
-  const [mm, setMm] = useState(mInit);
-  const combined = `${hh}:${mm}`;
-
-  const hourOptions = Array.from({ length: 24 }, (_, i) => ({
-    value: String(i).padStart(2, "0"),
-    label: `${String(i).padStart(2, "0")}h`,
-  }));
-  const minuteOptions = ["00", "15", "30", "45"].map((m) => ({
-    value: m,
-    label: m,
-  }));
-
-  return (
-    <div className="flex gap-2">
-      <input type="hidden" name={name} value={combined} />
-      <CustomSelect
-        value={hh}
-        onChange={setHh}
-        options={hourOptions}
-        className="flex-1"
-      />
-      <CustomSelect
-        value={mm}
-        onChange={setMm}
-        options={minuteOptions}
-        className="flex-1"
-      />
-    </div>
   );
 }

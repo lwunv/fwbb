@@ -17,7 +17,15 @@ describe("đọc số dòng từ phản hồi API", () => {
   });
 
   it("hình dạng LẠ thì trả null, không đoán bừa", () => {
-    for (const bad of [null, undefined, {}, { foo: 1 }, { rows_read: "nhiều" }, 42, "x"]) {
+    for (const bad of [
+      null,
+      undefined,
+      {},
+      { foo: 1 },
+      { rows_read: "nhiều" },
+      42,
+      "x",
+    ]) {
       expect(pickRowsRead(bad), JSON.stringify(bad)).toBeNull();
     }
   });

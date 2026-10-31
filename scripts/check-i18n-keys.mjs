@@ -15,20 +15,27 @@ let misses = 0;
 for (const f of files) {
   const src = fs.readFileSync(f, "utf8");
   const map = {};
-  for (const m of src.matchAll(/const\s+(\w+)\s*=\s*useTranslations\("([^"]+)"\)/g))
+  for (const m of src.matchAll(
+    /const\s+(\w+)\s*=\s*useTranslations\("([^"]+)"\)/g,
+  ))
     map[m[1]] = m[2];
   const vars = Object.keys(map);
   if (!vars.length) {
     console.log(`  (${f.split("/").pop()}: no useTranslations)`);
     continue;
   }
-  const re = new RegExp(`\\b(${vars.join("|")})(?:\\.rich)?\\(\\s*["']([^"']+)["']`, "g");
+  const re = new RegExp(
+    `\\b(${vars.join("|")})(?:\\.rich)?\\(\\s*["']([^"']+)["']`,
+    "g",
+  );
   let used = 0;
   const bad = [];
   for (const m of src.matchAll(re)) {
     used++;
-    const ns = map[m[1]], key = m[2];
-    if (get(vi, ns + "." + key) === undefined) bad.push(`${m[1]}("${key}") → ${ns}.${key}`);
+    const ns = map[m[1]],
+      key = m[2];
+    if (get(vi, ns + "." + key) === undefined)
+      bad.push(`${m[1]}("${key}") → ${ns}.${key}`);
   }
   console.log(
     `${bad.length ? "✗" : "✓"} ${f.split("/").pop()}  (${used} calls, ${vars.map((v) => v + "=" + map[v]).join(", ")})` +
@@ -36,5 +43,7 @@ for (const f of files) {
   );
   misses += bad.length;
 }
-console.log(misses === 0 ? "\nALL i18n keys resolve ✓" : `\n${misses} MISSING KEYS ✗`);
+console.log(
+  misses === 0 ? "\nALL i18n keys resolve ✓" : `\n${misses} MISSING KEYS ✗`,
+);
 process.exit(misses === 0 ? 0 : 1);

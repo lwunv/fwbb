@@ -206,7 +206,10 @@
     "createFailed": "Không tạo được buổi chơi",
     "playCountTitle": "Số người vote đi chơi cầu",
     "recalcWithCurrent": "Tính lại tiền theo cài đặt hiện tại",
-    "recalcWithCurrentHint": "Buổi này đang giữ cài đặt chia tiền của lần chốt đầu. Tích vào đây thì lần chốt tới tính lại theo cài đặt hiện tại, số tiền của từng người có thể đổi."
+    "recalcWithCurrentHint": "Buổi này đang giữ cài đặt chia tiền của lần chốt đầu. Tích vào đây thì lần chốt tới tính lại theo cài đặt hiện tại, số tiền của từng người có thể đổi.",
+    "editTime": "Đổi giờ chơi",
+    "editTimeTitle": "Đổi giờ chơi",
+    "editTimeSave": "Lưu giờ"
   },
   "voting": {
     "play": "Cầu lông",

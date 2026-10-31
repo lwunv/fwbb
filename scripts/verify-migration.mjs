@@ -49,6 +49,8 @@ for (const c of checks) {
   if (!ok) allOk = false;
 }
 
-console.log(allOk ? "\nAll PROD schema checks passed." : "\nSOME CHECKS FAILED");
+console.log(
+  allOk ? "\nAll PROD schema checks passed." : "\nSOME CHECKS FAILED",
+);
 client.close();
 process.exit(allOk ? 0 : 1);

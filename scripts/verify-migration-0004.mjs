@@ -22,7 +22,10 @@ if (sessIdx.rows.length === 1 && /UNIQUE/i.test(String(sessIdx.rows[0].sql))) {
   console.log("✅ sessions.date is UNIQUE");
 } else {
   ok = false;
-  console.log("❌ sessions.date NOT UNIQUE:", sessIdx.rows[0]?.sql ?? "missing");
+  console.log(
+    "❌ sessions.date NOT UNIQUE:",
+    sessIdx.rows[0]?.sql ?? "missing",
+  );
 }
 
 // Check members.bank_account_no UNIQUE INDEX
@@ -41,13 +44,17 @@ const pnSchema = await client.execute(
   "SELECT sql FROM sqlite_master WHERE type='table' AND name='payment_notifications'",
 );
 const pnSql = String(pnSchema.rows[0]?.sql ?? "");
-if (/matched_transaction_id[^,]*REFERENCES\s+financial_transactions/i.test(pnSql)) {
+if (
+  /matched_transaction_id[^,]*REFERENCES\s+financial_transactions/i.test(pnSql)
+) {
   console.log("✅ payment_notifications.matched_transaction_id has FK");
 } else {
   ok = false;
   console.log("❌ payment_notifications.matched_transaction_id NO FK");
 }
 
-console.log(`\n${ok ? "✅ All migration 0004 checks passed" : "❌ Some checks failed"}`);
+console.log(
+  `\n${ok ? "✅ All migration 0004 checks passed" : "❌ Some checks failed"}`,
+);
 client.close();
 process.exit(ok ? 0 : 1);

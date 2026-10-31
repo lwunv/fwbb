@@ -123,7 +123,9 @@ async function exec(sql, args) {
 const memberByName = new Map(MEMBERS.map((m) => [m.name, m]));
 
 if (!memberByName.has(DEDUCTION_24_4_NAME)) {
-  throw new Error(`24/4 deduction member not in roster: ${DEDUCTION_24_4_NAME}`);
+  throw new Error(
+    `24/4 deduction member not in roster: ${DEDUCTION_24_4_NAME}`,
+  );
 }
 for (const n of DEDUCTION_27_4_NAMES) {
   if (!memberByName.has(n)) {
@@ -132,9 +134,7 @@ for (const n of DEDUCTION_27_4_NAMES) {
 }
 
 // Cross-check final balances
-const expectedBalances = new Map(
-  MEMBERS.map((m) => [m.name, m.contribution]),
-);
+const expectedBalances = new Map(MEMBERS.map((m) => [m.name, m.contribution]));
 expectedBalances.set(
   DEDUCTION_24_4_NAME,
   expectedBalances.get(DEDUCTION_24_4_NAME) - DEDUCTION_24_4_AMOUNT,
@@ -150,22 +150,27 @@ console.log(
 );
 console.log(`Database: ${url}`);
 console.log(`Members:        ${MEMBERS.length}`);
-console.log(`Contributions:  ${MEMBERS.length} × → tổng ${
-  MEMBERS.reduce((s, m) => s + m.contribution, 0).toLocaleString("vi-VN")
-}đ`);
+console.log(
+  `Contributions:  ${MEMBERS.length} × → tổng ${MEMBERS.reduce(
+    (s, m) => s + m.contribution,
+    0,
+  ).toLocaleString("vi-VN")}đ`,
+);
 console.log(
   `Deductions:     1 (24/4 ${DEDUCTION_24_4_AMOUNT.toLocaleString("vi-VN")}đ) + ${
     DEDUCTION_27_4_NAMES.length
   } (27/4 ${DEDUCTION_27_4_AMOUNT.toLocaleString("vi-VN")}đ)`,
 );
 console.log(`Court:          ${COURT.name}`);
+console.log(`Brands:         ${SHUTTLE_BRANDS.map((b) => b.name).join(", ")}`);
 console.log(
-  `Brands:         ${SHUTTLE_BRANDS.map((b) => b.name).join(", ")}`,
+  `Purchase:       ${PURCHASE_THANH_CONG_77.brandName} × ${PURCHASE_THANH_CONG_77.tubes} ống`,
 );
-console.log(`Purchase:       ${PURCHASE_THANH_CONG_77.brandName} × ${PURCHASE_THANH_CONG_77.tubes} ống`);
 console.log(`\nExpected balances after seed:`);
 for (const [name, bal] of expectedBalances) {
-  console.log(`  ${name.padEnd(14)} ${bal.toLocaleString("vi-VN").padStart(10)}đ`);
+  console.log(
+    `  ${name.padEnd(14)} ${bal.toLocaleString("vi-VN").padStart(10)}đ`,
+  );
 }
 
 // ─── Wipe ─────────────────────────────────────────────────────────────────
@@ -226,10 +231,9 @@ for (let i = 0; i < MEMBERS.length; i++) {
 
 for (const m of MEMBERS) {
   const id = memberIdByName.get(m.name);
-  await exec(
-    `INSERT INTO fund_members (member_id, is_active) VALUES (?, 1)`,
-    [id],
-  );
+  await exec(`INSERT INTO fund_members (member_id, is_active) VALUES (?, 1)`, [
+    id,
+  ]);
 }
 
 // ─── Upsert: court (only if not exists by name) ──────────────────────────

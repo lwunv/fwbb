@@ -86,7 +86,8 @@ for (const m of TARGETS) {
     console.log(`  ✓ Không có Hiệu chỉnh khớp sổ live — skip`);
   } else {
     const a = adj.rows[0];
-    const inverseType = a.type === "fund_contribution" ? "fund_deduction" : "fund_contribution";
+    const inverseType =
+      a.type === "fund_contribution" ? "fund_deduction" : "fund_contribution";
     const inverseDir = inverseType === "fund_contribution" ? "in" : "out";
     console.log(`  → Reverse hiệu chỉnh #${a.id} ${a.type} ${fmt(a.amount)}`);
     if (!DRY) {
@@ -131,9 +132,13 @@ for (const m of TARGETS) {
       sql: `DELETE FROM session_attendees WHERE session_id = ? AND member_id = ?`,
       args: [SESSION_29_4, m.id],
     });
-    console.log(`  → Deleted ${delDebt.rowsAffected} debt + ${delAtt.rowsAffected} attendee rows`);
+    console.log(
+      `  → Deleted ${delDebt.rowsAffected} debt + ${delAtt.rowsAffected} attendee rows`,
+    );
   } else {
-    console.log(`  → (would delete debt + attendee for session ${SESSION_29_4})`);
+    console.log(
+      `  → (would delete debt + attendee for session ${SESSION_29_4})`,
+    );
   }
   console.log();
 }
@@ -152,8 +157,10 @@ for (const m of TARGETS) {
   });
   const txs = txRes.rows;
   const voided = new Set();
-  for (const tx of txs) if (tx.reversal_of_id !== null) voided.add(Number(tx.reversal_of_id));
-  let contrib = 0, deduct = 0;
+  for (const tx of txs)
+    if (tx.reversal_of_id !== null) voided.add(Number(tx.reversal_of_id));
+  let contrib = 0,
+    deduct = 0;
   for (const tx of txs) {
     if (tx.reversal_of_id !== null) continue;
     if (voided.has(Number(tx.id))) continue;
@@ -161,7 +168,9 @@ for (const m of TARGETS) {
     else if (tx.type === "fund_deduction") deduct += Number(tx.amount);
     else if (tx.type === "fund_refund") deduct += Number(tx.amount);
   }
-  console.log(`  ${m.name.padEnd(10)}  Nộp ${fmt(contrib).padStart(11)}  Chi ${fmt(deduct).padStart(11)}  Bal ${fmt(contrib - deduct).padStart(11)}`);
+  console.log(
+    `  ${m.name.padEnd(10)}  Nộp ${fmt(contrib).padStart(11)}  Chi ${fmt(deduct).padStart(11)}  Bal ${fmt(contrib - deduct).padStart(11)}`,
+  );
 }
 
 // Session 29/4 lãi/lỗ
@@ -170,6 +179,8 @@ const td = await client.execute({
   args: [SESSION_29_4],
 });
 const cost = 420_000 + 319_000; // sân + cầu cho 29/4
-console.log(`\nSession 29/4 totalDebt mới: ${fmt(td.rows[0].t)}, cost ${fmt(cost)}, lãi ${fmt(Number(td.rows[0].t) - cost)}`);
+console.log(
+  `\nSession 29/4 totalDebt mới: ${fmt(td.rows[0].t)}, cost ${fmt(cost)}, lãi ${fmt(Number(td.rows[0].t) - cost)}`,
+);
 
 process.exit(0);

@@ -42,7 +42,9 @@ const REDIRECT_URI = "http://localhost:8765/oauth2callback";
 const SCOPES = "https://www.googleapis.com/auth/gmail.readonly";
 
 if (!CLIENT_ID || !CLIENT_SECRET) {
-  console.error("❌ Missing GMAIL_CLIENT_ID or GMAIL_CLIENT_SECRET in .env.local");
+  console.error(
+    "❌ Missing GMAIL_CLIENT_ID or GMAIL_CLIENT_SECRET in .env.local",
+  );
   process.exit(1);
 }
 
@@ -58,7 +60,9 @@ authUrl.searchParams.set("prompt", "consent"); // Force refresh_token
 console.log("\n🔑 Gmail OAuth2 Refresh Token Generator\n");
 console.log("1. Open this URL in your browser:\n");
 console.log(`   ${authUrl.toString()}\n`);
-console.log("2. Sign in with the Gmail account that receives Timo notifications.");
+console.log(
+  "2. Sign in with the Gmail account that receives Timo notifications.",
+);
 console.log("3. Allow access to Gmail (read-only).\n");
 
 // Step 2: Start local server to receive callback
@@ -129,5 +133,7 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(8765, () => {
-  console.log("⏳ Waiting for OAuth callback on http://localhost:8765/oauth2callback ...\n");
+  console.log(
+    "⏳ Waiting for OAuth callback on http://localhost:8765/oauth2callback ...\n",
+  );
 });

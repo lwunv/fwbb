@@ -39,7 +39,10 @@ async function sig(c, t) {
     .sort();
   return {
     n: lines.length,
-    hash: createHash("sha256").update(lines.join("\n")).digest("hex").slice(0, 16),
+    hash: createHash("sha256")
+      .update(lines.join("\n"))
+      .digest("hex")
+      .slice(0, 16),
   };
 }
 
@@ -52,6 +55,11 @@ for (const t of tables) {
     `${ok ? "✓" : "✗"} ${t.padEnd(34)} goc ${String(x.n).padStart(5)}/${x.hash}  khoi-phuc ${String(y.n).padStart(5)}/${y.hash}`,
   );
 }
-console.log(bad === 0 ? `\nTAT CA ${tables.length} BANG KHOP TUNG BIT` : `\n${bad} BANG LECH`);
-a.close(); b.close();
+console.log(
+  bad === 0
+    ? `\nTAT CA ${tables.length} BANG KHOP TUNG BIT`
+    : `\n${bad} BANG LECH`,
+);
+a.close();
+b.close();
 process.exit(bad === 0 ? 0 : 1);

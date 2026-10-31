@@ -63,11 +63,15 @@ const oldAdjust = await client.execute({
   args: [ADMIN_ID],
 });
 if (oldAdjust.rows.length !== 1) {
-  console.log(`❌ Không tìm thấy đúng 1 Hiệu chỉnh khớp sổ cho Châu (found ${oldAdjust.rows.length})`);
+  console.log(
+    `❌ Không tìm thấy đúng 1 Hiệu chỉnh khớp sổ cho Châu (found ${oldAdjust.rows.length})`,
+  );
   process.exit(1);
 }
 const old = oldAdjust.rows[0];
-console.log(`Hiệu chỉnh cũ #${old.id}: ${old.type} ${fmt(old.amount)} → sẽ reverse`);
+console.log(
+  `Hiệu chỉnh cũ #${old.id}: ${old.type} ${fmt(old.amount)} → sẽ reverse`,
+);
 
 // 3. Compute remainder: balance hiện 274K. Sau khi reverse hiệu chỉnh cũ
 // (+226K) + trừ ownPlay 223K = 274 + 226 - 223 = 277K. Cần thêm Hiệu chỉnh -3K
@@ -77,7 +81,9 @@ const remainderToAdjust = 274_000 - (500_000 - totalOwnPlay); // 274 - 277 = -3
 console.log(
   `Sau khi reverse hiệu chỉnh cũ + trừ ${fmt(totalOwnPlay)}: balance sẽ = ${fmt(500_000 - totalOwnPlay)}`,
 );
-console.log(`Cần thêm Hiệu chỉnh: ${fmt(remainderToAdjust)} (do CSV làm tròn 29/4 + 27/4)\n`);
+console.log(
+  `Cần thêm Hiệu chỉnh: ${fmt(remainderToAdjust)} (do CSV làm tròn 29/4 + 27/4)\n`,
+);
 
 if (DRY) {
   console.log("DRY RUN — không thay đổi DB.");
@@ -144,7 +150,9 @@ if (remainderToAdjust !== 0) {
       now,
     ],
   });
-  console.log(`\n  ✓ Hiệu chỉnh ${isContrib ? "+" : "-"}${fmt(Math.abs(remainderToAdjust))}`);
+  console.log(
+    `\n  ✓ Hiệu chỉnh ${isContrib ? "+" : "-"}${fmt(Math.abs(remainderToAdjust))}`,
+  );
 }
 
 // 5. Verify Châu balance
@@ -162,6 +170,8 @@ const bal = await client.execute({
         WHERE ft.member_id = ?`,
   args: [ADMIN_ID, ADMIN_ID],
 });
-console.log(`\n✅ Châu balance mới: ${fmt(bal.rows[0].balance)} (target: 274.000 đ)`);
+console.log(
+  `\n✅ Châu balance mới: ${fmt(bal.rows[0].balance)} (target: 274.000 đ)`,
+);
 
 process.exit(0);

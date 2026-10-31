@@ -19,12 +19,30 @@ if (!url) {
 const db = createClient({ url, authToken });
 
 const checks = [
-  ["amount < 0 (financial_transactions)", `SELECT COUNT(*) AS n FROM financial_transactions WHERE amount < 0`],
-  ["tubes < 1 (inventory_purchases)", `SELECT COUNT(*) AS n FROM inventory_purchases WHERE tubes < 1`],
-  ["price/total < 0 (inventory_purchases)", `SELECT COUNT(*) AS n FROM inventory_purchases WHERE price_per_tube < 0 OR total_price < 0`],
-  ["quantity_used < 1 (session_shuttlecocks)", `SELECT COUNT(*) AS n FROM session_shuttlecocks WHERE quantity_used < 1`],
-  ["is_active IS NULL (members)", `SELECT COUNT(*) AS n FROM members WHERE is_active IS NULL`],
-  ["approval_status IS NULL (members)", `SELECT COUNT(*) AS n FROM members WHERE approval_status IS NULL`],
+  [
+    "amount < 0 (financial_transactions)",
+    `SELECT COUNT(*) AS n FROM financial_transactions WHERE amount < 0`,
+  ],
+  [
+    "tubes < 1 (inventory_purchases)",
+    `SELECT COUNT(*) AS n FROM inventory_purchases WHERE tubes < 1`,
+  ],
+  [
+    "price/total < 0 (inventory_purchases)",
+    `SELECT COUNT(*) AS n FROM inventory_purchases WHERE price_per_tube < 0 OR total_price < 0`,
+  ],
+  [
+    "quantity_used < 1 (session_shuttlecocks)",
+    `SELECT COUNT(*) AS n FROM session_shuttlecocks WHERE quantity_used < 1`,
+  ],
+  [
+    "is_active IS NULL (members)",
+    `SELECT COUNT(*) AS n FROM members WHERE is_active IS NULL`,
+  ],
+  [
+    "approval_status IS NULL (members)",
+    `SELECT COUNT(*) AS n FROM members WHERE approval_status IS NULL`,
+  ],
   [
     "dangling payment_notification_id",
     `SELECT COUNT(*) AS n FROM financial_transactions ft
@@ -47,5 +65,7 @@ for (const [label, sql] of checks) {
   total += n;
   console.log(`${n === 0 ? "✓" : "✗"}  ${label}: ${n}`);
 }
-console.log(`\n${total === 0 ? "ALL CLEAR — 0014 safe to apply to prod." : `BLOCKED — ${total} violating rows; clean before applying.`}\n`);
+console.log(
+  `\n${total === 0 ? "ALL CLEAR — 0014 safe to apply to prod." : `BLOCKED — ${total} violating rows; clean before applying.`}\n`,
+);
 process.exit(total === 0 ? 0 : 1);

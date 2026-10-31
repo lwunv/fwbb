@@ -1773,6 +1773,66 @@ export async function setSessionMaxPlayers(
 }
 
 /**
+ * Đổi giờ chơi của một buổi đã tạo.
+ *
+ * Trước 01/11/2026 giờ chơi chỉ đặt được lúc TẠO buổi; tạo nhầm giờ thì cách
+ * duy nhất là xoá buổi rồi tạo lại, mà xoá buổi còn kéo theo việc hoàn các
+ * khoản đã trừ quỹ và mất sạch lượt vote.
+ *
+ * Cho sửa với buổi đang vote và buổi đã xác nhận; buổi đã chốt sổ hoặc đã huỷ
+ * thì `assertEditable` chặn, đúng như mọi thao tác sửa khác trên buổi.
+ *
+ * KHÔNG đụng tới hạn vote, dù hạn vote mặc định vốn tính theo `giờ bắt đầu − 4
+ * tiếng`. Admin có thể đã tự đặt hạn vote bằng tay, và lặng lẽ dời nó theo là
+ * đổi một thứ họ không yêu cầu. Hạn vote vẫn sửa riêng được ở nút bên cạnh.
+ */
+export async function setSessionTime(
+  sessionId: number,
+  startTime: string,
+  endTime: string,
+) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
+
+  if (!Number.isInteger(sessionId) || sessionId <= 0) {
+    return { error: t("invalidSessionId") };
+  }
+  const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+  if (!HHMM.test(startTime)) {
+    return { error: t("invalidData", { detail: "startTime" }) };
+  }
+  if (!HHMM.test(endTime)) {
+    return { error: t("invalidData", { detail: "endTime" }) };
+  }
+  // Hai giờ bằng nhau chắc chắn là gõ nhầm. Nhưng KHÔNG bắt giờ kết thúc phải
+  // lớn hơn giờ bắt đầu: buổi 22:30 tới 00:30 là có thật, chặn lại là chặn
+  // một ca dùng đúng.
+  if (startTime === endTime) {
+    return { error: t("invalidData", { detail: "startTime = endTime" }) };
+  }
+
+  const session = await db.query.sessions.findFirst({
+    where: eq(sessions.id, sessionId),
+    columns: { status: true },
+  });
+  if (!session) return { error: t("sessionNotFound") };
+  const guard = assertEditable(session.status as SessionStatus);
+  if (!guard.ok) return { error: guard.error };
+
+  await db
+    .update(sessions)
+    .set({ startTime, endTime, updatedAt: new Date().toISOString() })
+    .where(eq(sessions.id, sessionId));
+
+  revalidatePath("/");
+  revalidatePath(`/vote/${sessionId}`);
+  revalidatePath("/admin/sessions");
+  revalidatePath(`/admin/sessions/${sessionId}`);
+  return { success: true };
+}
+
+/**
  * Quick-extend the vote deadline by 2 or 24 hours. Pushes from `max(now,
  * currentDeadline)` so calling it when the deadline is already in the past
  * resets the clock from now, not from the past.

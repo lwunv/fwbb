@@ -17,34 +17,34 @@ const RUN_TAG = "2026-05-18-csv-sync";
 
 // Target balance: theo CSV, trừ Phong (user xác nhận 400K nộp − 104K chi = 296K)
 const targets = [
-  { aliases: ["Châu"],            target: 274_000 },
-  { aliases: ["Lưu"],             target:  65_000 },
-  { aliases: ["Cường"],           target: 256_000 },
-  { aliases: ["Xuân Trường"],     target: 384_000 },
-  { aliases: ["Tin Tin"],         target: 414_000 },
-  { aliases: ["Mạnh/Huyền"],      target: 197_000 },
-  { aliases: ["Phương"],          target: 180_000 },
-  { aliases: ["Ngọc Sơn"],        target: 382_000 },
-  { aliases: ["Hùng"],            target: 381_000 },
-  { aliases: ["Kỳ"],              target: 145_000 },
-  { aliases: ["Sơn"],             target:  61_000 },
-  { aliases: ["Quang"],           target: 381_000 },
-  { aliases: ["Hiếu"],            target: 381_000 },
-  { aliases: ["Phiêu"],           target: 381_000 },
-  { aliases: ["Tùng"],            target: 125_000 },
-  { aliases: ["Tuấn Anh"],        target:  80_000 },
-  { aliases: ["Hoàng Anh"],       target: 148_000 },
-  { aliases: ["Tuấn"],            target: 439_000 },
-  { aliases: ["Trung"],           target: 280_000 },
-  { aliases: ["Lâm"],             target: 413_000 },
-  { aliases: ["Liên"],            target: 345_000 },
-  { aliases: ["Hiệp"],            target: 210_000 },
-  { aliases: ["Minh Hoàng", "Hoàng"], target:  96_000 },
+  { aliases: ["Châu"], target: 274_000 },
+  { aliases: ["Lưu"], target: 65_000 },
+  { aliases: ["Cường"], target: 256_000 },
+  { aliases: ["Xuân Trường"], target: 384_000 },
+  { aliases: ["Tin Tin"], target: 414_000 },
+  { aliases: ["Mạnh/Huyền"], target: 197_000 },
+  { aliases: ["Phương"], target: 180_000 },
+  { aliases: ["Ngọc Sơn"], target: 382_000 },
+  { aliases: ["Hùng"], target: 381_000 },
+  { aliases: ["Kỳ"], target: 145_000 },
+  { aliases: ["Sơn"], target: 61_000 },
+  { aliases: ["Quang"], target: 381_000 },
+  { aliases: ["Hiếu"], target: 381_000 },
+  { aliases: ["Phiêu"], target: 381_000 },
+  { aliases: ["Tùng"], target: 125_000 },
+  { aliases: ["Tuấn Anh"], target: 80_000 },
+  { aliases: ["Hoàng Anh"], target: 148_000 },
+  { aliases: ["Tuấn"], target: 439_000 },
+  { aliases: ["Trung"], target: 280_000 },
+  { aliases: ["Lâm"], target: 413_000 },
+  { aliases: ["Liên"], target: 345_000 },
+  { aliases: ["Hiệp"], target: 210_000 },
+  { aliases: ["Minh Hoàng", "Hoàng"], target: 96_000 },
   { aliases: ["Sơn Tùng", "MTP"], target: 358_000 },
-  { aliases: ["Phong"],           target: 296_000 }, // override: 400K nộp − 104K chi
-  { aliases: ["Vân"],             target: 103_000 },
-  { aliases: ["Bắc"],             target: 409_000 },
-  { aliases: ["Thanh"],           target: 455_000 },
+  { aliases: ["Phong"], target: 296_000 }, // override: 400K nộp − 104K chi
+  { aliases: ["Vân"], target: 103_000 },
+  { aliases: ["Bắc"], target: 409_000 },
+  { aliases: ["Thanh"], target: 455_000 },
 ];
 
 const membersRes = await client.execute(
@@ -87,7 +87,8 @@ const txs = txRes.rows.map((r) => ({
 }));
 
 const voidedIds = new Set();
-for (const tx of txs) if (tx.reversalOfId !== null) voidedIds.add(tx.reversalOfId);
+for (const tx of txs)
+  if (tx.reversalOfId !== null) voidedIds.add(tx.reversalOfId);
 
 function balOf(memberId) {
   let bal = 0;
@@ -108,10 +109,14 @@ const fmt = (n) =>
 console.log(`\nMode: ${DRY_RUN ? "DRY RUN" : "EXECUTE"}\n`);
 console.log(
   "Member".padEnd(15) +
-    "│" + "DB hiện tại".padStart(14) +
-    " │" + "Target CSV".padStart(14) +
-    " │" + "Delta".padStart(14) +
-    " │" + "Action".padStart(20),
+    "│" +
+    "DB hiện tại".padStart(14) +
+    " │" +
+    "Target CSV".padStart(14) +
+    " │" +
+    "Delta".padStart(14) +
+    " │" +
+    "Action".padStart(20),
 );
 console.log("─".repeat(82));
 
@@ -129,17 +134,27 @@ for (const t of targets) {
   else if (delta < 0) action = `+deduction ${fmt(-delta)}`;
   console.log(
     m.name.padEnd(15) +
-      "│" + fmt(cur).padStart(14) +
-      " │" + fmt(t.target).padStart(14) +
-      " │" + fmt(delta).padStart(14) +
-      " │" + action.padStart(20),
+      "│" +
+      fmt(cur).padStart(14) +
+      " │" +
+      fmt(t.target).padStart(14) +
+      " │" +
+      fmt(delta).padStart(14) +
+      " │" +
+      action.padStart(20),
   );
   if (delta !== 0) plan.push({ member: m, delta });
 }
 
-const totalContribAdj = plan.filter((p) => p.delta > 0).reduce((a, b) => a + b.delta, 0);
-const totalDeductAdj = plan.filter((p) => p.delta < 0).reduce((a, b) => a - b.delta, 0);
-console.log(`\nTổng sẽ insert: +${fmt(totalContribAdj)} contribution, -${fmt(totalDeductAdj)} deduction`);
+const totalContribAdj = plan
+  .filter((p) => p.delta > 0)
+  .reduce((a, b) => a + b.delta, 0);
+const totalDeductAdj = plan
+  .filter((p) => p.delta < 0)
+  .reduce((a, b) => a - b.delta, 0);
+console.log(
+  `\nTổng sẽ insert: +${fmt(totalContribAdj)} contribution, -${fmt(totalDeductAdj)} deduction`,
+);
 console.log(`Số member cần chỉnh: ${plan.length}`);
 
 if (DRY_RUN || plan.length === 0) {
@@ -167,7 +182,9 @@ for (const p of plan) {
       now,
     ],
   });
-  console.log(`  ✓ ${p.member.name.padEnd(15)} ${isContrib ? "+" : "-"}${fmt(amount)}`);
+  console.log(
+    `  ✓ ${p.member.name.padEnd(15)} ${isContrib ? "+" : "-"}${fmt(amount)}`,
+  );
 }
 
 console.log(`\n✅ Đã chỉnh ${plan.length} member.\n`);
@@ -186,7 +203,8 @@ const txs2 = txRes2.rows.map((r) => ({
   reversalOfId: r.reversal_of_id == null ? null : Number(r.reversal_of_id),
 }));
 const voided2 = new Set();
-for (const tx of txs2) if (tx.reversalOfId !== null) voided2.add(tx.reversalOfId);
+for (const tx of txs2)
+  if (tx.reversalOfId !== null) voided2.add(tx.reversalOfId);
 function bal2(id) {
   let b = 0;
   for (const tx of txs2) {

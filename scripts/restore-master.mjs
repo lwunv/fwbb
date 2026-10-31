@@ -93,7 +93,9 @@ if (stale.rows.length > 0) {
       args: ["Trường THCS Tây Mỗ 3", stale.rows[0].id],
     });
   }
-  console.log(`  ${APPLY ? "✓" : "[dry] ~"} RENAME court "THCS Tây Mỗ 3" → "Trường THCS Tây Mỗ 3"`);
+  console.log(
+    `  ${APPLY ? "✓" : "[dry] ~"} RENAME court "THCS Tây Mỗ 3" → "Trường THCS Tây Mỗ 3"`,
+  );
 }
 
 for (const c of COURTS) {
@@ -137,7 +139,9 @@ for (const b of BRANDS) {
         args: [b.name, b.pricePerTube],
       });
     }
-    console.log(`  ${APPLY ? "✓" : "[dry] +"} INSERT ${b.name} ${b.pricePerTube.toLocaleString("vi-VN")}đ/ống`);
+    console.log(
+      `  ${APPLY ? "✓" : "[dry] +"} INSERT ${b.name} ${b.pricePerTube.toLocaleString("vi-VN")}đ/ống`,
+    );
   } else {
     const currentPrice = Number(existing.rows[0].price_per_tube);
     if (currentPrice !== b.pricePerTube) {
@@ -151,7 +155,9 @@ for (const b of BRANDS) {
         `  ${APPLY ? "✓" : "[dry] ~"} UPDATE ${b.name} price ${currentPrice.toLocaleString("vi-VN")} → ${b.pricePerTube.toLocaleString("vi-VN")}đ/ống`,
       );
     } else {
-      console.log(`  ↷ ${b.name} đã đúng giá ${b.pricePerTube.toLocaleString("vi-VN")}đ`);
+      console.log(
+        `  ↷ ${b.name} đã đúng giá ${b.pricePerTube.toLocaleString("vi-VN")}đ`,
+      );
     }
   }
 }
@@ -189,17 +195,28 @@ for (const row of purchaseRows.rows) {
 
 if (APPLY) {
   console.log(`\n=== VERIFY ===`);
-  const courts = await client.execute(`SELECT name, price_per_session, price_per_session_retail FROM courts ORDER BY id`);
+  const courts = await client.execute(
+    `SELECT name, price_per_session, price_per_session_retail FROM courts ORDER BY id`,
+  );
   console.log(`Courts (${courts.rows.length}):`);
   for (const r of courts.rows) {
     const monthly = Number(r.price_per_session);
-    const retail = r.price_per_session_retail != null ? Number(r.price_per_session_retail) : null;
-    console.log(`  ${r.name.padEnd(28)} tháng ${monthly.toLocaleString("vi-VN")}đ${retail ? ` / lẻ ${retail.toLocaleString("vi-VN")}đ` : ""}`);
+    const retail =
+      r.price_per_session_retail != null
+        ? Number(r.price_per_session_retail)
+        : null;
+    console.log(
+      `  ${r.name.padEnd(28)} tháng ${monthly.toLocaleString("vi-VN")}đ${retail ? ` / lẻ ${retail.toLocaleString("vi-VN")}đ` : ""}`,
+    );
   }
-  const brands = await client.execute(`SELECT name, price_per_tube FROM shuttlecock_brands ORDER BY id`);
+  const brands = await client.execute(
+    `SELECT name, price_per_tube FROM shuttlecock_brands ORDER BY id`,
+  );
   console.log(`\nBrands (${brands.rows.length}):`);
   for (const r of brands.rows) {
-    console.log(`  ${r.name.padEnd(20)} ${Number(r.price_per_tube).toLocaleString("vi-VN")}đ/ống`);
+    console.log(
+      `  ${r.name.padEnd(20)} ${Number(r.price_per_tube).toLocaleString("vi-VN")}đ/ống`,
+    );
   }
 }
 

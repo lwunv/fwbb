@@ -88,7 +88,9 @@ if (danglingTx.rows.length > 0) {
     );
   }
 } else {
-  console.log("✅ payment_notifications matched_transaction_id: no dangling refs");
+  console.log(
+    "✅ payment_notifications matched_transaction_id: no dangling refs",
+  );
 }
 
 console.log("\n=== Result ===");
@@ -99,7 +101,9 @@ if (hasDuplicates) {
   client.close();
   process.exit(1);
 } else {
-  console.log("✅ SAFE TO MIGRATE — proceed with: node scripts/apply-migration.mjs");
+  console.log(
+    "✅ SAFE TO MIGRATE — proceed with: node scripts/apply-migration.mjs",
+  );
   client.close();
   process.exit(0);
 }

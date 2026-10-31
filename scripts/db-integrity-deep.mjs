@@ -169,11 +169,7 @@ const weirdAdjust = await q(`
   SELECT id, name, stock_adjust_qua FROM shuttlecock_brands WHERE stock_adjust_qua < -100
 `);
 if (weirdAdjust.length)
-  push(
-    "NOTE",
-    "shuttlecock_brand large negative stockAdjustQua",
-    weirdAdjust,
-  );
+  push("NOTE", "shuttlecock_brand large negative stockAdjustQua", weirdAdjust);
 
 // 15. session_shuttlecocks with non-positive quantity_used or pricePerTube
 const badShuttles = await q(`
@@ -215,7 +211,9 @@ const totalRows = await q(`
 `);
 console.log("\n=== Fund total by type (excluding reversal pairs) ===");
 for (const r of totalRows) {
-  console.log(`  ${r.type.padEnd(20)} ${Number(r.total).toLocaleString("vi-VN")}đ`);
+  console.log(
+    `  ${r.type.padEnd(20)} ${Number(r.total).toLocaleString("vi-VN")}đ`,
+  );
 }
 
 // 18. Sessions with no court_id (should be allowed only for legacy)
@@ -236,13 +234,21 @@ if (hasRentTable.length) {
     `SELECT id, amount, month, year, metadata FROM court_rent_payments WHERE amount <= 0`,
   );
   if (badRentPayments.length)
-    push("ERROR", "court_rent_payments with non-positive amount", badRentPayments);
+    push(
+      "ERROR",
+      "court_rent_payments with non-positive amount",
+      badRentPayments,
+    );
 } else {
   const badRentTx = await q(
     `SELECT id, amount FROM financial_transactions WHERE type='court_rent_payment' AND amount <= 0 AND reversal_of_id IS NULL`,
   );
   if (badRentTx.length)
-    push("ERROR", "court_rent_payment ledger rows with non-positive amount", badRentTx);
+    push(
+      "ERROR",
+      "court_rent_payment ledger rows with non-positive amount",
+      badRentTx,
+    );
 }
 
 // Print

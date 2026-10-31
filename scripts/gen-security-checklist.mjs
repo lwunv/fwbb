@@ -8,7 +8,8 @@ const src = process.argv[2];
 const data = JSON.parse(readFileSync(src, "utf8")).result;
 const rows = data.checklist;
 
-const mark = (v) => (v === "yes" ? "✅" : v === "no" ? "❌" : v === "partial" ? "◑" : "—");
+const mark = (v) =>
+  v === "yes" ? "✅" : v === "no" ? "❌" : v === "partial" ? "◑" : "—";
 const piiMark = (b) => (b ? "⚠️" : "—");
 const order = { admin: 0, member: 1, owner: 2, webhook: 3, public: 4 };
 const groupTitle = {
