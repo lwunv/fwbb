@@ -51,10 +51,37 @@ async function pickActiveMember() {
   }
 }
 
+/**
+ * Member bài này khóa, giữ ở cấp module để `afterAll` mở lại được.
+ *
+ * 01/11/2026: bài dọn dẹp bằng cách BẤM "Mở" trên màn hình. Lần chạy nào bị
+ * ngắt giữa chừng là member đó kẹt ở trạng thái khóa, mà nó chọn member đầu
+ * danh sách, tức chính admin. Hậu quả không nằm ở bài này: bài `money-flow`
+ * chạy sau đó chốt sổ ra 0 dòng nợ và đỏ, trông y như một lỗi tính tiền.
+ * Mất khá lâu mới lần ra. Nên giờ có thêm một lớp dọn ở cấp DB, chạy kể cả
+ * khi phần bấm trên màn hình không kịp chạy.
+ */
+let lockedMemberId: number | null = null;
+
+test.afterAll(async () => {
+  if (lockedMemberId == null) return;
+  const c = createClient({ url: "file:e2e/local.db" });
+  try {
+    await c.execute("PRAGMA busy_timeout = 5000");
+    await c.execute({
+      sql: "UPDATE members SET is_active = 1 WHERE id = ?",
+      args: [lockedMemberId],
+    });
+  } finally {
+    c.close();
+  }
+});
+
 test("vô hiệu hóa thành viên: biến khỏi danh sách, chỉ còn ở tab Đã khóa", async ({
   page,
 }) => {
   const member = await pickActiveMember();
+  lockedMemberId = member.id;
   // `.first()`: trang quản lý render CẢ bản bảng (máy tính) lẫn bản thẻ (điện
   // thoại), mỗi bản một ô tìm kiếm, nên locator chặt khớp 2 phần tử và Playwright
   // báo lỗi strict mode. Đây cũng là bẫy đã gặp với usePolling: lúc React tráo

@@ -34,6 +34,15 @@ test.beforeAll(async () => {
   memberName = String(m.name);
 
   const hash = await bcrypt.hash(PASSWORD, 10);
+  // Email cố định của bài này có thể đang nằm trên MỘT member khác, do lần
+  // chạy trước fixture lệch nên câu SELECT ở trên chọn ra người khác. Cột
+  // email là UNIQUE, nên không gỡ ra trước thì câu UPDATE dưới đây chết
+  // bằng "UNIQUE constraint failed: members.email", và bài đỏ vì một lý do
+  // chẳng liên quan gì tới thứ nó kiểm. (Dính 01/11/2026.)
+  await c.execute({
+    sql: "UPDATE members SET email = NULL WHERE email = ?",
+    args: [EMAIL],
+  });
   await c.execute({
     sql: "UPDATE members SET password_hash=?, email=?, skill_level=NULL WHERE id=?",
     args: [hash, EMAIL, memberId],

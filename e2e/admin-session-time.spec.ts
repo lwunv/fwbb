@@ -79,7 +79,13 @@ test("admin đổi giờ chơi của buổi đang vote, giờ mới xuống tớ
   page,
 }) => {
   await seed("voting");
-  await page.goto("/admin/sessions", { waitUntil: "domcontentloaded" });
+  // Lọc đúng ngày đã seed. Mở trống `/admin/sessions` thì buổi này có thể
+  // nằm ở trang sau, hoặc rơi ngoài bộ lọc mặc định khi các bài khác đã tạo
+  // thêm buổi: chạy riêng thì xanh, chạy cả bộ thì "không thấy nút" (dính
+  // 01/11/2026). Cùng cách `money-flow.spec.ts` làm.
+  await page.goto(`/admin/sessions?from=${DATE}&to=${DATE}`, {
+    waitUntil: "domcontentloaded",
+  });
 
   const trigger = page.getByRole("button", { name: "Đổi giờ chơi" }).first();
   await expect(trigger).toBeVisible({ timeout: 20_000 });
@@ -103,7 +109,7 @@ test("admin đổi giờ chơi của buổi đang vote, giờ mới xuống tớ
 
 test("buổi đã chốt sổ: không có nút đổi giờ", async ({ page }) => {
   await seed("completed");
-  await page.goto("/admin/sessions?status=all", {
+  await page.goto(`/admin/sessions?status=all&from=${DATE}&to=${DATE}`, {
     waitUntil: "domcontentloaded",
   });
 
