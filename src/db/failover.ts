@@ -84,6 +84,51 @@ export function isPrimaryUnavailable(err: unknown): boolean {
   return false;
 }
 
+/**
+ * Đường kết nối tới bản dự phòng có an toàn để dùng không?
+ *
+ * Bản dự phòng chứa TOÀN BỘ dữ liệu của nhóm: họ tên, số điện thoại, số tài
+ * khoản ngân hàng, mã băm mật khẩu. Nối tới nó qua một đường không mã hoá là
+ * phát hết những thứ đó ra mạng, và token đi kèm mỗi request cũng lộ luôn.
+ *
+ * Cố ý KHÔNG ném lỗi khi cấu hình sai. Ném ở cấp module nghĩa là một biến môi
+ * trường gõ nhầm làm chết CẢ SITE, trong khi bản chính vẫn đang khoẻ: hỏng
+ * nặng hơn thứ cần chữa. Thay vào đó app chạy tiếp không có dự phòng, còn
+ * `scripts/check-standby.mjs` (chạy theo lịch) sẽ báo đỏ để không ai tưởng
+ * mình có dự phòng mà thật ra không.
+ */
+export function validateStandbyConfig(
+  url: string | undefined,
+  token: string | undefined,
+): { ok: true } | { ok: false; error: string } {
+  if (!url) return { ok: false, error: "STANDBY_DATABASE_URL trống" };
+
+  const scheme = url.slice(0, url.indexOf(":") + 1).toLowerCase();
+  // `file:` chỉ dùng khi chạy test tại máy; nó không đi qua mạng nên không
+  // cần mã hoá, và cũng không cần token.
+  if (scheme === "file:") return { ok: true };
+
+  const ENCRYPTED = new Set(["libsql:", "https:", "wss:"]);
+  const PLAINTEXT = new Set(["http:", "ws:"]);
+  if (PLAINTEXT.has(scheme)) {
+    return {
+      ok: false,
+      error: `STANDBY_DATABASE_URL dùng ${scheme} (không mã hoá). Dữ liệu và token sẽ đi trần trên mạng. Dùng https:// hoặc libsql:// (hoặc wss://).`,
+    };
+  }
+  if (!ENCRYPTED.has(scheme)) {
+    return { ok: false, error: `STANDBY_DATABASE_URL có scheme lạ: ${scheme}` };
+  }
+  if (!token) {
+    return {
+      ok: false,
+      error:
+        "STANDBY_AUTH_TOKEN trống. Một database từ xa không có token là ai cũng đọc và ghi được.",
+    };
+  }
+  return { ok: true };
+}
+
 const STATE_TABLE = "replica_state";
 
 async function readRole(standby: Client): Promise<DbRole | null> {

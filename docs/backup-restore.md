@@ -250,3 +250,54 @@ Chạy thật trên máy, hai database dạng file, không đụng prod:
 
 Chưa kiểm: đường chạy thật với một máy chủ libsql ở xa và với D1 thật. Hai cái
 đó cần tài khoản đã dựng xong.
+
+## Canh cho bản dự phòng khỏi mục (thêm 01/11/2026)
+
+Một bản dự phòng không ai đụng tới sẽ hỏng dần trong im lặng và chỉ lộ ra
+đúng lúc bản chính chết. Ba thứ dưới đây để chuyện đó không xảy ra.
+
+### Mốc thời gian nhân bản
+
+Mỗi lần copy xong, `replicate-to-standby.mjs` ghi một dòng vào bảng
+`replica_sync` trên chính bản dự phòng. Ghi SAU khi nạp xong, không phải
+trước, nếu không thì mốc nói dối mỗi lần nạp hỏng giữa chừng.
+
+Hai bảng `replica_state` và `replica_sync` **không bao giờ** được đưa vào bản
+chụp. Chúng là trạng thái điều khiển, chỉ có nghĩa trên đúng database đang giữ
+chúng. Chép đi nơi khác thì bản chính vừa khôi phục xong đã mang sẵn cờ "đang
+chạy ở dự phòng".
+
+### Việc canh theo lịch
+
+`.github/workflows/standby-health.yml` chạy 6 tiếng một lần và làm job đỏ khi:
+
+- đường kết nối không mã hoá, hoặc thiếu token;
+- không nối tới được bản dự phòng;
+- thiếu bảng (chưa chạy migration);
+- bảng `members` rỗng (nối được nhưng chẳng có gì để cứu);
+- lần nhân bản gần nhất quá 12 tiếng (đổi bằng `STANDBY_MAX_AGE_HOURS`);
+- **app đang chạy trên bản dự phòng**, tức bản chính đang hỏng.
+
+Chạy tay: `node scripts/check-standby.mjs`.
+
+### Chặn đường kết nối không mã hoá
+
+Bản dự phòng giữ toàn bộ họ tên, số điện thoại, **số tài khoản ngân hàng** và
+mã băm mật khẩu. `validateStandbyConfig` trong `src/db/failover.ts` từ chối
+`http://` và `ws://`, và từ chối một database ở xa không có token.
+
+Khi cấu hình sai, app **không** chết. Nó bỏ qua bản dự phòng, in một dòng lỗi
+vào log, và chạy tiếp bằng bản chính. Lý do: làm chết cả site vì một biến môi
+trường gõ nhầm là hỏng nặng hơn thứ cần chữa. Bù lại, việc canh ở trên sẽ báo
+đỏ nên không ai tưởng mình có dự phòng mà thật ra không có.
+
+### Chỗ còn rủi ro, nói thẳng
+
+- **Mất tối đa một cửa sổ nhân bản.** Bản dự phòng chỉ mới bằng lần copy gần
+  nhất. Không có cách nào về 0 mà không ghi đồng thời hai nơi.
+- **Chưa chạy thật với một máy chủ ở xa.** Mọi thứ trên đây đã chạy với hai
+  database dạng file trên máy. Đường mạng thật còn có thể lòi ra chuyện khác.
+- **Mất `BACKUP_PASSPHRASE` là mất toàn bộ bản sao lưu.** Không ai cứu được.
+- **Token của bản dự phòng nằm trong biến môi trường của Vercel và GitHub.**
+  Ai vào được hai chỗ đó là đọc được cả database. Đổi token định kỳ, và đổi
+  ngay khi có người rời nhóm.

@@ -47,8 +47,11 @@ console.log(`Output:   ${outPath}\n`);
 // database đang giữ nó. Chép nó sang nơi khác thì bản chính vừa khôi phục
 // xong đã mang sẵn cờ "đang chạy ở dự phòng", và cả cụm quay lại vòng luẩn
 // quẩn. (Phát hiện 30/10/2026 khi diễn tập copy ngược về bản chính.)
+//
+// `replica_sync` cùng lý do: nó là mốc "bản dự phòng tươi tới đâu", chỉ
+// có nghĩa trên chính bản dự phòng.
 const tablesRes = await client.execute(
-  `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_litestream%' AND name NOT LIKE '__drizzle%' AND name <> 'replica_state' ORDER BY name`,
+  `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_litestream%' AND name NOT LIKE '__drizzle%' AND name NOT IN ('replica_state', 'replica_sync') ORDER BY name`,
 );
 const tables = tablesRes.rows.map((r) => String(r.name));
 

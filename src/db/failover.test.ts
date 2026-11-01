@@ -8,7 +8,11 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import { createClient, type Client } from "@libsql/client";
-import { createFailoverClient, isPrimaryUnavailable } from "./failover";
+import {
+  createFailoverClient,
+  isPrimaryUnavailable,
+  validateStandbyConfig,
+} from "./failover";
 
 /** Lỗi giả của libsql: mang `code` giống thật. */
 function libsqlError(message: string, code?: string) {
@@ -256,5 +260,53 @@ describe("cờ trạng thái dùng chung", () => {
     const r = await fo.execute("SELECT 1");
     expect(r.rows[0]?.from).toBe("primary");
     expect(calls.execute).toBe(1);
+  });
+});
+
+describe("kiểm cấu hình bản dự phòng trước khi nối", () => {
+  const TOKEN = "token-gia";
+
+  it("https / libsql / wss kèm token: nhận", () => {
+    for (const url of [
+      "https://db.vi-du.com",
+      "libsql://db.vi-du.com",
+      "wss://db.vi-du.com",
+    ]) {
+      expect(validateStandbyConfig(url, TOKEN), url).toEqual({ ok: true });
+    }
+  });
+
+  /**
+   * Ca quan trọng nhất. Bản dự phòng giữ TOÀN BỘ dữ liệu nhóm, gồm số tài
+   * khoản ngân hàng và mã băm mật khẩu. Nối qua http là phát hết ra mạng, và
+   * token cũng lộ theo mỗi request.
+   */
+  it("http / ws (không mã hoá): TỪ CHỐI", () => {
+    for (const url of ["http://db.vi-du.com", "ws://db.vi-du.com"]) {
+      const r = validateStandbyConfig(url, TOKEN);
+      expect(r.ok, url).toBe(false);
+      if (!r.ok) expect(r.error).toMatch(/không mã hoá/);
+    }
+  });
+
+  it("database ở xa mà không có token: TỪ CHỐI", () => {
+    const r = validateStandbyConfig("https://db.vi-du.com", undefined);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/token/i);
+  });
+
+  it("file cục bộ (chạy test tại máy): nhận, không đòi token", () => {
+    expect(validateStandbyConfig("file:./a.db", undefined)).toEqual({
+      ok: true,
+    });
+  });
+
+  it("scheme lạ: TỪ CHỐI thay vì đoán", () => {
+    expect(validateStandbyConfig("ftp://db.vi-du.com", TOKEN).ok).toBe(false);
+    expect(validateStandbyConfig("db.vi-du.com", TOKEN).ok).toBe(false);
+  });
+
+  it("chưa khai gì: TỪ CHỐI, nhưng đó là trạng thái bình thường", () => {
+    expect(validateStandbyConfig(undefined, undefined).ok).toBe(false);
   });
 });

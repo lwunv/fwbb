@@ -120,6 +120,25 @@ async function main() {
       },
     );
     if (load.status !== 0) die("Nạp vào bản dự phòng thất bại.");
+
+    // Ghi mốc thời gian NGAY SAU khi nạp xong. Đây là thứ duy nhất cho biết
+    // bản dự phòng còn tươi hay đã mục: `scripts/check-standby.mjs` đọc đúng
+    // dòng này và báo đỏ khi nó quá cũ. Ghi trước khi nạp thì mốc sẽ nói dối
+    // mỗi lần nạp hỏng giữa chừng.
+    await standby.batch(
+      [
+        `CREATE TABLE IF NOT EXISTS replica_sync (
+           id INTEGER PRIMARY KEY CHECK (id = 1),
+           synced_at TEXT NOT NULL
+         )`,
+        {
+          sql: `INSERT INTO replica_sync (id, synced_at) VALUES (1, ?)
+                ON CONFLICT(id) DO UPDATE SET synced_at = excluded.synced_at`,
+          args: [new Date().toISOString()],
+        },
+      ],
+      "write",
+    );
     console.log("\n✅ Bản dự phòng đã khớp với bản chính.\n");
   } finally {
     // Chỉ xoá thư mục do chính script này tạo. Bản chụp mượn của workflow thì

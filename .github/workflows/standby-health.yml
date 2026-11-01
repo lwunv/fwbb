@@ -1,0 +1,52 @@
+# Canh database dự phòng.
+#
+# Vì sao tồn tại: một bản dự phòng không ai đụng tới sẽ mục dần mà không phát
+# ra tiếng động nào. Nó chỉ lộ ra là hỏng đúng lúc bản chính chết, tức đúng
+# lúc không còn đường lùi. Việc này biến một sự cố im lặng thành một cái mail
+# đỏ của GitHub.
+#
+# Nó cũng là thứ báo cho biết app ĐANG chạy trên bản dự phòng: lúc đó bản
+# chính đang hỏng và việc nhân bản đã tự dừng, nên càng để lâu càng xa nhau.
+#
+# Chưa khai STANDBY_DATABASE_URL thì job tự bỏ qua, không đỏ.
+
+name: Canh database dự phòng
+
+on:
+  schedule:
+    # 6 tiếng một lần. Dày hơn không có ích: bản dự phòng chỉ đổi mỗi lần
+    # nhân bản, mà nhân bản đi kèm việc sao lưu.
+    - cron: "15 */6 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: standby-health
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    env:
+      STANDBY_DATABASE_URL: ${{ secrets.STANDBY_DATABASE_URL }}
+      STANDBY_AUTH_TOKEN: ${{ secrets.STANDBY_AUTH_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Cài phụ thuộc
+        # pnpm, KHÔNG phải npm: npm không đọc được cây của pnpm và chết với
+        # "Cannot read properties of null (reading 'edgesOut')".
+        run: pnpm install --frozen-lockfile
+
+      - name: Kiểm sức khoẻ
+        run: node scripts/check-standby.mjs

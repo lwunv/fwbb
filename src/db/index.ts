@@ -2,7 +2,11 @@ import { drizzle } from "drizzle-orm/libsql";
 import { createClient } from "@libsql/client";
 import * as schema from "./schema";
 import { createRetryingFetch } from "../lib/db-fetch";
-import { createFailoverClient, type DbRole } from "./failover";
+import {
+  createFailoverClient,
+  validateStandbyConfig,
+  type DbRole,
+} from "./failover";
 
 const rawClient = createClient({
   url: process.env.TURSO_DATABASE_URL!,
@@ -92,13 +96,28 @@ function withQueryLog(c: typeof rawClient): typeof rawClient {
  * trục trặc thì gỡ biến môi trường ra là quay về trạng thái cũ ngay.
  */
 const standbyUrl = process.env.STANDBY_DATABASE_URL;
-const standbyClient = standbyUrl
-  ? createClient({
-      url: standbyUrl,
-      authToken: process.env.STANDBY_AUTH_TOKEN,
-      fetch: createRetryingFetch(),
-    })
+const standbyToken = process.env.STANDBY_AUTH_TOKEN;
+const standbyCheck = standbyUrl
+  ? validateStandbyConfig(standbyUrl, standbyToken)
   : null;
+
+if (standbyCheck && !standbyCheck.ok) {
+  // KHÔNG ném lỗi: bản chính vẫn khoẻ, làm chết site vì một biến môi trường
+  // gõ nhầm là hỏng nặng hơn thứ cần chữa. In ra để log của Vercel giữ lại,
+  // và `scripts/check-standby.mjs` sẽ báo đỏ theo lịch.
+  console.error(
+    `[db] BỎ QUA database dự phòng vì cấu hình không an toàn: ${standbyCheck.error}`,
+  );
+}
+
+const standbyClient =
+  standbyUrl && standbyCheck?.ok
+    ? createClient({
+        url: standbyUrl,
+        authToken: standbyToken,
+        fetch: createRetryingFetch(),
+      })
+    : null;
 
 let activeRole: DbRole = "primary";
 
