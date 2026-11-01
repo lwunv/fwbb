@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { TriangleAlert } from "lucide-react";
 import { SectionCard } from "@/components/shared/section-card";
 import { MoneyInput } from "@/components/shared/money-input";
-import { useSettingsDraft } from "./settings-draft";
+import { useSettingsDraft } from "@/components/settings/settings-draft";
 
 type ThresholdKey =
   | "lowFundThreshold"

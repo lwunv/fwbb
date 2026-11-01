@@ -69,7 +69,12 @@ test("admin đặt trình độ và giới tính LGBT cho member rồi lưu xu�
   await page.goto("/admin/members", { waitUntil: "domcontentloaded" });
 
   // Tìm đúng dòng của member rồi mở hộp thoại "Sửa thông tin" của dòng đó.
-  await page.getByPlaceholder(/Tìm theo tên/).fill(memberName);
+  // Trang members stream từng mảnh: lúc chưa xong, DOM còn một ô tìm kiếm
+  // ẨN cùng placeholder. Bản thật luôn là bản sau.
+  await page
+    .getByPlaceholder(/Tìm theo tên/)
+    .last()
+    .fill(memberName);
   const edit = page.locator('button[title="Sửa thông tin"]').first();
   await expect(edit).toBeVisible({ timeout: 20_000 });
   await edit.click();
@@ -116,7 +121,12 @@ test("admin đặt trình độ và giới tính LGBT cho member rồi lưu xu�
 
   // Và sống qua reload, tức nó đọc từ server chứ không chỉ là state màn hình.
   await page.reload({ waitUntil: "domcontentloaded" });
-  await page.getByPlaceholder(/Tìm theo tên/).fill(memberName);
+  // Trang members stream từng mảnh: lúc chưa xong, DOM còn một ô tìm kiếm
+  // ẨN cùng placeholder. Bản thật luôn là bản sau.
+  await page
+    .getByPlaceholder(/Tìm theo tên/)
+    .last()
+    .fill(memberName);
   await expect(page.getByText("TBY", { exact: true }).first()).toBeVisible({
     timeout: 10_000,
   });

@@ -5,7 +5,7 @@ import { Cog } from "lucide-react";
 import { SectionCard } from "@/components/shared/section-card";
 import { Input } from "@/components/ui/input";
 import { CustomSelect } from "@/components/ui/custom-select";
-import { useSettingsDraft } from "./settings-draft";
+import { useSettingsDraft } from "@/components/settings/settings-draft";
 import { normalizeContactHotline } from "@/lib/settings-registry";
 import { VN_BANKS } from "@/lib/vn-banks";
 import { AUTO_MATCH_BANK_BIN } from "@/lib/bank-account";

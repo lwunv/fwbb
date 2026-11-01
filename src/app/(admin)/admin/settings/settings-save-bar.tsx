@@ -2,7 +2,7 @@
 
 import { Loader2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useSettingsDraft } from "./settings-draft";
+import { useSettingsDraft } from "@/components/settings/settings-draft";
 
 /**
  * Thanh Lưu của trang Cài đặt.

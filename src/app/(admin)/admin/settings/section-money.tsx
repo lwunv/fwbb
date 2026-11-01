@@ -7,7 +7,7 @@ import { Coins } from "lucide-react";
 import { SectionCard } from "@/components/shared/section-card";
 import { MoneyInput } from "@/components/shared/money-input";
 import { Switch } from "@/components/ui/switch";
-import { useSettingsDraft } from "./settings-draft";
+import { useSettingsDraft } from "@/components/settings/settings-draft";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import {

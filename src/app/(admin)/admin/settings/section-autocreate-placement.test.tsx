@@ -21,7 +21,8 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const { SectionSessionDefaults } = await import("./section-session-defaults");
 const { SectionOperations } = await import("./section-operations");
-const { SettingsDraftProvider } = await import("./settings-draft");
+const { SettingsDraftProvider } =
+  await import("@/components/settings/settings-draft");
 
 afterEach(cleanup);
 

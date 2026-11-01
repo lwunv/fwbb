@@ -1,7 +1,7 @@
 "use client";
 
 import type { AppSettings } from "@/lib/settings-registry";
-import { SettingsDraftProvider } from "./settings-draft";
+import { SettingsDraftProvider } from "@/components/settings/settings-draft";
 import { SettingsSaveBar } from "./settings-save-bar";
 import { SectionMoney } from "./section-money";
 import { SectionSessionDefaults } from "./section-session-defaults";

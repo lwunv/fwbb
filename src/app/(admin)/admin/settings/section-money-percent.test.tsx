@@ -32,7 +32,8 @@ vi.mock("@/actions/settings", () => settingsActions);
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const { SectionMoney } = await import("./section-money");
-const { SettingsDraftProvider } = await import("./settings-draft");
+const { SettingsDraftProvider } =
+  await import("@/components/settings/settings-draft");
 const { SettingsSaveBar } = await import("./settings-save-bar");
 
 afterEach(() => {

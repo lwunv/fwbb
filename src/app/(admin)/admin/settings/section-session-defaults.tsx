@@ -7,7 +7,8 @@ import { SectionCard } from "@/components/shared/section-card";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { useSettingsDraft } from "./settings-draft";
+import { useSettingsDraft } from "@/components/settings/settings-draft";
+import { DAY_PILLS, toggleSessionDay } from "@/lib/session-days";
 import { formatK, cn } from "@/lib/utils";
 
 interface CourtOpt {
@@ -20,17 +21,6 @@ interface BrandOpt {
   name: string;
   pricePerTube: number;
 }
-
-// Hiển thị T2..T7, CN. dow theo chuẩn JS (CN=0, T2=1, …, T7=6).
-const DAY_PILLS: { dow: number; label: string }[] = [
-  { dow: 1, label: "T2" },
-  { dow: 2, label: "T3" },
-  { dow: 3, label: "T4" },
-  { dow: 4, label: "T5" },
-  { dow: 5, label: "T6" },
-  { dow: 6, label: "T7" },
-  { dow: 0, label: "CN" },
-];
 
 export function SectionSessionDefaults({
   courts,
@@ -75,11 +65,9 @@ export function SectionSessionDefaults({
   }
 
   function toggleDay(dow: number) {
-    const next = new Set(sessionDays);
-    if (next.has(dow)) next.delete(dow);
-    else next.add(dow);
-    if (next.size === 0) return; // ít nhất 1 ngày — khớp validate registry
-    set("sessionDaysOfWeek", Array.from(next).sort());
+    const next = toggleSessionDay(get("sessionDaysOfWeek"), dow);
+    if (!next) return; // ít nhất 1 ngày — khớp validate registry
+    set("sessionDaysOfWeek", next);
   }
 
   function commitNumber(

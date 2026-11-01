@@ -33,6 +33,8 @@ import {
   type AdminSessionCardSession,
 } from "@/components/sessions/admin-session-card";
 import { RecordContributionDialog } from "@/components/fund/record-contribution-dialog";
+import { SessionDefaultsPanel } from "./session-defaults-panel";
+import type { AppSettings } from "@/lib/settings-registry";
 import type { InferSelectModel } from "drizzle-orm";
 import type {
   courts as courtsTable,
@@ -179,6 +181,8 @@ interface DashboardClientProps {
   adminMemberId: number | null;
   defaultCourtId: number | null;
   sessionDays: number[];
+  /** Toàn bộ cài đặt, cho panel "Mặc định khi tạo buổi" ở cột phải. */
+  settings: AppSettings;
 }
 
 const TX_ICON: Record<string, { icon: typeof ArrowUpCircle; cls: string }> = {
@@ -237,6 +241,7 @@ export function DashboardClient({
   adminMemberId,
   defaultCourtId,
   sessionDays,
+  settings,
 }: DashboardClientProps) {
   const tf = useTranslations("finance");
   const td = useTranslations("dashboard");
@@ -720,6 +725,22 @@ export function DashboardClient({
               />
             );
           })()}
+        </div>
+
+        <div className="lg:col-span-2" data-slot="session-defaults-panel">
+          <SessionDefaultsPanel
+            settings={settings}
+            courts={editorCourts.map((c) => ({
+              id: c.id,
+              name: c.name,
+              pricePerSession: c.pricePerSession,
+            }))}
+            brands={editorBrands.map((b) => ({
+              id: b.id,
+              name: b.name,
+              pricePerTube: b.pricePerTube,
+            }))}
+          />
         </div>
       </div>
 

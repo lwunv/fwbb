@@ -37,7 +37,8 @@ export default async function DashboardPage() {
 
   // Mô hình Quỹ + Nợ đã gộp: "nợ" = số dư âm trong quỹ.
   const fundMembers = await getFundMembersWithBalances();
-  const { lowFundThreshold } = await getSettings();
+  const settings = await getSettings();
+  const { lowFundThreshold } = settings;
 
   let totalOutstanding = 0;
   let totalPositiveBalance = 0;
@@ -347,6 +348,7 @@ export default async function DashboardPage() {
         adminMemberId={adminMemberId}
         defaultCourtId={defaultCourt?.id ?? null}
         sessionDays={sessionDays}
+        settings={settings}
       />
     </div>
   );
