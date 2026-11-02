@@ -127,7 +127,10 @@ export function SessionCard({
 
         <div className="space-y-2 text-sm">
           {courtName && (
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <div
+              data-tour="session-court"
+              className="flex flex-wrap items-center gap-x-2 gap-y-1"
+            >
               <MapPin className="text-muted-foreground h-4 w-4 shrink-0" />
               <span className="min-w-0">{courtName}</span>
               {courtMapLink && (

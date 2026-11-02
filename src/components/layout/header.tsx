@@ -35,7 +35,7 @@ export function Header({
             <span className="truncate text-lg font-bold">{appName}</span>
           </Link>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1" data-tour="header-prefs">
           <LanguageSelector />
           <ThemeToggle />
           {showLogin && (

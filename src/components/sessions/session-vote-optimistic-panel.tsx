@@ -214,7 +214,7 @@ export function SessionVoteOptimisticPanel({
         topSlot={headerSlot}
       />
 
-      <Card>
+      <Card data-tour="vote-list">
         <CardContent className="p-4">
           <div className="mb-3 flex items-start justify-between gap-2">
             <h2 className="text-lg font-bold sm:text-xl">

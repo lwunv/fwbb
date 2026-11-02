@@ -1,54 +1,105 @@
-import type { DriveStep } from "driver.js";
+import type { Popover } from "driver.js";
 
 type T = (key: string) => string;
 
 /**
- * Config các bước product tour. Step KHÔNG có `element` = popover canh giữa
- * (welcome / kết thúc). Step có `element` neo bằng `data-tour=...`. Hook lọc bỏ
- * step có element nhưng không tìm thấy trên trang (vd chưa có buổi vote / quỹ
- * đang dương nên banner ẩn) — step canh giữa luôn được giữ.
+ * 1 bước tour. Hook (`use-product-tour`) quyết định neo vào đâu:
+ *   - không có `element` → popover canh giữa (welcome / kết thúc).
+ *   - `element` có trên trang → neo vào đó; không có → thử lần lượt `fallback`.
+ *   - vẫn không có: `centerIfMissing` → hiện canh giữa (mô tả vẫn đọc hiểu được
+ *     khi không có gì để chỉ), ngược lại bỏ step.
+ *   - `inDrawer` → element nằm trong ngăn kéo menu ĐANG ĐÓNG: luôn giữ step,
+ *     hook mở ngăn kéo trước khi tới step đó.
  */
-export function buildTourSteps(t: T): DriveStep[] {
+export interface TourStep {
+  element?: string;
+  fallback?: string[];
+  centerIfMissing?: boolean;
+  inDrawer?: boolean;
+  popover: Popover;
+}
+
+const sel = (key: string) => `[data-tour="${key}"]`;
+
+export function buildTourSteps(t: T): TourStep[] {
   const s = (title: string, description: string) => ({ title, description });
   return [
-    // 1. Welcome (canh giữa)
     { popover: s(t("welcomeTitle"), t("welcomeDesc")) },
-    // 2. Menu điều hướng (nút hamburger góc trái). Các mục Lịch sử / Quỹ /
-    //    Thống kê / Cá nhân nằm trong ngăn kéo ĐÓNG nên driver không neo được
-    //    từng mục — mô tả gộp tại chính nút mở menu.
+    // Buổi chơi: chọn ngày → sân/chỉ đường.
     {
-      element: '[data-tour="nav-menu"]',
-      popover: s(t("navMenuTitle"), t("navMenuDesc")),
-    },
-    // 3. Chip chọn ngày trong tuần (đầu thẻ buổi).
-    {
-      element: '[data-tour="week-days"]',
+      element: sel("week-days"),
       popover: s(t("weekDaysTitle"), t("weekDaysDesc")),
     },
-    // 4-6. Vote (khi có buổi đang mở): chơi cầu → nhậu → đi 2 người. Mỗi step
-    //    neo đúng ô tương ứng để mô tả rõ thao tác.
     {
-      element: '[data-tour="vote-play"]',
+      element: sel("session-court"),
+      popover: s(t("sessionCourtTitle"), t("sessionCourtDesc")),
+    },
+    // Vote. Người mới vào lần đầu chưa tick chơi cầu nên switch 👫 chưa hiện →
+    // neo tạm vào ô cầu; chưa có buổi mở vote thì vẫn giải thích canh giữa.
+    {
+      element: sel("vote-play"),
+      centerIfMissing: true,
       popover: s(t("votePlayTitle"), t("votePlayDesc")),
     },
     {
-      element: '[data-tour="vote-dine"]',
+      element: sel("vote-partner"),
+      fallback: [sel("vote-play")],
+      centerIfMissing: true,
+      popover: s(t("votePartnerTitle"), t("votePartnerDesc")),
+    },
+    {
+      element: sel("vote-dine"),
+      centerIfMissing: true,
       popover: s(t("voteDineTitle"), t("voteDineDesc")),
     },
     {
-      element: '[data-tour="vote-partner"]',
-      popover: s(t("votePartnerTitle"), t("votePartnerDesc")),
+      element: sel("vote-list"),
+      popover: s(t("voteListTitle"), t("voteListDesc")),
     },
-    // 7-8. Quỹ (khi banner quỹ hiện).
+    // Quỹ (banner chỉ hiện khi hết quỹ / đang nợ; khung QR chỉ có khi mở banner).
     {
-      element: '[data-tour="fund-banner"]',
+      element: sel("fund-banner"),
       popover: s(t("fundBannerTitle"), t("fundBannerDesc")),
     },
     {
-      element: '[data-tour="fund-topup"]',
+      element: sel("fund-topup"),
       popover: s(t("fundTopupTitle"), t("fundTopupDesc")),
     },
-    // Kết thúc (canh giữa)
+    // Header: ngôn ngữ + giao diện, rồi nút menu.
+    {
+      element: sel("header-prefs"),
+      popover: s(t("headerPrefsTitle"), t("headerPrefsDesc")),
+    },
+    {
+      element: sel("nav-menu"),
+      popover: s(t("navMenuTitle"), t("navMenuDesc")),
+    },
+    // Từng mục trong ngăn kéo menu (tour tự mở ngăn kéo).
+    {
+      element: sel("nav-history"),
+      inDrawer: true,
+      popover: s(t("navHistoryTitle"), t("navHistoryDesc")),
+    },
+    {
+      element: sel("nav-fund"),
+      inDrawer: true,
+      popover: s(t("navFundTitle"), t("navFundDesc")),
+    },
+    {
+      element: sel("nav-stats"),
+      inDrawer: true,
+      popover: s(t("navStatsTitle"), t("navStatsDesc")),
+    },
+    {
+      element: sel("nav-me"),
+      inDrawer: true,
+      popover: s(t("navMeTitle"), t("navMeDesc")),
+    },
+    {
+      element: sel("nav-guide"),
+      inDrawer: true,
+      popover: s(t("navGuideTitle"), t("navGuideDesc")),
+    },
     { popover: s(t("doneTitle"), t("doneDesc")) },
   ];
 }

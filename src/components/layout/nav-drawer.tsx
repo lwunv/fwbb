@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import {
@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { NavPendingIcon } from "./nav-pending-icon";
 import { useProductTour } from "@/components/tour/use-product-tour";
+import { TOUR_DRAWER_EVENT } from "@/components/tour/tour-drawer";
 import {
   Sheet,
   SheetContent,
@@ -54,23 +55,51 @@ const navItems = [
  */
 export function NavDrawer() {
   const [open, setOpen] = useState(false);
+  // Tour đang điều khiển ngăn kéo: tắt modal + chặn bấm-ra-ngoài-để-đóng, vì
+  // popover của tour nằm NGOÀI ngăn kéo (bấm "Tiếp" sẽ đóng nó / bị inert).
+  const [tourOpen, setTourOpen] = useState(false);
+  // Bấm Hướng dẫn ở trang khác → về trang chủ trước, tới nơi mới chạy tour
+  // (các step vote / quỹ chỉ có ở trang chủ).
+  const [tourPending, setTourPending] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   const t = useTranslations("nav");
   const tTour = useTranslations("tour");
   const { run, hasSeen } = useProductTour();
+  const isHome = pathname === "/";
 
-  // Auto-chạy tour lần đầu (thay cho nút compass đã bỏ). Chỉ 1 lần/phiên, bỏ
-  // qua dưới automation (Playwright: navigator.webdriver=true).
+  useEffect(() => {
+    const onTour = (e: Event) => {
+      const next = (e as CustomEvent<{ open: boolean }>).detail.open;
+      setTourOpen(next);
+      setOpen(next);
+    };
+    window.addEventListener(TOUR_DRAWER_EVENT, onTour);
+    return () => window.removeEventListener(TOUR_DRAWER_EVENT, onTour);
+  }, []);
+
+  // Auto-chạy tour lần đầu, chỉ ở trang chủ (nơi có đủ step). Chỉ 1 lần/phiên,
+  // bỏ qua dưới automation (Playwright: navigator.webdriver=true).
   const autoRan = useRef(false);
   useEffect(() => {
-    if (autoRan.current) return;
+    if (autoRan.current || !isHome) return;
     autoRan.current = true;
     if (typeof navigator !== "undefined" && navigator.webdriver) return;
     if (!hasSeen()) {
       const id = setTimeout(() => run(), 800);
       return () => clearTimeout(id);
     }
-  }, [hasSeen, run]);
+  }, [hasSeen, run, isHome]);
+
+  useEffect(() => {
+    if (!tourPending || !isHome) return;
+    // Đợi trang chủ mount xong (thanh vote, banner) rồi mới chạy.
+    const id = setTimeout(() => {
+      setTourPending(false);
+      run();
+    }, 800);
+    return () => clearTimeout(id);
+  }, [tourPending, isHome, run]);
 
   return (
     <>
@@ -84,7 +113,14 @@ export function NavDrawer() {
         <Menu className="h-6 w-6" />
       </button>
 
-      <Sheet open={open} onOpenChange={setOpen}>
+      <Sheet
+        open={open}
+        onOpenChange={(next) => {
+          if (!tourOpen) setOpen(next);
+        }}
+        modal={!tourOpen}
+        disablePointerDismissal={tourOpen}
+      >
         <SheetContent side="left" className="flex w-72 flex-col gap-0">
           <SheetHeader>
             <SheetTitle>{t("menuTitle")}</SheetTitle>
@@ -117,8 +153,14 @@ export function NavDrawer() {
             {/* Hướng dẫn (product tour) — cuối menu, thay nút compass đã bỏ. */}
             <button
               type="button"
+              data-tour="nav-guide"
               onClick={() => {
                 setOpen(false);
+                if (!isHome) {
+                  setTourPending(true);
+                  router.push("/");
+                  return;
+                }
                 // Đóng ngăn kéo trước rồi chạy tour để overlay neo đúng trang.
                 setTimeout(() => run(), 300);
               }}
