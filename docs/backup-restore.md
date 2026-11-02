@@ -291,12 +291,57 @@ vào log, và chạy tiếp bằng bản chính. Lý do: làm chết cả site v
 trường gõ nhầm là hỏng nặng hơn thứ cần chữa. Bù lại, việc canh ở trên sẽ báo
 đỏ nên không ai tưởng mình có dự phòng mà thật ra không có.
 
+## Diễn tập khôi phục tự động (thêm 01/11/2026)
+
+Lịch sao lưu chứng minh được là nó TẠO ra file. Nó không chứng minh được
+file đó dựng lại được thành một database. Hai chuyện khác nhau, và chỉ chuyện
+thứ hai mới có giá trị vào ngày xảy ra sự cố.
+
+### Hai lớp kiểm, mỗi lớp trả lời một câu khác nhau
+
+**Mỗi lần sao lưu**: ngay sau khi cất file vào kho, workflow mở lại chính file
+đó bằng `BACKUP_PASSPHRASE` đang lưu rồi so sha256 với bản gốc. Trả lời câu:
+_bản sao lưu hôm nay có mở ra được không_. Mật khẩu lưu sai, tham số lệch hay
+file hỏng lúc ghi đều lộ ra ở đây thay vì lộ ra vào đúng ngày cần tới nó. Bước
+này đứng SAU bước cất, cố ý: nó đỏ thì file vẫn nằm trong kho để còn mổ xẻ.
+
+**Mỗi tuần, và mỗi lần ai đó sửa một mắt xích**: `.github/workflows/restore-drill.yml`
+chạy `node scripts/backup-drill.mjs`. Bài này dựng một database nguồn riêng trong
+thư mục tạm, đổ dữ liệu bịa vào đủ 18 bảng, rồi đi trọn vòng: dump → mã hoá →
+giải mã → khôi phục sang một database tạm khác → so từng bảng từng dòng. Trả
+lời câu: _mấy cái script khôi phục còn chạy đúng không_.
+
+Nó không đọc `.env.local`, không nhận `--target`, và dùng mật khẩu ngẫu nhiên
+sinh tại chỗ chứ không phải `BACKUP_PASSPHRASE` thật. Không có đường nào nó
+chạm vào dữ liệu thật. Chạy tay:
+
+```bash
+node scripts/backup-drill.mjs          # chạy rồi dọn sạch
+node scripts/backup-drill.mjs --keep   # giữ thư mục tạm để soi
+```
+
+### Lần chạy đầu tiên lôi ra một lỗi thật
+
+Lược đồ có một **vòng khoá ngoại**: `payment_notifications.matched_transaction_id`
+trỏ sang `financial_transactions`, còn `financial_transactions.payment_notification_id`
+trỏ ngược lại. `restore-db.mjs` sắp thứ tự chèn theo khoá ngoại, mà không thứ
+tự nào thoả được cả hai chiều, nên nó luôn chết giữa chừng với "FOREIGN KEY
+constraint failed" khi cả hai bảng có dữ liệu. Ngoài đời thì cả hai luôn có dữ
+liệu, vì bộ dò tiền chuyển khoản ghi cả hai chiều. Tức là: việc khôi phục thật
+chưa bao giờ chạy được, mà không ai biết.
+
+Cách vá: `PRAGMA defer_foreign_keys = ON` ở đầu giao dịch khôi phục. Hoãn KHÁC
+với tắt: SQLite vẫn kiểm đủ mọi khoá ngoại lúc commit, nên một bản dump hỏng
+tham chiếu vẫn bị từ chối. Chỉ ràng buộc về THỨ TỰ là bỏ đi.
+
 ### Chỗ còn rủi ro, nói thẳng
 
 - **Mất tối đa một cửa sổ nhân bản.** Bản dự phòng chỉ mới bằng lần copy gần
   nhất. Không có cách nào về 0 mà không ghi đồng thời hai nơi.
 - **Chưa chạy thật với một máy chủ ở xa.** Mọi thứ trên đây đã chạy với hai
   database dạng file trên máy. Đường mạng thật còn có thể lòi ra chuyện khác.
+  `PRAGMA defer_foreign_keys` cũng nằm trong diện này: nó đã chạy đúng với
+  database file, chưa chạy với một máy chủ libsql thật.
 - **Mất `BACKUP_PASSPHRASE` là mất toàn bộ bản sao lưu.** Không ai cứu được.
 - **Token của bản dự phòng nằm trong biến môi trường của Vercel và GitHub.**
   Ai vào được hai chỗ đó là đọc được cả database. Đổi token định kỳ, và đổi

@@ -140,6 +140,21 @@ if (!APPLY) {
 // database rơi vào trạng thái nửa vời, tệ hơn là chưa khôi phục.
 const tx = await client.transaction("write");
 try {
+  // Hoãn kiểm khoá ngoại tới lúc commit.
+  //
+  // Lược đồ có một VÒNG khoá ngoại: `payment_notifications.
+  // matched_transaction_id` trỏ sang `financial_transactions`, còn
+  // `financial_transactions.payment_notification_id` trỏ ngược lại. Không có
+  // thứ tự chèn nào thoả được cả hai chiều, nên bản đầu của script này luôn
+  // chết giữa chừng với "FOREIGN KEY constraint failed" khi cả hai bảng có
+  // dữ liệu — tức là đúng lúc khôi phục thật. Bài diễn tập
+  // `scripts/backup-drill.mjs` lôi ra chuyện này ngày 01/11/2026.
+  //
+  // Hoãn KHÁC với tắt: SQLite vẫn kiểm đủ mọi khoá ngoại ở lúc commit, nên
+  // một bản dump hỏng tham chiếu vẫn bị từ chối. Chỉ cái ràng buộc về THỨ TỰ
+  // là bỏ đi.
+  await tx.execute("PRAGMA defer_foreign_keys = ON");
+
   for (const t of [...order].reverse()) {
     await tx.execute(`DELETE FROM "${t}"`);
   }

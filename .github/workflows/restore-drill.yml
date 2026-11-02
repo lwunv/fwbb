@@ -1,0 +1,57 @@
+# Diễn tập khôi phục: dump → mã hoá → giải mã → khôi phục → so từng bảng.
+#
+# Vì sao tồn tại: lịch sao lưu chứng minh được là nó TẠO ra file. Nó không
+# chứng minh được file đó dựng lại được thành một database. Hai chuyện khác
+# nhau, và chỉ chuyện thứ hai mới có giá trị vào ngày xảy ra sự cố.
+#
+# Lần chạy đầu tiên (01/11/2026) lôi ra ngay một lỗi thật: lược đồ có một VÒNG
+# khoá ngoại giữa `payment_notifications` và `financial_transactions`, nên
+# `restore-db.mjs` luôn chết giữa chừng khi cả hai bảng có dữ liệu. Tức là
+# việc khôi phục thật chưa bao giờ chạy được, mà không ai biết.
+#
+# KHÔNG CẦN BÍ MẬT NÀO. Bài chạy trên dữ liệu bịa trong database tạm và không
+# đụng tới database thật.
+
+name: Diễn tập khôi phục
+
+on:
+  schedule:
+    # Mỗi tuần một lần là đủ: bài này canh cho CODE khôi phục khỏi mục, mà code
+    # chỉ đổi khi có người sửa nó.
+    - cron: "40 3 * * 1"
+  workflow_dispatch: {}
+  push:
+    # Và chạy ngay khi ai đó đụng vào một mắt xích của chuỗi khôi phục.
+    paths:
+      - "scripts/backup-db.mjs"
+      - "scripts/restore-db.mjs"
+      - "scripts/backup-drill.mjs"
+      - "src/db/migrations/**"
+      - ".github/workflows/backup-db.yml"
+      - ".github/workflows/restore-drill.yml"
+
+concurrency:
+  group: restore-drill-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  drill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Cài phụ thuộc
+        run: pnpm install --frozen-lockfile
+
+      - name: Diễn tập
+        run: node scripts/backup-drill.mjs

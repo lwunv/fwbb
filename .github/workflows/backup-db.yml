@@ -158,6 +158,9 @@ jobs:
           BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
         run: |
           test -n "$BACKUP_PASSPHRASE" || { echo "Thiếu BACKUP_PASSPHRASE"; exit 1; }
+          # Chữ ký của bản đọc được, giữ lại để bước sau đối chiếu. Bản thân
+          # chuỗi sha không tiết lộ nội dung gì.
+          sha256sum ./backup.json | cut -d' ' -f1 > ./backup.sha256
           openssl enc -aes-256-cbc -pbkdf2 -iter 300000 -salt \
             -in ./backup.json \
             -out "./fwbb-backup-$(date -u +%Y-%m-%d_%H-%M).json.enc" \
@@ -172,6 +175,30 @@ jobs:
           path: ./fwbb-backup-*.json.enc
           retention-days: 90
           if-no-files-found: error
+
+      - name: Mở lại bản mã hoá để chắc nó dùng được
+        # Đặt SAU bước cất, cố ý: dù bước này đỏ thì bản mã hoá vẫn nằm trong
+        # kho để còn mổ xẻ.
+        #
+        # Không có bước này thì "sao lưu thành công" chỉ nghĩa là openssl
+        # không báo lỗi lúc GHI. Thứ thật sự cần biết là file cất đi có mở lại
+        # ra đúng nội dung cũ không. Mật khẩu lưu sai, tham số lệch, file hỏng
+        # lúc ghi: cả ba chỉ lộ ra vào đúng ngày cần tới bản sao lưu, mà hôm
+        # đó thì không còn đường lùi.
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          enc=$(ls ./fwbb-backup-*.json.enc | head -1)
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 300000 \
+            -in "$enc" -out ./verify.json -pass env:BACKUP_PASSPHRASE
+          after=$(sha256sum ./verify.json | cut -d' ' -f1)
+          before=$(cat ./backup.sha256)
+          shred -u ./verify.json 2>/dev/null || rm -f ./verify.json
+          if [ "$before" != "$after" ]; then
+            echo "::error::Ban ma hoa KHONG mo lai ra dung noi dung ban dau."
+            exit 1
+          fi
+          echo "Mo lai duoc, noi dung khop."
 
       - name: Báo đỏ nếu việc nhân bản hỏng
         # Đặt CUỐI cùng, sau khi bản sao lưu đã nằm an toàn trong kho lưu trữ.
