@@ -188,12 +188,16 @@ jobs:
         env:
           BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
         run: |
+          # Xoá bản đọc được dù bước này đi ra lối nào. Không có `trap` thì
+          # khi openssl chết giữa chừng (mật khẩu sai), bash thoát ngay tại
+          # dòng đó và bỏ lại một file PII dạng đọc được trong thư mục làm
+          # việc, đúng vào lần chạy mà sau đó sẽ có người vào ngó nghiêng.
+          trap 'shred -u ./verify.json 2>/dev/null || rm -f ./verify.json' EXIT
           enc=$(ls ./fwbb-backup-*.json.enc | head -1)
           openssl enc -d -aes-256-cbc -pbkdf2 -iter 300000 \
             -in "$enc" -out ./verify.json -pass env:BACKUP_PASSPHRASE
           after=$(sha256sum ./verify.json | cut -d' ' -f1)
           before=$(cat ./backup.sha256)
-          shred -u ./verify.json 2>/dev/null || rm -f ./verify.json
           if [ "$before" != "$after" ]; then
             echo "::error::Ban ma hoa KHONG mo lai ra dung noi dung ban dau."
             exit 1
