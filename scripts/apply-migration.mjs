@@ -8,13 +8,27 @@
  *   3. Applies any unapplied migration SQL files, statement-by-statement.
  *   4. Records the hash + tag in __drizzle_migrations to keep journal in sync.
  *
- * Idempotent: safe to re-run. Wraps each migration in a transaction.
+ * Idempotent: safe to re-run. "Already applied" is matched on the file hash
+ * in either LF or CRLF form (see migration-hash.mjs).
+ *
+ * Usage: node scripts/apply-migration.mjs --env=<file> [--dry-run]
+ *   --env=<file>  REQUIRED. The default used to be .env.local (= PROD), which
+ *                 is too dangerous to leave implicit.
+ *   --dry-run     Print applied / WOULD APPLY per migration and execute
+ *                 nothing. The only statement run is CREATE TABLE IF NOT
+ *                 EXISTS __drizzle_migrations (a no-op when it exists).
  */
 
 import { config } from "dotenv";
-// Pass `--env=.env.prod` to apply to production. Default = .env.local (dev).
 const envArg = process.argv.find((a) => a.startsWith("--env="));
-const envPath = envArg ? envArg.slice("--env=".length) : ".env.local";
+const envPath = envArg ? envArg.slice("--env=".length) : "";
+const dryRun = process.argv.includes("--dry-run");
+if (!envPath) {
+  console.error(
+    "Missing --env=<file>. Refusing to guess a database: pass the env file explicitly (e.g. --env=.env.prod).",
+  );
+  process.exit(1);
+}
 const dotenvResult = config({ path: envPath, override: true });
 console.log(`Loaded env from ${envPath}`);
 // Fallback: some sandboxed shells filter env vars out of process.env after
@@ -24,7 +38,7 @@ const parsed = dotenvResult.parsed ?? {};
 import { createClient } from "@libsql/client";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { createHash } from "node:crypto";
+import { isMigrationApplied, recordHash } from "./migration-hash.mjs";
 
 const url = process.env.TURSO_DATABASE_URL || parsed.TURSO_DATABASE_URL;
 const authToken = process.env.TURSO_AUTH_TOKEN || parsed.TURSO_AUTH_TOKEN;
@@ -59,10 +73,14 @@ console.log(`Found ${appliedHashes.size} previously-applied migrations`);
 for (const entry of journal.entries) {
   const sqlPath = join(MIGRATIONS_DIR, `${entry.tag}.sql`);
   const sql = readFileSync(sqlPath, "utf8");
-  const hash = createHash("sha256").update(sql).digest("hex");
 
-  if (appliedHashes.has(hash)) {
+  if (isMigrationApplied(sql, appliedHashes)) {
     console.log(`  ✓ ${entry.tag} (already applied)`);
+    continue;
+  }
+
+  if (dryRun) {
+    console.log(`  → ${entry.tag} (WOULD APPLY)`);
     continue;
   }
 
@@ -98,10 +116,14 @@ for (const entry of journal.entries) {
 
   await client.execute({
     sql: "INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)",
-    args: [hash, Date.now()],
+    args: [recordHash(sql), Date.now()],
   });
   console.log(`  ✓ ${entry.tag} applied`);
 }
 
-console.log("\nAll migrations up to date.");
+console.log(
+  dryRun
+    ? "\nDry run: nothing was executed."
+    : "\nAll migrations up to date.",
+);
 client.close();

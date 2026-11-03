@@ -84,7 +84,8 @@ For any diff that rebuilds a table, before applying:
 ### 6. Apply to local/dev
 
 ```bash
-node scripts/apply-migration.mjs              # default env = .env.local = dev
+node scripts/apply-migration.mjs --env=.env.local --dry-run   # preview, executes nothing
+node scripts/apply-migration.mjs --env=.env.local             # .env.local points at PROD on this machine, check first
 ```
 
 What it does: ensures `__drizzle_migrations` exists, reads applied hashes, iterates `meta/_journal.json` entries in order, and for each unapplied `<tag>.sql` splits on `--> statement-breakpoint` and runs statements **one at a time** (not in one transaction — some libsql DDL won't run inside a tx). It swallows `already exists` / `duplicate column` errors so a partial migration can be re-run; any other error aborts. On success it records the file's sha256. **Idempotent — safe to re-run.**
@@ -95,7 +96,7 @@ What it does: ensures `__drizzle_migrations` exists, reads applied hashes, itera
 node scripts/apply-migration.mjs --env=.env.prod
 ```
 
-`apply-migration.mjs` is the only one of the three scripts that takes `--env=<path>`. Default (no flag) is `.env.local`. Pass `--env=.env.prod` to hit production. This mutates prod — do it deliberately, after the backup in step 1.
+`apply-migration.mjs` is the only one of the three scripts that takes `--env=<path>`. `--env` is now REQUIRED (the script exits 1 without it); there is no default. Add `--dry-run` first to see what WOULD APPLY. "Already applied" matches the file hash in LF or CRLF form. This mutates prod — do it deliberately, after the backup in step 1.
 
 ### 8. Verify the schema + indexes survived
 
@@ -138,7 +139,7 @@ ORDER BY name;
 - [ ] Ran `pnpm db:generate`.
 - [ ] Reviewed the generated `.sql`: DDL only, no seed/business INSERT.
 - [ ] Recreate-table? Wrapped in `PRAGMA foreign_keys=OFF/ON` and moved all `CREATE INDEX` to after the `RENAME`.
-- [ ] Applied to local (`node scripts/apply-migration.mjs`) and it passed.
+- [ ] Applied to local (`node scripts/apply-migration.mjs --env=<local env file>`) and it passed.
 - [ ] Applied to prod (`node scripts/apply-migration.mjs --env=.env.prod`) deliberately.
 - [ ] Ran `node scripts/verify-migration.mjs` (exit 0).
 - [ ] Queried `sqlite_master` on prod for every index of each recreated table, incl. the partial UNIQUE `idx_financial_transactions_idempotency_key`.

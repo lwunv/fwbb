@@ -263,7 +263,7 @@ xứng với một app nhóm cầu lông. Thay vào đó là một quy trình ng
 
 1. Tải bản sao lưu mới nhất từ tab Actions, giải mã.
 2. Dựng một database libsql mới ở đâu đó và chạy migration cho nó
-   (`node scripts/apply-migration.mjs`, nhớ trỏ đúng đích).
+   (`node scripts/apply-migration.mjs --env=<file env của đích>`, bắt buộc có `--env`).
 3. Khôi phục, truyền token của đích qua biến môi trường (không đặt trong
    dòng lệnh để nó không nằm lại trong lịch sử shell):
    ```bash
