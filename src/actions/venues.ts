@@ -22,6 +22,7 @@ import { toPublicVenue, type PublicVenue } from "@/lib/public-venue";
 import { VENUE_AMENITIES, type VenueStatus } from "@/lib/venue-amenities";
 import { geocodeNominatim } from "@/lib/nominatim";
 import { getTrustedClientIp } from "@/lib/client-ip";
+import { ipRateLimitKey } from "@/lib/ip-rate-limit-key";
 
 /** Sân cách nhau dưới mức này coi là có thể trùng. */
 const DUPLICATE_RADIUS_M = 100;
@@ -321,24 +322,6 @@ const geocodeCached = unstable_cache(
 
 const GEOCODE_LIMIT_PER_MIN = 10;
 const GEOCODE_GLOBAL_PER_MIN = 60;
-
-/**
- * Khoá rate limit theo IP. IPv6 gom theo dải /64: một máy thường có cả dải
- * /64, xoay địa chỉ trong đó là miễn phí nên giới hạn theo /128 vô nghĩa.
- */
-function ipRateLimitKey(ip: string): string {
-  if (!ip.includes(":")) return ip;
-  const [head, tail = ""] = ip.toLowerCase().split("::");
-  const h = head ? head.split(":") : [];
-  const tl = tail ? tail.split(":") : [];
-  const groups = ip.includes("::")
-    ? [...h, ...Array(Math.max(0, 8 - h.length - tl.length)).fill("0"), ...tl]
-    : h;
-  return `${groups
-    .slice(0, 4)
-    .map((g) => g.replace(/^0+(?=.)/, ""))
-    .join(":")}::/64`;
-}
 
 /**
  * Đường lùi khi người dùng từ chối GPS: gõ địa chỉ/khu vực để lấy toạ độ.
