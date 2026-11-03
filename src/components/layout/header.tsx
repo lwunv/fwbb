@@ -25,19 +25,17 @@ export function Header({
       <div className="flex h-14 items-center justify-between gap-2 px-4">
         <div className="flex min-w-0 items-center gap-1">
           {showMenu && <NavDrawer />}
-          <Link href="/" className="flex min-w-0 items-center">
-            {/* Logo chữ (wordmark) đã có sẵn tên "Friends With Beer & Badminton"
-                nên KHÔNG kèm span tên nữa (tránh lặp). Dùng asset riêng cho
-                header; các chỗ khác (login, nav, sidebar) vẫn dùng badge vuông
-                /fwbb.svg vì banner ngang nhét vào đó sẽ vỡ layout. `max-w` +
-                `object-contain` để banner rộng không đẩy nút bên phải trên máy
-                hẹp. */}
+          <Link href="/" className="flex min-w-0 items-center gap-2">
+            {/* Logo monogram FWB (nền trong suốt) dùng asset riêng cho header:
+                các chỗ khác (login, nav, sidebar) vẫn dùng badge tròn /fwbb.svg.
+                Monogram không có chữ tên nên vẫn kèm span "FWBB". */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/fwbb-wordmark.svg"
               alt={appName}
-              className="h-8 w-auto max-w-[62vw] shrink object-contain sm:max-w-[320px]"
+              className="h-8 w-auto shrink-0"
             />
+            <span className="truncate text-lg font-bold">{appName}</span>
           </Link>
         </div>
         <div className="flex items-center gap-1" data-tour="header-prefs">
