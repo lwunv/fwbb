@@ -45,6 +45,9 @@ export async function generateMetadata(): Promise<Metadata> {
       // trình duyệt bật ra là một ngữ cảnh khác. Đổi hành vi đó chỉ để sửa một
       // cái nhãn là không đáng.
       "apple-mobile-web-app-title": "FWBB",
+      // Zalo xác thực quyền sở hữu tên miền trước khi cho bật đăng nhập bằng
+      // Zalo. Mã này công khai theo thiết kế (Zalo đọc từ HTML trang chủ).
+      "zalo-platform-site-verification": "EDo30DtZ224yp8SB_-CCKHoIedlmv7aWDpav",
     },
   };
 }
