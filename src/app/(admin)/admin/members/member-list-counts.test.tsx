@@ -82,6 +82,7 @@ function member(id: number, name: string, isActive = true): Member {
     mustChangePassword: false,
     bankAccountNo: null,
     approvalStatus: "approved",
+    signupIntent: "group",
     approvedAt: null,
     approvedBy: null,
     isActive,

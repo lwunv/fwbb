@@ -1,0 +1,1 @@
+ALTER TABLE `members` ADD `signup_intent` text DEFAULT 'group' NOT NULL;

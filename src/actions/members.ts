@@ -111,6 +111,8 @@ export async function getActiveMembers() {
     passwordResetExpiresAt: null,
     mustChangePassword: false,
     approvalStatus: "approved" as const,
+    // Payload công khai: không lộ ý định đăng ký, trả giá trị mặc định.
+    signupIntent: "group" as const,
     approvedAt: null,
     approvedBy: null,
     // Giới tính KHÔNG được nạp từ DB ở đây và luôn trả null. Đây là payload đi

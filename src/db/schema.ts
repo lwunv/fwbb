@@ -86,6 +86,13 @@ export const members = sqliteTable(
     })
       .notNull()
       .default("approved"),
+    /** Ý định lúc đăng ký: "group" = xin vào nhóm, "exchange" = chỉ dùng vùng
+     *  giao lưu. Chỉ có nghĩa khi approvalStatus = "pending"; admin duyệt xong
+     *  thì cột này không còn được đọc. Enum giữ ở TS (không CHECK) để
+     *  drizzle-kit không sinh recreate-table. */
+    signupIntent: text("signup_intent", { enum: ["group", "exchange"] })
+      .notNull()
+      .default("group"),
     approvedAt: text("approved_at"),
     /** admin.id of approver. NULL cho row legacy (đã approved trước khi feature
      *  này tồn tại). */

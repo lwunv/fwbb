@@ -553,6 +553,7 @@ export function MemberList({
       mustChangePassword: false,
       bankAccountNo: null,
       approvalStatus: "approved",
+      signupIntent: "group",
       approvedAt: null,
       approvedBy: null,
       isActive: true,
