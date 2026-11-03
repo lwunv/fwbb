@@ -25,7 +25,7 @@ test.describe("admin menus render (authenticated, read-only)", () => {
       await expectNoAppError(page);
       // Sidebar admin layout render được = page không vỡ.
       await expect(
-        page.getByRole("heading", { name: "FWBB Admin" }),
+        page.getByRole("heading", { name: "Admin", exact: true }),
       ).toBeVisible({ timeout: 10_000 });
     });
   }
