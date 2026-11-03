@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { GENDERS } from "./gender";
+import { VN_BOUNDS } from "./geo";
+import { VENUE_AMENITIES } from "./venue-amenities";
 
 export const loginSchema = z.object({
   username: z.string().min(1, "Bat buoc"),
@@ -31,6 +33,45 @@ export const courtSchema = z.object({
   pricePerSession: moneyVnd,
   pricePerSessionRetail: moneyVnd.optional(),
 });
+
+const httpUrl = z
+  .string()
+  .url()
+  .max(2000)
+  .refine((u) => /^https?:\/\//i.test(u), "Link phải bắt đầu bằng http(s)://");
+
+/**
+ * Đề xuất sân vào danh bạ. Phải có `mapLink` hoặc cặp `lat`+`lng`; toạ độ giới
+ * hạn trong khung VN (chặn toạ độ bị đảo lat/lng). Link chỉ http(s) — cùng lý
+ * do XSS như `courtSchema.mapLink`.
+ */
+export const venueSubmitSchema = z
+  .object({
+    name: z.string().trim().min(1, "Tên sân không được để trống").max(100),
+    address: z.string().trim().max(500).optional(),
+    mapLink: httpUrl.optional().or(z.literal("")),
+    lat: z.number().min(VN_BOUNDS.minLat).max(VN_BOUNDS.maxLat).optional(),
+    lng: z.number().min(VN_BOUNDS.minLng).max(VN_BOUNDS.maxLng).optional(),
+    courtCount: z.number().int().min(1).max(50).optional(),
+    openHours: z.string().trim().max(100).optional(),
+    amenities: z
+      .array(z.enum(VENUE_AMENITIES))
+      .refine((a) => new Set(a).size === a.length, "Tiện ích bị trùng")
+      .default([]),
+    phone: z
+      .string()
+      .trim()
+      .max(20)
+      .regex(/^[0-9+ ]*$/, "Số điện thoại không hợp lệ")
+      .optional(),
+    refPricePerHour: moneyVnd.optional(),
+    photoLink: httpUrl.optional().or(z.literal("")),
+    confirmDuplicate: z.boolean().default(false),
+  })
+  .refine((v) => !!v.mapLink || (v.lat !== undefined && v.lng !== undefined), {
+    message: "Cần link Google Maps hoặc toạ độ",
+    path: ["mapLink"],
+  });
 
 export const brandSchema = z.object({
   name: z.string().min(1, "Ten hang khong duoc de trong").max(100),

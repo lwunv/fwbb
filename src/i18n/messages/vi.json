@@ -1200,6 +1200,8 @@
     "defaultDescription": "Trả tiền sân tháng {month}/{year}"
   },
   "serverErrors": {
+    "venueNoCoordinates": "Không lấy được toạ độ từ link. Hãy mở Google Maps, bấm Chia sẻ rồi dán lại, hoặc nhập toạ độ.",
+    "venueOutsideVietnam": "Toạ độ nằm ngoài Việt Nam. Kiểm tra lại link hoặc thứ tự vĩ độ, kinh độ.",
     "missingFields": "Vui lòng nhập đầy đủ thông tin",
     "tooManyLoginAttempts": "Quá nhiều lần đăng nhập, thử lại sau {seconds}s",
     "tooManyResetRequests": "Bạn đã yêu cầu quá nhiều lần. Thử lại sau {seconds} giây.",

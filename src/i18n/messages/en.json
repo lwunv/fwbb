@@ -1200,6 +1200,8 @@
     "defaultDescription": "Court rent payment {month}/{year}"
   },
   "serverErrors": {
+    "venueNoCoordinates": "Could not read coordinates from the link. Open Google Maps, tap Share and paste it again, or enter the coordinates.",
+    "venueOutsideVietnam": "The coordinates are outside Vietnam. Check the link or the latitude and longitude order.",
     "missingFields": "Please fill in all required fields",
     "tooManyLoginAttempts": "Too many login attempts, try again in {seconds}s",
     "tooManyResetRequests": "Too many reset requests, try again in {seconds}s",
