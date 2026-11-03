@@ -1210,6 +1210,7 @@
     "venueNotFound": "Venue not found",
     "missingFields": "Please fill in all required fields",
     "tooManyLoginAttempts": "Too many login attempts, try again in {seconds}s",
+    "securityCheckFailed": "Security check failed. Please reload the page and try again.",
     "tooManyResetRequests": "Too many reset requests, try again in {seconds}s",
     "tooManyChangePassword": "Too many password change attempts, try again in {seconds}s",
     "tooManyActions": "Too many actions, try again in {seconds}s",

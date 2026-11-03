@@ -3,7 +3,7 @@
  * tại để các task sau (thêm đăng nhập Zalo, tài khoản giao lưu) không làm đổi
  * luồng cũ. Test mô tả code đang chạy, nên xanh ngay khi viết.
  */
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
 import { members, memberOauthIdentities } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -34,6 +34,19 @@ const googleClaims = vi.hoisted(() => ({
 vi.mock("@/lib/google-verify", () => ({
   verifyGoogleIdToken: vi.fn(async () => googleClaims.current),
 }));
+
+// Cờ giao lưu và Turnstile do test điều khiển (các case cũ không gọi tới).
+const exchange = vi.hoisted(() => ({
+  enabled: false,
+  verifyTurnstile: vi.fn(async () => ({ ok: true }) as { ok: boolean }),
+}));
+vi.mock("@/lib/exchange-flag", () => ({
+  isExchangeEnabled: vi.fn(async () => exchange.enabled),
+}));
+vi.mock("@/lib/turnstile", () => ({
+  verifyTurnstile: exchange.verifyTurnstile,
+}));
+const googleVerify = await import("@/lib/google-verify");
 
 const { db: testDb, client } = await createTestDb();
 vi.mock("@/db", () => ({ db: testDb }));
@@ -104,6 +117,107 @@ describe("googleLogin (hành vi hiện tại)", () => {
     expect(rows[0].approvalStatus).toBe("approved"); // không bị hạ về pending
     expect(await allIdentities()).toHaveLength(1);
     expect(userMock.setUserCookie).toHaveBeenCalledWith(m.id, `g:${SUB}`);
+  });
+});
+
+describe("googleLogin với intent giao lưu (g2a, Task 9)", () => {
+  beforeEach(async () => {
+    await reset();
+    exchange.enabled = true;
+    exchange.verifyTurnstile.mockReset();
+    exchange.verifyTurnstile.mockResolvedValue({ ok: true });
+    vi.mocked(googleVerify.verifyGoogleIdToken).mockClear();
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://fwbb.example.com");
+  });
+  afterEach(() => {
+    exchange.enabled = false;
+    vi.unstubAllEnvs();
+  });
+
+  const bucketCount = async () =>
+    (await client.execute("SELECT COUNT(*) AS n FROM rate_limit_buckets"))
+      .rows[0].n;
+
+  it("cờ bật + Turnstile ok + sub mới → member signup_intent=exchange", async () => {
+    const r = await googleLogin(TOKEN, {
+      intent: "exchange",
+      turnstileToken: "ts-token",
+    });
+    expect(r).toEqual({ success: true, memberName: "Gia Lâm" });
+    expect(exchange.verifyTurnstile).toHaveBeenCalledWith("ts-token", {
+      action: "google_login",
+      remoteIp: undefined,
+      expectedHostname: "fwbb.example.com",
+    });
+    const rows = await allMembers();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      signupIntent: "exchange",
+      approvalStatus: "pending",
+    });
+  });
+
+  it("Turnstile hỏng → { error }, không tạo member, không verify Google, không ghi rate_limit_buckets", async () => {
+    exchange.verifyTurnstile.mockResolvedValue({ ok: false });
+    const r = await googleLogin(TOKEN, {
+      intent: "exchange",
+      turnstileToken: "bad",
+    });
+    expect(r).toEqual({ error: "securityCheckFailed" });
+    expect(await allMembers()).toHaveLength(0);
+    expect(googleVerify.verifyGoogleIdToken).not.toHaveBeenCalled();
+    expect(await bucketCount()).toBe(0);
+    expect(userMock.setUserCookie).not.toHaveBeenCalled();
+  });
+
+  it("thiếu NEXT_PUBLIC_APP_URL → { error } fail-closed, không gọi Turnstile", async () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "");
+    const r = await googleLogin(TOKEN, {
+      intent: "exchange",
+      turnstileToken: "ts-token",
+    });
+    expect(r).toEqual({ error: "securityCheckFailed" });
+    expect(exchange.verifyTurnstile).not.toHaveBeenCalled();
+    expect(await allMembers()).toHaveLength(0);
+    expect(await bucketCount()).toBe(0);
+  });
+
+  it("cờ tắt → bỏ qua intent, tạo member group như cũ, không đòi Turnstile", async () => {
+    exchange.enabled = false;
+    const r = await googleLogin(TOKEN, { intent: "exchange" });
+    expect(r).toEqual({ success: true, memberName: "Gia Lâm" });
+    expect(exchange.verifyTurnstile).not.toHaveBeenCalled();
+    const rows = await allMembers();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].signupIntent).toBe("group");
+  });
+
+  it("sub đã có → không đổi signup_intent và approval_status", async () => {
+    const [m] = await testDb
+      .insert(members)
+      .values({
+        name: "Gia Lâm",
+        googleId: SUB,
+        approvalStatus: "approved",
+        signupIntent: "group",
+      })
+      .returning({ id: members.id });
+    await testDb
+      .insert(memberOauthIdentities)
+      .values({ memberId: m.id, provider: "google", providerUid: SUB });
+
+    const r = await googleLogin(TOKEN, {
+      intent: "exchange",
+      turnstileToken: "ts-token",
+    });
+    expect(r).toEqual({ success: true, memberName: "Gia Lâm" });
+    const rows = await allMembers();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      id: m.id,
+      signupIntent: "group",
+      approvalStatus: "approved",
+    });
   });
 });
 

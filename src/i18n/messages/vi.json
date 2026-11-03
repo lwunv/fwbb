@@ -1210,6 +1210,7 @@
     "venueNotFound": "Không tìm thấy sân",
     "missingFields": "Vui lòng nhập đầy đủ thông tin",
     "tooManyLoginAttempts": "Quá nhiều lần đăng nhập, thử lại sau {seconds}s",
+    "securityCheckFailed": "Kiểm tra bảo mật không đạt. Hãy tải lại trang và thử lại.",
     "tooManyResetRequests": "Bạn đã yêu cầu quá nhiều lần. Thử lại sau {seconds} giây.",
     "tooManyChangePassword": "Quá nhiều lần đổi mật khẩu, thử lại sau {seconds}s",
     "tooManyActions": "Quá nhiều thao tác, thử lại sau {seconds}s",

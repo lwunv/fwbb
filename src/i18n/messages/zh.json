@@ -1210,6 +1210,7 @@
     "venueNotFound": "找不到该场馆",
     "missingFields": "请填写完整信息",
     "tooManyLoginAttempts": "登录尝试次数过多,{seconds} 秒后重试",
+    "securityCheckFailed": "安全验证未通过,请刷新页面后重试。",
     "tooManyResetRequests": "重置请求次数过多,{seconds} 秒后重试",
     "tooManyChangePassword": "修改密码次数过多,{seconds} 秒后重试",
     "tooManyActions": "操作过于频繁,{seconds} 秒后重试",

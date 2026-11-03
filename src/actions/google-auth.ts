@@ -14,8 +14,25 @@ import {
   oauthLinkState,
 } from "@/lib/oauth-identity";
 import { verifyGoogleIdToken } from "@/lib/google-verify";
+import { isExchangeEnabled } from "@/lib/exchange-flag";
+import { verifyTurnstile } from "@/lib/turnstile";
 
-export async function googleLogin(idToken: string) {
+/** Turnstile action của widget Google trên trang đăng nhập giao lưu. */
+const GOOGLE_TURNSTILE_ACTION = "google_login";
+
+export type GoogleLoginOptions = {
+  /** Chỉ trang đăng nhập giao lưu truyền; bị bỏ qua khi cờ giao lưu tắt. */
+  intent?: "exchange";
+  turnstileToken?: string;
+};
+
+/**
+ * Đăng nhập/đăng ký bằng Google. Gọi không `opts` là luồng của nhóm như cũ.
+ * `opts.intent = "exchange"` (khi cờ giao lưu bật) đòi Turnstile trước rate
+ * limit và ghi `signupIntent = "exchange"` cho member MỚI; member đã có giữ
+ * nguyên `signupIntent` và `approvalStatus`.
+ */
+export async function googleLogin(idToken: string, opts?: GoogleLoginOptions) {
   if (
     typeof idToken !== "string" ||
     idToken.length < 16 ||
@@ -24,8 +41,38 @@ export async function googleLogin(idToken: string) {
     return { error: "Invalid Google ID token" };
   }
 
-  // 10 Google login attempts per IP per 5 minutes
+  // Đọc cờ chỉ khi client xin intent giao lưu, để luồng cũ không thêm lần đọc nào.
+  const isExchange = opts?.intent === "exchange" && (await isExchangeEnabled());
+
   const ip = await getTrustedClientIp();
+
+  if (isExchange) {
+    // Fail-closed: thiếu/hỏng NEXT_PUBLIC_APP_URL thì không kiểm được hostname.
+    let expectedHostname: string;
+    try {
+      expectedHostname = new URL(process.env.NEXT_PUBLIC_APP_URL as string)
+        .hostname;
+    } catch {
+      console.error("[GoogleAuth] config", {
+        invalid: ["NEXT_PUBLIC_APP_URL"],
+      });
+      const t = await getTranslations("serverErrors");
+      return { error: t("securityCheckFailed") };
+    }
+    // Turnstile đứng trước rate limit: rate limit ghi DB, request chưa qua
+    // captcha không được ghi gì. Không trả lý do của Cloudflare cho người dùng.
+    const captcha = await verifyTurnstile(opts?.turnstileToken ?? null, {
+      action: GOOGLE_TURNSTILE_ACTION,
+      remoteIp: ip !== "unknown" ? ip : undefined,
+      expectedHostname,
+    });
+    if (!captcha.ok) {
+      const t = await getTranslations("serverErrors");
+      return { error: t("securityCheckFailed") };
+    }
+  }
+
+  // 10 Google login attempts per IP per 5 minutes
   const rl = await checkRateLimit(`google-login:${ip}`, 10, 5 * 60_000);
   if (!rl.ok) {
     const t = await getTranslations("serverErrors");
@@ -81,6 +128,7 @@ export async function googleLogin(idToken: string) {
 
     await setUserCookie(existing.id, `g:${claims.sub}`);
     revalidatePath("/");
+    if (isExchange) revalidatePath("/giao-luu");
     return { success: true, memberName: existing.name };
   }
 
@@ -116,6 +164,7 @@ export async function googleLogin(idToken: string) {
       email: emailToWrite,
       avatarUrl: claims.picture ?? null,
       approvalStatus: "pending",
+      signupIntent: isExchange ? "exchange" : "group",
     })
     .returning();
 
@@ -127,6 +176,7 @@ export async function googleLogin(idToken: string) {
   });
   await setUserCookie(newMember.id, `g:${claims.sub}`);
   revalidatePath("/");
+  if (isExchange) revalidatePath("/giao-luu");
   return { success: true, memberName: newMember.name };
 }
 
