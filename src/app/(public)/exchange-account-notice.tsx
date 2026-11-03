@@ -6,11 +6,12 @@ import { motion } from "framer-motion";
 import { Handshake, LogOut } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { JoinGroupButton } from "@/app/(exchange)/giao-luu/join-group-button";
 
 /**
  * Màn của tài khoản giao lưu (đăng ký để đi giao lưu, chưa vào nhóm) khi mở
- * trang của nhóm. Chỉ chỉ đường về vùng giao lưu và cho đăng xuất; không lộ
- * dữ liệu nhóm. Nút xin vào nhóm do Task 11 thêm.
+ * trang của nhóm. Chỉ chỉ đường về vùng giao lưu, cho xin vào nhóm và đăng
+ * xuất; không lộ dữ liệu nhóm.
  */
 export function ExchangeAccountNotice({ memberName }: { memberName: string }) {
   const t = useTranslations("exchangeNotice");
@@ -32,7 +33,9 @@ export function ExchangeAccountNotice({ memberName }: { memberName: string }) {
             </h1>
             <p className="text-muted-foreground text-base">{t("body")}</p>
           </div>
+          <JoinGroupButton />
           <Button
+            variant="outline"
             className="min-h-11 w-full text-base"
             render={<Link href="/giao-luu" />}
           >

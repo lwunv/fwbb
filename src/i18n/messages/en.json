@@ -969,6 +969,43 @@
     "goExchange": "Go to exchange page",
     "logout": "Log out"
   },
+  "exchange": {
+    "title": "Exchange",
+    "intro": "Meet new players, find courts near you and play together.",
+    "emptyTitle": "Exchange games coming soon",
+    "emptyBody": "There are no games yet. In the meantime, take a look at the courts nearby.",
+    "viewVenues": "See courts nearby",
+    "loginCta": "Log in to join in",
+    "accountTitle": "Hi {name}",
+    "accountBody": "This account is for exchange games. To play with the group, send a request and an admin will review it.",
+    "accountAlt": "Profile photo of {name}",
+    "joinGroup": "Request to join the group",
+    "joinGroupSent": "Sent, waiting for admin approval",
+    "logout": "Log out",
+    "loggedOut": "Logged out"
+  },
+  "exchangeLogin": {
+    "title": "Log in to join in",
+    "subtitle": "Use Zalo or Google. You don't need to be a group member.",
+    "zalo": "Log in with Zalo",
+    "orDivider": "or",
+    "checking": "Running the security check, please wait a moment.",
+    "googleNeedsCheck": "The security check isn't finished yet. Wait a moment, then tap Google again.",
+    "back": "Back to exchange",
+    "errors": {
+      "origin": "That request wasn't valid. Reload the page and try again.",
+      "config": "Login isn't fully set up yet. Please try again later.",
+      "captcha": "The security check didn't pass. Please try again.",
+      "rate": "Too many attempts. Wait a few minutes and try again.",
+      "state": "Your login session expired. Tap log in again.",
+      "denied": "You cancelled the Zalo login.",
+      "exchange": "Zalo couldn't confirm the login. Please try again.",
+      "profile": "We couldn't get your Zalo profile. Try again or use Google.",
+      "region": "Zalo login is temporarily unavailable, please use Google",
+      "blocked": "This account can't log in. Contact an admin if you need help.",
+      "server": "Something went wrong. Please try again later."
+    }
+  },
   "forceChangePassword": {
     "title": "Set a new password",
     "body": "An admin just reset your password. Set a new one to continue using the app.",

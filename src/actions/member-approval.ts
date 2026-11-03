@@ -10,6 +10,8 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { getTranslations } from "next-intl/server";
 import { mergeMember } from "@/actions/members";
 import { foldOAuthIntoTarget } from "@/lib/oauth-identity";
+import { isExchangeEnabled } from "@/lib/exchange-flag";
+import { requireExchangeMember } from "@/lib/member-auth";
 
 /** Helper: normalize Vietnamese name for fuzzy matching (lowercase + strip
  *  diacritics + collapse whitespace). Đủ cho UX gợi ý, không phải search engine. */
@@ -469,6 +471,44 @@ export { mergeMember };
  */
 export async function pendingLogout() {
   await clearUserCookie();
+  revalidatePath("/");
+  return { success: true };
+}
+
+/**
+ * Tài khoản giao lưu xin vào nhóm: đổi `signupIntent` "exchange" → "group" để
+ * member hiện trong hàng chờ của admin. KHÔNG duyệt ai (vẫn `pending`) và
+ * không đụng người đã vào nhóm, nên gọi lại hay gọi trên tài khoản đã duyệt
+ * đều trả success mà không ghi.
+ */
+export async function requestGroupMembership(): Promise<
+  { success: true } | { error: string }
+> {
+  if (!(await isExchangeEnabled())) return { error: "Tính năng chưa mở" };
+
+  const auth = await requireExchangeMember();
+  if ("error" in auth) return auth;
+  const { member } = auth;
+
+  // Cùng kiểu với updatePendingProfile: người chờ duyệt không được ghi không
+  // giới hạn (mỗi lần ghi còn xoá cache trang admin).
+  const rl = await checkRateLimit(`join-group:${member.id}`, 10, 60_000);
+  if (!rl.ok) return { error: "Thao tác quá nhanh, thử lại sau." };
+
+  if (member.approvalStatus !== "pending") return { success: true };
+  if (member.signupIntent === "group") return { success: true };
+
+  // WHERE lặp lại điều kiện đã đọc: nếu admin vừa duyệt/từ chối giữa chừng thì
+  // câu lệnh không khớp dòng nào thay vì ghi đè trạng thái mới.
+  await db
+    .update(members)
+    .set({ signupIntent: "group" })
+    .where(
+      and(eq(members.id, member.id), eq(members.approvalStatus, "pending")),
+    );
+
+  revalidatePath("/admin/members");
+  revalidatePath("/giao-luu");
   revalidatePath("/");
   return { success: true };
 }

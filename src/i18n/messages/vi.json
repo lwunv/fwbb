@@ -969,6 +969,43 @@
     "goExchange": "Về trang giao lưu",
     "logout": "Đăng xuất"
   },
+  "exchange": {
+    "title": "Giao lưu",
+    "intro": "Gặp người chơi mới, tìm sân quanh bạn và đi giao lưu cùng nhau.",
+    "emptyTitle": "Buổi giao lưu sắp có",
+    "emptyBody": "Hiện chưa có buổi nào. Trong lúc chờ, bạn xem thử các sân quanh đây nhé.",
+    "viewVenues": "Xem sân quanh đây",
+    "loginCta": "Đăng nhập để giao lưu",
+    "accountTitle": "Chào {name}",
+    "accountBody": "Tài khoản này dùng để đi giao lưu. Muốn chơi cùng nhóm, bạn gửi yêu cầu để admin duyệt.",
+    "accountAlt": "Ảnh đại diện của {name}",
+    "joinGroup": "Xin vào nhóm",
+    "joinGroupSent": "Đã gửi, chờ admin duyệt",
+    "logout": "Đăng xuất",
+    "loggedOut": "Đã đăng xuất"
+  },
+  "exchangeLogin": {
+    "title": "Đăng nhập để giao lưu",
+    "subtitle": "Dùng Zalo hoặc Google. Bạn không cần là thành viên của nhóm.",
+    "zalo": "Đăng nhập bằng Zalo",
+    "orDivider": "hoặc",
+    "checking": "Đang kiểm tra bảo mật, bạn chờ một chút.",
+    "googleNeedsCheck": "Bước kiểm tra bảo mật chưa xong. Bạn chờ một chút rồi bấm Google lần nữa.",
+    "back": "Về trang giao lưu",
+    "errors": {
+      "origin": "Yêu cầu không hợp lệ. Bạn tải lại trang rồi thử lại nhé.",
+      "config": "Đăng nhập chưa được cài đặt xong. Bạn thử lại sau nhé.",
+      "captcha": "Chưa qua bước kiểm tra bảo mật. Bạn thử lại nhé.",
+      "rate": "Bạn thử quá nhiều lần. Hãy chờ vài phút rồi thử lại.",
+      "state": "Phiên đăng nhập đã hết hạn. Bạn bấm đăng nhập lại nhé.",
+      "denied": "Bạn đã hủy đăng nhập Zalo.",
+      "exchange": "Zalo chưa xác nhận được đăng nhập. Bạn thử lại nhé.",
+      "profile": "Chưa lấy được thông tin tài khoản Zalo. Bạn thử lại hoặc dùng Google.",
+      "region": "Đăng nhập Zalo tạm thời không dùng được, hãy dùng Google",
+      "blocked": "Tài khoản này không đăng nhập được. Liên hệ admin nếu bạn cần hỗ trợ.",
+      "server": "Có lỗi xảy ra. Bạn thử lại sau nhé."
+    }
+  },
   "forceChangePassword": {
     "title": "Đặt mật khẩu mới",
     "body": "Admin vừa đặt lại mật khẩu cho bạn. Hãy đặt mật khẩu mới để tiếp tục dùng ứng dụng.",
