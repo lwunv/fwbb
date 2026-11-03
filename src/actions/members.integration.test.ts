@@ -20,6 +20,7 @@ import {
   members,
   financialTransactions,
   passwordResetTokens,
+  memberOauthIdentities,
 } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 
@@ -39,8 +40,13 @@ vi.mock("@/lib/mailer", () => mailerMock);
 const { db: testDb, client } = await createTestDb();
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { toggleMemberActive, findDuplicateMembers, updateMember, createMember } =
-  await import("./members");
+const {
+  toggleMemberActive,
+  findDuplicateMembers,
+  updateMember,
+  createMember,
+  mergeMember,
+} = await import("./members");
 const { getFundBalance } = await import("@/lib/fund-calculator");
 
 async function reset() {
@@ -639,5 +645,71 @@ describe("createMember: gửi mail mời đặt mật khẩu (2026-07-21)", () =
     const m = await byName("Không Mail Mời");
     expect(await tokensFor(m!.id)).toHaveLength(0);
     expect(mailerMock.sendInviteEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe("tài khoản giao lưu (g2a)", () => {
+  beforeEach(async () => {
+    await reset();
+    await client.execute("DELETE FROM member_oauth_identities");
+    await client.execute("DELETE FROM members");
+    await seedAdmin();
+  });
+
+  async function seedExchange(name: string) {
+    const [m] = await testDb
+      .insert(members)
+      .values({ name, approvalStatus: "pending", signupIntent: "exchange" })
+      .returning({ id: members.id });
+    return m.id;
+  }
+
+  it("findDuplicateMembers bỏ qua tài khoản giao lưu trùng tên member approved", async () => {
+    await seedMember("Trùng Tên");
+    await seedExchange("trùng tên");
+    expect(await findDuplicateMembers()).toEqual([]);
+  });
+
+  it("findDuplicateMembers vẫn bắt pending nhóm trùng tên như cũ", async () => {
+    await seedMember("Trùng Tên");
+    await testDb.insert(members).values({
+      name: "Trùng Tên",
+      approvalStatus: "pending",
+      signupIntent: "group",
+    });
+    const dups = await findDuplicateMembers();
+    expect(dups).toHaveLength(1);
+    expect(dups[0].members).toHaveLength(2);
+  });
+
+  it("mergeMember từ chối khi nguồn là tài khoản giao lưu, không chuyển identity", async () => {
+    const targetId = await seedMember("Đích");
+    const sourceId = await seedExchange("Nguồn giao lưu");
+    await testDb.insert(memberOauthIdentities).values({
+      memberId: sourceId,
+      provider: "zalo",
+      providerUid: "zalo-src",
+    });
+
+    const r = await mergeMember(sourceId, targetId);
+    expect("error" in r).toBe(true);
+
+    const ids = await testDb.query.memberOauthIdentities.findMany({
+      where: eq(memberOauthIdentities.providerUid, "zalo-src"),
+    });
+    expect(ids[0].memberId).toBe(sourceId);
+    expect(
+      await testDb.query.members.findFirst({ where: eq(members.id, sourceId) }),
+    ).toBeDefined();
+  });
+
+  it("mergeMember từ chối khi đích là tài khoản giao lưu", async () => {
+    const sourceId = await seedMember("Nguồn");
+    const targetId = await seedExchange("Đích giao lưu");
+    const r = await mergeMember(sourceId, targetId);
+    expect("error" in r).toBe(true);
+    expect(
+      await testDb.query.members.findFirst({ where: eq(members.id, sourceId) }),
+    ).toBeDefined();
   });
 });

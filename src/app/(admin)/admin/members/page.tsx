@@ -7,9 +7,19 @@ import { getAllDebts } from "@/actions/finance";
 import { getMemberPlayStats } from "@/actions/stats";
 import { db } from "@/db";
 import { financialTransactions, members as membersTable } from "@/db/schema";
-import { eq, inArray, asc, and } from "drizzle-orm";
+import { eq, inArray, and } from "drizzle-orm";
 import { computeBalancesForMembers } from "@/lib/fund-core";
 import { getNameMatchesBatch } from "@/actions/member-approval";
+import { isExchangeEnabled } from "@/lib/exchange-flag";
+import {
+  loadPendingGroupRows,
+  loadIdentityProviders,
+  splitExchangeAccounts,
+} from "./pending-queue";
+import {
+  ExchangeAccountsSection,
+  type ExchangeAccount,
+} from "./exchange-accounts-section";
 import { MemberList } from "./member-list";
 import { DuplicateMembersBanner } from "./duplicate-members-banner";
 import {
@@ -19,13 +29,14 @@ import {
 
 export default async function MembersPage() {
   const [
-    members,
+    allMembers,
     allDebts,
     currentAdminMemberId,
     dupGroups,
     fundMemberRows,
     pendingRows,
     playStats,
+    exchangeEnabled,
   ] = await Promise.all([
     getMembers(),
     getAllDebts(),
@@ -38,12 +49,15 @@ export default async function MembersPage() {
       ),
       columns: { id: true },
     }),
-    db.query.members.findMany({
-      where: eq(membersTable.approvalStatus, "pending"),
-      orderBy: [asc(membersTable.createdAt)],
-    }),
+    loadPendingGroupRows(),
     getMemberPlayStats(),
+    isExchangeEnabled(),
   ]);
+
+  // Tài khoản giao lưu (pending + exchange) ra khỏi danh sách chính, số dư và
+  // số đếm; chúng chỉ hiện ở mục chỉ đọc bên dưới.
+  const { regular: members, exchange: exchangeRows } =
+    splitExchangeAccounts(allMembers);
 
   // Gợi ý trùng tên cho TẤT CẢ pending trong một lượt.
   //
@@ -52,7 +66,14 @@ export default async function MembersPage() {
   // trang là 380 truy vấn và hơn 8.000 dòng đọc, nhân thêm việc màn này tự
   // tải lại vài giây một lần. Đó là thứ làm cháy hạn mức đọc và sập web ngày
   // 24/10/2026. Bản này đọc hai lần, bất kể bao nhiêu người chờ.
-  const suggestionMap = await getNameMatchesBatch(pendingRows.map((p) => p.id));
+  const [suggestionMap, providerMap] = await Promise.all([
+    getNameMatchesBatch(pendingRows.map((p) => p.id)),
+    // Một truy vấn cho cả id chờ duyệt lẫn id giao lưu (huy hiệu nơi đăng nhập).
+    loadIdentityProviders([
+      ...pendingRows.map((p) => p.id),
+      ...exchangeRows.map((m) => m.id),
+    ]),
+  ]);
   const pendingMembers: PendingMember[] = pendingRows.map((p) => ({
     id: p.id,
     name: p.name,
@@ -65,7 +86,18 @@ export default async function MembersPage() {
     facebookId: p.facebookId,
     googleId: p.googleId,
     createdAt: p.createdAt,
+    providers: providerMap[p.id] ?? [],
     suggestions: suggestionMap[p.id] ?? [],
+  }));
+  // Chỉ whitelist cột cần hiển thị, không đổ nguyên row.
+  const exchangeAccounts: ExchangeAccount[] = exchangeRows.map((m) => ({
+    id: m.id,
+    name: m.name,
+    avatarKey: m.avatarKey,
+    avatarUrl: m.avatarUrl,
+    createdAt: m.createdAt,
+    isActive: m.isActive,
+    providers: providerMap[m.id] ?? [],
   }));
 
   // Merge targets cho dropdown "gộp thủ công" ở mỗi pending card — TẤT CẢ
@@ -137,6 +169,7 @@ export default async function MembersPage() {
         <PendingMembersSection
           pendingMembers={pendingMembers}
           mergeTargets={mergeTargets}
+          exchangeEnabled={exchangeEnabled}
         />
       )}
       {dupGroups.length > 0 && <DuplicateMembersBanner groups={dupGroups} />}
@@ -148,6 +181,9 @@ export default async function MembersPage() {
         fundMemberIds={fundMemberIdList}
         playStats={playStats}
       />
+      {exchangeAccounts.length > 0 && (
+        <ExchangeAccountsSection accounts={exchangeAccounts} />
+      )}
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { formatSessionDate } from "@/lib/date-format";
 import {
   approveMember,
   rejectMember,
+  declineGroupRequest,
   approveAndMergeMember,
   type NameMatchSuggestion,
 } from "@/actions/member-approval";
@@ -26,6 +27,7 @@ import {
   Phone,
   CreditCard,
   Sparkles,
+  Undo2,
 } from "lucide-react";
 
 export interface PendingMember {
@@ -40,6 +42,8 @@ export interface PendingMember {
   facebookId: string | null;
   googleId: string | null;
   createdAt: string | null;
+  /** Nơi đã đăng nhập (bảng member_oauth_identities), cho huy hiệu `Z` của Zalo. */
+  providers: string[];
   suggestions: NameMatchSuggestion[];
 }
 
@@ -53,8 +57,11 @@ export interface MergeTarget {
 export function PendingMembersSection({
   pendingMembers,
   mergeTargets = [],
+  exchangeEnabled = false,
 }: {
   pendingMembers: PendingMember[];
+  /** Nút "Không nhận vào nhóm" là hành vi mới của giao lưu: chỉ hiện khi cờ bật. */
+  exchangeEnabled?: boolean;
   /** Tất cả member đã duyệt — cho dropdown gộp thủ công (kể cả không trùng tên). */
   mergeTargets?: MergeTarget[];
 }) {
@@ -84,6 +91,18 @@ export function PendingMembersSection({
       () => approveMember(memberId),
       () => setList(prev),
       { successMsg: t("toastApproved") },
+    );
+  }
+
+  function handleDeclineGroup(memberId: number) {
+    const prev = list;
+    startTransition(() =>
+      setList((cur) => cur.filter((m) => m.id !== memberId)),
+    );
+    fireAction(
+      () => declineGroupRequest(memberId),
+      () => setList(prev),
+      { successMsg: t("toastDeclinedGroup") },
     );
   }
 
@@ -194,6 +213,15 @@ export function PendingMembersSection({
                     {m.facebookId && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-blue-600 dark:text-blue-400">
                         Facebook
+                      </span>
+                    )}
+                    {m.providers.includes("zalo") && (
+                      <span
+                        title={t("providerZalo")}
+                        aria-label={t("providerZalo")}
+                        className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 font-semibold text-sky-700 dark:bg-sky-900/40 dark:text-sky-300"
+                      >
+                        Z
                       </span>
                     )}
                     {m.email && (
@@ -342,6 +370,18 @@ export function PendingMembersSection({
                   {t("btnReject")}
                 </Button>
               </div>
+              {exchangeEnabled && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleDeclineGroup(m.id)}
+                  disabled={busyId === m.id}
+                  className="mt-2 min-h-11 w-full"
+                >
+                  <Undo2 className="mr-1 h-4 w-4" />
+                  {t("btnDeclineGroup")}
+                </Button>
+              )}
             </motion.div>
           ))}
         </AnimatePresence>

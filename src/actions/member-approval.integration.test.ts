@@ -19,8 +19,9 @@ vi.mock("@/lib/auth", () => ({
 const { db: testDb, client } = await createTestDb();
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { approveAndMergeMember, getNameMatches } =
+const { approveAndMergeMember, getNameMatches, declineGroupRequest } =
   await import("./member-approval");
+const { requireAdmin } = await import("@/lib/auth");
 const { findMemberByOAuth } = await import("@/lib/oauth-identity");
 
 async function reset() {
@@ -161,5 +162,136 @@ describe("getNameMatches", () => {
 
     const suggestions = await getNameMatches(pending.id);
     expect(suggestions[0].hasPassword).toBe(false);
+  });
+});
+
+describe("getNameMatches với identity zalo", () => {
+  beforeEach(reset);
+
+  it("member approved chỉ có identity zalo KHÔNG được gợi ý như member do admin tạo", async () => {
+    const [zaloOnly] = await testDb
+      .insert(members)
+      .values({ name: "Hùng Zalo", approvalStatus: "approved" })
+      .returning({ id: members.id });
+    await testDb.insert(memberOauthIdentities).values({
+      memberId: zaloOnly.id,
+      provider: "zalo",
+      providerUid: "zalo-uid-1",
+    });
+    const [pending] = await testDb
+      .insert(members)
+      .values({ name: "Hùng Zalo", approvalStatus: "pending" })
+      .returning({ id: members.id });
+
+    expect(await getNameMatches(pending.id)).toEqual([]);
+  });
+
+  it("member approved không có identity nào vẫn được gợi ý", async () => {
+    const [adminMade] = await testDb
+      .insert(members)
+      .values({ name: "Hùng Tạo Tay", approvalStatus: "approved" })
+      .returning({ id: members.id });
+    const [pending] = await testDb
+      .insert(members)
+      .values({ name: "Hùng Tạo Tay", approvalStatus: "pending" })
+      .returning({ id: members.id });
+
+    const s = await getNameMatches(pending.id);
+    expect(s.map((x) => x.memberId)).toEqual([adminMade.id]);
+  });
+});
+
+describe("approveAndMergeMember với tài khoản giao lưu", () => {
+  beforeEach(reset);
+
+  it("từ chối khi đích là tài khoản giao lưu, không đổi gì", async () => {
+    const [target] = await testDb
+      .insert(members)
+      .values({
+        name: "Đích",
+        approvalStatus: "pending",
+        signupIntent: "exchange",
+      })
+      .returning({ id: members.id });
+    const [pending] = await testDb
+      .insert(members)
+      .values({ name: "Nguồn", approvalStatus: "pending", googleId: "g-x" })
+      .returning({ id: members.id });
+
+    const r = await approveAndMergeMember(pending.id, target.id);
+    expect(r).toHaveProperty("error");
+    expect((await memberById(target.id))?.approvalStatus).toBe("pending");
+    expect(await memberById(pending.id)).toBeDefined();
+  });
+
+  it("từ chối khi nguồn là tài khoản giao lưu", async () => {
+    const [target] = await testDb
+      .insert(members)
+      .values({ name: "Đích", approvalStatus: "approved" })
+      .returning({ id: members.id });
+    const [exch] = await testDb
+      .insert(members)
+      .values({
+        name: "Giao lưu",
+        approvalStatus: "pending",
+        signupIntent: "exchange",
+      })
+      .returning({ id: members.id });
+
+    const r = await approveAndMergeMember(exch.id, target.id);
+    expect(r).toHaveProperty("error");
+    expect(await memberById(exch.id)).toBeDefined();
+  });
+});
+
+describe("declineGroupRequest", () => {
+  beforeEach(reset);
+
+  async function seedPending(
+    values: Partial<typeof members.$inferInsert> = {},
+  ) {
+    const [m] = await testDb
+      .insert(members)
+      .values({
+        name: "Xin vào",
+        approvalStatus: "pending",
+        signupIntent: "group",
+        ...values,
+      })
+      .returning({ id: members.id });
+    return m.id;
+  }
+
+  it("pending group → exchange, approvalStatus vẫn pending", async () => {
+    const id = await seedPending();
+    expect(await declineGroupRequest(id)).toEqual({ success: true });
+    const m = await memberById(id);
+    expect(m?.signupIntent).toBe("exchange");
+    expect(m?.approvalStatus).toBe("pending");
+    expect(m?.isActive).toBe(true);
+  });
+
+  it("không phải admin → error, không ghi", async () => {
+    const id = await seedPending();
+    vi.mocked(requireAdmin).mockResolvedValueOnce({ error: "Unauthorized" });
+    const r = await declineGroupRequest(id);
+    expect(r).toHaveProperty("error");
+    expect((await memberById(id))?.signupIntent).toBe("group");
+  });
+
+  it("approved → error, không đổi ý định", async () => {
+    const id = await seedPending({ approvalStatus: "approved" });
+    expect(await declineGroupRequest(id)).toHaveProperty("error");
+    expect((await memberById(id))?.signupIntent).toBe("group");
+  });
+
+  it("đã là exchange, đã bị khoá hay id sai → error", async () => {
+    const exch = await seedPending({ signupIntent: "exchange" });
+    const locked = await seedPending({ isActive: false });
+    expect(await declineGroupRequest(exch)).toHaveProperty("error");
+    expect(await declineGroupRequest(locked)).toHaveProperty("error");
+    expect((await memberById(locked))?.signupIntent).toBe("group");
+    expect(await declineGroupRequest(0)).toHaveProperty("error");
+    expect(await declineGroupRequest(99999)).toHaveProperty("error");
   });
 });

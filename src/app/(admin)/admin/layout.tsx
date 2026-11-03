@@ -3,9 +3,7 @@ import { AdminMobileNav } from "@/components/layout/admin-mobile-nav";
 import { AdminDefaultTheme } from "@/components/shared/admin-default-theme";
 import { getAdminFromCookie } from "@/lib/auth";
 import { getAppName } from "@/actions/settings";
-import { db } from "@/db";
-import { members as membersTable } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { countPendingGroupMembers } from "./members/pending-queue";
 
 export default async function AdminLayout({
   children,
@@ -25,14 +23,11 @@ export default async function AdminLayout({
     return <>{children}</>;
   }
 
-  const [appName, pendingCountRows] = await Promise.all([
+  // Chỉ đếm người đã xin vào nhóm; tài khoản giao lưu không làm nhảy số.
+  const [appName, pendingMemberCount] = await Promise.all([
     getAppName(),
-    db
-      .select({ c: sql<number>`count(*)` })
-      .from(membersTable)
-      .where(eq(membersTable.approvalStatus, "pending")),
+    countPendingGroupMembers(),
   ]);
-  const pendingMemberCount = Number(pendingCountRows[0]?.c ?? 0);
 
   return (
     <div className="min-h-screen overflow-x-hidden">

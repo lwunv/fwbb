@@ -23,6 +23,10 @@ import { getUserFromCookie } from "@/lib/user-identity";
 import { isSkillLevel, parseSkillLevel } from "@/lib/skill-level";
 import { isGender, parseGender } from "@/lib/gender";
 import { requireAdmin } from "@/lib/auth";
+import {
+  isExchangeAccount,
+  notExchangeAccountWhere,
+} from "@/lib/exchange-account";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { memberSchema } from "@/lib/validators";
 import { normalizeUsername } from "@/lib/username";
@@ -767,7 +771,10 @@ export async function findDuplicateMembers() {
       facebookId: members.facebookId,
       normalized: sql<string>`lower(trim(${members.name}))`,
     })
-    .from(members);
+    .from(members)
+    // Tài khoản giao lưu không thuộc nhóm nên không được báo "trùng" với member
+    // thật (tên Zalo hay trùng tên người đã có, mà gộp bị chặn).
+    .where(notExchangeAccountWhere);
 
   const groups = new Map<string, typeof rows>();
   for (const r of rows) {
@@ -915,6 +922,11 @@ export async function mergeMember(sourceId: number, targetId: number) {
   ]);
   if (!source) return { error: t("sourceMemberNotFound") };
   if (!target) return { error: t("targetMemberNotFound") };
+  // Tài khoản giao lưu chưa vào nhóm: gộp sẽ kéo identity/đăng nhập của người
+  // chưa được duyệt vào hồ sơ tiền của member thật.
+  if (isExchangeAccount(source) || isExchangeAccount(target)) {
+    return { error: "Không gộp được tài khoản giao lưu" };
+  }
 
   // B4 guard: khi source và target CÙNG có debt cho 1 buổi (conflict), nhánh
   // xử lý bên dưới LUÔN giữ debt của target và drop + reverse ledger của source.

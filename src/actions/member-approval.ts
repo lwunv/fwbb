@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/db";
-import { members } from "@/db/schema";
-import { eq, and, ne, inArray } from "drizzle-orm";
+import { members, memberOauthIdentities } from "@/db/schema";
+import { eq, and, ne, inArray, notExists, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { getUserFromCookie, clearUserCookie } from "@/lib/user-identity";
@@ -12,6 +12,7 @@ import { mergeMember } from "@/actions/members";
 import { foldOAuthIntoTarget } from "@/lib/oauth-identity";
 import { isExchangeEnabled } from "@/lib/exchange-flag";
 import { requireExchangeMember } from "@/lib/member-auth";
+import { isExchangeAccount } from "@/lib/exchange-account";
 
 /** Helper: normalize Vietnamese name for fuzzy matching (lowercase + strip
  *  diacritics + collapse whitespace). Đủ cho UX gợi ý, không phải search engine. */
@@ -132,10 +133,26 @@ function rankNameMatches(
   );
 }
 
-/** Pool ứng viên: member đã duyệt. Đọc MỘT LẦN rồi chấm cho mọi pending. */
+/**
+ * Pool ứng viên: member đã duyệt do admin tạo tay. Đọc MỘT LẦN rồi chấm cho
+ * mọi pending.
+ *
+ * "Do admin tạo" = không `facebookId`, không `googleId` VÀ không có dòng nào ở
+ * `member_oauth_identities`. Vế cuối là của tài khoản Zalo, vốn không có cột
+ * legacy: thiếu nó thì người đã vào nhóm bằng Zalo bị gợi ý như row nhập tay
+ * và admin có thể gộp nhầm vào chính chủ.
+ */
 async function loadMatchPool(): Promise<MatchPoolRow[]> {
   return db.query.members.findMany({
-    where: eq(members.approvalStatus, "approved"),
+    where: and(
+      eq(members.approvalStatus, "approved"),
+      notExists(
+        db
+          .select({ one: sql`1` })
+          .from(memberOauthIdentities)
+          .where(eq(memberOauthIdentities.memberId, members.id)),
+      ),
+    ),
     columns: {
       id: true,
       name: true,
@@ -392,6 +409,11 @@ export async function approveAndMergeMember(
   if (target.approvalStatus === "rejected") {
     return { error: "Target đã bị reject, không thể merge" };
   }
+  // Tài khoản giao lưu chưa xin vào nhóm: gộp nó (hay gộp vào nó) sẽ duyệt
+  // ngầm một người chưa hề xin vào nhóm.
+  if (isExchangeAccount(pending) || isExchangeAccount(target)) {
+    return { error: "Không gộp được tài khoản giao lưu" };
+  }
   // Multi-SSO: CHO PHÉP merge kể cả khi cả pending lẫn target đều đã có OAuth
   // cùng loại (vd 2 tài khoản Google). Tài khoản OAuth của pending được gộp
   // thành identity PHỤ của target (foldOAuthIntoTarget trong tx) → target đăng
@@ -460,6 +482,48 @@ export async function approveAndMergeMember(
   revalidatePath("/admin/members");
   revalidatePath("/pending-approval");
   revalidatePath("/");
+  return { success: true };
+}
+
+/**
+ * Admin không nhận một yêu cầu vào nhóm: trả tài khoản về "giao lưu"
+ * (`signupIntent = "exchange"`) mà KHÔNG cấm. Khác `rejectMember` (cấm hẳn).
+ * Người đó vẫn đăng nhập và dùng phần giao lưu, và có thể xin lại sau.
+ *
+ * Chỉ nhận dòng pending + group + còn hoạt động; WHERE lặp lại các điều kiện
+ * đó nên nếu admin khác vừa duyệt/khoá giữa chừng thì không ghi đè trạng thái.
+ */
+export async function declineGroupRequest(
+  memberId: number,
+): Promise<{ success: true } | { error: string }> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return { error: auth.error };
+  const t = await getTranslations("serverErrors");
+
+  if (!Number.isInteger(memberId) || memberId <= 0) {
+    return { error: t("invalidId") };
+  }
+
+  const updated = await db
+    .update(members)
+    .set({ signupIntent: "exchange" })
+    .where(
+      and(
+        eq(members.id, memberId),
+        eq(members.approvalStatus, "pending"),
+        eq(members.signupIntent, "group"),
+        eq(members.isActive, true),
+      ),
+    )
+    .returning({ id: members.id });
+  if (updated.length === 0) {
+    return {
+      error: "Chỉ nhận được yêu cầu đang chờ duyệt của member đang hoạt động",
+    };
+  }
+
+  revalidatePath("/admin/members");
+  revalidatePath("/giao-luu");
   return { success: true };
 }
 
