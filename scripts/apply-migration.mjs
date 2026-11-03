@@ -29,23 +29,29 @@ if (!envPath) {
   );
   process.exit(1);
 }
-const dotenvResult = config({ path: envPath, override: true });
+// processEnv: {} keeps dotenv from touching process.env, so the target comes
+// only from the --env file and shell-exported prod vars can never win.
+const dotenvResult = config({ path: envPath, processEnv: {} });
 console.log(`Loaded env from ${envPath}`);
-// Fallback: some sandboxed shells filter env vars out of process.env after
-// dotenv writes to it. Read from `parsed` directly when process.env is empty.
-const parsed = dotenvResult.parsed ?? {};
 
 import { createClient } from "@libsql/client";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { isMigrationApplied, recordHash } from "./migration-hash.mjs";
+import {
+  isMigrationApplied,
+  recordHash,
+  resolveMigrationTarget,
+} from "./migration-hash.mjs";
 
-const url = process.env.TURSO_DATABASE_URL || parsed.TURSO_DATABASE_URL;
-const authToken = process.env.TURSO_AUTH_TOKEN || parsed.TURSO_AUTH_TOKEN;
-if (!url) {
-  console.error("TURSO_DATABASE_URL missing");
+let target;
+try {
+  target = resolveMigrationTarget(dotenvResult, envPath);
+} catch (err) {
+  console.error(err.message);
   process.exit(1);
 }
+const { url, authToken } = target;
+console.log(`Target database: ${target.label}`);
 
 const client = createClient({ url, authToken });
 
@@ -122,8 +128,6 @@ for (const entry of journal.entries) {
 }
 
 console.log(
-  dryRun
-    ? "\nDry run: nothing was executed."
-    : "\nAll migrations up to date.",
+  dryRun ? "\nDry run: nothing was executed." : "\nAll migrations up to date.",
 );
 client.close();

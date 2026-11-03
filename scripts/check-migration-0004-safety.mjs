@@ -102,7 +102,7 @@ if (hasDuplicates) {
   process.exit(1);
 } else {
   console.log(
-    "✅ SAFE TO MIGRATE — proceed with: node scripts/apply-migration.mjs",
+    "✅ SAFE TO MIGRATE — proceed with: node scripts/apply-migration.mjs --env=<file>",
   );
   client.close();
   process.exit(0);

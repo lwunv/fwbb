@@ -84,8 +84,9 @@ For any diff that rebuilds a table, before applying:
 ### 6. Apply to local/dev
 
 ```bash
-node scripts/apply-migration.mjs --env=.env.local --dry-run   # preview, executes nothing
-node scripts/apply-migration.mjs --env=.env.local             # .env.local points at PROD on this machine, check first
+# Use an env file containing only TURSO_DATABASE_URL=file:<path>, NOT .env.local (= PROD here)
+node scripts/apply-migration.mjs --env=<local env file> --dry-run   # preview, executes nothing
+node scripts/apply-migration.mjs --env=<local env file>
 ```
 
 What it does: ensures `__drizzle_migrations` exists, reads applied hashes, iterates `meta/_journal.json` entries in order, and for each unapplied `<tag>.sql` splits on `--> statement-breakpoint` and runs statements **one at a time** (not in one transaction — some libsql DDL won't run inside a tx). It swallows `already exists` / `duplicate column` errors so a partial migration can be re-run; any other error aborts. On success it records the file's sha256. **Idempotent — safe to re-run.**
