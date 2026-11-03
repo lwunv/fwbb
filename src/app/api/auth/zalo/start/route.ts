@@ -24,8 +24,8 @@ import {
 
 const STATE_MAX_AGE_SEC = 600;
 
-/** Turnstile action của widget trên trang đăng nhập giao lưu. */
-const TURNSTILE_ACTION = "zalo_login";
+/** Một widget phục vụ cả Zalo lẫn Google, nên googleLogin kiểm cùng action này. */
+const TURNSTILE_ACTION = "exchange_login";
 
 type StartEnv = { appId: string; redirectUri: string; appHostname: string };
 

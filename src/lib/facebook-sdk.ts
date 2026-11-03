@@ -102,3 +102,13 @@ export function isInFacebookBrowser(): boolean {
   const ua = navigator.userAgent || "";
   return ua.includes("FBAN") || ua.includes("FBAV") || ua.includes("FB_IAB");
 }
+
+/**
+ * Trình duyệt nhúng trong app Zalo. Google chặn đăng nhập trong webview
+ * nhúng, mà phần lớn người dùng mở link ngay trong Zalo, nên trang đăng nhập
+ * giao lưu ẩn nút Google ở đây (Zalo đăng nhập bằng form POST, không cần popup).
+ */
+export function isInZaloBrowser(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /zalo/i.test(navigator.userAgent || "");
+}

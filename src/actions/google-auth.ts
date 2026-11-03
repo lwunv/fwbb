@@ -17,8 +17,11 @@ import { verifyGoogleIdToken } from "@/lib/google-verify";
 import { isExchangeEnabled } from "@/lib/exchange-flag";
 import { verifyTurnstile } from "@/lib/turnstile";
 
-/** Turnstile action của widget Google trên trang đăng nhập giao lưu. */
-const GOOGLE_TURNSTILE_ACTION = "google_login";
+/**
+ * Turnstile action của widget duy nhất trên trang đăng nhập giao lưu. Route
+ * Zalo start kiểm cùng một action, vì một widget chỉ mang một action.
+ */
+const GOOGLE_TURNSTILE_ACTION = "exchange_login";
 
 export type GoogleLoginOptions = {
   /** Chỉ trang đăng nhập giao lưu truyền; bị bỏ qua khi cờ giao lưu tắt. */

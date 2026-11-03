@@ -145,7 +145,7 @@ describe("googleLogin với intent giao lưu (g2a, Task 9)", () => {
     });
     expect(r).toEqual({ success: true, memberName: "Gia Lâm" });
     expect(exchange.verifyTurnstile).toHaveBeenCalledWith("ts-token", {
-      action: "google_login",
+      action: "exchange_login",
       remoteIp: undefined,
       expectedHostname: "fwbb.example.com",
     });

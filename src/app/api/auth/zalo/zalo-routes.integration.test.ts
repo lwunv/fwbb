@@ -73,7 +73,7 @@ const replies: { turnstile: Reply; token: Reply; profile: Reply } = {
 
 function defaultReplies() {
   replies.turnstile = {
-    body: { success: true, action: "zalo_login", hostname: "localhost" },
+    body: { success: true, action: "exchange_login", hostname: "localhost" },
   };
   replies.token = {
     body: { access_token: "zalo-access-token", expires_in: "3600" },
@@ -315,7 +315,7 @@ describe("POST /api/auth/zalo/start", () => {
 
   it("Turnstile hợp lệ cho hostname khác → error=captcha", async () => {
     replies.turnstile = {
-      body: { success: true, action: "zalo_login", hostname: "evil.com" },
+      body: { success: true, action: "exchange_login", hostname: "evil.com" },
     };
     expectLoginError(await POST(startRequest()), "captcha");
   });
