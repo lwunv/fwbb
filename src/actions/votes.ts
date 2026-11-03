@@ -110,34 +110,45 @@ export async function submitVote(
     return { error: t("playSlotsFull", { max: maxSlots }) };
   }
 
-  await db
-    .insert(votes)
-    .values({
-      sessionId: data.sessionId,
-      memberId: user.memberId,
-      willPlay: data.willPlay,
-      willDine: data.willDine,
-      guestPlayCount: 0,
-      guestDineCount: 0,
-      // Member không thêm được khách (bỏ từ 7/7/2026), nên cả tổng lẫn phần nữ
-      // đều ép 0 ở server, không tin tham số client gửi lên.
-      guestPlayFemaleCount: 0,
-      guestDineFemaleCount: 0,
-      withPartner: data.withPartner,
-    })
-    .onConflictDoUpdate({
-      target: [votes.sessionId, votes.memberId],
-      set: {
+  // Bỏ vote (không chơi, không nhậu) = XOÁ dòng, không giữ lại dòng
+  // willPlay=false/willDine=false. Member không có khách (ép 0 bên dưới) nên
+  // dòng đó rỗng nghĩa. Giữ nó lại thì member rơi khỏi CẢ "đã vote" (cần
+  // willPlay/willDine) LẪN "chưa vote" (coi là không có dòng), tức biến mất khỏi
+  // danh sách. Xem splitMembersByVote ở lib/vote-list-utils.
+  if (!data.willPlay && !data.willDine) {
+    if (selfVote) {
+      await db.delete(votes).where(eq(votes.id, selfVote.id));
+    }
+  } else {
+    await db
+      .insert(votes)
+      .values({
+        sessionId: data.sessionId,
+        memberId: user.memberId,
         willPlay: data.willPlay,
         willDine: data.willDine,
         guestPlayCount: 0,
         guestDineCount: 0,
+        // Member không thêm được khách (bỏ từ 7/7/2026), nên cả tổng lẫn phần nữ
+        // đều ép 0 ở server, không tin tham số client gửi lên.
         guestPlayFemaleCount: 0,
         guestDineFemaleCount: 0,
         withPartner: data.withPartner,
-        updatedAt: new Date().toISOString(),
-      },
-    });
+      })
+      .onConflictDoUpdate({
+        target: [votes.sessionId, votes.memberId],
+        set: {
+          willPlay: data.willPlay,
+          willDine: data.willDine,
+          guestPlayCount: 0,
+          guestDineCount: 0,
+          guestPlayFemaleCount: 0,
+          guestDineFemaleCount: 0,
+          withPartner: data.withPartner,
+          updatedAt: new Date().toISOString(),
+        },
+      });
+  }
 
   revalidatePath("/");
   revalidatePath(`/vote/${data.sessionId}`);

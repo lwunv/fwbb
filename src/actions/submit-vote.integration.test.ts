@@ -85,6 +85,28 @@ describe("submitVote — upsert + validation + gate", () => {
     expect(v?.guestDineCount).toBe(0);
   });
 
+  it("bỏ vote (willPlay=false, willDine=false) XOÁ dòng, không để lại dòng chết", async () => {
+    const id = await seedMember();
+    const s = await seedSession("voting");
+
+    await submitVote(s, true, false, 0, 0, false);
+    expect(await voteOf(s, id)).toBeTruthy();
+
+    // Bỏ cả chơi lẫn nhậu → dòng phải biến mất để member về lại "Chưa vote".
+    const r = await submitVote(s, false, false, 0, 0, false);
+    expect("error" in r).toBe(false);
+    expect(await voteOf(s, id)).toBeUndefined();
+  });
+
+  it("bỏ vote khi chưa từng vote là no-op, không lỗi", async () => {
+    const id = await seedMember();
+    const s = await seedSession("voting");
+
+    const r = await submitVote(s, false, false, 0, 0, false);
+    expect("error" in r).toBe(false);
+    expect(await voteOf(s, id)).toBeUndefined();
+  });
+
   it("vote lại UPDATE đúng 1 row (không nhân đôi); khách vẫn 0", async () => {
     const id = await seedMember();
     const s = await seedSession("voting");
@@ -186,7 +208,9 @@ describe("submitVote — giới hạn 16 người chơi cầu (Hết slot)", () 
 
     const r = await submitVote(s, false, false, 0, 0, false); // bỏ chơi
     expect("error" in r).toBe(false);
-    expect((await voteOf(s, id))?.willPlay).toBe(false);
+    // Bỏ cả chơi lẫn nhậu giờ XOÁ dòng (member về "Chưa vote"), không giữ lại
+    // dòng willPlay=false. Dòng mất đi = member không còn giữ slot, đúng ý test.
+    expect(await voteOf(s, id)).toBeUndefined();
   });
 
   it("cho vote NHẬU khi chơi đã đủ 16", async () => {
