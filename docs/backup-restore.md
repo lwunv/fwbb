@@ -50,6 +50,70 @@ app phải ghi song song sang nơi thứ hai ngay lúc ghi, đó là đổi ki�
 tự nó đẻ ra lỗi mới khi một bên ghi hỏng. Với một nhóm cầu lông, dưới một tiếng
 là đánh đổi hợp lý.
 
+## Sao lưu về máy, mỗi ngày một lần (thêm 03/11/2026)
+
+Bản sao lưu trên GitHub vẫn nằm sau tài khoản của người khác, và nó hết hạn sau
+90 ngày. Lớp này thì nằm hẳn trên máy, không phụ thuộc ai.
+
+Lắp lịch (chạy một lần, không cần quyền quản trị):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\setup-daily-backup.ps1
+```
+
+Mặc định chạy 12:30 mỗi ngày, ghi vào `D:\FWBB-Backups`, log ở `run.log` cùng
+thư mục. Đổi giờ bằng `-At 21:00`, gỡ lịch bằng `-Remove`.
+
+Lịch chạy dưới tài khoản đang đăng nhập, cố ý chứ không phải SYSTEM: khoá niêm
+cất bằng DPAPI theo tài khoản người dùng, chạy bằng SYSTEM sẽ không mở nổi.
+Máy tắt đúng giờ hẹn thì nó chạy bù lúc bật lên, không bỏ luôn một ngày.
+
+### Mỗi ngày chỉ ghi phần chênh
+
+Lần đầu ghi một bản đầy đủ. Những lần sau chỉ ghi phần CHÊNH so với bản gần
+nhất, nên tốn vài KB thay vì cả bản (đo thật: bản đầy đủ 82 KB, một ngày có
+thay đổi vừa phải tốn khoảng 1 KB). Không có gì đổi thì nó không ghi file nào.
+
+Cứ 14 bản chênh thì tự ghi lại một bản đầy đủ, để lúc khôi phục không phải nối
+quá nhiều mắt xích. Giữ 4 bản đầy đủ gần nhất cùng chuỗi chênh của chúng, cũ
+hơn thì dọn.
+
+Phần chênh ghi CẢ dòng thêm lẫn dòng bớt. Đây là chỗ dễ sai nhất: nếu chỉ ghi
+dòng thêm thì dữ liệu đã xoá sẽ sống lại sau khi khôi phục, mà kiểu hỏng đó
+không ai phát hiện ra sớm.
+
+### Xem và lấy dữ liệu ra
+
+```bash
+node scripts/restore-local.mjs                      # xem đang giữ gì, dựng thử
+node scripts/restore-local.mjs --at=2026-11-03      # dựng lại tới một mốc
+node scripts/restore-local.mjs --out=d:/tmp/ra.json # lấy ra để nạp đi nơi khác
+```
+
+`--out` ghi plaintext có PII thật. Cố ý không có mặc định, và dùng xong phải
+xoá.
+
+### Mật khẩu niêm
+
+Có `BACKUP_PASSPHRASE` thì dùng nó, và file mở được ở **bất kỳ máy nào**, giống
+hệt bản trên GitHub. Không có thì script tự sinh một khoá ngẫu nhiên và cất
+bằng DPAPI của Windows, chạy tự động mà không phải cất mật khẩu ở đâu.
+
+Đánh đổi của đường DPAPI: khoá gắn với tài khoản Windows này, **mất máy là mở
+không ra**. Nên đây là lớp tiện, không phải lớp duy nhất. Muốn một bản mang đi
+được thì chạy kèm `BACKUP_PASSPHRASE` và cất file đó ra ổ ngoài.
+
+### Chứng minh nó khôi phục được
+
+```bash
+node scripts/backup-local-drill.mjs
+```
+
+Chạy trọn đường trên một database giả (bản sao của `e2e/local.db`, không đụng
+database thật): ghi bản đầy đủ, sửa dữ liệu, ghi phần chênh, đọc lại cả chuỗi
+từ đĩa, nạp vào một database trống, rồi so từng bit. Kết quả ngày 03/11/2026:
+**18/18 bảng khớp từng bit**.
+
 ## Giải mã một bản sao lưu
 
 Tải file `.enc` từ tab Actions của lần chạy tương ứng, rồi:
