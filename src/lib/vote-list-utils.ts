@@ -87,3 +87,32 @@ export function countVoteParticipation(
     totalDiners: memberDine + guestDine,
   };
 }
+
+/**
+ * Chia members thành "đã vote" và "chưa vote" cho danh sách hiển thị.
+ *
+ * "Đã vote" = có một dòng vote với willPlay HOẶC willDine. "Chưa vote" = tất cả
+ * còn lại, GỒM CẢ member có dòng false/false (đã bỏ vote). Bỏ vote giữ lại dòng
+ * willPlay=false/willDine=false (submitVote dọn nó, nhưng dòng cũ trong DB vẫn
+ * còn), nên nếu chỉ coi "có dòng = đã vote" thì người bỏ vote biến mất khỏi cả
+ * hai danh sách. Hai nhóm ở đây phủ kín và rời nhau: không ai rơi mất.
+ */
+export function splitMembersByVote<M extends { id: number }>(
+  members: ReadonlyArray<M>,
+  votes: ReadonlyArray<{
+    memberId: number;
+    willPlay?: boolean | null;
+    willDine?: boolean | null;
+  }>,
+): { voted: M[]; notVoted: M[] } {
+  const participating = new Set(
+    votes.filter((v) => v.willPlay || v.willDine).map((v) => v.memberId),
+  );
+  const voted: M[] = [];
+  const notVoted: M[] = [];
+  for (const m of members) {
+    if (participating.has(m.id)) voted.push(m);
+    else notVoted.push(m);
+  }
+  return { voted, notVoted };
+}

@@ -25,11 +25,11 @@ export default function LoginPage() {
         <CardHeader className="items-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/fwbb.svg"
+            src="/fwbb-wordmark.svg"
             alt="FWBB"
             className="mx-auto mb-2 h-16 w-auto"
           />
-          <CardTitle className="text-center text-2xl">FWBB Admin</CardTitle>
+          <CardTitle className="text-center text-2xl">Admin</CardTitle>
         </CardHeader>
         <CardContent>
           <form action={formAction} className="space-y-4">

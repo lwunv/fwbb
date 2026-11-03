@@ -83,8 +83,8 @@ export function AdminMobileNav({
       {/* Logo + tên gộp 1 Link → click cả 2 đều về trang chủ admin. */}
       <Link href="/admin/dashboard" className="flex min-w-0 items-center gap-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/fwbb.svg" alt={appName} className="h-6 w-auto" />
-        <h1 className="truncate text-base font-bold">{appName} Admin</h1>
+        <img src="/fwbb-wordmark.svg" alt={appName} className="h-6 w-auto" />
+        <h1 className="truncate text-base font-bold">Admin</h1>
       </Link>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger render={<Button variant="ghost" size="icon" />}>
@@ -98,9 +98,13 @@ export function AdminMobileNav({
               className="inline-flex items-center"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/fwbb.svg" alt={appName} className="h-8 w-auto" />
+              <img
+                src="/fwbb-wordmark.svg"
+                alt={appName}
+                className="h-8 w-auto"
+              />
             </Link>
-            <h2 className="text-lg font-bold">{appName} Admin</h2>
+            <h2 className="text-lg font-bold">Admin</h2>
           </div>
           <nav className="flex-1 space-y-1 px-3 py-4">
             {navItems.map((item) => {

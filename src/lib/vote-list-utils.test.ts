@@ -3,6 +3,7 @@ import {
   attendingVotesCount,
   attendingHeadCount,
   countVoteParticipation,
+  splitMembersByVote,
 } from "./vote-list-utils";
 
 describe("attendingVotesCount", () => {
@@ -83,5 +84,48 @@ describe("countVoteParticipation", () => {
     expect(result.guestDine).toBe(0);
     expect(result.totalPlayers).toBe(2);
     expect(result.totalDiners).toBe(1);
+  });
+});
+
+describe("splitMembersByVote", () => {
+  const members = [
+    { id: 1, name: "A" },
+    { id: 2, name: "B" },
+    { id: 3, name: "C" },
+    { id: 4, name: "D" },
+  ];
+
+  it("đã vote = có dòng với willPlay hoặc willDine; còn lại là chưa vote", () => {
+    const { voted, notVoted } = splitMembersByVote(members, [
+      { memberId: 1, willPlay: true, willDine: false },
+      { memberId: 2, willPlay: false, willDine: true },
+    ]);
+    expect(voted.map((m) => m.id)).toEqual([1, 2]);
+    expect(notVoted.map((m) => m.id)).toEqual([3, 4]);
+  });
+
+  it("member BỎ VOTE (dòng false/false) phải nằm trong CHƯA VOTE, không biến mất", () => {
+    const { voted, notVoted } = splitMembersByVote(members, [
+      { memberId: 1, willPlay: true, willDine: false },
+      { memberId: 2, willPlay: false, willDine: false }, // đã bỏ vote
+    ]);
+    expect(voted.map((m) => m.id)).toEqual([1]);
+    // 2 (bỏ vote) + 3, 4 (chưa đụng) đều là chưa vote
+    expect(notVoted.map((m) => m.id)).toEqual([2, 3, 4]);
+  });
+
+  it("mỗi member nằm đúng một nhóm, tổng không mất ai", () => {
+    const { voted, notVoted } = splitMembersByVote(members, [
+      { memberId: 1, willPlay: true, willDine: true },
+      { memberId: 2, willPlay: false, willDine: false },
+    ]);
+    expect(voted.length + notVoted.length).toBe(members.length);
+  });
+
+  it("null/undefined willPlay/willDine coi như chưa vote", () => {
+    const { notVoted } = splitMembersByVote(members, [
+      { memberId: 1, willPlay: null, willDine: undefined },
+    ]);
+    expect(notVoted.map((m) => m.id)).toContain(1);
   });
 });

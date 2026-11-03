@@ -9,6 +9,7 @@ import { useTranslations } from "next-intl";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Users, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { splitMembersByVote } from "@/lib/vote-list-utils";
 import type { InferSelectModel } from "drizzle-orm";
 import type { votes as votesTable, members as membersTable } from "@/db/schema";
 
@@ -34,10 +35,13 @@ export function VoteList({
   const [notVotedOpen, setNotVotedOpen] = useState(false);
   const voteMap = new Map(votes.map((v) => [v.memberId, v]));
 
-  const votedMembers = members.filter((m) => {
-    const v = voteMap.get(m.id);
-    return v != null && !!(v.willPlay || v.willDine);
-  });
+  // "Đã vote" = có dòng với willPlay/willDine; "Chưa vote" = còn lại, GỒM member
+  // đã bỏ vote (dòng false/false). Tách ở helper thuần để một chỗ quyết định,
+  // tránh lặp lại lỗi "có dòng = đã vote" làm người bỏ vote biến mất cả hai cột.
+  const { voted: votedMembers, notVoted: notVotedMembers } = splitMembersByVote(
+    members,
+    votes,
+  );
   const votedSorted =
     currentMemberId != null
       ? [...votedMembers].sort((a, b) => {
@@ -46,7 +50,6 @@ export function VoteList({
           return aSelf - bSelf;
         })
       : votedMembers;
-  const notVotedMembers = members.filter((m) => !voteMap.has(m.id));
 
   return (
     <div className="space-y-4">

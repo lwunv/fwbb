@@ -1,9 +1,15 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@libsql/client";
 import bcrypt from "bcryptjs";
 
 // Logged-out context — tour chỉ có trong layout của member đã đăng nhập.
-test.use({ storageState: { cookies: [], origins: [] } });
+// Điện thoại (cảm ứng): tour dùng chủ yếu trên mobile.
+test.use({
+  storageState: { cookies: [], origins: [] },
+  viewport: { width: 375, height: 667 },
+  isMobile: true,
+  hasTouch: true,
+});
 
 const EMAIL = "e2etour@example.com";
 const PASSWORD = "producttour123";
@@ -79,10 +85,8 @@ test.beforeEach(async ({ page }) => {
   );
 });
 
-test("product tour đi qua vote + từng mục trong menu (tự mở ngăn kéo)", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+/** Login, chọn buổi đang mở vote (chip T6), mở tour qua menu > Hướng dẫn. */
+async function openTour(page: Page) {
   await page.goto("/login", { waitUntil: "domcontentloaded" });
   const identifier = page.getByPlaceholder("Username / SĐT / Email");
   await expect(identifier).toBeVisible({ timeout: 20_000 });
@@ -93,21 +97,44 @@ test("product tour đi qua vote + từng mục trong menu (tự mở ngăn kéo)
   // cuối) là buổi đang mở mà beforeAll đảm bảo có.
   const chips = page.locator('[data-tour="week-days"] button');
   await expect(chips.first()).toBeVisible({ timeout: 15_000 });
-  await chips.last().click();
+  await chips.last().tap();
   await expect(page.locator('[data-tour="vote-play"]')).toBeVisible({
     timeout: 15_000,
   });
+  await page.locator('[data-tour="nav-menu"]').tap();
+  await page.locator('[data-tour="nav-guide"]').tap();
+  await expect(page.locator(".driver-popover")).toBeVisible({
+    timeout: 5_000,
+  });
+}
 
-  await page.locator('[data-tour="nav-menu"]').click();
-  await page.locator('[data-tour="nav-guide"]').click();
+/** Tour đã đóng hẳn: không còn khung, ngăn kéo đóng, trang bấm được. */
+async function expectTourClosed(page: Page) {
+  await expect(page.locator(".driver-popover")).toHaveCount(0);
+  await expect(page.locator('[data-tour="nav-history"]')).toHaveCount(0);
+  await page.locator('[data-tour="nav-menu"]').tap();
+  await expect(page.locator('[data-tour="nav-history"]')).toBeVisible();
+}
 
+test("product tour đi qua vote + từng mục trong menu (tự mở ngăn kéo)", async ({
+  page,
+}) => {
+  await openTour(page);
   const popover = page.locator(".driver-popover");
   const title = page.locator(".driver-popover-title");
+
+  // Step chào: nút "Bắt đầu" + "Bỏ qua", không có "Trước".
+  await expect(title).toHaveText("Chào mừng đến FWBB! 🏸");
+  await expect(page.locator(".driver-popover-next-btn")).toHaveText("Bắt đầu");
+  await expect(page.locator(".fwbb-tour-skip")).toHaveText("Bỏ qua");
+  await expect(page.locator(".driver-popover-prev-btn")).toBeHidden();
+
   // Tiêu đề step trong ngăn kéo → mục menu phải được highlight ở step đó.
   const drawerSteps: Record<string, string> = {
     "Lịch sử": "nav-history",
     "Quỹ & Nợ": "nav-fund",
     "Thống kê": "nav-stats",
+    Sân: "nav-venues",
     "Trang cá nhân": "nav-me",
     "Xem lại hướng dẫn": "nav-guide",
   };
@@ -117,10 +144,13 @@ test("product tour đi qua vote + từng mục trong menu (tự mở ngăn kéo)
     await expect(popover).toBeVisible({ timeout: 5_000 });
     const text = (await title.textContent())?.trim() ?? "";
     seen.push(text);
-    // Bộ đếm dạng số "n/16", không phải "n of 16" tiếng Anh.
+    // Bộ đếm dạng số "n/N", không phải "n of N" tiếng Anh.
     await expect(page.locator(".driver-popover-progress-text")).toHaveText(
-      `${i + 1}/16`,
+      new RegExp(`^${i + 1}/[0-9]+$`),
     );
+    // Nút Tiếp đủ lớn để chạm bằng ngón tay (≥44px).
+    const next = page.locator(".driver-popover-next-btn");
+    expect((await next.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
     const key = drawerSteps[text];
     if (key) {
       // Ngăn kéo đã mở thật + đúng mục đang được highlight.
@@ -129,25 +159,17 @@ test("product tour đi qua vote + từng mục trong menu (tự mở ngăn kéo)
       await expect(item).toHaveClass(/driver-active-element/);
       drawerAnchors.push(key);
     }
-    const next = page.locator(".driver-popover-next-btn");
-    await next.click();
+    await next.tap();
     // Step cuối: bấm Xong → tour đóng.
     if ((await popover.count()) === 0) break;
     await expect(title).not.toHaveText(text, { timeout: 5_000 });
   }
 
-  await expect(popover).toHaveCount(0);
-  expect(drawerAnchors).toEqual([
-    "nav-history",
-    "nav-fund",
-    "nav-stats",
-    "nav-me",
-    "nav-guide",
-  ]);
+  expect(drawerAnchors).toEqual(Object.values(drawerSteps));
   for (const t of [
     "Chọn ngày chơi",
+    "Sân chơi",
     "Đi chơi cầu",
-    "Đi 2 người",
     "Đi nhậu",
     "Danh sách đi",
     "Ngôn ngữ & giao diện",
@@ -156,10 +178,44 @@ test("product tour đi qua vote + từng mục trong menu (tự mở ngăn kéo)
   ]) {
     expect(seen).toContain(t);
   }
-  // Tour xong → ngăn kéo đóng lại, trang dùng bình thường.
-  await expect(page.locator('[data-tour="nav-history"]')).toHaveCount(0);
-  await page.locator('[data-tour="nav-menu"]').click();
-  await expect(page.locator('[data-tour="nav-history"]')).toBeVisible();
+  // Chưa tick chơi cầu thì switch 👫 chưa có → không có step chỉ vào ô trống.
+  expect(seen).not.toContain("Đi 2 người");
+  await expectTourClosed(page);
+});
+
+test("bỏ qua tour bằng nút Bỏ qua (kể cả khi đang ở trong menu)", async ({
+  page,
+}) => {
+  await openTour(page);
+  // Đi tới step đầu tiên trong ngăn kéo rồi bấm Bỏ qua.
+  for (let i = 0; i < 20; i++) {
+    if (
+      (await page.locator(".driver-popover-title").textContent()) === "Lịch sử"
+    )
+      break;
+    await page.locator(".driver-popover-next-btn").tap();
+    await page.waitForTimeout(150);
+  }
+  await expect(page.locator('[data-tour="nav-history"]')).toBeInViewport();
+  await page.locator(".fwbb-tour-skip").tap();
+  await expectTourClosed(page);
+});
+
+test("đóng tour bằng nút X", async ({ page }) => {
+  await openTour(page);
+  const close = page.locator(".driver-popover-close-btn");
+  const box = await close.boundingBox();
+  expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+  await close.tap();
+  await expectTourClosed(page);
+});
+
+test("chạm ra ngoài khung (vùng tối) thì đóng tour", async ({ page }) => {
+  await openTour(page);
+  // Góc dưới trái: nằm ngoài khung chào (canh giữa) → trúng lớp phủ tối.
+  await page.mouse.click(12, 640);
+  await expectTourClosed(page);
 });
 
 // /san nằm ở route group (exchange), trang chủ ở (public): đi /san → / là đổi
