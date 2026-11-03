@@ -61,8 +61,10 @@ Lắp lịch (chạy một lần, không cần quyền quản trị):
 powershell -ExecutionPolicy Bypass -File scripts\setup-daily-backup.ps1
 ```
 
-Mặc định chạy 12:30 mỗi ngày, ghi vào `D:\FWBB-Backups`, log ở `run.log` cùng
-thư mục. Đổi giờ bằng `-At 21:00`, gỡ lịch bằng `-Remove`.
+Mặc định chạy 12:30 mỗi ngày, ghi vào `D:\FWBB-Backups`, chép thêm một bản sang
+`%USERPROFILE%\OneDrive\FWBB-Backups`, log ở `run.log` cùng thư mục đầu. Đổi giờ
+bằng `-At 21:00`, đổi chỗ chép đi bằng `-Mirror E:\FWBB` (để rỗng là tắt), gỡ
+lịch bằng `-Remove`.
 
 Lịch chạy dưới tài khoản đang đăng nhập, cố ý chứ không phải SYSTEM: khoá niêm
 cất bằng DPAPI theo tài khoản người dùng, chạy bằng SYSTEM sẽ không mở nổi.
@@ -95,13 +97,55 @@ xoá.
 
 ### Mật khẩu niêm
 
-Có `BACKUP_PASSPHRASE` thì dùng nó, và file mở được ở **bất kỳ máy nào**, giống
-hệt bản trên GitHub. Không có thì script tự sinh một khoá ngẫu nhiên và cất
-bằng DPAPI của Windows, chạy tự động mà không phải cất mật khẩu ở đâu.
+Thư mục nào đã có `key.dpapi` thì **luôn** dùng khoá đó, kể cả khi môi trường
+có `BACKUP_PASSPHRASE`. Lý do nằm ở phần lỗi bên dưới. Thư mục còn trắng thì có
+`BACKUP_PASSPHRASE` sẽ dùng nó (mở được ở bất kỳ máy nào), không có thì script
+tự sinh một khoá ngẫu nhiên và cất bằng DPAPI của Windows, chạy tự động mà
+không phải cất mật khẩu ở đâu.
 
 Đánh đổi của đường DPAPI: khoá gắn với tài khoản Windows này, **mất máy là mở
-không ra**. Nên đây là lớp tiện, không phải lớp duy nhất. Muốn một bản mang đi
-được thì chạy kèm `BACKUP_PASSPHRASE` và cất file đó ra ổ ngoài.
+không ra**. Đó là lý do có `--escrow` ngay dưới đây.
+
+### Chép sang chỗ thứ hai (thêm 03/11/2026)
+
+Bốn bản đầy đủ nằm trên đúng một ổ của đúng một máy thì cháy máy là mất sạch,
+mà đó chính là lúc người ta cần bản sao lưu nhất.
+
+```bash
+node scripts/backup-local.mjs --mirror="C:/Users/Admin/OneDrive/FWBB-Backups"
+```
+
+Lịch hằng ngày đã bật sẵn đường này (`-Mirror` trong `setup-daily-backup.ps1`,
+để rỗng là tắt). Vài điểm cố ý:
+
+- Chép xong **đọc lại từ bên kia** và so vân tay từng file. Thư mục đồng bộ đám
+  mây lẫn ổ cắm ngoài đều biết cách nuốt một file dở dang mà không kêu.
+- **Không bao giờ xoá gì bên kia.** Nguồn dọn bản cũ thì chỗ thứ hai vẫn giữ.
+- Chạy cả vào ngày dữ liệu không đổi, để một lần chép hỏng không nằm im tới
+  lần có thay đổi tiếp theo.
+- **Không chép `key.dpapi` sang.** Khoá đó vô dụng ở máy khác.
+
+Đặt trong thư mục OneDrive là chấp nhận được vì file đã niêm bằng AES-256-GCM.
+Nhưng lúc đó sức mạnh của mật khẩu là thứ duy nhất còn lại, nên đừng đặt mật
+khẩu ngắn.
+
+### Để bản chép đi mở được khi mất máy: `--escrow`
+
+Chép file sang OneDrive mà vẫn niêm bằng khoá DPAPI thì bản đó chỉ mở được trên
+đúng cái máy đã tạo ra nó. Chạy **một lần duy nhất**, có `BACKUP_PASSPHRASE`
+trong môi trường:
+
+```bash
+node scripts/backup-local.mjs --escrow
+```
+
+Nó gói chính khoá DPAPI lại bằng `BACKUP_PASSPHRASE` rồi ghi ra `key.escrow.enc`,
+và file này được chép sang chỗ thứ hai. Từ đó máy nào cũng mở được bản sao lưu,
+miễn nhớ mật khẩu. `restore-local.mjs` tự thử lần lượt: `BACKUP_PASSPHRASE`,
+khoá DPAPI của máy đang chạy, rồi khoá gửi kèm.
+
+Chưa chạy `--escrow` thì mỗi lần sao lưu sẽ in một dòng cảnh báo. Cảnh báo đó
+đúng: bản bên kia lúc này chưa dùng được nếu mất máy.
 
 ### Chứng minh nó khôi phục được
 
@@ -111,8 +155,32 @@ node scripts/backup-local-drill.mjs
 
 Chạy trọn đường trên một database giả (bản sao của `e2e/local.db`, không đụng
 database thật): ghi bản đầy đủ, sửa dữ liệu, ghi phần chênh, đọc lại cả chuỗi
-từ đĩa, nạp vào một database trống, rồi so từng bit. Kết quả ngày 03/11/2026:
-**18/18 bảng khớp từng bit**.
+từ đĩa, nạp vào một database trống, rồi so từng bit. Bước cuối **giả lập mất
+máy**: xoá sạch thư mục gốc lẫn khoá DPAPI, rồi mở bản đã chép đi bằng mỗi
+`BACKUP_PASSPHRASE`. Kết quả ngày 03/11/2026: **18/18 bảng khớp từng bit**, 15
+mục kiểm đều đạt.
+
+### Ba lỗi bài diễn tập lôi ra (03/11/2026)
+
+Đáng ghi lại vì cả ba đều thuộc loại hỏng im lặng, và cả ba đều chỉ lộ ra đúng
+hôm cần đến bản sao lưu.
+
+1. **Bảng mới còn rỗng bị rơi khỏi phần chênh.** Prod vừa có bảng `venues` chưa
+   có dòng nào. Phần chênh chỉ ghi dòng thêm và dòng bớt, không có dòng nào thì
+   nó bỏ qua luôn cả bảng, nên bản dựng lại thiếu hẳn một bảng. Bảng rỗng hôm
+   nay là bảng có dữ liệu ngày mai.
+2. **Có `BACKUP_PASSPHRASE` thì nó đổi khoá giữa chừng.** Thư mục đang niêm
+   bằng DPAPI, chạy kèm biến môi trường đó là nó đọc không ra bản cũ, ghi một
+   bản đầy đủ mới bằng khoá khác, và chuỗi gãy làm đôi sau một dòng cảnh báo.
+   Nay thư mục đã có khoá thì khoá đó thắng.
+3. **File hỏng kịp vào sổ mục lục trước khi bị phát hiện.** Thứ tự cũ là ghi
+   file, ghi sổ, rồi mới kiểm. Nay phải kiểm xong mới ghi sổ; không đạt thì bỏ
+   file vừa ghi và giữ nguyên sổ, chuỗi cũ vẫn dùng được.
+
+`compare-db.mjs` cũng phải sửa theo: nó ghép giá trị theo thứ tự cột của từng
+bên, nên database khôi phục dựng từ migration mới hơn (có thêm `courts.venue_id`)
+bị báo lệch dù dữ liệu còn nguyên. Nay nó so theo danh sách cột của bản gốc,
+thiếu cột là hỏng, thừa cột chỉ ghi chú.
 
 ## Giải mã một bản sao lưu
 

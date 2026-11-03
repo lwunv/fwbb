@@ -32,6 +32,7 @@ const AT = opt("at", "");
 const OUT = opt("out", "");
 const INDEX = join(DIR, "index.json");
 const KEYFILE = join(DIR, "key.dpapi");
+const ESCROW = join(DIR, "key.escrow.enc");
 
 function die(msg) {
   console.error(`\n❌ ${msg}\n`);
@@ -40,10 +41,7 @@ function die(msg) {
 
 if (!existsSync(INDEX)) die(`Chưa có sổ mục lục ở ${INDEX}. Chạy backup-local.mjs trước.`);
 
-function getPassphrase() {
-  if (process.env.BACKUP_PASSPHRASE) return process.env.BACKUP_PASSPHRASE;
-  if (!existsSync(KEYFILE)) die(`Không có BACKUP_PASSPHRASE và cũng không thấy khoá ${KEYFILE}.`);
-  if (process.platform !== "win32") die("Khoá DPAPI chỉ mở được trên Windows. Hãy khai BACKUP_PASSPHRASE.");
+function dpapiKey() {
   return execFileSync(
     "powershell",
     [
@@ -55,6 +53,47 @@ function getPassphrase() {
     ],
     { env: { ...process.env, FWBB_P: KEYFILE }, encoding: "utf8" },
   ).trim();
+}
+
+/**
+ * Những khoá có thể mở được thư mục này, theo thứ tự thử.
+ *
+ * Có nhiều hơn một đường là CỐ Ý. Bản chép sang ổ ngoài hay thư mục đồng bộ
+ * đám mây được niêm bằng khoá DPAPI của máy gốc, mà lúc cần đến nó thì máy gốc
+ * thường đã không còn. `key.escrow.enc` là chính khoá đó, gói kín bằng
+ * `BACKUP_PASSPHRASE`, nên ở máy nào cũng mở ra được.
+ */
+function ungVienKhoa() {
+  const env = process.env.BACKUP_PASSPHRASE;
+  const ds = [];
+  if (env) ds.push({ how: "BACKUP_PASSPHRASE", lay: () => env });
+  if (existsSync(KEYFILE) && process.platform === "win32") {
+    ds.push({ how: "khoá DPAPI của máy này", lay: dpapiKey });
+  }
+  if (env && existsSync(ESCROW)) {
+    ds.push({ how: "khoá gửi kèm, mở bằng BACKUP_PASSPHRASE", lay: () => unseal(readFileSync(ESCROW), env).key });
+  }
+  return ds;
+}
+
+/** Thử từng khoá lên đúng file đầu chuỗi, lấy cái nào mở được. */
+function moKhoa(file) {
+  const ds = ungVienKhoa();
+  if (!ds.length) {
+    die(`Không có BACKUP_PASSPHRASE, không thấy khoá ${KEYFILE}, cũng không thấy ${ESCROW}.`);
+  }
+  const buf = readFileSync(file);
+  const loi = [];
+  for (const c of ds) {
+    try {
+      const pass = c.lay();
+      unseal(buf, pass);
+      return { pass, how: c.how };
+    } catch (e) {
+      loi.push(`  ${c.how}: ${e.message}`);
+    }
+  }
+  die(`Không khoá nào mở được ${file}:\n${loi.join("\n")}`);
 }
 
 const idx = JSON.parse(readFileSync(INDEX, "utf8"));
@@ -76,7 +115,8 @@ console.log(
   `\nDựng lại ${upto ? `tới ${upto.slice(0, 10)}` : "bản gần nhất"}: 1 bản đầy đủ + ${chain.length - 1} phần chênh.`,
 );
 
-const pass = getPassphrase();
+const { pass, how } = moKhoa(join(DIR, chain[0].name));
+console.log(`Mở bằng: ${how}.`);
 let snap = unseal(readFileSync(join(DIR, chain[0].name)), pass);
 for (const f of chain.slice(1)) snap = applyPatch(snap, unseal(readFileSync(join(DIR, f.name)), pass));
 

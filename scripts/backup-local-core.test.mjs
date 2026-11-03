@@ -23,6 +23,7 @@ import {
   seal,
   unseal,
   pickBaseAndChain,
+  planMirror,
 } from "./backup-local-core.mjs";
 
 /** Một bản dump bé nhưng có đủ mấy kiểu dữ liệu hay làm vỡ round-trip. */
@@ -100,6 +101,17 @@ describe("patch", () => {
     const next = snap({ ...BASE.tables, courts: [{ id: 1, name: "Sân A" }] });
     const got = applyPatch(BASE, diffSnapshots(BASE, next));
     expect(got.tables.courts).toHaveLength(1);
+    expect(snapshotHash(got)).toBe(snapshotHash(next));
+  });
+
+  // Bắt được trên dữ liệu thật ngày 03/11/2026: prod thêm bảng `venues` còn
+  // rỗng, patch bỏ qua vì không có dòng nào thêm hay bớt, nên bản dựng lại
+  // thiếu hẳn một bảng. Bảng rỗng hôm nay là bảng có dữ liệu ngày mai.
+  it("thêm một bảng mới CÒN RỖNG thì bản dựng lại vẫn phải có bảng đó", () => {
+    const next = snap({ ...BASE.tables, venues: [] });
+    const patch = diffSnapshots(BASE, next);
+    const got = applyPatch(BASE, patch);
+    expect(got.tables.venues).toEqual([]);
     expect(snapshotHash(got)).toBe(snapshotHash(next));
   });
 
@@ -187,5 +199,34 @@ describe("chọn chuỗi để dựng lại", () => {
 
   it("không có bản đầy đủ nào thì báo lỗi", () => {
     expect(() => pickBaseAndChain([files[1]])).toThrow(/đầy đủ/i);
+  });
+});
+
+describe("chép sang chỗ thứ hai", () => {
+  const files = [
+    { name: "a.full.enc", kind: "full", takenAt: "2026-11-01T00:00:00Z", hash: "h1", bytes: 800 },
+    { name: "b.patch.enc", kind: "patch", takenAt: "2026-11-02T00:00:00Z", baseHash: "h1", hash: "h2", bytes: 90 },
+  ];
+
+  it("chỗ thứ hai còn trống thì chép hết, theo thứ tự thời gian", () => {
+    expect(planMirror(files, {})).toEqual(["a.full.enc", "b.patch.enc"]);
+  });
+
+  it("đã có đủ rồi thì không chép lại gì", () => {
+    expect(planMirror(files, { "a.full.enc": 800, "b.patch.enc": 90 })).toEqual([]);
+  });
+
+  it("file bên kia chép dở (sai kích thước) thì chép lại", () => {
+    expect(planMirror(files, { "a.full.enc": 512, "b.patch.enc": 90 })).toEqual(["a.full.enc"]);
+  });
+
+  it("KHÔNG đụng vào file lạ bên kia: nguồn dọn bản cũ không được kéo theo chỗ thứ hai", () => {
+    const con = { "a.full.enc": 800, "b.patch.enc": 90, "cu-lam-roi.full.enc": 700 };
+    expect(planMirror(files, con)).toEqual([]);
+  });
+
+  it("thứ tự thời gian, không phải thứ tự trong sổ", () => {
+    const lonXon = [files[1], files[0]];
+    expect(planMirror(lonXon, {})).toEqual(["a.full.enc", "b.patch.enc"]);
   });
 });

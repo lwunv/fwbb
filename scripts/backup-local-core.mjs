@@ -127,7 +127,12 @@ export function diffSnapshots(base, next) {
       const d = n - (cb.get(line) ?? 0);
       if (d > 0) del.push([line, d]);
     }
-    if (add.length || del.length) {
+    // Bảng MỚI phải ghi vào patch kể cả khi còn rỗng: không có dòng nào thêm
+    // hay bớt, nhưng sự tồn tại của bảng chính là thay đổi. Bỏ qua thì bản
+    // dựng lại thiếu hẳn một bảng, và bảng rỗng hôm nay là bảng có dữ liệu
+    // ngày mai. Dính thật trên prod ngày 03/11/2026, bảng `venues`.
+    const laBangMoi = !(name in a);
+    if (add.length || del.length || laBangMoi) {
       tables[name] = { add, del };
       changedTables += 1;
     }
@@ -248,4 +253,22 @@ export function pickBaseAndChain(files, upto = null) {
     want = f.hash;
   }
   return chain;
+}
+
+/**
+ * Những file cần chép sang chỗ thứ hai (ổ ngoài, thư mục đồng bộ đám mây).
+ *
+ * Hai điều cố ý:
+ *
+ * 1. **So cả KÍCH THƯỚC, không chỉ tên.** Một file chép dở dang trông y hệt
+ *    file đủ nếu chỉ nhìn tên, và nó sẽ ngồi đó im lặng tới đúng hôm cần.
+ * 2. **Không bao giờ trả về lệnh xoá.** Nguồn dọn bản cũ đi thì chỗ thứ hai
+ *    vẫn giữ. Chỗ thứ hai tồn tại cho tình huống nguồn đã mất, nên để nó cắt
+ *    theo nguồn là bỏ đi phần lớn giá trị của nó.
+ */
+export function planMirror(indexFiles, atMirror = {}) {
+  return [...indexFiles]
+    .sort((x, y) => (x.takenAt < y.takenAt ? -1 : x.takenAt > y.takenAt ? 1 : 0))
+    .filter((f) => atMirror[f.name] !== f.bytes)
+    .map((f) => f.name);
 }

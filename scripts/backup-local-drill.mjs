@@ -14,7 +14,7 @@
  * ⚠️ Có ghi plaintext ra thư mục tạm ở bước nạp lại, và tự xoá ở cuối.
  */
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { copyFileSync, mkdtempSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -39,11 +39,19 @@ function step(n, title) {
   console.log(`\n── ${n}. ${title}`);
 }
 
-function node(script, args = [], extraEnv = {}) {
-  return execFileSync(process.execPath, [script, ...args], {
-    env: { ...env, ...extraEnv },
-    encoding: "utf8",
-  });
+/**
+ * Chạy một script con, gom CẢ stdout lẫn stderr.
+ *
+ * Gom cả hai là cố ý: cảnh báo đi theo stderr, mà bài diễn tập có kiểm cả nội
+ * dung cảnh báo. Chỉ bắt stdout thì bài kiểm đó đỏ oan.
+ */
+function node(script, args = [], extraEnv = {}, bo = []) {
+  const e = { ...env, ...extraEnv };
+  for (const k of bo) delete e[k];
+  const r = spawnSync(process.execPath, [script, ...args], { env: e, encoding: "utf8" });
+  const text = `${r.stdout ?? ""}${r.stderr ?? ""}`;
+  if (r.status !== 0) throw new Error(`${script} thoát ${r.status}:\n${text}`);
+  return text;
 }
 
 let failed = false;
@@ -95,7 +103,41 @@ try {
   });
   check(/KHOP TUNG BIT/.test(cmp), cmp.trim().split("\n").pop());
 
-  step(6, "xoá plaintext của bài diễn tập");
+  // Đây là bài quan trọng nhất của cả file. Một bản chép sang ổ ngoài mà chỉ
+  // mở được trên đúng cái máy đã tạo ra nó thì vô dụng đúng lúc cần: mất máy.
+  // Nên bài này cố ý niêm bằng khoá DPAPI, rồi mở bản đã chép đi mà KHÔNG
+  // được phép dùng khoá đó.
+  if (process.platform === "win32") {
+    step(6, "chép sang chỗ thứ hai, rồi mở nó mà không có khoá của máy");
+    const bk2 = join(work, "bk2");
+    const guong = join(work, "guong");
+
+    // Không có BACKUP_PASSPHRASE: buộc nó phải tự sinh khoá và cất bằng DPAPI.
+    const lan1 = node("scripts/backup-local.mjs", [`--dir=${bk2}`, `--mirror=${guong}`], {}, ["BACKUP_PASSPHRASE"]);
+    check(/khoá DPAPI của máy/.test(lan1), "niêm bằng khoá DPAPI của máy");
+    check(/kiểm lại .* khớp từng bit/.test(lan1), "chép sang chỗ thứ hai và kiểm lại khớp");
+    check(/MẤT MÁY LÀ MỞ KHÔNG RA/.test(lan1), "có cảnh báo khi chưa gói khoá");
+    check(!existsSync(join(guong, "key.dpapi")), "KHÔNG chép khoá của máy sang chỗ thứ hai");
+
+    node("scripts/backup-local.mjs", [`--dir=${bk2}`, "--escrow"]);
+
+    // Lần này CÓ BACKUP_PASSPHRASE trong môi trường. Nó phải vẫn mở được chuỗi
+    // cũ bằng khoá DPAPI, nghĩa là báo "không có gì đổi". Nếu nó quay sang niêm
+    // bằng BACKUP_PASSPHRASE thì đọc không ra bản cũ và đẻ thêm một bản đầy đủ,
+    // tức chuỗi gãy làm đôi. Đúng lỗi đã bắt được ngày 03/11/2026.
+    const lan2 = node("scripts/backup-local.mjs", [`--dir=${bk2}`, `--mirror=${guong}`]);
+    check(/Không có gì đổi/.test(lan2), "có BACKUP_PASSPHRASE vẫn không làm gãy chuỗi đang niêm bằng DPAPI");
+    check(existsSync(join(guong, "key.escrow.enc")), "khoá đã gói nằm ở chỗ thứ hai");
+    check(!/MẤT MÁY LÀ MỞ KHÔNG RA/.test(lan2), "gói khoá xong thì hết cảnh báo");
+
+    // Giả lập mất máy: xoá sạch thư mục gốc lẫn khoá DPAPI, chỉ còn chỗ thứ hai.
+    rmSync(bk2, { recursive: true, force: true });
+    const moLai = node("scripts/restore-local.mjs", [`--dir=${guong}`]);
+    check(/khoá gửi kèm/.test(moLai), "mở bằng khoá gửi kèm, không phải khoá của máy");
+    check(/Mở và dựng lại được/.test(moLai), "dựng lại được dữ liệu từ chỗ thứ hai");
+  }
+
+  step(7, "xoá plaintext của bài diễn tập");
   rmSync(out, { force: true });
   check(!existsSync(out), "đã xoá file plaintext");
 } finally {
