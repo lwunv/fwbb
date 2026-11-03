@@ -2,6 +2,7 @@ import {
   sqliteTable,
   text,
   integer,
+  real,
   uniqueIndex,
   index,
   check,
@@ -10,6 +11,7 @@ import {
 import { sql, relations } from "drizzle-orm";
 import { SKILL_LEVELS } from "@/lib/skill-level";
 import { GENDERS } from "@/lib/gender";
+import { VENUE_STATUSES } from "@/lib/venue-amenities";
 
 export const admins = sqliteTable(
   "admins",
@@ -182,6 +184,56 @@ export const memberOauthIdentities = sqliteTable(
   ],
 );
 
+/**
+ * Danh bạ sân công khai (giao lưu quanh đây). Tách khỏi `courts` có chủ ý:
+ * `courts` chứa giá thuê tháng riêng của nhóm (`pricePerSession NOT NULL`),
+ * không có nghĩa với sân người khác đề xuất và không được lộ ra ngoài. Sân
+ * của nhóm nối vào đây qua `courts.venueId`.
+ *
+ * `lat`/`lng` là số thực — toạ độ, không phải tiền.
+ */
+export const venues = sqliteTable(
+  "venues",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    name: text("name").notNull(),
+    address: text("address"),
+    /** Chữ tự do từ kết quả geocode, chỉ để hiển thị (không có danh sách quận cố định). */
+    areaLabel: text("area_label"),
+    lat: real("lat").notNull(),
+    lng: real("lng").notNull(),
+    mapLink: text("map_link"),
+    courtCount: integer("court_count"),
+    openHours: text("open_hours"),
+    /** JSON mảng mã trong `VENUE_AMENITIES`. */
+    amenities: text("amenities").notNull().default("[]"),
+    phone: text("phone"),
+    /** Giá thuê tham khảo/giờ, VND số nguyên. */
+    refPricePerHour: integer("ref_price_per_hour"),
+    photoLink: text("photo_link"),
+    status: text("status", { enum: VENUE_STATUSES })
+      .notNull()
+      .default("pending"),
+    submittedByMemberId: integer("submitted_by_member_id").references(
+      () => members.id,
+    ),
+    approvedAt: text("approved_at"),
+    createdAt: text("created_at").default(sql`(current_timestamp)`),
+    updatedAt: text("updated_at").default(sql`(current_timestamp)`),
+  },
+  (table) => [
+    index("venues_status_lat_lng_idx").on(table.status, table.lat, table.lng),
+    check(
+      "venues_ref_price_non_negative",
+      sql`${table.refPricePerHour} IS NULL OR ${table.refPricePerHour} >= 0`,
+    ),
+    check(
+      "venues_court_count_positive",
+      sql`${table.courtCount} IS NULL OR ${table.courtCount} >= 1`,
+    ),
+  ],
+);
+
 export const courts = sqliteTable("courts", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
@@ -192,6 +244,8 @@ export const courts = sqliteTable("courts", {
   /** Giá thuê theo tháng — 200k/2h. (Cột `price_per_session` legacy: giá đang dùng = giá tháng). */
   pricePerSession: integer("price_per_session").notNull(),
   isActive: integer("is_active", { mode: "boolean" }).default(true),
+  /** Nối sân của nhóm vào danh bạ công khai. Chỉ các trường của `venues` lộ ra. */
+  venueId: integer("venue_id").references(() => venues.id),
 });
 
 export const shuttlecockBrands = sqliteTable("shuttlecock_brands", {
