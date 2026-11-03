@@ -160,20 +160,34 @@ describe("ExchangeLoginForm: nút Zalo", () => {
     expect(hidden(zaloButton().closest("form")!, "next")).toBe("/san?r=5");
   });
 
-  it("gửi form → xin token mới SAU khi form đã lấy token (không xoá token lúc đang gửi)", async () => {
+  it("gửi form → xin token mới SAU khi form đã lấy token (không xoá token lúc đang gửi)", () => {
     renderForm();
     give("tok-zalo-1");
     const form = zaloButton().closest("form")!;
     const before = widget.resetKey;
+    // Đồng hồ giả để tự chạy nhịp setTimeout(0) bên trong act(). Chờ bằng
+    // waitFor với đồng hồ thật thì flaky khi máy tải nặng: mock widget ghi
+    // resetKey ngay lúc render, còn nút chỉ khoá sau khi useEffect của widget
+    // gọi onToken(null) và render lại, tức một nhịp sau. waitFor có thể bắt
+    // đúng khe giữa hai việc đó. act() thì xả hết render + effect rồi mới trả.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      fireEvent.submit(form);
 
-    fireEvent.submit(form);
+      // Ngay lúc submit, input vẫn phải chứa token để trình duyệt gửi đi.
+      expect(widget.resetKey).toBe(before);
+      expect(hidden(form, "cf-turnstile-response")).toBe("tok-zalo-1");
 
-    // Ngay lúc submit, input vẫn phải chứa token để trình duyệt gửi đi.
-    expect(widget.resetKey).toBe(before);
-    expect(hidden(form, "cf-turnstile-response")).toBe("tok-zalo-1");
-    // Sau đó token đã tiêu: quay lại bằng bfcache không được còn nút mở.
-    await waitFor(() => expect(widget.resetKey).toBe(before + 1));
-    expect(zaloButton().disabled).toBe(true);
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+
+      // Sau đó token đã tiêu: quay lại bằng bfcache không được còn nút mở.
+      expect(widget.resetKey).toBe(before + 1);
+      expect(zaloButton().disabled).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
