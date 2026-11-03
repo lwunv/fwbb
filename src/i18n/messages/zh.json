@@ -1202,6 +1202,7 @@
   "serverErrors": {
     "venueNoCoordinates": "无法从链接读取坐标。请在 Google 地图中点击“分享”后重新粘贴，或直接输入坐标。",
     "venueOutsideVietnam": "坐标不在越南境内。请检查链接或纬度、经度的顺序。",
+    "venueAddressNotFound": "找不到该地址。请尝试输入坊、郡或附近的地标。",
     "missingFields": "请填写完整信息",
     "tooManyLoginAttempts": "登录尝试次数过多,{seconds} 秒后重试",
     "tooManyResetRequests": "重置请求次数过多,{seconds} 秒后重试",

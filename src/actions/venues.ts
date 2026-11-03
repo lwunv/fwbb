@@ -2,10 +2,10 @@
 
 import { db } from "@/db";
 import { venues } from "@/db/schema";
-import { and, between, ne } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { and, between, eq, ne } from "drizzle-orm";
+import { revalidatePath, unstable_cache } from "next/cache";
 import { getTranslations } from "next-intl/server";
-import type { z } from "zod";
+import { z } from "zod";
 import { venueSubmitSchema } from "@/lib/validators";
 import { requireApprovedMember } from "@/lib/member-auth";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -14,8 +14,12 @@ import {
   boundingBox,
   haversineMeters,
   isInVietnam,
+  snapToGrid,
   type LatLng,
 } from "@/lib/geo";
+import { toPublicVenue, type PublicVenue } from "@/lib/public-venue";
+import { VENUE_AMENITIES } from "@/lib/venue-amenities";
+import { geocodeNominatim } from "@/lib/nominatim";
 
 /** Sân cách nhau dưới mức này coi là có thể trùng. */
 const DUPLICATE_RADIUS_M = 100;
@@ -117,4 +121,141 @@ async function findNearbyVenue(
     }
   }
   return best;
+}
+
+const RADII_KM = [3, 5, 10, 20] as const;
+const MAX_RESULTS = 50;
+/**
+ * Biên cộng thêm khi đọc ứng viên quanh TÂM Ô LƯỚI thay vì vị trí thật. Phải
+ * lớn hơn nửa đường chéo ô 0,01° (~0,78 km) để người đứng ở góc ô không bị
+ * mất sân sát mép bán kính.
+ */
+const GRID_MARGIN_M = 1500;
+const CANDIDATE_LIMIT = 200;
+
+const nearQuerySchema = z.object({
+  lat: z.number().finite().min(-90).max(90),
+  lng: z.number().finite().min(-180).max(180),
+  radiusKm: z.union(
+    RADII_KM.map((r) => z.literal(r)) as [
+      z.ZodLiteral<3>,
+      z.ZodLiteral<5>,
+      z.ZodLiteral<10>,
+      z.ZodLiteral<20>,
+    ],
+  ),
+  amenities: z.array(z.enum(VENUE_AMENITIES)).max(6).optional(),
+});
+
+/**
+ * Ứng viên quanh một ô lưới, có cache. Khoá cache là (ô lưới, bán kính) chứ
+ * không phải toạ độ thật, nên nhiều người đứng gần nhau và request dội liên
+ * tục chỉ xuống DB một lần mỗi 60 giây (bài học quota Turso 2/11/2026).
+ *
+ * Dùng `unstable_cache` vì app chưa bật Cache Components; bật nó là thay đổi
+ * cách cache của toàn app, ngoài phạm vi danh bạ sân.
+ */
+const getCandidatesNearCell = unstable_cache(
+  async (cellLat: number, cellLng: number, radiusKm: number) => {
+    const bb = boundingBox(
+      { lat: cellLat, lng: cellLng },
+      radiusKm * 1000 + GRID_MARGIN_M,
+    );
+    const rows = await db
+      .select()
+      .from(venues)
+      .where(
+        and(
+          eq(venues.status, "approved"),
+          between(venues.lat, bb.minLat, bb.maxLat),
+          between(venues.lng, bb.minLng, bb.maxLng),
+        ),
+      )
+      .limit(CANDIDATE_LIMIT);
+    return rows.map(toPublicVenue);
+  },
+  ["venues-near"],
+  { revalidate: 60, tags: ["venues"] },
+);
+
+/**
+ * Sân đã duyệt quanh một điểm, sắp theo khoảng cách. Công khai (không cần
+ * đăng nhập). Vị trí người dùng chỉ dùng trong request này, không lưu, không
+ * log.
+ */
+export async function listVenuesNear(q: {
+  lat: number;
+  lng: number;
+  radiusKm: (typeof RADII_KM)[number];
+  amenities?: (typeof VENUE_AMENITIES)[number][];
+}): Promise<
+  { venues: (PublicVenue & { distanceM: number })[] } | { error: string }
+> {
+  const parsed = nearQuerySchema.safeParse(q);
+  if (!parsed.success) {
+    const t = await getTranslations("serverErrors");
+    return { error: t("missingFields") };
+  }
+  const { lat, lng, radiusKm, amenities = [] } = parsed.data;
+  const cell = snapToGrid({ lat, lng });
+  const candidates = await getCandidatesNearCell(cell.lat, cell.lng, radiusKm);
+
+  const radiusM = radiusKm * 1000;
+  const result = candidates
+    .map((v) => ({
+      ...v,
+      distanceM: Math.round(haversineMeters({ lat, lng }, v)),
+    }))
+    .filter(
+      (v) =>
+        v.distanceM <= radiusM &&
+        amenities.every((a) => v.amenities.includes(a)),
+    )
+    .sort((a, b) => a.distanceM - b.distanceM)
+    .slice(0, MAX_RESULTS);
+  return { venues: result };
+}
+
+/** Chi tiết một sân đã duyệt; `null` nếu không có hoặc chưa duyệt/đã ẩn. */
+export async function getPublicVenue(id: number): Promise<PublicVenue | null> {
+  if (!Number.isInteger(id) || id <= 0) return null;
+  const row = await db.query.venues.findFirst({
+    where: and(eq(venues.id, id), eq(venues.status, "approved")),
+  });
+  return row ? toPublicVenue(row) : null;
+}
+
+class GeocodeMiss extends Error {}
+
+/**
+ * Throw khi không có kết quả: `unstable_cache` không cache lần throw, nên một
+ * lần Nominatim lỗi tạm thời không biến thành "không tìm thấy" suốt 7 ngày.
+ */
+const geocodeCached = unstable_cache(
+  async (normalized: string) => {
+    const hit = await geocodeNominatim(normalized);
+    if (!hit) throw new GeocodeMiss();
+    return hit;
+  },
+  ["venues-geocode"],
+  { revalidate: 604_800 },
+);
+
+/**
+ * Đường lùi khi người dùng từ chối GPS: gõ địa chỉ/khu vực để lấy toạ độ.
+ * Cache theo chuỗi đã chuẩn hoá 7 ngày để không gọi Nominatim lặp.
+ */
+export async function geocodeAddress(
+  query: string,
+): Promise<{ lat: number; lng: number; label: string } | { error: string }> {
+  const t = await getTranslations("serverErrors");
+  const normalized = (query ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  if (!normalized || normalized.length > 200)
+    return { error: t("missingFields") };
+  try {
+    return await geocodeCached(normalized);
+  } catch (e) {
+    if (e instanceof GeocodeMiss) return { error: t("venueAddressNotFound") };
+    throw e;
+  }
 }
