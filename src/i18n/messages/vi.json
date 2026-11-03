@@ -1390,7 +1390,7 @@
     "prev": "Trước",
     "done": "Xong",
     "votePlayTitle": "Đi chơi cầu",
-    "votePlayDesc": "Bấm ô 🏸 ở thanh dưới cùng để báo bạn đi chơi cầu buổi này. Bấm lại để bỏ. Hết chỗ thì ô hiện \"Hết slot\".",
+    "votePlayDesc": "Bấm ô 🏸 ở thanh dưới cùng để báo bạn đi chơi cầu buổi này, bấm lại để bỏ. Chọn xong, trong ô sẽ hiện công tắc 👫 để báo bạn đi 2 người.",
     "voteDineTitle": "Đi nhậu",
     "voteDineDesc": "Bấm ô 🍺 để báo bạn ở lại nhậu sau buổi. Chọn riêng với cầu, không chơi vẫn nhậu được.",
     "votePartnerTitle": "Đi 2 người",
@@ -1400,7 +1400,7 @@
     "fundTopupTitle": "Nộp quỹ",
     "fundTopupDesc": "Quét mã QR này bằng app ngân hàng để nộp quỹ.",
     "welcomeTitle": "Chào mừng đến FWBB! 🏸",
-    "welcomeDesc": "Hướng dẫn nhanh 1 phút: chọn buổi, vote chơi cầu / nhậu, xem quỹ và các mục trong menu.",
+    "welcomeDesc": "Xem nhanh cách chọn buổi, vote chơi cầu / nhậu, xem quỹ và các mục trong menu. Đã quen rồi thì bấm Bỏ qua.",
     "navMenuTitle": "Menu",
     "navMenuDesc": "Bấm nút này (góc trái) để mở menu. Mình mở thử để bạn xem từng mục nhé.",
     "weekDaysTitle": "Chọn ngày chơi",
@@ -1422,7 +1422,11 @@
     "headerPrefsTitle": "Ngôn ngữ & giao diện",
     "headerPrefsDesc": "Đổi ngôn ngữ (Tiếng Việt / English / 中文) và chuyển giao diện Sáng / Tối / Hồng ở đây.",
     "navGuideTitle": "Xem lại hướng dẫn",
-    "navGuideDesc": "Muốn xem lại tour này, mở menu rồi bấm Hướng dẫn."
+    "navGuideDesc": "Muốn xem lại tour này, mở menu rồi bấm Hướng dẫn.",
+    "skip": "Bỏ qua",
+    "start": "Bắt đầu",
+    "navVenuesTitle": "Sân",
+    "navVenuesDesc": "Danh sách sân cầu lông, sắp theo khoảng cách tới bạn. Biết sân nào hay thì đề xuất thêm ở đây."
   },
   "venues": {
     "nav": "Danh bạ sân",

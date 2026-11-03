@@ -1390,7 +1390,7 @@
     "prev": "上一步",
     "done": "完成",
     "votePlayTitle": "打球",
-    "votePlayDesc": "点底部栏的 🏸 方框表示这场来打球，再点一次取消。满员时方框显示“已满”。",
+    "votePlayDesc": "点底部栏的 🏸 方框表示这场来打球，再点一次取消。选好后方框里会出现 👫 开关，两人同行时打开。",
     "voteDineTitle": "聚餐",
     "voteDineDesc": "点 🍺 方框表示打完留下聚餐。独立选择，不打球也能聚餐。",
     "votePartnerTitle": "两人同行",
@@ -1400,7 +1400,7 @@
     "fundTopupTitle": "充值",
     "fundTopupDesc": "用银行 App 扫这个二维码给基金充值。",
     "welcomeTitle": "欢迎来到 FWBB！🏸",
-    "welcomeDesc": "1 分钟快速引导：选择场次、报名打球 / 聚餐、查看基金，以及菜单里的各项功能。",
+    "welcomeDesc": "快速了解：选择场次、报名打球 / 聚餐、查看基金和菜单里的功能。已经熟悉了就点“跳过”。",
     "navMenuTitle": "菜单",
     "navMenuDesc": "点击此按钮（左上角）打开菜单。我们打开它逐项看看。",
     "weekDaysTitle": "选择日期",
@@ -1422,7 +1422,11 @@
     "headerPrefsTitle": "语言与主题",
     "headerPrefsDesc": "在这里切换语言（Tiếng Việt / English / 中文）和 浅色 / 深色 / 粉色 主题。",
     "navGuideTitle": "重看引导",
-    "navGuideDesc": "想再看一次引导，打开菜单点“引导”即可。"
+    "navGuideDesc": "想再看一次引导，打开菜单点“引导”即可。",
+    "skip": "跳过",
+    "start": "开始",
+    "navVenuesTitle": "球场",
+    "navVenuesDesc": "羽毛球场列表，按离你的距离排序。知道好的球场可以在这里推荐。"
   },
   "venues": {
     "nav": "场馆目录",
