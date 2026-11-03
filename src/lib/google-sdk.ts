@@ -72,15 +72,43 @@ let scriptLoaded = false;
  * caller is canonical — older callers' buttons are already unmounted so
  * they can't fire anyway.
  */
+/**
+ * App đã CÀI (PWA standalone) hay đang mở trong trình duyệt?
+ *
+ * Quan trọng cho đăng nhập Google: trong standalone, popup (`window.open`) mở ở
+ * một ngữ cảnh khác với cửa sổ app nên credential postMessage không về được,
+ * login treo. Phát hiện được standalone thì chuyển nút Google sang FedCM (hộp
+ * thoại native, không popup). Trình duyệt thường giữ popup cũ.
+ *
+ * iOS "Thêm vào màn hình chính" mở trong Safari (layout không bật
+ * `apple-mobile-web-app-capable`) nên `display-mode: standalone` = false ở đó →
+ * iOS vẫn dùng popup và vẫn chạy.
+ */
+export function isStandaloneDisplay(): boolean {
+  if (typeof window === "undefined") return false;
+  const mm = window.matchMedia?.("(display-mode: standalone)")?.matches;
+  const iosStandalone =
+    (window.navigator as Navigator & { standalone?: boolean }).standalone ===
+    true;
+  return !!mm || iosStandalone;
+}
+
 function reInitializeWithCallback(
   clientId: string,
   callback: (idToken: string) => void,
 ) {
+  // FedCM CHỈ khi standalone: trình duyệt thường giữ nguyên popup đã kiểm
+  // chứng, không đổi trải nghiệm đăng nhập của đa số người dùng. FedCM là hộp
+  // thoại chọn tài khoản native của Chrome (không mở cửa sổ popup), nên trong
+  // app đã cài credential vẫn về thẳng callback. Chrome không đỡ FedCM thì GIS
+  // tự lùi về popup (chấp nhận được vì ca đó hiếm và vẫn còn đăng nhập mật khẩu).
+  const fedcm = isStandaloneDisplay();
   window.google!.accounts!.id!.initialize({
     client_id: clientId,
     callback: (response) => callback(response.credential),
     ux_mode: "popup",
     auto_select: false,
+    ...(fedcm ? { use_fedcm_for_button: true } : {}),
   });
 }
 
