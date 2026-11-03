@@ -49,7 +49,25 @@ export function VenueForm({
     v === "" || v === null || v === undefined ? undefined : Number(v);
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+    <form
+      onSubmit={handleSubmit((values) => {
+        // Server ưu tiên toạ độ hơn link. Khi ô toạ độ đang ẩn mà người dùng
+        // vừa DÁN LINK KHÁC, toạ độ cũ (họ không thấy) phải bỏ đi, không thì
+        // sân giữ vị trí cũ dù đã báo lưu thành công. Link không đổi hoặc bị
+        // xoá thì giữ toạ độ đã lưu: chúng có thể do admin chỉnh tay, hoặc link
+        // vốn không tách được toạ độ.
+        const newLink = (values.mapLink ?? "").trim();
+        const linkChanged =
+          newLink !== "" && newLink !== (defaultValues?.mapLink ?? "").trim();
+        return onSubmit(
+          showCoords || !linkChanged
+            ? values
+            : { ...values, lat: undefined, lng: undefined },
+        );
+      })}
+      className="space-y-4"
+      noValidate
+    >
       <Field id="venue-name" label={t("name")} error={errors.name?.message}>
         <Input id="venue-name" className="text-base" {...register("name")} />
       </Field>

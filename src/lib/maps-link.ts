@@ -52,7 +52,14 @@ export function parseLatLngFromMapsUrl(url: string): LatLng | null {
   }
   if (!isMapsHost(u.hostname)) return null;
 
-  const full = decodeURIComponent(u.pathname + u.search + u.hash);
+  let full: string;
+  try {
+    full = decodeURIComponent(u.pathname + u.search + u.hash);
+  } catch {
+    // `%` sai (vd `%ZZ`) làm decodeURIComponent ném URIError. Link hỏng thì
+    // coi như không có toạ độ, để caller báo lỗi rõ cho người dùng.
+    return null;
+  }
   const place = PLACE_RE.exec(full);
   if (place) return toLatLng(place[1], place[2]);
 

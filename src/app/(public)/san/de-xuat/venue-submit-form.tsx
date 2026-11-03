@@ -32,7 +32,14 @@ export function VenueSubmitForm() {
 
   async function send(values: VenueFormValues) {
     pending.current = values;
-    const r = await submitVenue(values);
+    let r: Awaited<ReturnType<typeof submitVenue>>;
+    try {
+      r = await submitVenue(values);
+    } catch {
+      // Mất mạng hoặc server lỗi: phải báo, không để nút bấm xong im lặng.
+      toast.error(t("saveFailed"));
+      return;
+    }
     if ("duplicate" in r) {
       setDup(r.duplicate);
       return;

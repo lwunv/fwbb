@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { members, venues } from "@/db/schema";
-import { and, between, eq, ne } from "drizzle-orm";
+import { and, between, eq, ne, sql } from "drizzle-orm";
 import { revalidatePath, unstable_cache, updateTag } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { z } from "zod";
@@ -21,11 +21,12 @@ import {
 import { toPublicVenue, type PublicVenue } from "@/lib/public-venue";
 import { VENUE_AMENITIES, type VenueStatus } from "@/lib/venue-amenities";
 import { geocodeNominatim } from "@/lib/nominatim";
+import { getTrustedClientIp } from "@/lib/client-ip";
 
 /** Sân cách nhau dưới mức này coi là có thể trùng. */
 const DUPLICATE_RADIUS_M = 100;
 const SUBMIT_LIMIT_PER_DAY = 3;
-const DAY_MS = 86_400_000;
+const SUBMIT_TRIES_PER_MIN = 10;
 
 /**
  * Member đã duyệt đề xuất một sân vào danh bạ (status `pending`, chờ admin).
@@ -52,20 +53,24 @@ export async function submitVenue(
   const memberId = auth.member.id;
   const t = await getTranslations("serverErrors");
 
-  const rl = await checkRateLimit(
-    `venue-submit:${memberId}`,
-    SUBMIT_LIMIT_PER_DAY,
-    DAY_MS,
-  );
-  if (!rl.ok) {
-    return {
-      error: t("tooManyActions", { seconds: rl.retryAfter ?? 3600 }),
-    };
-  }
-
   const parsed = venueSubmitSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const data = parsed.data;
+
+  // Chặn spam lần thử (kể cả lần lỗi) trên đường ĐẮT: resolve link rút gọn
+  // kéo theo vài lượt fetch ra ngoài. Lần gửi có sẵn toạ độ không gọi mạng.
+  if (data.lat === undefined || data.lng === undefined) {
+    const tries = await checkRateLimit(
+      `venue-submit-try:${memberId}`,
+      SUBMIT_TRIES_PER_MIN,
+      60_000,
+    );
+    if (!tries.ok) {
+      return {
+        error: t("tooManyActions", { seconds: tries.retryAfter ?? 60 }),
+      };
+    }
+  }
 
   const resolved = await resolveVenuePoint(data);
   if ("errorKey" in resolved) return { error: t(resolved.errorKey) };
@@ -76,23 +81,30 @@ export async function submitVenue(
     if (dup) return { duplicate: dup };
   }
 
-  const [row] = await db
-    .insert(venues)
-    .values({
-      name: data.name,
-      address: data.address || null,
-      lat: point.lat,
-      lng: point.lng,
-      mapLink: data.mapLink || null,
-      courtCount: data.courtCount ?? null,
-      openHours: data.openHours || null,
-      amenities: JSON.stringify(data.amenities),
-      phone: data.phone || null,
-      refPricePerHour: data.refPricePerHour ?? null,
-      photoLink: data.photoLink || null,
-      submittedByMemberId: memberId,
-    })
-    .returning({ id: venues.id });
+  // Giới hạn tính trên số sân ĐÃ GỬI THÀNH CÔNG trong 24 giờ (lần lỗi toạ độ,
+  // lần bị báo trùng không bị tính). Đếm và ghi trong CÙNG một câu lệnh
+  // (INSERT ... SELECT ... WHERE count < N): tách đếm rồi mới insert thì N
+  // request song song cùng thấy count=0 và cùng lọt qua.
+  const rows = await db.all<{ id: number }>(sql`
+    INSERT INTO ${venues} (
+      name, address, lat, lng, map_link, court_count, open_hours, amenities,
+      phone, ref_price_per_hour, photo_link, submitted_by_member_id
+    )
+    SELECT
+      ${data.name}, ${data.address || null}, ${point.lat}, ${point.lng},
+      ${data.mapLink || null}, ${data.courtCount ?? null},
+      ${data.openHours || null}, ${JSON.stringify(data.amenities)},
+      ${data.phone || null}, ${data.refPricePerHour ?? null},
+      ${data.photoLink || null}, ${memberId}
+    WHERE (
+      SELECT count(*) FROM ${venues}
+      WHERE submitted_by_member_id = ${memberId}
+        AND created_at >= datetime('now', '-1 day')
+    ) < ${SUBMIT_LIMIT_PER_DAY}
+    RETURNING id
+  `);
+  const row = rows[0];
+  if (!row) return { error: t("venueSubmitLimit") };
 
   revalidatePath("/admin/venues");
   return { success: true, id: row.id };
@@ -192,11 +204,24 @@ const nearQuerySchema = z.object({
  * cách cache của toàn app, ngoài phạm vi danh bạ sân.
  */
 const getCandidatesNearCell = unstable_cache(
-  async (cellLat: number, cellLng: number, radiusKm: number) => {
+  async (
+    cellLat: number,
+    cellLng: number,
+    radiusKm: number,
+    amenitiesKey: string,
+  ) => {
     const bb = boundingBox(
       { lat: cellLat, lng: cellLng },
       radiusKm * 1000 + GRID_MARGIN_M,
     );
+    // Kinh độ co lại theo cos(vĩ độ); nhân vào để sắp xếp gần đúng theo
+    // khoảng cách thật mà không cần hàm lượng giác trong SQLite.
+    const cosLat = Math.cos((cellLat * Math.PI) / 180);
+    const amenityConds = amenitiesKey
+      ? amenitiesKey
+          .split(",")
+          .map((a) => sql`instr(${venues.amenities}, ${`"${a}"`}) > 0`)
+      : [];
     const rows = await db
       .select()
       .from(venues)
@@ -205,7 +230,13 @@ const getCandidatesNearCell = unstable_cache(
           eq(venues.status, "approved"),
           between(venues.lat, bb.minLat, bb.maxLat),
           between(venues.lng, bb.minLng, bb.maxLng),
+          ...amenityConds,
         ),
+      )
+      // Sắp theo khoảng cách TRƯỚC khi cắt: không thì danh bạ lớn trả 200
+      // dòng bất kỳ trong khung và sân gần nhất có thể bị loại.
+      .orderBy(
+        sql`(${venues.lat} - ${cellLat}) * (${venues.lat} - ${cellLat}) + ((${venues.lng} - ${cellLng}) * ${cosLat}) * ((${venues.lng} - ${cellLng}) * ${cosLat})`,
       )
       .limit(CANDIDATE_LIMIT);
     return rows.map(toPublicVenue);
@@ -234,7 +265,15 @@ export async function listVenuesNear(q: {
   }
   const { lat, lng, radiusKm, amenities = [] } = parsed.data;
   const cell = snapToGrid({ lat, lng });
-  const candidates = await getCandidatesNearCell(cell.lat, cell.lng, radiusKm);
+  // Mã tiện ích đã qua zod enum nên an toàn để ghép vào khoá; sắp xếp để
+  // ["a","b"] và ["b","a"] dùng chung một mục cache.
+  const amenitiesKey = [...new Set(amenities)].sort().join(",");
+  const candidates = await getCandidatesNearCell(
+    cell.lat,
+    cell.lng,
+    radiusKm,
+    amenitiesKey,
+  );
 
   const radiusM = radiusKm * 1000;
   const result = candidates
@@ -261,25 +300,50 @@ export async function getPublicVenue(id: number): Promise<PublicVenue | null> {
   return row ? toPublicVenue(row) : null;
 }
 
-class GeocodeMiss extends Error {}
+class GeocodeTransientError extends Error {}
 
 /**
- * Throw khi không có kết quả: `unstable_cache` không cache lần throw, nên một
- * lần Nominatim lỗi tạm thời không biến thành "không tìm thấy" suốt 7 ngày.
+ * Cache 7 ngày cho kết quả THẬT (tìm thấy / không có). Lỗi tạm thời (429, mạng,
+ * hàng chờ đầy) thì throw: `unstable_cache` không cache lần throw, nên một lần
+ * Nominatim trục trặc không biến thành câu trả lời sai suốt cả tuần.
  */
 const geocodeCached = unstable_cache(
   async (normalized: string) => {
-    const hit = await geocodeNominatim(normalized);
-    if (!hit) throw new GeocodeMiss();
-    return hit;
+    const r = await geocodeNominatim(normalized);
+    if (r.status === "error" || r.status === "busy") {
+      throw new GeocodeTransientError();
+    }
+    return r;
   },
   ["venues-geocode"],
   { revalidate: 604_800 },
 );
 
+const GEOCODE_LIMIT_PER_MIN = 10;
+const GEOCODE_GLOBAL_PER_MIN = 60;
+
+/**
+ * Khoá rate limit theo IP. IPv6 gom theo dải /64: một máy thường có cả dải
+ * /64, xoay địa chỉ trong đó là miễn phí nên giới hạn theo /128 vô nghĩa.
+ */
+function ipRateLimitKey(ip: string): string {
+  if (!ip.includes(":")) return ip;
+  const [head, tail = ""] = ip.toLowerCase().split("::");
+  const h = head ? head.split(":") : [];
+  const tl = tail ? tail.split(":") : [];
+  const groups = ip.includes("::")
+    ? [...h, ...Array(Math.max(0, 8 - h.length - tl.length)).fill("0"), ...tl]
+    : h;
+  return `${groups
+    .slice(0, 4)
+    .map((g) => g.replace(/^0+(?=.)/, ""))
+    .join(":")}::/64`;
+}
+
 /**
  * Đường lùi khi người dùng từ chối GPS: gõ địa chỉ/khu vực để lấy toạ độ.
- * Cache theo chuỗi đã chuẩn hoá 7 ngày để không gọi Nominatim lặp.
+ * Công khai nên giới hạn theo IP: Nominatim cấm dùng nặng, và spam chuỗi khác
+ * nhau sẽ lách được cache.
  */
 export async function geocodeAddress(
   query: string,
@@ -288,10 +352,34 @@ export async function geocodeAddress(
   const normalized = (query ?? "").trim().toLowerCase().replace(/\s+/g, " ");
   if (!normalized || normalized.length > 200)
     return { error: t("missingFields") };
+
+  const ip = await getTrustedClientIp();
+  const rl = await checkRateLimit(
+    `geocode:${ipRateLimitKey(ip)}`,
+    GEOCODE_LIMIT_PER_MIN,
+    60_000,
+  );
+  if (!rl.ok) {
+    return { error: t("tooManyActions", { seconds: rl.retryAfter ?? 60 }) };
+  }
+  // Trần chung cho mọi IP: hàng đợi 1 req/s trong nominatim.ts chỉ giữ nhịp
+  // trong MỘT instance; xoay IP + nhiều instance Vercel vẫn có thể vượt chính
+  // sách của Nominatim và làm IP của app bị chặn cho tất cả mọi người.
+  const global = await checkRateLimit(
+    "geocode:global",
+    GEOCODE_GLOBAL_PER_MIN,
+    60_000,
+  );
+  if (!global.ok) return { error: t("venueGeocodeUnavailable") };
+
   try {
-    return await geocodeCached(normalized);
+    const r = await geocodeCached(normalized);
+    if (r.status !== "ok") return { error: t("venueAddressNotFound") };
+    return { lat: r.lat, lng: r.lng, label: r.label };
   } catch (e) {
-    if (e instanceof GeocodeMiss) return { error: t("venueAddressNotFound") };
+    if (e instanceof GeocodeTransientError) {
+      return { error: t("venueGeocodeUnavailable") };
+    }
     throw e;
   }
 }

@@ -43,6 +43,11 @@ describe("parseLatLngFromMapsUrl", () => {
       parseLatLngFromMapsUrl("https://www.google.com/maps/place/San+ABC"),
     ).toBeNull());
 
+  it("link có % sai (URIError) → null, không throw", () =>
+    expect(
+      parseLatLngFromMapsUrl("https://www.google.com/maps/place/abc%ZZ"),
+    ).toBeNull());
+
   it("chuỗi không phải URL → null", () =>
     expect(parseLatLngFromMapsUrl("not a url")).toBeNull());
 });

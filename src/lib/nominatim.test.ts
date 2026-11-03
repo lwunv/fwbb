@@ -19,6 +19,7 @@ describe("geocodeNominatim", () => {
     const f = vi.fn().mockResolvedValue(ok(HIT));
     const r = await geocodeNominatim("Hoàn Kiếm", f);
     expect(r).toEqual({
+      status: "ok",
       lat: 21.0285,
       lng: 105.8542,
       label: "Hoàn Kiếm, Hà Nội",
@@ -52,28 +53,42 @@ describe("geocodeNominatim", () => {
     expect(times[1] - times[0]).toBeGreaterThanOrEqual(1000);
   });
 
-  it("không có kết quả → null", async () => {
+  it("không có kết quả → not_found (khác lỗi tạm thời)", async () => {
     const f = vi.fn().mockResolvedValue(ok([]));
-    expect(await geocodeNominatim("xyz", f)).toBeNull();
+    expect(await geocodeNominatim("xyz", f)).toEqual({ status: "not_found" });
   });
 
-  it("HTTP lỗi hoặc fetch throw → null", async () => {
+  it("HTTP lỗi hoặc fetch throw → error (không phải not_found)", async () => {
     expect(
       await geocodeNominatim(
         "a",
         vi.fn().mockResolvedValue(new Response("", { status: 429 })),
       ),
-    ).toBeNull();
+    ).toEqual({ status: "error" });
     __resetNominatimThrottle();
     expect(
       await geocodeNominatim("a", vi.fn().mockRejectedValue(new Error("down"))),
-    ).toBeNull();
+    ).toEqual({ status: "error" });
   });
 
-  it("query rỗng hoặc > 200 ký tự → null, không gọi fetch", async () => {
+  it("hàng chờ quá 5 lượt → busy ngay, không xếp thêm", async () => {
+    vi.useFakeTimers();
+    const f = vi.fn().mockImplementation(async () => ok(HIT));
+    const calls = Array.from({ length: 8 }, (_, i) =>
+      geocodeNominatim(`q${i}`, f),
+    );
+    await vi.advanceTimersByTimeAsync(10_000);
+    const results = await Promise.all(calls);
+    expect(results.filter((r) => r.status === "busy")).toHaveLength(2);
+    expect(f).toHaveBeenCalledTimes(6);
+  });
+
+  it("query rỗng hoặc > 200 ký tự → not_found, không gọi fetch", async () => {
     const f = vi.fn();
-    expect(await geocodeNominatim("   ", f)).toBeNull();
-    expect(await geocodeNominatim("x".repeat(201), f)).toBeNull();
+    expect(await geocodeNominatim("   ", f)).toEqual({ status: "not_found" });
+    expect(await geocodeNominatim("x".repeat(201), f)).toEqual({
+      status: "not_found",
+    });
     expect(f).not.toHaveBeenCalled();
   });
 });

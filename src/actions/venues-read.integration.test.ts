@@ -14,6 +14,10 @@ vi.mock("next-intl/server", () => ({
 
 const nomMock = vi.hoisted(() => ({ geocodeNominatim: vi.fn() }));
 vi.mock("@/lib/nominatim", () => nomMock);
+const ipMock = vi.hoisted(() => ({
+  getTrustedClientIp: vi.fn(async () => "203.0.113.7"),
+}));
+vi.mock("@/lib/client-ip", () => ipMock);
 
 const { db, client } = await createTestDb();
 vi.mock("@/db", () => ({ db }));
@@ -117,6 +121,34 @@ describe("listVenuesNear", () => {
     expect(r.venues).toHaveLength(50);
   });
 
+  it("danh bạ lớn (>200 sân trong khung): sân gần nhất vẫn có dù thêm vào cuối", async () => {
+    const values = Array.from({ length: 220 }, (_, i) => ({
+      name: `Far${i}`,
+      // Phía NAM tâm (vĩ độ thấp hơn) để thứ tự index (status, lat, lng) đưa
+      // chúng lên trước sân gần nhất — không thì test xanh nhờ may.
+      ...north(-(4 + (i % 10) * 0.05)),
+      status: "approved" as const,
+    }));
+    await db.insert(venues).values(values);
+    await add("Nearest", north(0.2));
+    const r = await listVenuesNear({ ...C, radiusKm: 5 });
+    if ("error" in r) throw new Error(r.error);
+    expect(r.venues[0].name).toBe("Nearest");
+  });
+
+  it("lọc tiện ích chạy trước khi cắt ứng viên: sân có tiện ích ở xa hơn 200 sân khác vẫn ra", async () => {
+    const values = Array.from({ length: 220 }, (_, i) => ({
+      name: `Plain${i}`,
+      ...north(0.5 + i * 0.001),
+      status: "approved" as const,
+    }));
+    await db.insert(venues).values(values);
+    await add("WithShower", north(4), { amenities: '["shower"]' });
+    expect(
+      names(await listVenuesNear({ ...C, radiusKm: 5, amenities: ["shower"] })),
+    ).toEqual(["WithShower"]);
+  });
+
   it("lat/lng không hợp lệ hoặc radius lạ → error", async () => {
     expect(
       await listVenuesNear({ lat: NaN, lng: 105, radiusKm: 5 }),
@@ -141,10 +173,14 @@ describe("getPublicVenue", () => {
 });
 
 describe("geocodeAddress", () => {
-  beforeEach(() => nomMock.geocodeNominatim.mockReset());
+  beforeEach(async () => {
+    nomMock.geocodeNominatim.mockReset();
+    await client.execute("DELETE FROM rate_limit_buckets");
+  });
 
   it("chuẩn hoá chuỗi rồi trả toạ độ", async () => {
     nomMock.geocodeNominatim.mockResolvedValueOnce({
+      status: "ok",
       lat: 21.02,
       lng: 105.85,
       label: "Hoàn Kiếm",
@@ -157,17 +193,65 @@ describe("geocodeAddress", () => {
     expect(nomMock.geocodeNominatim).toHaveBeenCalledWith("hoàn kiếm");
   });
 
-  it("không tìm thấy → error, và không chặn lần thử sau", async () => {
-    nomMock.geocodeNominatim.mockResolvedValueOnce(null);
+  it("không tìm thấy → venueAddressNotFound", async () => {
+    nomMock.geocodeNominatim.mockResolvedValueOnce({ status: "not_found" });
     expect(await geocodeAddress("abc")).toEqual({
       error: "venueAddressNotFound",
     });
+  });
+
+  it("lỗi tạm thời/bận → venueGeocodeUnavailable, và không chặn lần thử sau", async () => {
+    nomMock.geocodeNominatim.mockResolvedValueOnce({ status: "error" });
+    expect(await geocodeAddress("abc")).toEqual({
+      error: "venueGeocodeUnavailable",
+    });
+    nomMock.geocodeNominatim.mockResolvedValueOnce({ status: "busy" });
+    expect(await geocodeAddress("abc")).toEqual({
+      error: "venueGeocodeUnavailable",
+    });
     nomMock.geocodeNominatim.mockResolvedValueOnce({
+      status: "ok",
       lat: 21,
       lng: 105.8,
       label: "abc",
     });
     expect(await geocodeAddress("abc")).toHaveProperty("lat", 21);
+  });
+
+  it("quá 10 lần/phút từ cùng IP → error, không gọi Nominatim", async () => {
+    nomMock.geocodeNominatim.mockResolvedValue({ status: "not_found" });
+    for (let i = 0; i < 10; i++) await geocodeAddress(`q${i}`);
+    nomMock.geocodeNominatim.mockClear();
+    expect(await geocodeAddress("q-extra")).toEqual({
+      error: "tooManyActions",
+    });
+    expect(nomMock.geocodeNominatim).not.toHaveBeenCalled();
+  });
+
+  it("xoay IP vẫn bị trần chung 60 lần/phút (bảo vệ nhịp của Nominatim)", async () => {
+    nomMock.geocodeNominatim.mockResolvedValue({ status: "not_found" });
+    for (let i = 0; i < 60; i++) {
+      ipMock.getTrustedClientIp.mockResolvedValueOnce(`198.51.100.${i}`);
+      await geocodeAddress(`g${i}`);
+    }
+    nomMock.geocodeNominatim.mockClear();
+    ipMock.getTrustedClientIp.mockResolvedValueOnce("198.51.100.250");
+    expect(await geocodeAddress("g-extra")).toEqual({
+      error: "venueGeocodeUnavailable",
+    });
+    expect(nomMock.geocodeNominatim).not.toHaveBeenCalled();
+  });
+
+  it("IPv6 cùng /64 dùng chung một giới hạn", async () => {
+    nomMock.geocodeNominatim.mockResolvedValue({ status: "not_found" });
+    for (let i = 0; i < 10; i++) {
+      ipMock.getTrustedClientIp.mockResolvedValueOnce(`2001:db8:1:2::${i + 1}`);
+      await geocodeAddress(`v6-${i}`);
+    }
+    ipMock.getTrustedClientIp.mockResolvedValueOnce("2001:db8:1:2:ffff::9");
+    expect(await geocodeAddress("v6-extra")).toEqual({
+      error: "tooManyActions",
+    });
   });
 
   it("rỗng hoặc quá dài → error, không gọi Nominatim", async () => {

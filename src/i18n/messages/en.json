@@ -1311,7 +1311,9 @@
     "voteDeadlinePassed": "Voting closed for this session",
     "invalidDeadlineFormat": "Invalid deadline format",
     "deadlineMustBeFuture": "Deadline must be in the future",
-    "invalidExtendHours": "Extend hours must be 2 or 24"
+    "invalidExtendHours": "Extend hours must be 2 or 24",
+    "venueSubmitLimit": "You have suggested 3 venues in the last 24 hours. Please try again tomorrow.",
+    "venueGeocodeUnavailable": "The address search is busy right now. Try again in a few minutes or tap \"Use my location\"."
   },
   "adminShuttlecockFinance": {
     "title": "Shuttlecock finance",
@@ -1500,6 +1502,7 @@
     "loadError": "We could not load the venues. Please try again.",
     "retry": "Try again",
     "backToList": "All venues",
-    "attribution": "Address coordinates: © OpenStreetMap contributors"
+    "attribution": "Address coordinates: © OpenStreetMap contributors",
+    "saveFailed": "Could not save. Check your connection and try again."
   }
 }

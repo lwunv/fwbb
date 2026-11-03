@@ -1311,7 +1311,9 @@
     "voteDeadlinePassed": "投票已结束",
     "invalidDeadlineFormat": "截止时间格式无效",
     "deadlineMustBeFuture": "截止时间必须是未来时间",
-    "invalidExtendHours": "延长小时数必须是 2 或 24"
+    "invalidExtendHours": "延长小时数必须是 2 或 24",
+    "venueSubmitLimit": "您在过去 24 小时内已推荐 3 个场馆，请明天再试。",
+    "venueGeocodeUnavailable": "地址搜索服务正忙。请几分钟后重试，或点击“使用我的位置”。"
   },
   "adminShuttlecockFinance": {
     "title": "球品收支",
@@ -1500,6 +1502,7 @@
     "loadError": "无法加载场馆列表，请稍后重试。",
     "retry": "重试",
     "backToList": "全部场馆",
-    "attribution": "地址坐标：© OpenStreetMap contributors"
+    "attribution": "地址坐标：© OpenStreetMap contributors",
+    "saveFailed": "保存失败。请检查网络连接后重试。"
   }
 }

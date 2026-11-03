@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
-import { members, venues, rateLimitBuckets } from "@/db/schema";
+import { members, venues } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 vi.mock("next/cache", () => ({
@@ -168,15 +168,65 @@ describe("submitVenue", () => {
     ).toHaveProperty("success", true);
   });
 
+  it("lần gửi lỗi và lần bị báo trùng không tính vào giới hạn ngày", async () => {
+    resolveMock.resolveMapsLink.mockResolvedValue(null);
+    for (let i = 0; i < 3; i++) {
+      expect(
+        await submitVenue({
+          name: "Lỗi",
+          mapLink: "https://maps.app.goo.gl/x",
+        }),
+      ).toHaveProperty("error");
+    }
+    await submitVenue({ name: "Gốc", lat: 21.03, lng: 105.85 });
+    expect(
+      await submitVenue({ name: "Trùng", lat: 21.0301, lng: 105.8501 }),
+    ).toHaveProperty("duplicate");
+    expect(
+      await submitVenue({
+        name: "Trùng",
+        lat: 21.0301,
+        lng: 105.8501,
+        confirmDuplicate: true,
+      }),
+    ).toHaveProperty("success", true);
+  });
+
+  it("gửi song song 5 lần cùng lúc → chỉ tạo đúng 3 sân", async () => {
+    const results = await Promise.all(
+      Array.from({ length: 5 }, (_, i) =>
+        submitVenue({
+          name: `P${i}`,
+          lat: 21 + i * 0.1,
+          lng: 105.85,
+          confirmDuplicate: true,
+        }),
+      ),
+    );
+    expect(results.filter((r) => "success" in r)).toHaveLength(3);
+    expect(await db.select().from(venues)).toHaveLength(3);
+  });
+
+  it("gửi lỗi liên tục quá 10 lần/phút → bị chặn trước khi resolve link", async () => {
+    resolveMock.resolveMapsLink.mockResolvedValue(null);
+    for (let i = 0; i < 10; i++) {
+      await submitVenue({ name: "Lỗi", mapLink: "https://maps.app.goo.gl/x" });
+    }
+    resolveMock.resolveMapsLink.mockClear();
+    expect(
+      await submitVenue({ name: "Lỗi", mapLink: "https://maps.app.goo.gl/x" }),
+    ).toEqual({ error: "tooManyActions" });
+    expect(resolveMock.resolveMapsLink).not.toHaveBeenCalled();
+  });
+
   it("quá 3 lần/ngày → error", async () => {
     for (let i = 0; i < 3; i++) {
       expect(
         await submitVenue({ name: `S${i}`, lat: 21 + i * 0.1, lng: 105.85 }),
       ).toHaveProperty("success", true);
     }
-    expect(
-      await submitVenue({ name: "S4", lat: 21.5, lng: 105.85 }),
-    ).toHaveProperty("error");
-    expect(await db.select().from(rateLimitBuckets)).not.toHaveLength(0);
+    expect(await submitVenue({ name: "S4", lat: 21.5, lng: 105.85 })).toEqual({
+      error: "venueSubmitLimit",
+    });
   });
 });

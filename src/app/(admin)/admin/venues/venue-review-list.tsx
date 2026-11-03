@@ -222,7 +222,13 @@ export function VenueReviewList(props: Record<VenueStatus, ReviewVenue[]>) {
               onSubmit={async (values) => {
                 // Chờ server (không optimistic): admin cần biết toạ độ/link có
                 // hợp lệ không trước khi đóng form.
-                const r = await updateVenue(editing.id, values);
+                let r: Awaited<ReturnType<typeof updateVenue>>;
+                try {
+                  r = await updateVenue(editing.id, values);
+                } catch {
+                  toast.error(t("saveFailed"));
+                  return;
+                }
                 if ("error" in r) {
                   toast.error(r.error);
                   return;

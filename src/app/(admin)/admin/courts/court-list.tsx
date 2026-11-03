@@ -10,6 +10,7 @@ import {
   linkCourtToVenue,
 } from "@/actions/courts";
 import { fireAction } from "@/lib/optimistic-action";
+import { overlayValue } from "@/lib/optimistic-overlay";
 import { formatK } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,7 +82,7 @@ export function CourtList({
   }
 
   function handleLinkVenue(court: Court, raw: string) {
-    const prev = linkedVenue[court.id] ?? court.venueId ?? null;
+    const prev = overlayValue(linkedVenue, court.id, court.venueId);
     const next = raw === "" ? null : Number(raw);
     setLinkedVenue((m) => ({ ...m, [court.id]: next }));
     fireAction(
@@ -342,7 +343,8 @@ export function CourtList({
                       <CustomSelect
                         className="min-w-0 flex-1"
                         value={String(
-                          linkedVenue[court.id] ?? court.venueId ?? "",
+                          overlayValue(linkedVenue, court.id, court.venueId) ??
+                            "",
                         )}
                         onChange={(v) => handleLinkVenue(court, v)}
                         options={[

@@ -1311,7 +1311,9 @@
     "voteDeadlinePassed": "Đã hết hạn vote cho buổi này",
     "invalidDeadlineFormat": "Format deadline không hợp lệ",
     "deadlineMustBeFuture": "Deadline phải sau thời điểm hiện tại",
-    "invalidExtendHours": "Số giờ extend phải là 2 hoặc 24"
+    "invalidExtendHours": "Số giờ extend phải là 2 hoặc 24",
+    "venueSubmitLimit": "Bạn đã đề xuất 3 sân trong 24 giờ qua. Hãy thử lại vào ngày mai.",
+    "venueGeocodeUnavailable": "Dịch vụ tìm địa chỉ đang bận. Thử lại sau ít phút hoặc bấm \"Dùng vị trí của tôi\"."
   },
   "adminShuttlecockFinance": {
     "title": "Tiền cầu",
@@ -1500,6 +1502,7 @@
     "loadError": "Không tải được danh sách sân. Thử lại sau.",
     "retry": "Thử lại",
     "backToList": "Danh sách sân",
-    "attribution": "Toạ độ địa chỉ: © OpenStreetMap contributors"
+    "attribution": "Toạ độ địa chỉ: © OpenStreetMap contributors",
+    "saveFailed": "Không lưu được. Kiểm tra kết nối mạng rồi thử lại."
   }
 }
