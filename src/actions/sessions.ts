@@ -68,13 +68,6 @@ import {
 } from "@/lib/validators";
 import { getTranslations } from "next-intl/server";
 
-export async function getSessions() {
-  return db.query.sessions.findMany({
-    orderBy: [desc(sessions.date)],
-    with: { court: true },
-  });
-}
-
 export async function getSession(id: number) {
   return db.query.sessions.findFirst({
     where: eq(sessions.id, id),
@@ -201,6 +194,10 @@ export async function getNextSession() {
  *   giờ trống nếu còn buổi pending.
  */
 export async function getAdminUpcomingSession() {
+  // Hàm này có thể INSERT buổi mới, nên không phải admin thì dừng ngay.
+  const auth = await requireAdmin();
+  if ("error" in auth) return undefined;
+
   const today = ymdInVN();
 
   // 1. Hôm nay có session active → show

@@ -5,8 +5,9 @@ import { sessions, sessionShuttlecocks, sessionDebts } from "@/db/schema";
 import { eq, inArray, ne, and, lte } from "drizzle-orm";
 import { calculateExactShuttlecockCost } from "@/lib/cost-calculator";
 import { roundToThousand } from "@/lib/utils";
-import { getUserFromCookie } from "@/lib/user-identity";
-import { getAdminFromCookie } from "@/lib/auth";
+import { getAdminFromCookie, requireAdmin } from "@/lib/auth";
+import { requireApprovedOrAdmin } from "@/lib/approved-or-admin";
+import { requireApprovedMember } from "@/lib/member-auth";
 import { ymdInVN, ymdInVNAddDays } from "@/lib/date-format";
 
 /**
@@ -54,6 +55,9 @@ export interface ActiveMemberStat {
 export async function getActiveMembersStats(
   yearFilter: string = "all",
 ): Promise<ActiveMemberStat[]> {
+  const gate = await requireApprovedOrAdmin();
+  if ("error" in gate) return [];
+
   const yearPrefix = /^\d{4}$/.test(yearFilter) ? yearFilter : null;
 
   const completedSessions = await db.query.sessions.findMany({
@@ -214,16 +218,18 @@ export async function getMonthlyExpenses(
 ): Promise<MonthlyExpense[]> {
   if (forMemberId != null && forMemberId > 0) {
     // Per-member expense breakdown is PII (financial profile of a person).
-    // Only the member themselves OR an admin may view it.
-    const [user, admin] = await Promise.all([
-      getUserFromCookie(),
-      getAdminFromCookie(),
-    ]);
-    const isOwner = user?.memberId === forMemberId;
-    const isAdmin = !!admin && admin.role === "admin";
-    if (!isOwner && !isAdmin) return [];
+    // Only the member themselves (approved, active) OR an admin may view it.
+    const admin = await requireAdmin();
+    if ("error" in admin) {
+      const viewer = await requireApprovedMember();
+      if ("error" in viewer || viewer.user.memberId !== forMemberId) return [];
+    }
     return getMonthlyExpensesForMember(forMemberId, groupBy);
   }
+
+  // Toàn CLB (sân, cầu, nhậu) chỉ admin xem; member chỉ xem phần của mình.
+  const admin = await requireAdmin();
+  if ("error" in admin) return [];
 
   const dateStart = getExpenseRangeStart(groupBy);
 
@@ -375,6 +381,9 @@ function getLastSixCalendarMonthsStart(): string {
 
 /** Xu hướng điểm danh: luôn 6 tháng lịch gần nhất (không theo TimeFilter) */
 export async function getAttendanceTrend(): Promise<AttendancePoint[]> {
+  const gate = await requireApprovedOrAdmin();
+  if ("error" in gate) return [];
+
   const dateStart = getLastSixCalendarMonthsStart();
 
   const completedSessions = await db.query.sessions.findMany({

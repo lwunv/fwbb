@@ -166,8 +166,10 @@ export const memberOauthIdentities = sqliteTable(
     memberId: integer("member_id")
       .notNull()
       .references(() => members.id, { onDelete: "cascade" }),
-    provider: text("provider", { enum: ["google", "facebook"] }).notNull(),
-    /** `sub` (Google) hoặc user id (Facebook) — định danh ổn định của provider. */
+    provider: text("provider", {
+      enum: ["google", "facebook", "zalo"],
+    }).notNull(),
+    /** `sub` (Google), user id (Facebook) hoặc id (Zalo) — định danh ổn định của provider. */
     providerUid: text("provider_uid").notNull(),
     /** Email tại thời điểm liên kết (thông tin, KHÔNG dùng để auth). */
     email: text("email"),

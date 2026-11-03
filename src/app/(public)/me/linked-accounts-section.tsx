@@ -16,7 +16,7 @@ import { unlinkOAuthIdentity } from "@/actions/members";
 
 interface LinkedIdentity {
   id: number;
-  provider: "google" | "facebook";
+  provider: "google" | "facebook" | "zalo";
   email: string | null;
   createdAt: string | null;
 }
@@ -24,6 +24,14 @@ interface LinkedIdentity {
 const PROVIDER_LABEL: Record<LinkedIdentity["provider"], string> = {
   google: "Google",
   facebook: "Facebook",
+  zalo: "Zalo",
+};
+
+/** Chữ cái trong huy hiệu tròn của từng provider (thay cho logo). */
+const PROVIDER_BADGE: Record<LinkedIdentity["provider"], string> = {
+  google: "G",
+  facebook: "f",
+  zalo: "Z",
 };
 
 type GoogleStatus = "loading" | "ready" | "failed";
@@ -159,7 +167,7 @@ export function LinkedAccountsSection({
                   className="bg-muted/30 flex items-center gap-3 rounded-xl border px-3 py-2.5"
                 >
                   <span className="bg-background flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-sm font-bold">
-                    {idn.provider === "google" ? "G" : "f"}
+                    {PROVIDER_BADGE[idn.provider]}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">

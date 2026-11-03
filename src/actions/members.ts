@@ -1260,7 +1260,7 @@ export async function unlinkOAuthIdentity(identityId: number) {
               eq(members.googleId, identity.providerUid),
             ),
           );
-      } else {
+      } else if (identity.provider === "facebook") {
         await tx
           .update(members)
           .set({ facebookId: null })

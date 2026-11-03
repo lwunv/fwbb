@@ -2,7 +2,19 @@ import { db } from "@/db";
 import { members, memberOauthIdentities } from "@/db/schema";
 import { and, eq, ne } from "drizzle-orm";
 
-export type OAuthProvider = "google" | "facebook";
+export type OAuthProvider = "google" | "facebook" | "zalo";
+
+/**
+ * Cột legacy `members.googleId/facebookId` của provider, hoặc null nếu provider
+ * không có cột legacy. `zalo` cố ý KHÔNG có: uid Zalo và uid Facebook là hai
+ * không gian khác nhau, nên đối chiếu uid Zalo với `facebookId` có thể cho một
+ * tài khoản Zalo đăng nhập vào hồ sơ Facebook của người khác.
+ */
+function legacyColumnFor(provider: OAuthProvider) {
+  if (provider === "google") return members.googleId;
+  if (provider === "facebook") return members.facebookId;
+  return null;
+}
 
 /** Kiểu transaction của drizzle (tham số callback `db.transaction`). */
 type DrizzleTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -36,8 +48,8 @@ export async function findMemberByOAuth(
     return m ?? null;
   }
   // Fallback cột legacy (row cũ / trước backfill).
-  const legacyCol =
-    provider === "google" ? members.googleId : members.facebookId;
+  const legacyCol = legacyColumnFor(provider);
+  if (!legacyCol) return null;
   const m = await db.query.members.findFirst({
     where: eq(legacyCol, uid),
   });
@@ -73,8 +85,8 @@ export async function oauthLinkState(
   }
   // Chưa có identity row: kiểm tra cột legacy để không nhận nhầm "free" khi
   // uid thực ra đã thuộc member khác qua cột cũ.
-  const legacyCol =
-    provider === "google" ? members.googleId : members.facebookId;
+  const legacyCol = legacyColumnFor(provider);
+  if (!legacyCol) return { state: "free" };
   const legacyOwner = await db.query.members.findFirst({
     where: eq(legacyCol, uid),
     columns: { id: true },
