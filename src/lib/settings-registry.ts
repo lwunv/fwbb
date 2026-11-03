@@ -197,6 +197,16 @@ export const SETTINGS = {
     perSession: false,
     revalidate: ["/admin/dashboard", "/admin/sessions"],
   }),
+  // Cờ tổng của tính năng giao lưu (tài khoản Zalo, danh bạ sân). TẮT mặc định:
+  // khi tắt mọi URL mới trả 404 và các luồng cũ chạy y như trước, nên deploy mã
+  // mới không đổi hành vi nào cho tới khi admin chủ động bật.
+  exchangeEnabled: def({
+    key: "exchangeEnabled",
+    schema: z.boolean(),
+    default: false,
+    perSession: false,
+    revalidate: ["/giao-luu", "/san", "/", "/admin/members", "/admin/settings"],
+  }),
 
   // ─── Tài khoản nhận tiền (QR chuyển khoản) ───
   // Mặc định "970454" = BIN của Timo/VietCapitalBank (BVBank), đúng giá trị

@@ -28,6 +28,11 @@ describe("defaultSettings", () => {
     expect(d.bankAccountNo).toBe("");
     expect(d.bankAccountName).toBe("");
   });
+
+  it("cờ giao lưu mặc định TẮT để deploy xong app chạy y như cũ", () => {
+    expect(defaultSettings().exchangeEnabled).toBe(false);
+    expect(SETTINGS.exchangeEnabled.perSession).toBe(false);
+  });
 });
 
 describe("SETTINGS", () => {

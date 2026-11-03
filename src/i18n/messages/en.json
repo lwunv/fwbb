@@ -49,6 +49,8 @@
     "quaUnit": "shuttles",
     "autoCreate": "Auto-create sessions",
     "autoCreateHint": "The app creates voting sessions automatically on the days picked below.",
+    "exchangeEnabled": "Turn on exchange",
+    "exchangeEnabledHint": "Lets people outside the group sign in with Zalo and browse the court directory. Set the Zalo and Turnstile env vars on Vercel before turning it on.",
     "appName": "Group name",
     "bankAccount": "Receiving account",
     "bankName": "Bank",

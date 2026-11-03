@@ -49,6 +49,8 @@
     "quaUnit": "quả",
     "autoCreate": "Tự động tạo buổi",
     "autoCreateHint": "Tự tạo buổi vote vào các ngày chọn bên dưới, admin không phải tạo tay.",
+    "exchangeEnabled": "Mở tính năng giao lưu",
+    "exchangeEnabledHint": "Cho người ngoài nhóm đăng nhập bằng Zalo và xem danh bạ sân. Phải đặt đủ biến Zalo và Turnstile trên Vercel trước khi bật.",
     "appName": "Tên nhóm",
     "bankAccount": "Tài khoản nhận tiền",
     "bankName": "Ngân hàng",

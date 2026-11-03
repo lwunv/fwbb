@@ -49,6 +49,8 @@
     "quaUnit": "个",
     "autoCreate": "自动创建活动",
     "autoCreateHint": "系统会在下方所选的日期自动创建投票活动。",
+    "exchangeEnabled": "开启交流功能",
+    "exchangeEnabledHint": "允许群外的人用 Zalo 登录并查看球场名录。开启前请先在 Vercel 设置好 Zalo 和 Turnstile 的环境变量。",
     "appName": "群组名称",
     "bankAccount": "收款账户",
     "bankName": "银行",

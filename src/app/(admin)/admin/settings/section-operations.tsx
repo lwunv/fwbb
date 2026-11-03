@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { Cog } from "lucide-react";
 import { SectionCard } from "@/components/shared/section-card";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { useSettingsDraft } from "@/components/settings/settings-draft";
 import { normalizeContactHotline } from "@/lib/settings-registry";
@@ -67,6 +68,20 @@ export function SectionOperations() {
             onBlur={(e) => blurTrim("appName", e.target.value)}
           />
         </label>
+
+        <div className="flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3">
+          <div>
+            <div className="text-sm font-medium">{t("exchangeEnabled")}</div>
+            <p className="text-muted-foreground text-xs">
+              {t("exchangeEnabledHint")}
+            </p>
+          </div>
+          <Switch
+            checked={get("exchangeEnabled")}
+            onCheckedChange={(v) => set("exchangeEnabled", v)}
+            aria-label={t("exchangeEnabled")}
+          />
+        </div>
 
         <div className="space-y-3 border-t pt-3">
           <div className="text-sm font-medium">{t("bankAccount")}</div>
