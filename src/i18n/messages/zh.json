@@ -8,7 +8,8 @@
     "menu": "打开菜单",
     "menuTitle": "导航",
     "logout": "退出登录",
-    "venues": "场馆"
+    "venues": "场馆",
+    "exchange": "交流"
   },
   "adminNav": {
     "dashboard": "概览",
@@ -961,6 +962,12 @@
     "guestVoteCtaTitle": "登录后投票",
     "guestVoteCtaBody": "登录或注册账号即可为本场选择打球/聚餐。",
     "guestVoteCtaButton": "登录 / 注册"
+  },
+  "exchangeNotice": {
+    "title": "你好，{name}",
+    "body": "此账号用于参加交流活动，还不是群组成员，暂时无法查看群组页面。",
+    "goExchange": "前往交流页面",
+    "logout": "退出登录"
   },
   "forceChangePassword": {
     "title": "设置新密码",

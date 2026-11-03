@@ -161,3 +161,35 @@ test("product tour đi qua vote + từng mục trong menu (tự mở ngăn kéo)
   await page.locator('[data-tour="nav-menu"]').click();
   await expect(page.locator('[data-tour="nav-history"]')).toBeVisible();
 });
+
+// /san nằm ở route group (exchange), trang chủ ở (public): đi /san → / là đổi
+// layout nên ngăn kéo menu bị dựng lại, ý định mở tour phải sống qua lần đó.
+test("từ /san mở menu, bấm Hướng dẫn → về / và thấy bước tour đầu tiên", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/login", { waitUntil: "domcontentloaded" });
+  const identifier = page.getByPlaceholder("Username / SĐT / Email");
+  await expect(identifier).toBeVisible({ timeout: 20_000 });
+  await identifier.fill(EMAIL);
+  await page.getByPlaceholder("Mật khẩu (≥ 8 ký tự)").fill(PASSWORD);
+  await page.locator('button[type="submit"]').click();
+  await expect(page.locator('[data-tour="nav-menu"]')).toBeVisible({
+    timeout: 15_000,
+  });
+
+  await page.goto("/san", { waitUntil: "domcontentloaded" });
+  await page.locator('[data-tour="nav-menu"]').click();
+  await page.locator('[data-tour="nav-guide"]').click();
+
+  await expect(page).toHaveURL(/\/$/, { timeout: 15_000 });
+  await expect(page.locator(".driver-popover")).toBeVisible({
+    timeout: 10_000,
+  });
+  await expect(page.locator(".driver-popover-title")).toHaveText(
+    "Chào mừng đến FWBB! 🏸",
+  );
+  await expect(page.locator(".driver-popover-progress-text")).toHaveText(
+    /^1\/\d+$/,
+  );
+});

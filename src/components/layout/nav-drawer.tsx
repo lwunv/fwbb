@@ -15,6 +15,7 @@ import {
   Menu,
   HelpCircle,
   LogOut,
+  Handshake,
 } from "lucide-react";
 import { NavPendingIcon } from "./nav-pending-icon";
 import { useProductTour } from "@/components/tour/use-product-tour";
@@ -26,7 +27,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 
-const navItems = [
+const groupNavItems = [
   { href: "/", labelKey: "home" as const, icon: Home, tour: "nav-home" },
   {
     href: "/history",
@@ -55,12 +56,57 @@ const navItems = [
   { href: "/me", labelKey: "me" as const, icon: User, tour: "nav-me" },
 ];
 
+// Tài khoản giao lưu chưa vào nhóm: chỉ thấy các trang không chứa dữ liệu nhóm.
+const exchangeNavItems = [
+  {
+    href: "/giao-luu",
+    labelKey: "exchange" as const,
+    icon: Handshake,
+    tour: "nav-exchange",
+  },
+  {
+    href: "/san",
+    labelKey: "venues" as const,
+    icon: MapPinned,
+    tour: "nav-venues",
+  },
+];
+
+// Ý định "mở tour" phải sống qua lần đổi layout: /san nằm ở (exchange), trang
+// chủ ở (public), nên đi /san → / thì NavDrawer bị unmount và mất state.
+const TOUR_PENDING_KEY = "fwbb:tourPending";
+
+// sessionStorage có thể ném lỗi (chế độ riêng tư, bị chặn site data). Mất cờ
+// chỉ làm tour không tự mở sau khi chuyển trang, không hỏng gì khác.
+function setTourPendingFlag() {
+  try {
+    sessionStorage.setItem(TOUR_PENDING_KEY, "1");
+  } catch {}
+}
+function hasTourPendingFlag(): boolean {
+  try {
+    return sessionStorage.getItem(TOUR_PENDING_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function clearTourPendingFlag() {
+  try {
+    sessionStorage.removeItem(TOUR_PENDING_KEY);
+  } catch {}
+}
+
 /**
  * Điều hướng dạng ngăn kéo trái (hamburger) — thay bottom-nav để nhường đáy
  * màn hình cho thanh vote sticky. Nút hamburger nằm góc trái Header; bấm mở
  * Sheet trượt từ trái với đủ 5 mục. Chọn mục → đóng ngăn kéo.
  */
-export function NavDrawer() {
+export function NavDrawer({
+  navItems = "group",
+}: {
+  /** "exchange": chỉ Giao lưu + Sân, không có nút Hướng dẫn (tour là của nhóm). */
+  navItems?: "group" | "exchange";
+} = {}) {
   const [open, setOpen] = useState(false);
   // Tour đang điều khiển ngăn kéo: tắt modal + chặn bấm-ra-ngoài-để-đóng, vì
   // popover của tour nằm NGOÀI ngăn kéo (bấm "Tiếp" sẽ đóng nó / bị inert).
@@ -74,6 +120,8 @@ export function NavDrawer() {
   const tTour = useTranslations("tour");
   const { run, hasSeen } = useProductTour();
   const isHome = pathname === "/";
+  const withTour = navItems === "group";
+  const items = withTour ? groupNavItems : exchangeNavItems;
 
   useEffect(() => {
     const onTour = (e: Event) => {
@@ -89,24 +137,31 @@ export function NavDrawer() {
   // bỏ qua dưới automation (Playwright: navigator.webdriver=true).
   const autoRan = useRef(false);
   useEffect(() => {
-    if (autoRan.current || !isHome) return;
+    if (autoRan.current || !isHome || !withTour) return;
     autoRan.current = true;
     if (typeof navigator !== "undefined" && navigator.webdriver) return;
+    // Đang chờ chạy tour do bấm Hướng dẫn ở trang khác → effect dưới lo, khỏi
+    // chạy hai lần.
+    if (hasTourPendingFlag()) return;
     if (!hasSeen()) {
       const id = setTimeout(() => run(), 800);
       return () => clearTimeout(id);
     }
-  }, [hasSeen, run, isHome]);
+  }, [hasSeen, run, isHome, withTour]);
 
   useEffect(() => {
-    if (!tourPending || !isHome) return;
-    // Đợi trang chủ mount xong (thanh vote, banner) rồi mới chạy.
+    if (!isHome || !withTour) return;
+    if (!tourPending && !hasTourPendingFlag()) return;
+    // Đợi trang chủ mount xong (thanh vote, banner) rồi mới chạy. Xoá cờ trong
+    // timeout chứ không xoá ngay: effect bị huỷ giữa chừng (Strict Mode chạy
+    // effect hai lần) thì lần mount sau vẫn thấy cờ.
     const id = setTimeout(() => {
+      clearTourPendingFlag();
       setTourPending(false);
       run();
     }, 800);
     return () => clearTimeout(id);
-  }, [tourPending, isHome, run]);
+  }, [tourPending, isHome, withTour, run]);
 
   return (
     <>
@@ -133,7 +188,7 @@ export function NavDrawer() {
             <SheetTitle>{t("menuTitle")}</SheetTitle>
           </SheetHeader>
           <nav className="space-y-1 px-3 pb-4">
-            {navItems.map((item) => {
+            {items.map((item) => {
               const isActive =
                 item.href === "/"
                   ? pathname === "/" || pathname.startsWith("/vote")
@@ -158,24 +213,27 @@ export function NavDrawer() {
             })}
 
             {/* Hướng dẫn (product tour) — cuối menu, thay nút compass đã bỏ. */}
-            <button
-              type="button"
-              data-tour="nav-guide"
-              onClick={() => {
-                setOpen(false);
-                if (!isHome) {
-                  setTourPending(true);
-                  router.push("/");
-                  return;
-                }
-                // Đóng ngăn kéo trước rồi chạy tour để overlay neo đúng trang.
-                setTimeout(() => run(), 300);
-              }}
-              className="text-foreground hover:bg-muted mt-1 flex min-h-12 w-full items-center gap-3 rounded-xl border-t px-3 py-3 text-base font-medium transition-colors"
-            >
-              <HelpCircle className="text-muted-foreground h-6 w-6 shrink-0" />
-              <span>{tTour("open")}</span>
-            </button>
+            {withTour && (
+              <button
+                type="button"
+                data-tour="nav-guide"
+                onClick={() => {
+                  setOpen(false);
+                  if (!isHome) {
+                    setTourPendingFlag();
+                    setTourPending(true);
+                    router.push("/");
+                    return;
+                  }
+                  // Đóng ngăn kéo trước rồi chạy tour để overlay neo đúng trang.
+                  setTimeout(() => run(), 300);
+                }}
+                className="text-foreground hover:bg-muted mt-1 flex min-h-12 w-full items-center gap-3 rounded-xl border-t px-3 py-3 text-base font-medium transition-colors"
+              >
+                <HelpCircle className="text-muted-foreground h-6 w-6 shrink-0" />
+                <span>{tTour("open")}</span>
+              </button>
+            )}
           </nav>
 
           {/* Đăng xuất — ghim đáy ngăn kéo (mt-auto). Form POST tới

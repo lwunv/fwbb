@@ -8,7 +8,8 @@
     "menu": "Open menu",
     "menuTitle": "Navigation",
     "logout": "Log out",
-    "venues": "Venues"
+    "venues": "Venues",
+    "exchange": "Exchange"
   },
   "adminNav": {
     "dashboard": "Dashboard",
@@ -961,6 +962,12 @@
     "guestVoteCtaTitle": "Log in to vote",
     "guestVoteCtaBody": "Log in or sign up to choose play / dining for this session.",
     "guestVoteCtaButton": "Log in / Sign up"
+  },
+  "exchangeNotice": {
+    "title": "Hi {name}",
+    "body": "This account is for exchange games. It isn't a group member yet, so group pages aren't available.",
+    "goExchange": "Go to exchange page",
+    "logout": "Log out"
   },
   "forceChangePassword": {
     "title": "Set a new password",
