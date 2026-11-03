@@ -26,15 +26,23 @@ export function Header({
         <div className="flex min-w-0 items-center gap-1">
           {showMenu && <NavDrawer />}
           <Link href="/" className="flex min-w-0 items-center">
-            {/* Logo monogram FWB (nền trong suốt) dùng asset riêng cho header:
-                các chỗ khác (login, nav, sidebar) vẫn dùng badge tròn /fwbb.svg.
-                Không kèm chữ "FWBB" nữa (logo đã là nhận diện). `alt` giữ tên để
-                screen reader vẫn đọc ra app. */}
+            {/* Logo monogram FWB (nền trong suốt), asset riêng cho header; các
+                chỗ khác (login, nav, sidebar) dùng badge tròn /fwbb.svg. Không
+                kèm chữ "FWBB" (logo đã là nhận diện). Hai bản theo theme: bản
+                ĐEN cho light + pink (nền sáng), bản HỒNG cho dark (nền tối).
+                Toggle bằng class `.dark` của next-themes; đúng một bản hiện mỗi
+                lúc nên screen reader chỉ đọc một `alt`. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/fwbb-wordmark-black.svg"
+              alt={appName}
+              className="h-8 w-auto shrink-0 dark:hidden"
+            />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/fwbb-wordmark.svg"
               alt={appName}
-              className="h-8 w-auto shrink-0"
+              className="hidden h-8 w-auto shrink-0 dark:block"
             />
           </Link>
         </div>
