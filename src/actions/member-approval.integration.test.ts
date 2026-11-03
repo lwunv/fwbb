@@ -11,7 +11,12 @@ import { createTestDb } from "@/db/test-db";
 import { members, memberOauthIdentities } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
+const flag = vi.hoisted(() => ({ on: true }));
+
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("@/lib/exchange-flag", () => ({
+  isExchangeEnabled: vi.fn(async () => flag.on),
+}));
 vi.mock("@/lib/auth", () => ({
   requireAdmin: vi.fn(async () => ({ admin: { sub: "1", role: "admin" } })),
 }));
@@ -186,6 +191,25 @@ describe("getNameMatches với identity zalo", () => {
     expect(await getNameMatches(pending.id)).toEqual([]);
   });
 
+  it("member approved không có cột legacy nhưng có identity GOOGLE vẫn được gợi ý (hành vi cũ)", async () => {
+    const [linked] = await testDb
+      .insert(members)
+      .values({ name: "Hùng Google", approvalStatus: "approved" })
+      .returning({ id: members.id });
+    await testDb.insert(memberOauthIdentities).values({
+      memberId: linked.id,
+      provider: "google",
+      providerUid: "google-uid-linked",
+    });
+    const [pending] = await testDb
+      .insert(members)
+      .values({ name: "Hùng Google", approvalStatus: "pending" })
+      .returning({ id: members.id });
+
+    const s = await getNameMatches(pending.id);
+    expect(s.map((x) => x.memberId)).toEqual([linked.id]);
+  });
+
   it("member approved không có identity nào vẫn được gợi ý", async () => {
     const [adminMade] = await testDb
       .insert(members)
@@ -245,7 +269,10 @@ describe("approveAndMergeMember với tài khoản giao lưu", () => {
 });
 
 describe("declineGroupRequest", () => {
-  beforeEach(reset);
+  beforeEach(async () => {
+    flag.on = true;
+    await reset();
+  });
 
   async function seedPending(
     values: Partial<typeof members.$inferInsert> = {},
@@ -276,6 +303,13 @@ describe("declineGroupRequest", () => {
     vi.mocked(requireAdmin).mockResolvedValueOnce({ error: "Unauthorized" });
     const r = await declineGroupRequest(id);
     expect(r).toHaveProperty("error");
+    expect((await memberById(id))?.signupIntent).toBe("group");
+  });
+
+  it("cờ giao lưu tắt → error, không ghi", async () => {
+    const id = await seedPending();
+    flag.on = false;
+    expect(await declineGroupRequest(id)).toHaveProperty("error");
     expect((await memberById(id))?.signupIntent).toBe("group");
   });
 

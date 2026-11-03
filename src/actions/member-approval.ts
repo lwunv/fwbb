@@ -63,9 +63,9 @@ export interface NameMatchSuggestion {
 /**
  * Tìm top suggestions từ pool admin-tạo (đã approved, chưa link OAuth).
  *
- * "Admin tạo" = approved member chưa có facebookId AND chưa có googleId →
- * thường là row admin nhập tay vào quỹ. Đúng kịch bản user mô tả: admin tạo
- * sẵn "Nguyễn Văn A", giờ A signup → gợi ý merge.
+ * "Admin tạo" = approved member chưa có facebookId, chưa có googleId VÀ chưa có
+ * identity Zalo → thường là row admin nhập tay vào quỹ. Đúng kịch bản user mô
+ * tả: admin tạo sẵn "Nguyễn Văn A", giờ A signup → gợi ý merge.
  */
 /** Một ứng viên trong pool để chấm điểm. Chỉ các field thật sự cần. */
 type MatchPoolRow = {
@@ -137,10 +137,12 @@ function rankNameMatches(
  * Pool ứng viên: member đã duyệt do admin tạo tay. Đọc MỘT LẦN rồi chấm cho
  * mọi pending.
  *
- * "Do admin tạo" = không `facebookId`, không `googleId` VÀ không có dòng nào ở
- * `member_oauth_identities`. Vế cuối là của tài khoản Zalo, vốn không có cột
- * legacy: thiếu nó thì người đã vào nhóm bằng Zalo bị gợi ý như row nhập tay
- * và admin có thể gộp nhầm vào chính chủ.
+ * Pool = pool cũ trừ member có identity Zalo. Zalo không có cột legacy nên
+ * thiếu vế này thì người đã vào nhóm bằng Zalo bị gợi ý như row nhập tay và
+ * admin có thể gộp nhầm vào chính chủ. Chỉ loại theo `provider = 'zalo'`, KHÔNG
+ * loại mọi identity: member admin tạo rồi tự liên kết Google qua /me hay được
+ * gộp identity (foldOAuthIntoTarget) chỉ có dòng ở bảng identity, và họ vẫn
+ * phải được gợi ý như trước đây.
  */
 async function loadMatchPool(): Promise<MatchPoolRow[]> {
   return db.query.members.findMany({
@@ -150,7 +152,12 @@ async function loadMatchPool(): Promise<MatchPoolRow[]> {
         db
           .select({ one: sql`1` })
           .from(memberOauthIdentities)
-          .where(eq(memberOauthIdentities.memberId, members.id)),
+          .where(
+            and(
+              eq(memberOauthIdentities.memberId, members.id),
+              eq(memberOauthIdentities.provider, "zalo"),
+            ),
+          ),
       ),
     ),
     columns: {
@@ -498,6 +505,9 @@ export async function declineGroupRequest(
 ): Promise<{ success: true } | { error: string }> {
   const auth = await requireAdmin();
   if ("error" in auth) return { error: auth.error };
+  // Hành vi mới của giao lưu: cờ tắt thì không được ghi (nút cũng ẩn ở UI, nhưng
+  // server action gọi thẳng được nên phải chặn ở đây).
+  if (!(await isExchangeEnabled())) return { error: "Tính năng chưa mở" };
   const t = await getTranslations("serverErrors");
 
   if (!Number.isInteger(memberId) || memberId <= 0) {

@@ -4,7 +4,13 @@
  * nhận vào nhóm" chỉ có khi giao lưu đã bật (cờ tắt thì màn y như cũ).
  */
 import { describe, it, expect, vi, afterEach, beforeAll } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import {
+  render,
+  screen,
+  cleanup,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import viMessages from "@/i18n/messages/vi.json";
 import { ConfirmProvider } from "@/components/shared/confirm-provider";
@@ -86,11 +92,14 @@ describe("PendingMembersSection", () => {
     expect(screen.getAllByText("Từ chối")).toHaveLength(2);
   });
 
-  it("cờ bật: bấm Không nhận vào nhóm gỡ dòng ngay và gọi declineGroupRequest", () => {
+  it("cờ bật: bấm Không nhận vào nhóm gỡ dòng ngay và gọi declineGroupRequest", async () => {
     renderSection(true);
     const buttons = screen.getAllByText("Không nhận vào nhóm");
     expect(buttons).toHaveLength(2);
     fireEvent.click(buttons[0]);
+    // Dòng rời danh sách ngay (sau animation thoát), không đợi server.
+    await waitFor(() => expect(screen.queryByText("Có Zalo")).toBeNull());
+    expect(screen.getByText("Không Zalo")).toBeTruthy();
     expect(actions.declineGroupRequest).toHaveBeenCalledWith(1);
     expect(actions.rejectMember).not.toHaveBeenCalled();
   });

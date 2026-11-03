@@ -10,8 +10,8 @@ import { members } from "@/db/schema";
 import {
   exchangeAccountWhere,
   notExchangeAccountWhere,
+  isExchangeAccount,
 } from "./exchange-account";
-import { isExchangeAccount } from "./exchange-account";
 
 const { db: testDb, client } = await createTestDb();
 vi.mock("@/db", () => ({ db: testDb }));
