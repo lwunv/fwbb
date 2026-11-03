@@ -68,9 +68,11 @@ const navItems = [
 export function AdminMobileNav({
   appName = "FWBB",
   pendingMemberCount = 0,
+  pendingVenueCount = 0,
 }: {
   appName?: string;
   pendingMemberCount?: number;
+  pendingVenueCount?: number;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -128,6 +130,14 @@ export function AdminMobileNav({
                       {pendingMemberCount}
                     </span>
                   )}
+                  {item.labelKey === "venues" && pendingVenueCount > 0 && (
+                    <span
+                      className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] leading-none font-bold text-white"
+                      title={t("pendingVenuesTitle")}
+                    >
+                      {pendingVenueCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -136,6 +146,15 @@ export function AdminMobileNav({
             <div className="border-t bg-amber-50 px-4 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
               ⚠ {t("pendingMembersBanner", { count: pendingMemberCount })}
             </div>
+          )}
+          {pendingVenueCount > 0 && (
+            <Link
+              href="/admin/venues"
+              onClick={() => setOpen(false)}
+              className="flex min-h-11 items-center border-t bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+            >
+              ⚠ {t("pendingVenuesBanner", { count: pendingVenueCount })}
+            </Link>
           )}
           <div className="space-y-2 border-t p-3">
             <div className="flex items-center gap-2 px-1">

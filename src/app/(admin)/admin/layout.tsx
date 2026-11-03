@@ -4,6 +4,7 @@ import { AdminDefaultTheme } from "@/components/shared/admin-default-theme";
 import { getAdminFromCookie } from "@/lib/auth";
 import { getAppName } from "@/actions/settings";
 import { countPendingGroupMembers } from "./members/pending-queue";
+import { countPendingVenues } from "@/lib/pending-venues";
 
 export default async function AdminLayout({
   children,
@@ -24,18 +25,24 @@ export default async function AdminLayout({
   }
 
   // Chỉ đếm người đã xin vào nhóm; tài khoản giao lưu không làm nhảy số.
-  const [appName, pendingMemberCount] = await Promise.all([
+  const [appName, pendingMemberCount, pendingVenueCount] = await Promise.all([
     getAppName(),
     countPendingGroupMembers(),
+    countPendingVenues(),
   ]);
 
   return (
     <div className="min-h-screen overflow-x-hidden">
       <AdminDefaultTheme />
-      <AdminSidebar appName={appName} pendingMemberCount={pendingMemberCount} />
+      <AdminSidebar
+        appName={appName}
+        pendingMemberCount={pendingMemberCount}
+        pendingVenueCount={pendingVenueCount}
+      />
       <AdminMobileNav
         appName={appName}
         pendingMemberCount={pendingMemberCount}
+        pendingVenueCount={pendingVenueCount}
       />
       <main className="p-4 pb-24 md:p-6 lg:ml-60">{children}</main>
     </div>

@@ -27,6 +27,8 @@
     "logout": "Đăng xuất",
     "pendingMembersTitle": "Có thành viên mới chờ duyệt",
     "pendingMembersBanner": "{count} thành viên mới đang chờ duyệt",
+    "pendingVenuesTitle": "Có sân mới chờ duyệt",
+    "pendingVenuesBanner": "Có {count} sân chờ duyệt",
     "account": "Tài khoản",
     "settings": "Cài đặt",
     "venues": "Danh bạ sân"

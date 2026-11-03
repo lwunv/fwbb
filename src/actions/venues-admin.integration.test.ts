@@ -89,6 +89,12 @@ describe("admin venue actions", () => {
     expect(cacheMock.updateTag).toHaveBeenCalledWith("venues");
   });
 
+  it("approve làm tươi layout admin để số sân chờ duyệt cập nhật", async () => {
+    cacheMock.revalidatePath.mockClear();
+    await setVenueStatus(venueId, "approved");
+    expect(cacheMock.revalidatePath).toHaveBeenCalledWith("/admin", "layout");
+  });
+
   it("hidden: sân biến mất khỏi listVenuesNear", async () => {
     await setVenueStatus(venueId, "approved");
     await setVenueStatus(venueId, "hidden");

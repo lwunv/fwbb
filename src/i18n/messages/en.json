@@ -27,6 +27,8 @@
     "logout": "Log out",
     "pendingMembersTitle": "New members awaiting approval",
     "pendingMembersBanner": "{count} new members awaiting approval",
+    "pendingVenuesTitle": "New venues awaiting review",
+    "pendingVenuesBanner": "{count} venues awaiting review",
     "account": "Account",
     "settings": "Settings",
     "venues": "Venues"

@@ -3,8 +3,9 @@ import { createTestDb } from "@/db/test-db";
 import { members, venues } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
+const revalidatePathMock = vi.hoisted(() => vi.fn());
 vi.mock("next/cache", () => ({
-  revalidatePath: vi.fn(),
+  revalidatePath: revalidatePathMock,
   revalidateTag: vi.fn(),
   unstable_cache: (fn: unknown) => fn,
 }));
@@ -45,6 +46,13 @@ beforeEach(async () => {
 });
 
 describe("submitVenue", () => {
+  it("đề xuất xong làm tươi layout admin để huy hiệu sân chờ duyệt hiện ngay", async () => {
+    revalidatePathMock.mockClear();
+    const r = await submitVenue({ name: "Sân mới", lat: 21.03, lng: 105.85 });
+    expect(r).toHaveProperty("success", true);
+    expect(revalidatePathMock).toHaveBeenCalledWith("/admin", "layout");
+  });
+
   it("member chưa duyệt → error, không ghi", async () => {
     await db
       .update(members)

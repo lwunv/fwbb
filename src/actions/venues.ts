@@ -107,7 +107,8 @@ export async function submitVenue(
   const row = rows[0];
   if (!row) return { error: t("venueSubmitLimit") };
 
-  revalidatePath("/admin/venues");
+  // Layout admin (huy hiệu số sân chờ duyệt) cũng phải tươi, không chỉ trang sân.
+  revalidatePath("/admin", "layout");
   return { success: true, id: row.id };
 }
 
@@ -374,7 +375,7 @@ export async function geocodeAddress(
  */
 function afterAdminVenueChange() {
   updateTag("venues");
-  revalidatePath("/admin/venues");
+  revalidatePath("/admin", "layout");
   revalidatePath("/san");
 }
 

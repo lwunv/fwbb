@@ -64,9 +64,11 @@ const navItems = [
 export function AdminSidebar({
   appName = "FWBB",
   pendingMemberCount = 0,
+  pendingVenueCount = 0,
 }: {
   appName?: string;
   pendingMemberCount?: number;
+  pendingVenueCount?: number;
 }) {
   const pathname = usePathname();
   const t = useTranslations("adminNav");
@@ -107,6 +109,14 @@ export function AdminSidebar({
                   title="Có thành viên mới chờ duyệt"
                 >
                   {pendingMemberCount}
+                </span>
+              )}
+              {item.labelKey === "venues" && pendingVenueCount > 0 && (
+                <span
+                  className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] leading-none font-bold text-white"
+                  title={t("pendingVenuesTitle")}
+                >
+                  {pendingVenueCount}
                 </span>
               )}
             </Link>
