@@ -65,9 +65,12 @@ test.beforeAll(async () => {
   // Reset rate-limit để nhiều lần login trong suite không bị chặn.
   await db.execute("DELETE FROM rate_limit_buckets").catch(() => {});
   for (const m of SEED) {
+    // Xoá theo CẢ username lẫn email: lượt chạy cũ hoặc spec khác có thể đã
+    // xoá trắng username của member fixture mà email vẫn còn, khi đó INSERT
+    // dưới vấp UNIQUE(members.email).
     await db.execute({
-      sql: "DELETE FROM members WHERE username = ?",
-      args: [m.username],
+      sql: "DELETE FROM members WHERE username = ? OR (? IS NOT NULL AND email = ?)",
+      args: [m.username, m.email, m.email],
     });
     const hash = bcrypt.hashSync(m.temp, 12);
     await db.execute({
