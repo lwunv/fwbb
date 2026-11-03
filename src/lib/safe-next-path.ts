@@ -13,7 +13,11 @@ export function safeNextPath(raw: unknown): string {
   try {
     const u = new URL(raw, PLACEHOLDER_ORIGIN);
     if (u.origin !== PLACEHOLDER_ORIGIN) return FALLBACK;
-    return u.pathname + u.search + u.hash;
+    const out = u.pathname + u.search + u.hash;
+    // new URL() gập "." / ".." (cả %2e) nên "/..//evil.com" thành "//evil.com",
+    // vẫn cùng origin giả nhưng trình duyệt hiểu là URL cùng giao thức tới host khác.
+    if (out.startsWith("//") || out.startsWith("/\\")) return FALLBACK;
+    return out;
   } catch {
     return FALLBACK;
   }

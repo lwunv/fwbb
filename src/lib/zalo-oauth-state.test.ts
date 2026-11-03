@@ -1,3 +1,4 @@
+import { createHmac } from "crypto";
 import { describe, expect, it } from "vitest";
 import { createUserCookieValue } from "./user-identity";
 import {
@@ -59,6 +60,16 @@ describe("zalo oauth state cookie", () => {
 
   it("chữ ký cookie fwbb-user không mở được ở đây", () => {
     expect(openZaloState(createUserCookieValue(1, "zalo:1"), NOW)).toBeNull();
+  });
+
+  it("payload hợp lệ nhưng ký KHÔNG có tiền tố miền zalo-oauth: -> null", () => {
+    const payload = Buffer.from(JSON.stringify(sample), "utf8").toString(
+      "base64url",
+    );
+    const sig = createHmac("sha256", process.env.USER_COOKIE_SECRET as string)
+      .update(payload)
+      .digest("hex");
+    expect(openZaloState(`${payload}.${sig}`, NOW)).toBeNull();
   });
 
   it("payload ký đúng nhưng sai shape -> null", () => {
