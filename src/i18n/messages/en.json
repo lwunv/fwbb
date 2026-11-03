@@ -26,7 +26,8 @@
     "pendingMembersTitle": "New members awaiting approval",
     "pendingMembersBanner": "{count} new members awaiting approval",
     "account": "Account",
-    "settings": "Settings"
+    "settings": "Settings",
+    "venues": "Venues"
   },
   "adminSettings": {
     "title": "Settings",
@@ -1203,6 +1204,7 @@
     "venueNoCoordinates": "Could not read coordinates from the link. Open Google Maps, tap Share and paste it again, or enter the coordinates.",
     "venueOutsideVietnam": "The coordinates are outside Vietnam. Check the link or the latitude and longitude order.",
     "venueAddressNotFound": "We could not find that address. Try a ward, district or a nearby landmark.",
+    "venueNotFound": "Venue not found",
     "missingFields": "Please fill in all required fields",
     "tooManyLoginAttempts": "Too many login attempts, try again in {seconds}s",
     "tooManyResetRequests": "Too many reset requests, try again in {seconds}s",
@@ -1418,5 +1420,55 @@
     "headerPrefsDesc": "Switch the language (Tiếng Việt / English / 中文) and the Light / Dark / Pink theme here.",
     "navGuideTitle": "Replay the guide",
     "navGuideDesc": "To see this tour again, open the menu and tap Guide."
+  },
+  "venues": {
+    "nav": "Venue directory",
+    "name": "Venue name",
+    "mapLink": "Google Maps link",
+    "mapLinkHint": "Open Google Maps, pick the venue, tap Share, copy the link and paste it here.",
+    "lat": "Latitude",
+    "lng": "Longitude",
+    "enterCoordsInstead": "Enter coordinates instead of a link",
+    "address": "Address",
+    "courtCount": "Number of courts",
+    "openHours": "Opening hours",
+    "refPricePerHour": "Typical price per hour",
+    "amenitiesLabel": "Amenities",
+    "amenity": {
+      "parking": "Parking",
+      "air_con": "Air conditioning",
+      "shuttle_shop": "Shuttlecocks for sale",
+      "racket_rental": "Racket rental",
+      "drinks": "Drinks",
+      "shower": "Showers"
+    },
+    "phone": "Venue phone",
+    "photoLink": "Photo or fanpage link",
+    "tab": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "hidden": "Hidden"
+    },
+    "empty": {
+      "pending": "No venues are waiting for review",
+      "approved": "No venues have been approved yet",
+      "hidden": "No venues are hidden"
+    },
+    "approvedToast": "Venue approved",
+    "hiddenToast": "Venue hidden",
+    "savedToast": "Venue details saved",
+    "submittedBy": "Suggested by: {name}",
+    "unknownSubmitter": "unknown",
+    "courtCountValue": "{count} courts",
+    "pricePerHourValue": "{price}/hour",
+    "checkOnMaps": "View on Maps",
+    "edit": "Edit",
+    "hide": "Hide",
+    "restore": "Show again",
+    "approve": "Approve",
+    "editVenue": "Edit venue",
+    "save": "Save",
+    "linkedDirectory": "Directory:",
+    "notLinked": "Not linked"
   }
 }

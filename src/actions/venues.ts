@@ -1,13 +1,14 @@
 "use server";
 
 import { db } from "@/db";
-import { venues } from "@/db/schema";
+import { members, venues } from "@/db/schema";
 import { and, between, eq, ne } from "drizzle-orm";
-import { revalidatePath, unstable_cache } from "next/cache";
+import { revalidatePath, unstable_cache, updateTag } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { venueSubmitSchema } from "@/lib/validators";
 import { requireApprovedMember } from "@/lib/member-auth";
+import { requireAdmin } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { resolveMapsLink } from "@/lib/maps-link-resolve";
 import {
@@ -18,7 +19,7 @@ import {
   type LatLng,
 } from "@/lib/geo";
 import { toPublicVenue, type PublicVenue } from "@/lib/public-venue";
-import { VENUE_AMENITIES } from "@/lib/venue-amenities";
+import { VENUE_AMENITIES, type VenueStatus } from "@/lib/venue-amenities";
 import { geocodeNominatim } from "@/lib/nominatim";
 
 /** Sân cách nhau dưới mức này coi là có thể trùng. */
@@ -59,13 +60,9 @@ export async function submitVenue(
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const data = parsed.data;
 
-  let point: LatLng | null =
-    data.lat !== undefined && data.lng !== undefined
-      ? { lat: data.lat, lng: data.lng }
-      : null;
-  if (!point && data.mapLink) point = await resolveMapsLink(data.mapLink);
-  if (!point) return { error: t("venueNoCoordinates") };
-  if (!isInVietnam(point)) return { error: t("venueOutsideVietnam") };
+  const resolved = await resolveVenuePoint(data);
+  if ("errorKey" in resolved) return { error: t(resolved.errorKey) };
+  const point = resolved.point;
 
   if (!data.confirmDuplicate) {
     const dup = await findNearbyVenue(point);
@@ -92,6 +89,24 @@ export async function submitVenue(
 
   revalidatePath("/admin/venues");
   return { success: true, id: row.id };
+}
+
+/** Toạ độ nhập tay được ưu tiên; không có thì tách từ link Google Maps. */
+async function resolveVenuePoint(data: {
+  lat?: number;
+  lng?: number;
+  mapLink?: string;
+}): Promise<
+  { point: LatLng } | { errorKey: "venueNoCoordinates" | "venueOutsideVietnam" }
+> {
+  let point: LatLng | null =
+    data.lat !== undefined && data.lng !== undefined
+      ? { lat: data.lat, lng: data.lng }
+      : null;
+  if (!point && data.mapLink) point = await resolveMapsLink(data.mapLink);
+  if (!point) return { errorKey: "venueNoCoordinates" };
+  if (!isInVietnam(point)) return { errorKey: "venueOutsideVietnam" };
+  return { point };
 }
 
 async function findNearbyVenue(
@@ -258,4 +273,110 @@ export async function geocodeAddress(
     if (e instanceof GeocodeMiss) return { error: t("venueAddressNotFound") };
     throw e;
   }
+}
+
+/**
+ * Sau mọi thao tác admin: `updateTag` (không phải `revalidateTag`) để cache
+ * danh bạ hết hạn NGAY — sân vừa bị ẩn (spam, sai) không được phục vụ thêm
+ * một lượt từ bản cũ.
+ */
+function afterAdminVenueChange() {
+  updateTag("venues");
+  revalidatePath("/admin/venues");
+  revalidatePath("/san");
+}
+
+/** Danh sách sân theo trạng thái cho trang admin, kèm tên người đề xuất. */
+export async function listVenuesForReview(status: VenueStatus) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return [];
+  return db
+    .select({
+      id: venues.id,
+      name: venues.name,
+      address: venues.address,
+      areaLabel: venues.areaLabel,
+      lat: venues.lat,
+      lng: venues.lng,
+      mapLink: venues.mapLink,
+      courtCount: venues.courtCount,
+      openHours: venues.openHours,
+      amenities: venues.amenities,
+      phone: venues.phone,
+      refPricePerHour: venues.refPricePerHour,
+      photoLink: venues.photoLink,
+      status: venues.status,
+      createdAt: venues.createdAt,
+      submittedByName: members.name,
+    })
+    .from(venues)
+    .leftJoin(members, eq(members.id, venues.submittedByMemberId))
+    .where(eq(venues.status, status))
+    .orderBy(venues.createdAt);
+}
+
+export type ReviewVenue = Awaited<
+  ReturnType<typeof listVenuesForReview>
+>[number];
+
+export async function setVenueStatus(
+  id: number,
+  status: "approved" | "hidden",
+): Promise<{ success: true } | { error: string }> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
+  const updated = await db
+    .update(venues)
+    .set({
+      status,
+      ...(status === "approved"
+        ? { approvedAt: new Date().toISOString() }
+        : {}),
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(venues.id, id))
+    .returning({ id: venues.id });
+  if (updated.length === 0) return { error: t("venueNotFound") };
+  afterAdminVenueChange();
+  return { success: true };
+}
+
+/** Admin sửa sân. Validate như lúc đề xuất (cùng `venueSubmitSchema`). */
+export async function updateVenue(
+  id: number,
+  input: z.input<typeof venueSubmitSchema>,
+): Promise<{ success: true } | { error: string }> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
+  const parsed = venueSubmitSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const data = parsed.data;
+
+  const resolved = await resolveVenuePoint(data);
+  if ("errorKey" in resolved) return { error: t(resolved.errorKey) };
+  const point = resolved.point;
+
+  const updated = await db
+    .update(venues)
+    .set({
+      name: data.name,
+      address: data.address || null,
+      lat: point.lat,
+      lng: point.lng,
+      mapLink: data.mapLink || null,
+      courtCount: data.courtCount ?? null,
+      openHours: data.openHours || null,
+      amenities: JSON.stringify(data.amenities),
+      phone: data.phone || null,
+      refPricePerHour: data.refPricePerHour ?? null,
+      photoLink: data.photoLink || null,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(venues.id, id))
+    .returning({ id: venues.id });
+  if (updated.length === 0) return { error: t("venueNotFound") };
+  afterAdminVenueChange();
+  return { success: true };
 }

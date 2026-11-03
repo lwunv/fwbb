@@ -9,6 +9,7 @@ import {
   Calendar,
   Users,
   MapPin,
+  MapPinned,
   CircleDot,
   Package,
   Wallet,
@@ -32,6 +33,7 @@ const navItems = [
   { href: "/admin/sessions", labelKey: "sessions" as const, icon: Calendar },
   { href: "/admin/members", labelKey: "members" as const, icon: Users },
   { href: "/admin/courts", labelKey: "courts" as const, icon: MapPin },
+  { href: "/admin/venues", labelKey: "venues" as const, icon: MapPinned },
   {
     href: "/admin/shuttlecocks",
     labelKey: "shuttlecocks" as const,

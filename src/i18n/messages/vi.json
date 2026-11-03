@@ -26,7 +26,8 @@
     "pendingMembersTitle": "Có thành viên mới chờ duyệt",
     "pendingMembersBanner": "{count} thành viên mới đang chờ duyệt",
     "account": "Tài khoản",
-    "settings": "Cài đặt"
+    "settings": "Cài đặt",
+    "venues": "Danh bạ sân"
   },
   "adminSettings": {
     "title": "Cài đặt",
@@ -1203,6 +1204,7 @@
     "venueNoCoordinates": "Không lấy được toạ độ từ link. Hãy mở Google Maps, bấm Chia sẻ rồi dán lại, hoặc nhập toạ độ.",
     "venueOutsideVietnam": "Toạ độ nằm ngoài Việt Nam. Kiểm tra lại link hoặc thứ tự vĩ độ, kinh độ.",
     "venueAddressNotFound": "Không tìm thấy địa chỉ này. Thử gõ tên phường, quận hoặc một địa điểm gần đó.",
+    "venueNotFound": "Không tìm thấy sân",
     "missingFields": "Vui lòng nhập đầy đủ thông tin",
     "tooManyLoginAttempts": "Quá nhiều lần đăng nhập, thử lại sau {seconds}s",
     "tooManyResetRequests": "Bạn đã yêu cầu quá nhiều lần. Thử lại sau {seconds} giây.",
@@ -1418,5 +1420,55 @@
     "headerPrefsDesc": "Đổi ngôn ngữ (Tiếng Việt / English / 中文) và chuyển giao diện Sáng / Tối / Hồng ở đây.",
     "navGuideTitle": "Xem lại hướng dẫn",
     "navGuideDesc": "Muốn xem lại tour này, mở menu rồi bấm Hướng dẫn."
+  },
+  "venues": {
+    "nav": "Danh bạ sân",
+    "name": "Tên sân",
+    "mapLink": "Link Google Maps",
+    "mapLinkHint": "Mở Google Maps, chọn sân, bấm Chia sẻ rồi Sao chép liên kết và dán vào đây.",
+    "lat": "Vĩ độ",
+    "lng": "Kinh độ",
+    "enterCoordsInstead": "Nhập toạ độ thay cho link",
+    "address": "Địa chỉ",
+    "courtCount": "Số sân",
+    "openHours": "Giờ mở cửa",
+    "refPricePerHour": "Giá thuê tham khảo mỗi giờ",
+    "amenitiesLabel": "Tiện ích",
+    "amenity": {
+      "parking": "Gửi xe",
+      "air_con": "Điều hoà",
+      "shuttle_shop": "Bán cầu",
+      "racket_rental": "Thuê vợt",
+      "drinks": "Nước uống",
+      "shower": "Phòng tắm"
+    },
+    "phone": "Số điện thoại sân",
+    "photoLink": "Link ảnh hoặc fanpage",
+    "tab": {
+      "pending": "Chờ duyệt",
+      "approved": "Đã duyệt",
+      "hidden": "Đã ẩn"
+    },
+    "empty": {
+      "pending": "Không có sân nào chờ duyệt",
+      "approved": "Chưa có sân nào được duyệt",
+      "hidden": "Không có sân nào bị ẩn"
+    },
+    "approvedToast": "Đã duyệt sân",
+    "hiddenToast": "Đã ẩn sân",
+    "savedToast": "Đã lưu thông tin sân",
+    "submittedBy": "Người đề xuất: {name}",
+    "unknownSubmitter": "không rõ",
+    "courtCountValue": "{count} sân",
+    "pricePerHourValue": "{price}/giờ",
+    "checkOnMaps": "Xem trên Maps",
+    "edit": "Sửa",
+    "hide": "Ẩn",
+    "restore": "Hiện lại",
+    "approve": "Duyệt",
+    "editVenue": "Sửa thông tin sân",
+    "save": "Lưu",
+    "linkedDirectory": "Danh bạ:",
+    "notLinked": "Chưa nối"
   }
 }

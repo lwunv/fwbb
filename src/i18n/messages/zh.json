@@ -26,7 +26,8 @@
     "pendingMembersTitle": "有新成员等待审核",
     "pendingMembersBanner": "{count} 名新成员等待审核",
     "account": "账户",
-    "settings": "设置"
+    "settings": "设置",
+    "venues": "场馆目录"
   },
   "adminSettings": {
     "title": "设置",
@@ -1203,6 +1204,7 @@
     "venueNoCoordinates": "无法从链接读取坐标。请在 Google 地图中点击“分享”后重新粘贴，或直接输入坐标。",
     "venueOutsideVietnam": "坐标不在越南境内。请检查链接或纬度、经度的顺序。",
     "venueAddressNotFound": "找不到该地址。请尝试输入坊、郡或附近的地标。",
+    "venueNotFound": "找不到该场馆",
     "missingFields": "请填写完整信息",
     "tooManyLoginAttempts": "登录尝试次数过多,{seconds} 秒后重试",
     "tooManyResetRequests": "重置请求次数过多,{seconds} 秒后重试",
@@ -1418,5 +1420,55 @@
     "headerPrefsDesc": "在这里切换语言（Tiếng Việt / English / 中文）和 浅色 / 深色 / 粉色 主题。",
     "navGuideTitle": "重看引导",
     "navGuideDesc": "想再看一次引导，打开菜单点“引导”即可。"
+  },
+  "venues": {
+    "nav": "场馆目录",
+    "name": "场馆名称",
+    "mapLink": "Google 地图链接",
+    "mapLinkHint": "打开 Google 地图，选择场馆，点击“分享”并复制链接，然后粘贴到这里。",
+    "lat": "纬度",
+    "lng": "经度",
+    "enterCoordsInstead": "改为输入坐标",
+    "address": "地址",
+    "courtCount": "场地数量",
+    "openHours": "营业时间",
+    "refPricePerHour": "参考价格（每小时）",
+    "amenitiesLabel": "设施",
+    "amenity": {
+      "parking": "停车",
+      "air_con": "空调",
+      "shuttle_shop": "售羽毛球",
+      "racket_rental": "球拍租赁",
+      "drinks": "饮料",
+      "shower": "淋浴"
+    },
+    "phone": "场馆电话",
+    "photoLink": "照片或主页链接",
+    "tab": {
+      "pending": "待审核",
+      "approved": "已通过",
+      "hidden": "已隐藏"
+    },
+    "empty": {
+      "pending": "没有待审核的场馆",
+      "approved": "还没有通过审核的场馆",
+      "hidden": "没有被隐藏的场馆"
+    },
+    "approvedToast": "已通过该场馆",
+    "hiddenToast": "已隐藏该场馆",
+    "savedToast": "场馆信息已保存",
+    "submittedBy": "推荐人：{name}",
+    "unknownSubmitter": "未知",
+    "courtCountValue": "{count} 块场地",
+    "pricePerHourValue": "{price}/小时",
+    "checkOnMaps": "在地图上查看",
+    "edit": "编辑",
+    "hide": "隐藏",
+    "restore": "重新显示",
+    "approve": "通过",
+    "editVenue": "编辑场馆",
+    "save": "保存",
+    "linkedDirectory": "目录：",
+    "notLinked": "未关联"
   }
 }

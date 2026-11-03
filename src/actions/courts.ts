@@ -1,9 +1,9 @@
 "use server";
 
 import { db } from "@/db";
-import { courts, sessions } from "@/db/schema";
+import { courts, sessions, venues } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { courtSchema } from "@/lib/validators";
 import { requireAdmin } from "@/lib/auth";
 import { getTranslations } from "next-intl/server";
@@ -114,5 +114,33 @@ export async function deleteCourt(id: number) {
   await db.delete(courts).where(eq(courts.id, id));
   revalidatePath("/admin/courts");
   revalidatePath("/admin/court-rent");
+  return { success: true };
+}
+
+/**
+ * Nối sân của nhóm vào danh bạ công khai (`null` = bỏ nối). Chỉ đổi
+ * `venueId`; giá thuê tháng của nhóm không bao giờ lộ qua danh bạ.
+ */
+export async function linkCourtToVenue(
+  courtId: number,
+  venueId: number | null,
+): Promise<{ success: true } | { error: string }> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+  const t = await getTranslations("serverErrors");
+  if (venueId !== null) {
+    const venue = await db.query.venues.findFirst({
+      where: eq(venues.id, venueId),
+    });
+    if (!venue) return { error: t("venueNotFound") };
+  }
+  const updated = await db
+    .update(courts)
+    .set({ venueId })
+    .where(eq(courts.id, courtId))
+    .returning({ id: courts.id });
+  if (updated.length === 0) return { error: t("courtNotFound") };
+  updateTag("venues");
+  revalidatePath("/admin/courts");
   return { success: true };
 }

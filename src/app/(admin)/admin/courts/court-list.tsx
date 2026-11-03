@@ -7,6 +7,7 @@ import {
   updateCourt,
   toggleCourtActive,
   deleteCourt,
+  linkCourtToVenue,
 } from "@/actions/courts";
 import { fireAction } from "@/lib/optimistic-action";
 import { formatK } from "@/lib/utils";
@@ -16,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { CustomSelect } from "@/components/ui/custom-select";
 import {
   Dialog,
   DialogContent,
@@ -39,7 +41,14 @@ import type { courts as courtsTable } from "@/db/schema";
 
 type Court = InferSelectModel<typeof courtsTable>;
 
-export function CourtList({ courts }: { courts: Court[] }) {
+export function CourtList({
+  courts,
+  venueOptions,
+}: {
+  courts: Court[];
+  /** Sân đã duyệt trong danh bạ công khai, để nối sân của nhóm vào. */
+  venueOptions: { id: number; name: string }[];
+}) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCourt, setEditingCourt] = useState<Court | null>(null);
   const [price, setPrice] = useState(0);
@@ -49,6 +58,9 @@ export function CourtList({ courts }: { courts: Court[] }) {
   );
   const [deleteTarget, setDeleteTarget] = useState<Court | null>(null);
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
+  const [linkedVenue, setLinkedVenue] = useState<Record<number, number | null>>(
+    {},
+  );
   // Overlay optimistic cho create/edit: edit patch theo id + ghost row (id âm)
   // cho court mới. revalidatePath trả `courts` mới → useEffect dưới dọn overlay.
   const [editedCourts, setEditedCourts] = useState<
@@ -56,6 +68,7 @@ export function CourtList({ courts }: { courts: Court[] }) {
   >({});
   const [addedCourts, setAddedCourts] = useState<Court[]>([]);
   const t = useTranslations("adminCourts");
+  const tVenues = useTranslations("venues");
   const tCommon = useTranslations("common");
   usePolling();
 
@@ -64,6 +77,16 @@ export function CourtList({ courts }: { courts: Court[] }) {
     fireAction(
       () => toggleCourtActive(courtId),
       () => setToggledCourts((prev) => ({ ...prev, [courtId]: currentActive })),
+    );
+  }
+
+  function handleLinkVenue(court: Court, raw: string) {
+    const prev = linkedVenue[court.id] ?? court.venueId ?? null;
+    const next = raw === "" ? null : Number(raw);
+    setLinkedVenue((m) => ({ ...m, [court.id]: next }));
+    fireAction(
+      () => linkCourtToVenue(court.id, next),
+      () => setLinkedVenue((m) => ({ ...m, [court.id]: prev })),
     );
   }
 
@@ -311,6 +334,28 @@ export function CourtList({ courts }: { courts: Court[] }) {
                       </a>
                     )}
                   </div>
+                  {court.id > 0 && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-muted-foreground shrink-0">
+                        {tVenues("linkedDirectory")}
+                      </span>
+                      <CustomSelect
+                        className="min-w-0 flex-1"
+                        value={String(
+                          linkedVenue[court.id] ?? court.venueId ?? "",
+                        )}
+                        onChange={(v) => handleLinkVenue(court, v)}
+                        options={[
+                          { value: "", label: tVenues("notLinked") },
+                          ...venueOptions.map((v) => ({
+                            value: String(v.id),
+                            label: v.name,
+                          })),
+                        ]}
+                        searchable
+                      />
+                    </div>
+                  )}
                   {/* Actions */}
                   <div className="flex items-center gap-2">
                     <Badge
