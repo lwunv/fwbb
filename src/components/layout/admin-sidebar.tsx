@@ -76,9 +76,9 @@ export function AdminSidebar({
       <div className="flex items-center gap-2 p-6">
         <Link href="/admin/dashboard" className="inline-flex items-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/fwbb.svg" alt={appName} className="h-8 w-auto" />
+          <img src="/fwbb-wordmark.svg" alt={appName} className="h-8 w-auto" />
         </Link>
-        <h1 className="text-xl font-bold">{appName} Admin</h1>
+        <h1 className="text-xl font-bold">Admin</h1>
       </div>
       <nav className="flex-1 space-y-1 px-3">
         {navItems.map((item) => {
