@@ -27,7 +27,7 @@ import { finalizeSessionAuto } from "@/actions/finance";
 import { recordContribution } from "@/actions/fund";
 import { fireAction } from "@/lib/optimistic-action";
 import { useOptimisticSet } from "@/lib/optimistic-ui";
-import { usePolling } from "@/lib/use-polling";
+import { HEAVY_POLL_MS, usePolling } from "@/lib/use-polling";
 import {
   AdminSessionCard,
   type AdminSessionCardSession,
@@ -345,7 +345,8 @@ export function DashboardClient({
       () => setLocallyCancelled(false),
     );
   }
-  usePolling();
+  // Trang này quét sổ cái mỗi lượt dựng, nên dùng nhịp chậm.
+  usePolling(HEAVY_POLL_MS);
 
   // Auto-prune finalizing set khi server đã chuyển status sang "completed".
   // Reset local admin-guest state khi server converge để tránh stomp giá trị thật.

@@ -9,7 +9,8 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, act } from "@testing-library/react";
-import { usePolling } from "./use-polling";
+import { readFileSync } from "node:fs";
+import { HEAVY_POLL_MS, usePolling } from "./use-polling";
 
 const refresh = vi.hoisted(() => vi.fn());
 vi.mock("next/navigation", () => ({
@@ -97,5 +98,48 @@ describe("nhịp tự làm mới", () => {
 
     act(() => void vi.advanceTimersByTime(10_000));
     expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Trang quản lý nào vừa quét sổ cái vừa tự làm mới phải dùng nhịp chậm.
+ *
+ * Đo ngày 2/11/2026 trên dữ liệu thật: sổ cái có 2.021 dòng, và một lượt dựng
+ * trang `/admin/members` đọc khoảng 5.000 dòng (1.881 dòng sổ cái lọc theo 51
+ * member, 1.504 dòng để tính số buổi đã chơi, 750 dòng nợ kèm nối bảng). Nhịp
+ * 30 giây nghĩa là 120 lượt mỗi giờ, tức 600.000 dòng một giờ cho MỘT tab, mà
+ * mức nền cả hệ thống lúc đó chỉ khoảng 460.000 dòng một giờ.
+ *
+ * Nhịp chậm không làm dữ liệu cũ đi: mỗi lượt dựng vẫn đọc thẳng từ database,
+ * thao tác của chính admin vẫn hiện tức thì (optimistic + revalidatePath), và
+ * `usePolling` vốn đã làm mới NGAY khi quay lại tab. Nhịp chỉ còn ảnh hưởng
+ * đúng một trường hợp: ngồi nhìn chằm chằm một tab mà không đụng vào.
+ */
+const TRANG_NANG = [
+  "../app/(admin)/admin/members/member-list.tsx",
+  "../app/(admin)/admin/dashboard/dashboard-client.tsx",
+  "../app/(admin)/admin/sessions/session-list.tsx",
+  "../app/(admin)/admin/sessions/[id]/session-detail.tsx",
+];
+
+describe("nhịp cho trang quét sổ cái", () => {
+  it("nhịp chậm tối thiểu 5 phút", () => {
+    expect(HEAVY_POLL_MS).toBeGreaterThanOrEqual(300_000);
+  });
+
+  it("đúng nhịp chậm đó khi chạy", () => {
+    render(<Probe interval={HEAVY_POLL_MS} />);
+
+    act(() => void vi.advanceTimersByTime(HEAVY_POLL_MS - 1_000));
+    expect(refresh).not.toHaveBeenCalled();
+
+    act(() => void vi.advanceTimersByTime(1_000));
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(TRANG_NANG)("%s dùng nhịp chậm, không dùng mặc định", (rel) => {
+    const src = readFileSync(new URL(rel, import.meta.url), "utf-8");
+    expect(src).toMatch(/usePolling\(HEAVY_POLL_MS\)/);
+    expect(src).not.toMatch(/usePolling\(\s*\)/);
   });
 });

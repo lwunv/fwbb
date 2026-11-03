@@ -73,7 +73,7 @@ import {
   type SkillLevel,
 } from "@/lib/skill-level";
 import { ymdInVN } from "@/lib/date-format";
-import { usePolling } from "@/lib/use-polling";
+import { HEAVY_POLL_MS, usePolling } from "@/lib/use-polling";
 import type { MemberPlayStat } from "@/actions/stats";
 import type { InferSelectModel } from "drizzle-orm";
 import type { members as membersTable } from "@/db/schema";
@@ -233,7 +233,8 @@ export function MemberList({
   const tCommon = useTranslations("common");
   const tFs = useTranslations("fundStatus");
   const { lowFundThreshold } = useSettings();
-  usePolling();
+  // Trang này quét sổ cái mỗi lượt dựng, nên dùng nhịp chậm.
+  usePolling(HEAVY_POLL_MS);
 
   function balanceColorFor(balance: number): string {
     const status = getFundStatus(balance, lowFundThreshold);

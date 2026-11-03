@@ -12,7 +12,7 @@ import {
   type AdminSessionCardSession,
 } from "@/components/sessions/admin-session-card";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { usePolling } from "@/lib/use-polling";
+import { HEAVY_POLL_MS, usePolling } from "@/lib/use-polling";
 import { ArrowLeft, XCircle } from "lucide-react";
 import { ymdInVN } from "@/lib/date-format";
 import { deriveSessionBadge, type SessionStatus } from "@/lib/session-status";
@@ -94,7 +94,8 @@ export function SessionDetail({
     session.shuttlecocks,
   );
   const t = useTranslations("sessions");
-  usePolling();
+  // Trang này quét sổ cái mỗi lượt dựng, nên dùng nhịp chậm.
+  usePolling(HEAVY_POLL_MS);
 
   // Sync localStatus when server prop changes (after revalidation)
   useEffect(() => {

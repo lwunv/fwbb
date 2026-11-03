@@ -48,7 +48,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { TabSegment } from "@/components/shared/tab-segment";
 import { DateRangePicker } from "@/components/shared/date-range-picker";
-import { usePolling } from "@/lib/use-polling";
+import { HEAVY_POLL_MS, usePolling } from "@/lib/use-polling";
 import {
   formatSessionDate as fmtSessionDate,
   getNextSessionDay,
@@ -314,7 +314,8 @@ export function SessionList({
   const t = useTranslations("sessions");
   const tF = useTranslations("finance");
   const tFundAdmin = useTranslations("fundAdmin");
-  usePolling();
+  // Trang này quét sổ cái mỗi lượt dựng, nên dùng nhịp chậm.
+  usePolling(HEAVY_POLL_MS);
 
   // Tính 1 lần / render thay vì gọi `ymdInVN()` lặp trong .map() bên dưới.
   const todayYmd = ymdInVN();
