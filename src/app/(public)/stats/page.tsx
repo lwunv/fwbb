@@ -5,7 +5,7 @@ import {
   getAvailableYears,
 } from "@/actions/stats";
 import { StatsClient } from "@/app/(admin)/admin/stats/stats-client";
-import { getUserFromCookie } from "@/lib/user-identity";
+import { getApprovedViewer } from "@/lib/member-auth";
 import { redirect } from "next/navigation";
 
 export default async function PublicStatsPage({
@@ -14,9 +14,11 @@ export default async function PublicStatsPage({
   searchParams: Promise<{ activeYear?: string; expenseGroup?: string }>;
 }) {
   const { activeYear = "all", expenseGroup = "week" } = await searchParams;
-  const user = await getUserFromCookie();
-  // Chỉ trang chủ public; thống kê nhóm vẫn cần đăng nhập.
-  if (!user) redirect("/login");
+  // Chỉ trang chủ public; thống kê nhóm chỉ cho member đã duyệt.
+  const viewer = await getApprovedViewer();
+  if (viewer.status === "anonymous") redirect("/login");
+  if (viewer.status === "blocked") return null;
+  const { user } = viewer;
 
   const [activeMembers, monthlyExpenses, attendance, availableYears] =
     await Promise.all([

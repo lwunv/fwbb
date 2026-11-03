@@ -3,15 +3,17 @@ import { sessions } from "@/db/schema";
 import { desc, or, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { getUserFromCookie } from "@/lib/user-identity";
+import { getApprovedViewer } from "@/lib/member-auth";
 import { computeShuttlecockTotal } from "@/lib/cost-calculator";
 import { HistoryClient } from "./history-client";
 
 export default async function HistoryPage() {
   const tSessions = await getTranslations("sessions");
-  const user = await getUserFromCookie();
-  // Chỉ trang chủ public; lịch sử vẫn cần đăng nhập.
-  if (!user) redirect("/login");
+  // Chỉ trang chủ public; lịch sử (nợ từng người) chỉ cho member đã duyệt.
+  const viewer = await getApprovedViewer();
+  if (viewer.status === "anonymous") redirect("/login");
+  if (viewer.status === "blocked") return null;
+  const { user } = viewer;
 
   const pastWhere = or(
     eq(sessions.status, "completed"),

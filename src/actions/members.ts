@@ -76,7 +76,12 @@ export async function getMembers() {
  */
 export async function getActiveMembers() {
   const rows = await db.query.members.findMany({
-    where: eq(members.isActive, true),
+    // Chỉ member đã duyệt: tài khoản chờ duyệt (tự đăng ký) chưa thuộc nhóm,
+    // không được hiện tên trên trang chủ công khai hay danh sách vote.
+    where: and(
+      eq(members.isActive, true),
+      eq(members.approvalStatus, "approved"),
+    ),
     orderBy: (m, { asc }) => [asc(m.name)],
     // Do not load PII columns from the DB at all (public pickers / home / vote).
     columns: {

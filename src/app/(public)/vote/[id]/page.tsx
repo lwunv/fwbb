@@ -2,7 +2,7 @@ import { getSession } from "@/actions/sessions";
 import { getSessionVotes } from "@/actions/votes";
 import { getActiveMembers } from "@/actions/members";
 import { getSettings } from "@/actions/settings";
-import { getUserFromCookie } from "@/lib/user-identity";
+import { getApprovedViewer } from "@/lib/member-auth";
 import { SessionVoteOptimisticPanel } from "@/components/sessions/session-vote-optimistic-panel";
 import { VoteContactInfo } from "@/components/sessions/vote-contact-info";
 import { CopyLinkButton } from "@/components/shared/copy-link-button";
@@ -23,15 +23,18 @@ export default async function VoteSessionPage({
   const sessionId = parseInt(id, 10);
   if (isNaN(sessionId)) notFound();
 
-  const [session, user, t] = await Promise.all([
+  const [session, viewer, t] = await Promise.all([
     getSession(sessionId),
-    getUserFromCookie(),
+    getApprovedViewer(),
     getTranslations("sessions"),
   ]);
 
   // Chỉ trang chủ mở public; link vote 1 buổi vẫn cần đăng nhập (scope "chỉ
   // trang chủ"). Có thể mở public sau nếu muốn dùng cho link chia sẻ.
-  if (!user) redirect("/login");
+  // Danh sách vote của bất kỳ buổi nào chỉ cho member đã duyệt xem.
+  if (viewer.status === "anonymous") redirect("/login");
+  if (viewer.status === "blocked") return null;
+  const { user } = viewer;
 
   if (!session) notFound();
 

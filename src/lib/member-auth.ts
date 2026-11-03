@@ -44,3 +44,35 @@ export async function requireApprovedMember(): Promise<
 
   return { user, member };
 }
+
+/**
+ * Gate cho page (public) đọc dữ liệu nhóm (lịch sử nợ, thống kê, danh sách
+ * vote). Layout chặn pending/khoá chỉ bằng giao diện, còn Next vẫn render page
+ * song song và đẩy dữ liệu của nó vào RSC payload, nên page phải tự kiểm.
+ *
+ * - `anonymous`: chưa đăng nhập, page redirect("/login") như trước.
+ * - `blocked`: có cookie nhưng chờ duyệt / bị từ chối / bị khoá, page trả
+ *   `null`. Lần tải trang đầy đủ thì layout hiện màn chờ duyệt hoặc màn khoá.
+ *   Nếu admin khoá member khi họ đang mở app, layout không render lại lúc
+ *   chuyển trang nên họ thấy vùng nội dung trống cho tới khi tải lại; vẫn
+ *   không lộ dữ liệu.
+ */
+export async function getApprovedViewer(): Promise<
+  | { status: "anonymous" }
+  | { status: "blocked" }
+  | {
+      status: "ok";
+      user: { memberId: number; externalId: string };
+      member: typeof members.$inferSelect;
+    }
+> {
+  const user = await getUserFromCookie();
+  if (!user) return { status: "anonymous" };
+  const member = await db.query.members.findFirst({
+    where: eq(members.id, user.memberId),
+  });
+  if (!member || !member.isActive || member.approvalStatus !== "approved") {
+    return { status: "blocked" };
+  }
+  return { status: "ok", user, member };
+}
