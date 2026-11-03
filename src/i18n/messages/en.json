@@ -7,7 +7,8 @@
     "me": "Me",
     "menu": "Open menu",
     "menuTitle": "Navigation",
-    "logout": "Log out"
+    "logout": "Log out",
+    "venues": "Venues"
   },
   "adminNav": {
     "dashboard": "Dashboard",
@@ -1469,6 +1470,36 @@
     "editVenue": "Edit venue",
     "save": "Save",
     "linkedDirectory": "Directory:",
-    "notLinked": "Not linked"
+    "notLinked": "Not linked",
+    "directions": "Directions",
+    "pageTitle": "Courts near you",
+    "pageSubtitle": "Badminton venues added by members",
+    "radius": "Radius",
+    "radiusValue": "{km} km",
+    "filterAmenities": "Filter by amenities",
+    "locating": "Getting your location...",
+    "useMyLocation": "Use my location",
+    "locationDenied": "We could not get your location. Type an address or area to find venues nearby.",
+    "addressPlaceholder": "For example: Cau Giay, Hanoi",
+    "search": "Search",
+    "searchingNear": "Near: {label}",
+    "changeLocation": "Change location",
+    "emptyTitle": "No venues within {km} km yet",
+    "emptyDescription": "Try a larger radius, or suggest a venue you play at.",
+    "expandRadius": "Expand radius",
+    "suggestVenue": "Suggest a venue",
+    "suggestTitle": "Suggest a new venue",
+    "suggestSubtitle": "An admin reviews it before it shows in the directory.",
+    "submit": "Send suggestion",
+    "submittedToast": "Sent. The venue will show after an admin approves it.",
+    "duplicateTitle": "This may duplicate an existing venue",
+    "duplicateBody": "\"{name}\" is {meters} m away. Are you sure this is a different venue?",
+    "submitAnyway": "Send anyway",
+    "viewThatVenue": "View that venue",
+    "cancel": "Cancel",
+    "loadError": "We could not load the venues. Please try again.",
+    "retry": "Try again",
+    "backToList": "All venues",
+    "attribution": "Address coordinates: © OpenStreetMap contributors"
   }
 }

@@ -10,6 +10,7 @@ import {
   Clock,
   Wallet,
   BarChart3,
+  MapPinned,
   User,
   Menu,
   HelpCircle,
@@ -44,6 +45,12 @@ const navItems = [
     labelKey: "stats" as const,
     icon: BarChart3,
     tour: "nav-stats",
+  },
+  {
+    href: "/san",
+    labelKey: "venues" as const,
+    icon: MapPinned,
+    tour: "nav-venues",
   },
   { href: "/me", labelKey: "me" as const, icon: User, tour: "nav-me" },
 ];

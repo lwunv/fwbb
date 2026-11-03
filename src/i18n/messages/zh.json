@@ -7,7 +7,8 @@
     "me": "我的",
     "menu": "打开菜单",
     "menuTitle": "导航",
-    "logout": "退出登录"
+    "logout": "退出登录",
+    "venues": "场馆"
   },
   "adminNav": {
     "dashboard": "概览",
@@ -1469,6 +1470,36 @@
     "editVenue": "编辑场馆",
     "save": "保存",
     "linkedDirectory": "目录：",
-    "notLinked": "未关联"
+    "notLinked": "未关联",
+    "directions": "导航",
+    "pageTitle": "附近的球馆",
+    "pageSubtitle": "由成员提供的羽毛球场馆目录",
+    "radius": "范围",
+    "radiusValue": "{km} 公里",
+    "filterAmenities": "按设施筛选",
+    "locating": "正在获取您的位置...",
+    "useMyLocation": "使用我的位置",
+    "locationDenied": "无法获取您的位置。请输入地址或区域来查找附近的场馆。",
+    "addressPlaceholder": "例如：河内纸桥郡",
+    "search": "搜索",
+    "searchingNear": "附近：{label}",
+    "changeLocation": "更改位置",
+    "emptyTitle": "{km} 公里内还没有场馆",
+    "emptyDescription": "试试扩大范围，或推荐您常去的场馆。",
+    "expandRadius": "扩大范围",
+    "suggestVenue": "推荐场馆",
+    "suggestTitle": "推荐新场馆",
+    "suggestSubtitle": "管理员审核后才会显示在目录中。",
+    "submit": "提交推荐",
+    "submittedToast": "已提交。管理员审核通过后场馆会显示。",
+    "duplicateTitle": "可能与已有场馆重复",
+    "duplicateBody": "\"{name}\" 距离 {meters} 米。确定这是另一个场馆吗？",
+    "submitAnyway": "仍然提交",
+    "viewThatVenue": "查看该场馆",
+    "cancel": "取消",
+    "loadError": "无法加载场馆列表，请稍后重试。",
+    "retry": "重试",
+    "backToList": "全部场馆",
+    "attribution": "地址坐标：© OpenStreetMap contributors"
   }
 }

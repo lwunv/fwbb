@@ -7,7 +7,8 @@
     "me": "Cá nhân",
     "menu": "Mở menu",
     "menuTitle": "Điều hướng",
-    "logout": "Đăng xuất"
+    "logout": "Đăng xuất",
+    "venues": "Sân"
   },
   "adminNav": {
     "dashboard": "Tổng quan",
@@ -1469,6 +1470,36 @@
     "editVenue": "Sửa thông tin sân",
     "save": "Lưu",
     "linkedDirectory": "Danh bạ:",
-    "notLinked": "Chưa nối"
+    "notLinked": "Chưa nối",
+    "directions": "Chỉ đường",
+    "pageTitle": "Sân quanh đây",
+    "pageSubtitle": "Danh bạ sân cầu lông do thành viên đóng góp",
+    "radius": "Bán kính",
+    "radiusValue": "{km} km",
+    "filterAmenities": "Lọc theo tiện ích",
+    "locating": "Đang lấy vị trí của bạn...",
+    "useMyLocation": "Dùng vị trí của tôi",
+    "locationDenied": "Không lấy được vị trí. Bạn gõ địa chỉ hoặc khu vực để tìm sân gần đó.",
+    "addressPlaceholder": "Ví dụ: Cầu Giấy, Hà Nội",
+    "search": "Tìm",
+    "searchingNear": "Gần: {label}",
+    "changeLocation": "Đổi vị trí",
+    "emptyTitle": "Chưa có sân nào trong {km} km",
+    "emptyDescription": "Thử mở rộng bán kính, hoặc đề xuất sân bạn hay chơi.",
+    "expandRadius": "Mở rộng bán kính",
+    "suggestVenue": "Đề xuất sân",
+    "suggestTitle": "Đề xuất sân mới",
+    "suggestSubtitle": "Admin sẽ duyệt trước khi sân hiện trong danh bạ.",
+    "submit": "Gửi đề xuất",
+    "submittedToast": "Đã gửi. Sân sẽ hiện sau khi admin duyệt.",
+    "duplicateTitle": "Có thể trùng sân đã có",
+    "duplicateBody": "Đã có \"{name}\" cách {meters} m. Bạn có chắc đây là sân khác không?",
+    "submitAnyway": "Vẫn gửi",
+    "viewThatVenue": "Xem sân đó",
+    "cancel": "Huỷ",
+    "loadError": "Không tải được danh sách sân. Thử lại sau.",
+    "retry": "Thử lại",
+    "backToList": "Danh sách sân",
+    "attribution": "Toạ độ địa chỉ: © OpenStreetMap contributors"
   }
 }

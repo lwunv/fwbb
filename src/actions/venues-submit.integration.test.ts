@@ -144,6 +144,7 @@ describe("submitVenue", () => {
         id: expect.any(Number),
         name: "Sân A",
         distanceM: expect.any(Number),
+        isPublic: false,
       },
     });
     expect(await db.select().from(venues)).toHaveLength(1);

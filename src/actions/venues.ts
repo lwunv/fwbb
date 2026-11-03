@@ -38,7 +38,14 @@ export async function submitVenue(
 ): Promise<
   | { success: true; id: number }
   | { error: string }
-  | { duplicate: { id: number; name: string; distanceM: number } }
+  | {
+      duplicate: {
+        id: number;
+        name: string;
+        distanceM: number;
+        isPublic: boolean;
+      };
+    }
 > {
   const auth = await requireApprovedMember();
   if ("error" in auth) return auth;
@@ -109,9 +116,12 @@ async function resolveVenuePoint(data: {
   return { point };
 }
 
-async function findNearbyVenue(
-  p: LatLng,
-): Promise<{ id: number; name: string; distanceM: number } | null> {
+async function findNearbyVenue(p: LatLng): Promise<{
+  id: number;
+  name: string;
+  distanceM: number;
+  isPublic: boolean;
+} | null> {
   const bb = boundingBox(p, DUPLICATE_RADIUS_M);
   const rows = await db
     .select({
@@ -119,6 +129,7 @@ async function findNearbyVenue(
       name: venues.name,
       lat: venues.lat,
       lng: venues.lng,
+      status: venues.status,
     })
     .from(venues)
     .where(
@@ -128,11 +139,21 @@ async function findNearbyVenue(
         between(venues.lng, bb.minLng, bb.maxLng),
       ),
     );
-  let best: { id: number; name: string; distanceM: number } | null = null;
+  let best: {
+    id: number;
+    name: string;
+    distanceM: number;
+    isPublic: boolean;
+  } | null = null;
   for (const r of rows) {
     const d = haversineMeters(p, r);
     if (d < DUPLICATE_RADIUS_M && (!best || d < best.distanceM)) {
-      best = { id: r.id, name: r.name, distanceM: Math.round(d) };
+      best = {
+        id: r.id,
+        name: r.name,
+        distanceM: Math.round(d),
+        isPublic: r.status === "approved",
+      };
     }
   }
   return best;

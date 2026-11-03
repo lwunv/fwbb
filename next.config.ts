@@ -39,10 +39,11 @@ const nextConfig: NextConfig = {
             key: "Referrer-Policy",
             value: "strict-origin-when-cross-origin",
           },
-          // App không dùng camera/mic/định vị → tắt hẳn.
+          // Tắt camera/mic. Định vị chỉ cho chính app (`self`) dùng ở trang
+          // "sân quanh đây" (/san); iframe bên ngoài vẫn bị chặn.
           {
             key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=()",
+            value: "camera=(), microphone=(), geolocation=(self)",
           },
           // NOTE: Content-Security-Policy cố ý CHƯA thêm — cần chạy Report-Only
           // để tune cho Google Identity (accounts.google.com) + Facebook SDK
