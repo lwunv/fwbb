@@ -38,6 +38,14 @@ const SUBMIT_TRIES_PER_MIN = 10;
  * song trên DB file local (test) bị SQLITE_BUSY ngay lúc COMMIT; ở Turso thật
  * thì không, và ràng buộc "tối đa N sân/ngày" vẫn do câu INSERT ... WHERE đảm
  * bảo. Hàng đợi chỉ giữ cho tx mới (insert + tin) không đua nhau.
+ *
+ * VÌ SAO chưa bỏ được (thử ngày Nov 4, 2026): client libsql file mở kết nối
+ * mới cho mỗi transaction và chạy đồng bộ trên một luồng, nên lỗi đến ở hai
+ * chỗ: BEGIN IMMEDIATE (kết nối mới không có busy_timeout) và COMMIT ("cannot
+ * commit transaction - SQL statements in progress"). Cho test DB thử lại BEGIN
+ * khi BUSY thì hết lỗi BEGIN nhưng lỗi COMMIT vẫn còn, mà thử lại cả
+ * transaction sau khi callback đã chạy thì che mất lỗi thật. Ở production hàng
+ * đợi chỉ xếp các lần gửi trong cùng một instance, chi phí không đáng kể.
  */
 let submitQueue: Promise<unknown> = Promise.resolve();
 function runSerial<T>(fn: () => Promise<T>): Promise<T> {
