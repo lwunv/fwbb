@@ -323,6 +323,17 @@ export async function requestNotifyEmailVerification(): Promise<
   const email = m.email?.trim();
   if (!email) return { error: "No email" };
 
+  // Kiểm cấu hình TRƯỚC rate limit: thiếu env thì báo không khả dụng, không
+  // tiêu lượt của member và không hẹn gửi mail có link chết.
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, "");
+  if (!appUrl) return { error: "Verification unavailable" };
+  let token: string;
+  try {
+    token = sealVerifyToken(user.memberId, email);
+  } catch {
+    return { error: "Verification unavailable" };
+  }
+
   const rl = await checkRateLimit(
     `notify-verify:${user.memberId}`,
     3,
@@ -330,13 +341,7 @@ export async function requestNotifyEmailVerification(): Promise<
   );
   if (!rl.ok) return { error: "Too many requests" };
 
-  let token: string;
-  try {
-    token = sealVerifyToken(user.memberId, email);
-  } catch {
-    return { error: "Verification unavailable" };
-  }
-  const link = `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/api/notifications/verify-email?token=${encodeURIComponent(token)}`;
+  const link = `${appUrl}/api/notifications/verify-email?token=${encodeURIComponent(token)}`;
   runAfterResponse(async () => {
     await sendMail({
       to: email,

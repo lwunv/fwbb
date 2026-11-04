@@ -37,6 +37,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       .where(eq(members.id, opened.mid));
     return back(request, "verified");
   } catch {
+    // Lỗi DB: báo "invalid" để member xin link mới; chỉ log mã, không log token/email.
     console.error("[Notify] verify_email_failed");
     return back(request, "invalid");
   }

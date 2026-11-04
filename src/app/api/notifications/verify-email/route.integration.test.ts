@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "@/db/test-db";
@@ -81,9 +81,12 @@ function loc(res: Response) {
 
 const member = (id: number) => ({ type: "member", id }) as const;
 
+afterEach(() => vi.unstubAllEnvs());
+
 beforeEach(async () => {
   await reset();
   vi.clearAllMocks();
+  vi.stubEnv("NEXT_PUBLIC_APP_URL", ORIGIN);
 });
 
 describe("GET /api/notifications/verify-email", () => {
@@ -212,6 +215,34 @@ describe("requestNotifyEmailVerification", () => {
       arg.text.split("token=")[1].split("\n")[0],
     );
     expect(loc(await call(token))).toBe("/me?email=verified");
+  });
+
+  it("refuses without NEXT_PUBLIC_APP_URL or USER_COOKIE_SECRET: no rate limit slot used, no send scheduled", async () => {
+    const id = await addMember("cfg@example.com");
+    userMock.getUserFromCookie.mockResolvedValue({
+      memberId: id,
+      externalId: "x",
+    });
+    const buckets = async () =>
+      (await client.execute("SELECT COUNT(*) AS n FROM rate_limit_buckets"))
+        .rows[0].n;
+
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "");
+    expect(await requestNotifyEmailVerification()).toEqual({
+      error: "Verification unavailable",
+    });
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", ORIGIN);
+
+    vi.stubEnv("USER_COOKIE_SECRET", "");
+    expect(await requestNotifyEmailVerification()).toEqual({
+      error: "Verification unavailable",
+    });
+    vi.unstubAllEnvs();
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", ORIGIN);
+
+    expect(Number(await buckets())).toBe(0);
+    expect(afterMock.runAfterResponse).not.toHaveBeenCalled();
+    expect(mailMock.sendMail).not.toHaveBeenCalled();
   });
 
   it("errors without a session or an email; admin prefs report verified when admins.email is set", async () => {
