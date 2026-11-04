@@ -248,6 +248,17 @@ describe("MapView", () => {
     expect(appLayers.every((c) => c[1] === "vn-islands")).toBe(true);
   });
 
+  it("interactive=false makes pins inert so an overlay link gets the tap", () => {
+    renderMap({ interactive: false });
+    const pins = document.querySelectorAll("button");
+    expect(pins).toHaveLength(2);
+    for (const pin of pins) {
+      expect(pin.tabIndex).toBe(-1);
+      expect(pin.getAttribute("aria-hidden")).toBe("true");
+      expect(pin.classList.contains("pointer-events-none")).toBe(true);
+    }
+  });
+
   it("interactive=false turns off map gestures", () => {
     renderMap({ interactive: false });
     expect(maps[0].options.interactive).toBe(false);

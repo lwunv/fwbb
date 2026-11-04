@@ -276,8 +276,14 @@ export function MapView({
       entry.marker.setLngLat([p.lng, p.lat]);
       entry.el.setAttribute("aria-label", p.label);
       entry.el.dataset.selected = String(p.id === selectedId);
+      // Bản đồ không tương tác (bản đồ nhỏ): ghim chỉ để nhìn. Bỏ khỏi thứ
+      // tự Tab/trình đọc màn hình và nhường cú chạm cho lớp phủ của màn cha.
+      entry.el.tabIndex = interactive ? 0 : -1;
+      entry.el.classList.toggle("pointer-events-none", !interactive);
+      if (interactive) entry.el.removeAttribute("aria-hidden");
+      else entry.el.setAttribute("aria-hidden", "true");
     }
-  }, [points, selectedId, unsupported]);
+  }, [points, selectedId, unsupported, interactive]);
 
   // Màn cha đổi tâm/bán kính (vd "Tìm ở khu vực này", đổi bán kính).
   useEffect(() => {

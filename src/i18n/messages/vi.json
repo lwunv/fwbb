@@ -1532,6 +1532,7 @@
     "linkedDirectory": "Danh bạ:",
     "notLinked": "Chưa nối",
     "directions": "Chỉ đường",
+    "directionsTo": "Chỉ đường tới {name}",
     "pageTitle": "Sân quanh đây",
     "pageSubtitle": "Danh bạ sân cầu lông do thành viên đóng góp",
     "radius": "Bán kính",

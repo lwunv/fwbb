@@ -1532,6 +1532,7 @@
     "linkedDirectory": "目录：",
     "notLinked": "未关联",
     "directions": "导航",
+    "directionsTo": "导航到 {name}",
     "pageTitle": "附近的球馆",
     "pageSubtitle": "由成员提供的羽毛球场馆目录",
     "radius": "范围",

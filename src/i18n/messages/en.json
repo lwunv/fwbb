@@ -1532,6 +1532,7 @@
     "linkedDirectory": "Directory:",
     "notLinked": "Not linked",
     "directions": "Directions",
+    "directionsTo": "Directions to {name}",
     "pageTitle": "Courts near you",
     "pageSubtitle": "Badminton venues added by members",
     "radius": "Radius",
