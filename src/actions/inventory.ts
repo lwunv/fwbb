@@ -15,9 +15,10 @@ import { getSettings } from "./settings";
 import {
   tubesToQua,
   isLowStock,
-  splitOngQua,
   computeCurrentStock,
 } from "@/lib/inventory-core";
+import { computeStockByBrand, type StockByBrand } from "@/lib/inventory-stock";
+import { scheduleLowStockCheck } from "@/lib/notifications/inventory-events";
 import { getTranslations } from "next-intl/server";
 
 export async function recordPurchase(formData: FormData) {
@@ -174,6 +175,7 @@ export async function updatePurchaseTubes(
     };
   }
 
+  await scheduleLowStockCheck(db);
   revalidatePath("/admin/inventory");
   return { success: true };
 }
@@ -240,28 +242,12 @@ export async function setStockQua(brandId: number, desiredQua: number) {
     };
   }
 
+  await scheduleLowStockCheck(db);
   revalidatePath("/admin/inventory");
   return { success: true };
 }
 
-export interface StockByBrand {
-  brandId: number;
-  brandName: string;
-  pricePerTube: number;
-  isActive: boolean;
-  totalPurchasedTubes: number;
-  totalPurchasedQua: number;
-  totalUsedQua: number;
-  adjustQua: number;
-  /** Display-clamped stock (≥ 0) — what UI shows. */
-  currentStockQua: number;
-  /** Real (un-clamped) stock — can be negative when usage > purchases.
-   * Useful for admin debugging "why is stock 0?" — keeps the actual delta. */
-  rawStockQua: number;
-  ong: number; // tubes in stock
-  qua: number; // remaining qua after full tubes
-  isLowStock: boolean;
-}
+export type { StockByBrand };
 
 export async function getStockByBrand(): Promise<StockByBrand[]> {
   // Admin-only: exposes per-brand prices + stock (business data). Gating the
@@ -269,69 +255,7 @@ export async function getStockByBrand(): Promise<StockByBrand[]> {
   // pattern in shuttlecock-finance.ts.
   const auth = await requireAdmin();
   if ("error" in auth) return [];
-  const { lowStockThresholdQua } = await getSettings();
-  // Get all brands
-  const brands = await db.query.shuttlecockBrands.findMany({
-    orderBy: (b, { asc }) => [asc(b.name)],
-  });
-
-  // Get all purchases
-  const purchases = await db.query.inventoryPurchases.findMany();
-
-  // Get all usage from sessions. Cancelled sessions retain sessionShuttlecocks
-  // rows but their tubes are NOT counted as "used" by stock — matches the F7
-  // convention in shuttlecock-finance. Admin records physical loss via
-  // `setStockQua` / `stockAdjustQua` if tubes were opened then session
-  // cancelled.
-  const usage = await db.query.sessionShuttlecocks.findMany({
-    with: { session: { columns: { status: true } } },
-  });
-
-  const result: StockByBrand[] = [];
-
-  for (const brand of brands) {
-    // Sum purchased tubes for this brand
-    const totalPurchasedTubes = purchases
-      .filter((p) => p.brandId === brand.id)
-      .reduce((sum, p) => sum + p.tubes, 0);
-
-    const totalPurchasedQua = tubesToQua(totalPurchasedTubes);
-
-    // Sum used qua for this brand (exclude cancelled sessions)
-    const totalUsedQua = usage
-      .filter(
-        (u) => u.brandId === brand.id && u.session?.status !== "cancelled",
-      )
-      .reduce((sum, u) => sum + u.quantityUsed, 0);
-
-    const adjustQua = brand.stockAdjustQua ?? 0;
-    const { rawStockQua, currentStockQua } = computeCurrentStock({
-      purchasedQua: totalPurchasedQua,
-      usedQua: totalUsedQua,
-      adjustQua,
-    });
-
-    // Convert to ong + qua display (from the display-clamped value)
-    const { ong, qua } = splitOngQua(currentStockQua);
-
-    result.push({
-      brandId: brand.id,
-      brandName: brand.name,
-      pricePerTube: brand.pricePerTube,
-      isActive: brand.isActive ?? true,
-      totalPurchasedTubes,
-      totalPurchasedQua,
-      totalUsedQua,
-      adjustQua,
-      currentStockQua,
-      rawStockQua,
-      ong,
-      qua,
-      isLowStock: isLowStock(rawStockQua, lowStockThresholdQua),
-    });
-  }
-
-  return result;
+  return computeStockByBrand(db);
 }
 
 export async function getPurchaseHistory() {

@@ -43,7 +43,8 @@ import {
   notifyMemberReportedTransfer,
   notifyPaymentUndone,
 } from "@/lib/notifications/money-events";
-import { notify } from "@/lib/notifications/notify";
+import { isNotificationsEnabled, notify } from "@/lib/notifications/notify";
+import { scheduleLowStockCheck } from "@/lib/notifications/inventory-events";
 
 export interface FinalizeAttendee {
   memberId: number | null;
@@ -220,6 +221,9 @@ export async function finalizeSession(
       };
     }
   }
+
+  // Đọc công tắc thông báo đúng 1 lần cho cả action (tin chốt sổ + kiểm kho).
+  const notificationsOn = await isNotificationsEnabled(db);
 
   // === All mutating operations atomic via transaction ===
   try {
@@ -566,7 +570,13 @@ export async function finalizeSession(
 
       // Tin chốt sổ cho đúng danh sách vừa ghi vào session_debts (sau sàn
       // min-deduction), cùng tx: ghi tin lỗi thì cả lần chốt rollback.
-      await notifyFinalized(tx, data.sessionId, memberDebts, adminMemberId);
+      await notifyFinalized(
+        tx,
+        data.sessionId,
+        memberDebts,
+        adminMemberId,
+        notificationsOn,
+      );
     });
   } catch (err) {
     return {
@@ -575,6 +585,9 @@ export async function finalizeSession(
         (err instanceof Error ? err.message : "lỗi không xác định"),
     };
   }
+
+  // Cầu vừa trừ kho theo buổi: kiểm tồn sau commit (xem scheduleLowStockCheck).
+  await scheduleLowStockCheck(db, notificationsOn);
 
   // Non-blocking Messenger notification (only if tx succeeded)
   const totalDebts = breakdown.memberDebts.reduce(
