@@ -212,23 +212,40 @@ describe("MapView", () => {
     expect(ids).toContain("app-radius-fill");
   });
 
-  it("more than 30 points uses a clustered source instead of HTML markers", () => {
-    const many: MapPoint[] = Array.from({ length: 31 }, (_, i) => ({
+  it("45 points show 45 marker buttons even when the style never loads", () => {
+    const many: MapPoint[] = Array.from({ length: 45 }, (_, i) => ({
       kind: "venue",
       id: i + 1,
       lat: 21 + i / 1000,
       lng: 105.8,
       label: `Sân ${i + 1}`,
     }));
-    renderMap({ points: many });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    renderMap({ points: many, selectedId: 45 });
+    // openfreemap không tới được: chỉ có `error`, không bao giờ có `load`
+    // hay `style.load`.
+    maps[0].fire("error", { error: new Error("style fetch failed") });
+    expect(screen.getAllByRole("button")).toHaveLength(45);
+    expect(
+      screen.getByRole("button", { name: "Sân 45" }).dataset.selected,
+    ).toBe("true");
+    expect(maps[0].addLayer).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      "[Map] style_error",
+      "style fetch failed",
+    );
+  });
+
+  it("app layers sit below the sovereignty label", () => {
+    renderMap();
     maps[0].fire("style.load");
-    expect(screen.queryAllByRole("button")).toHaveLength(0);
-    const calls = maps[0].addSource.mock.calls as unknown as [
-      string,
-      { cluster?: boolean },
+    const calls = maps[0].addLayer.mock.calls as unknown as [
+      { id: string },
+      string | undefined,
     ][];
-    const src = calls.find((c) => c[0] === "app-points");
-    expect(src?.[1].cluster).toBe(true);
+    const appLayers = calls.filter((c) => c[0].id.startsWith("app-"));
+    expect(appLayers.length).toBeGreaterThan(0);
+    expect(appLayers.every((c) => c[1] === "vn-islands")).toBe(true);
   });
 
   it("interactive=false turns off map gestures", () => {

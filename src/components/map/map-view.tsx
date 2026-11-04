@@ -4,14 +4,8 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { MapPinOff } from "lucide-react";
-import {
-  MapLibreMap,
-  Marker,
-  type ExpressionSpecification,
-  type GeoJSONSource,
-  type MapLayerMouseEvent,
-} from "maplibre-gl";
-import type { FeatureCollection, Geometry, Point } from "geojson";
+import { MapLibreMap, Marker, type GeoJSONSource } from "maplibre-gl";
+import type { FeatureCollection } from "geojson";
 import type { LatLng } from "@/lib/geo";
 import {
   MAP_STYLE_URL,
@@ -23,7 +17,7 @@ import {
   applyVietnamSovereignty,
   VN_ISLANDS_LAYER_ID,
 } from "@/lib/map/sovereignty";
-import { cssColor, styleFont } from "@/lib/map/style-helpers";
+import { cssColor } from "@/lib/map/style-helpers";
 import { cn } from "@/lib/utils";
 
 export type MapViewProps = {
@@ -41,19 +35,11 @@ export type MapViewProps = {
   onUnsupported?: () => void;
 };
 
-/** Trên ngưỡng này ghim HTML dày đặc khó bấm, chuyển sang gom cụm. */
-const CLUSTER_THRESHOLD = 30;
 const DEFAULT_RADIUS_KM = 5;
 
 const RADIUS_SOURCE = "app-radius";
 const RADIUS_FILL_LAYER = "app-radius-fill";
 const RADIUS_LINE_LAYER = "app-radius-line";
-const POINTS_SOURCE = "app-points";
-const CLUSTER_LAYER = "app-clusters";
-const CLUSTER_COUNT_LAYER = "app-cluster-count";
-const POINT_LAYER = "app-points-dot";
-/** Vòng trong suốt 22px bán kính quanh chấm: vùng chạm ≥ 44px. */
-const POINT_HIT_LAYER = "app-points-hit";
 
 const EMPTY: FeatureCollection = { type: "FeatureCollection", features: [] };
 
@@ -70,21 +56,6 @@ function hasWebGL2(): boolean {
 function radiusData(center: LatLng, km: number | undefined): FeatureCollection {
   if (km === undefined) return EMPTY;
   return { type: "FeatureCollection", features: [radiusCircle(center, km)] };
-}
-
-function clusterData(points: MapPoint[]): FeatureCollection<Point> {
-  return {
-    type: "FeatureCollection",
-    features: points.map((p) => ({
-      type: "Feature",
-      properties: { id: p.id },
-      geometry: { type: "Point", coordinates: [p.lng, p.lat] },
-    })),
-  };
-}
-
-function pointRadius(selectedId: number | null): ExpressionSpecification {
-  return ["case", ["==", ["get", "id"], selectedId ?? -1], 12, 9];
 }
 
 // Biểu tượng ghim (lucide map-pin). Chuỗi tĩnh, không chứa dữ liệu người
@@ -117,29 +88,20 @@ function createUserDot(): HTMLDivElement {
   return el;
 }
 
-type OverlayState = {
-  points: MapPoint[];
-  center: LatLng;
-  radiusKm?: number;
-  selectedId: number | null;
-};
-
 /**
- * Layer của app (vòng bán kính, cụm ghim). Gắn lại mỗi lần style nạp vì
- * đổi style là mất hết layer cũ. Luôn nằm dưới nhãn chủ quyền.
+ * Vòng bán kính, layer duy nhất của app. Gắn lại mỗi lần style nạp vì đổi
+ * style là mất hết layer cũ. Nằm dưới nhãn chủ quyền. Ghim sân KHÔNG ở đây:
+ * chúng là marker HTML để vẫn hiện (và bấm được bằng bàn phím, trình đọc màn
+ * hình) khi style nền không tải được.
  */
-function addOverlays(map: MapLibreMap, s: OverlayState) {
-  const el = map.getContainer();
-  const primary = cssColor(el, "--primary");
-  const primaryFg = cssColor(el, "--primary-foreground");
-  const background = cssColor(el, "--background");
+function addRadiusRing(map: MapLibreMap, center: LatLng, km?: number) {
+  const primary = cssColor(map.getContainer(), "--primary");
   const before = map.getLayer(VN_ISLANDS_LAYER_ID)
     ? VN_ISLANDS_LAYER_ID
     : undefined;
-
   map.addSource(RADIUS_SOURCE, {
     type: "geojson",
-    data: radiusData(s.center, s.radiusKm),
+    data: radiusData(center, km),
   });
   map.addLayer(
     {
@@ -166,91 +128,6 @@ function addOverlays(map: MapLibreMap, s: OverlayState) {
     },
     before,
   );
-
-  map.addSource(POINTS_SOURCE, {
-    type: "geojson",
-    data: clusterData(s.points.length > CLUSTER_THRESHOLD ? s.points : []),
-    cluster: true,
-    clusterRadius: 50,
-    clusterMaxZoom: 15,
-  });
-  const ring = {
-    "circle-stroke-width": 3,
-    ...(primary ? { "circle-color": primary } : {}),
-    ...(background ? { "circle-stroke-color": background } : {}),
-  };
-  map.addLayer(
-    {
-      id: CLUSTER_LAYER,
-      type: "circle",
-      source: POINTS_SOURCE,
-      filter: ["has", "point_count"],
-      // Bán kính ≥ 22px: vùng chạm ≥ 44px.
-      paint: {
-        "circle-radius": ["step", ["get", "point_count"], 22, 10, 26, 50, 30],
-        ...ring,
-      },
-    },
-    before,
-  );
-  map.addLayer(
-    {
-      id: CLUSTER_COUNT_LAYER,
-      type: "symbol",
-      source: POINTS_SOURCE,
-      filter: ["has", "point_count"],
-      layout: {
-        "text-field": ["get", "point_count_abbreviated"],
-        "text-font": styleFont(map.getStyle().layers, "Bold"),
-        "text-size": 16,
-        "text-allow-overlap": true,
-      },
-      paint: primaryFg ? { "text-color": primaryFg } : {},
-    },
-    before,
-  );
-  map.addLayer(
-    {
-      id: POINT_HIT_LAYER,
-      type: "circle",
-      source: POINTS_SOURCE,
-      filter: ["!", ["has", "point_count"]],
-      paint: { "circle-radius": 22, "circle-opacity": 0 },
-    },
-    before,
-  );
-  map.addLayer(
-    {
-      id: POINT_LAYER,
-      type: "circle",
-      source: POINTS_SOURCE,
-      filter: ["!", ["has", "point_count"]],
-      paint: { "circle-radius": pointRadius(s.selectedId), ...ring },
-    },
-    before,
-  );
-}
-
-async function zoomIntoCluster(map: MapLibreMap, e: MapLayerMouseEvent) {
-  const feature = e.features?.[0];
-  const clusterId: unknown = feature?.properties?.cluster_id;
-  const source = map.getSource<GeoJSONSource>(POINTS_SOURCE);
-  const geometry: Geometry | undefined = feature?.geometry;
-  if (typeof clusterId !== "number" || !source || geometry?.type !== "Point") {
-    return;
-  }
-  try {
-    const zoom = await source.getClusterExpansionZoom(clusterId);
-    const [lng, lat] = geometry.coordinates;
-    // Người dùng bấm cụm là tự đổi vùng xem: truyền originalEvent để
-    // `moveend` coi như thao tác của người dùng.
-    map.easeTo(
-      { center: [lng, lat], zoom },
-      { originalEvent: e.originalEvent },
-    );
-  } catch {
-    console.warn("[Map] cluster_error");
-  }
 }
 
 /**
@@ -345,9 +222,9 @@ export function MapView({
       const s = latest.current;
       applyVietnamSovereignty(map, s.locale);
       try {
-        addOverlays(map, s);
+        addRadiusRing(map, s.center, s.radiusKm);
       } catch {
-        console.warn("[Map] overlay_error");
+        console.warn("[Map] radius_error");
       }
     });
     map.on("moveend", (e) => {
@@ -356,14 +233,6 @@ export function MapView({
       if (!e.originalEvent) return;
       const c = map.getCenter();
       latest.current.onMoveEnd?.({ lat: c.lat, lng: c.lng });
-    });
-    map.on("click", CLUSTER_LAYER, (e) => {
-      void zoomIntoCluster(map, e);
-    });
-    map.on("click", POINT_HIT_LAYER, (e) => {
-      const id: unknown = e.features?.[0]?.properties?.id;
-      const p = latest.current.points.find((x) => x.id === id);
-      if (p) latest.current.onPointClick?.(p);
     });
 
     return () => {
@@ -377,20 +246,20 @@ export function MapView({
   }, [unsupported]);
 
   // Đổi điểm hoặc sân đang chọn: cập nhật ghim tại chỗ, không tạo lại map.
+  // Mọi sân luôn là nút HTML, không gom cụm: listVenuesNear trả tối đa 50
+  // sân, và ghim phải hiện cả khi style nền không tải được.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const clustered = points.length > CLUSTER_THRESHOLD;
     const markers = markersRef.current;
-    const htmlPoints = clustered ? [] : points;
-    const keep = new Set(htmlPoints.map((p) => p.id));
+    const keep = new Set(points.map((p) => p.id));
     for (const [id, entry] of markers) {
       if (!keep.has(id)) {
         entry.marker.remove();
         markers.delete(id);
       }
     }
-    for (const p of htmlPoints) {
+    for (const p of points) {
       let entry = markers.get(p.id);
       if (!entry) {
         const el = createPin(() => {
@@ -407,16 +276,6 @@ export function MapView({
       entry.marker.setLngLat([p.lng, p.lat]);
       entry.el.setAttribute("aria-label", p.label);
       entry.el.dataset.selected = String(p.id === selectedId);
-    }
-    map
-      .getSource<GeoJSONSource>(POINTS_SOURCE)
-      ?.setData(clusterData(clustered ? points : []));
-    if (map.getLayer(POINT_LAYER)) {
-      map.setPaintProperty(
-        POINT_LAYER,
-        "circle-radius",
-        pointRadius(selectedId),
-      );
     }
   }, [points, selectedId, unsupported]);
 
