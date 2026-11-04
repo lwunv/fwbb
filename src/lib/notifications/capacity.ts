@@ -86,7 +86,7 @@ async function loadSession(db: DbOrTx, sessionId: number) {
  * Số người chơi đang tính sức chứa: chỉ vote của member đang hoạt động và đã
  * duyệt (giống chặn sức chứa ở `submitVote`), cộng khách của admin.
  */
-async function currentHeadcount(
+export async function currentHeadcount(
   db: DbOrTx,
   sessionId: number,
   adminGuestPlayCount: number | null,

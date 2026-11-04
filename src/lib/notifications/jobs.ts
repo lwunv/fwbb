@@ -10,6 +10,7 @@ import { runAfterResponse } from "./after";
 import { courtLockAt, courtLockHoursBefore } from "./capacity";
 import { isNotificationsEnabled } from "./gate";
 import { publishJob, cancelJobMessage, QSTASH_MAX_DELAY_MS } from "./qstash";
+import { isSessionJobKind, runSessionJob } from "./scheduled-events";
 import { sessionStartInstant } from "./time";
 
 const HOUR_MS = 3_600_000;
@@ -338,17 +339,19 @@ export async function scheduleOutboxRetry(
 }
 
 /**
- * Chạy một job đã tới giờ (route QStash và cron gọi). Task 17 chỉ dựng khung:
- * kind chưa hỗ trợ → `"skipped"`. Task 18 điền các kind theo buổi, Task 19
- * điền `weekly_summary` và `outbox_retry`.
+ * Chạy một job đã tới giờ (route QStash và cron gọi). Các kind theo buổi nằm ở
+ * `scheduled-events.ts`; kind chưa hỗ trợ → `"skipped"`. Task 19 điền
+ * `weekly_summary` và `outbox_retry`.
  */
 export async function runJob(
   db: DbOrTx,
   job: ScheduledJob,
   now: Date,
 ): Promise<"done" | "skipped"> {
-  void db;
-  void job;
-  void now;
+  if (isSessionJobKind(job.kind)) {
+    // Công tắc tắt: không đọc gì khác ngoài setting.
+    if (!(await isNotificationsEnabled(db))) return "skipped";
+    return runSessionJob(db, job, now, true);
+  }
   return "skipped";
 }

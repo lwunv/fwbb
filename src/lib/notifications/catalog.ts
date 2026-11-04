@@ -87,6 +87,8 @@ export interface NotificationPayloads {
   game_day_reminder: SessionWhen & {
     when: "morning" | "3h";
     courtName: string;
+    /** Chỉ có khi sân có link bản đồ. */
+    mapLink?: string;
   };
   /**
    * Khoản của CHÍNH member theo dòng `session_debts` vừa ghi. `total` là số bị
@@ -133,7 +135,11 @@ export interface NotificationPayloads {
     headcount: number;
     maxPlayers: number;
   };
-  unvoted_before_deadline: SessionWhen & { names: string[] };
+  unvoted_before_deadline: SessionWhen & {
+    names: string[];
+    /** Hạn vote (giờ VN, `YYYY-MM-DDTHH:MM:SS`); null = không có hạn. */
+    voteDeadline: string | null;
+  };
   /** `sessionDate` chỉ có khi `purpose` là "debt". */
   member_reported_transfer: {
     memberName: string;
