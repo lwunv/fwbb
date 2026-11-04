@@ -1,6 +1,6 @@
 # Thông báo cho member và admin: thiết kế
 
-Ngày: 4/11/2026. Trạng thái: bản nháp chờ user duyệt. Các quyết định ghi "user chốt" là user trả lời ngày 3/11/2026.
+Ngày: 4/11/2026. Trạng thái: user duyệt 4/11/2026 (8 quyết định mục 6, điểm 5 sửa thành chỉ superadmin). Các quyết định ghi "user chốt" là user trả lời ngày 3/11/2026.
 
 ## 1. Ý định
 
@@ -156,6 +156,7 @@ Kênh: **S** chuông trên site, **E** email (nếu member có email và bật).
 - `notification_deliveries` (outbox email): `notification_id`, `channel`, `status` (`pending|sent|failed|skipped`), `attempts`, `next_attempt_at`, `error_code`. Index `(status, next_attempt_at)`.
 - `notification_prefs`: 1 dòng mỗi người nhận, chỉ lưu các nhóm tin bị tắt + có nhận email không.
 - `scheduled_jobs` (sổ hẹn QStash): `job_key` UNIQUE (ví dụ `vote_due_2h:session:123:v4`), `message_id` của QStash, `run_at`, `status`. Dùng để huỷ/hẹn lại khi đổi giờ và để cron dự phòng biết mốc nào đã chạy.
+- `admins.role TEXT NOT NULL DEFAULT 'superadmin'` (enum chỉ ở TypeScript, hiện chỉ có `superadmin`). Mọi admin đang có tự thành superadmin, đúng hành vi hôm nay. Chuẩn bị cho admin theo club sau này; N1 không đổi quyền truy cập trang admin.
 - `members.email` đã có; cần cờ "đã xác minh email để nhận thông báo" (`notify_email_verified_at`) để không gửi tới email gõ nhầm.
 - Không seed trong migration.
 
@@ -164,7 +165,7 @@ Kênh: **S** chuông trên site, **E** email (nếu member có email và bật).
 - Tin được ghi trong **cùng `db.transaction`** với hành động nghiệp vụ (1 lệnh insert nhiều người nhận, `onConflictDoNothing` theo `dedup_key`). Hành động thất bại thì không có tin.
 - Email gửi **sau khi trả phản hồi** (cơ chế chạy-sau-phản-hồi của Next 16, đọc docs trước) từ outbox; thử lại tối đa 5 lần giãn dần; lỗi cuối cùng hiện cho admin trong trang cài đặt. Mailer hiện "không bao giờ throw" phải trả trạng thái rõ ràng cho outbox.
 - Các tin "Lịch" chạy qua route QStash có kiểm chữ ký (mục 4.2).
-- Tin cho admin gửi tới mọi admin trong bảng `admins` (khác bảng `members`).
+- Tin cho admin chỉ gửi tới **superadmin**: các dòng trong bảng `admins` (khác bảng `members`) có `role = 'superadmin'` (user chốt 4/11). Sau này có admin riêng cho từng club thì họ mang vai trò khác và chỉ nhận tin của club mình; giai đoạn N1 chưa làm phần club.
 
 ### 4.10 Giai đoạn
 
@@ -185,7 +186,7 @@ Kênh: **S** chuông trên site, **E** email (nếu member có email và bật).
 2. Nhắc vote 2 lần: 24h và 2h trước hạn, chỉ cho người chưa vote.
 3. Nhắc ngày chơi 2 lần: sáng ngày chơi (khoảng 8:00) và 3h trước giờ.
 4. Email chỉ gửi tới email đã xác minh (bấm link xác minh 1 lần), để không gửi nhầm người.
-5. Tin cho admin gửi tới mọi admin, mỗi admin đánh dấu đã đọc riêng.
+5. Tin cho admin chỉ gửi tới superadmin, mỗi người đánh dấu đã đọc riêng (user sửa 4/11: "superadmin thôi, sau sẽ có thêm admin cho từng club").
 6. Tin "Buổi mới mở vote" của buổi xa hơn 48h chỉ vào tóm tắt, tránh mỗi tuần mấy tin.
 7. Web push để giai đoạn N3 vì phần lớn member mở app trong Zalo/Messenger, nơi push không chạy.
 8. Không động vào bot Messenger hiện có trong N1; xem log rồi quyết bỏ hay giữ sau.
