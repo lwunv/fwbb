@@ -7,6 +7,14 @@
     {
       "path": "/api/cron/renew-gmail-watch",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/notifications-daily",
+      "schedule": "0 23 * * *"
+    },
+    {
+      "path": "/api/cron/notifications-mail",
+      "schedule": "0 0 * * *"
     }
   ]
 }

@@ -9,9 +9,18 @@ import {
 import { runAfterResponse } from "./after";
 import { courtLockAt, courtLockHoursBefore } from "./capacity";
 import { isNotificationsEnabled } from "./gate";
-import { publishJob, cancelJobMessage, QSTASH_MAX_DELAY_MS } from "./qstash";
+import { notify } from "./notify";
+import { drainOutbox } from "./outbox";
+import {
+  publishJob,
+  cancelJobMessage,
+  getQstashConfig,
+  QSTASH_MAX_DELAY_MS,
+} from "./qstash";
+import { superadminRecipients } from "./recipients";
 import { isSessionJobKind, runSessionJob } from "./scheduled-events";
-import { sessionStartInstant } from "./time";
+import { sessionStartInstant, vnDate } from "./time";
+import type { NotificationPayloads } from "./catalog";
 
 const HOUR_MS = 3_600_000;
 
@@ -338,10 +347,26 @@ export async function scheduleOutboxRetry(
   await publishRow(db, { id: row.id, jobKey, runAt: at }, now);
 }
 
+/** Số đếm trong payload job tuần; payload hỏng thì `null` (không gửi gì). */
+function weeklySummaryPayload(
+  payload: ScheduledJob["payload"],
+): NotificationPayloads["weekly_summary"] | null {
+  const { debtorCount, upcomingCount, pendingCount } = payload ?? {};
+  const counts = [debtorCount, upcomingCount, pendingCount];
+  if (!counts.every((n) => Number.isInteger(n) && (n as number) >= 0)) {
+    return null;
+  }
+  return {
+    debtorCount: debtorCount as number,
+    upcomingCount: upcomingCount as number,
+    pendingCount: pendingCount as number,
+  };
+}
+
 /**
  * Chạy một job đã tới giờ (route QStash và cron gọi). Các kind theo buổi nằm ở
- * `scheduled-events.ts`; kind chưa hỗ trợ → `"skipped"`. Task 19 điền
- * `weekly_summary` và `outbox_retry`.
+ * `scheduled-events.ts`; kind chưa hỗ trợ → `"skipped"`. Thân job phải chạy
+ * lại được: route và lượt quét bù của cron có thể chạy cùng một job hai lần.
  */
 export async function runJob(
   db: DbOrTx,
@@ -353,5 +378,87 @@ export async function runJob(
     if (!(await isNotificationsEnabled(db))) return "skipped";
     return runSessionJob(db, job, now, true);
   }
+  if (job.kind === "weekly_summary") {
+    if (!(await isNotificationsEnabled(db))) return "skipped";
+    // Số liệu chụp lúc cron 06:00 tạo job, không đọc lại sổ hay buổi.
+    const payload = weeklySummaryPayload(job.payload);
+    if (!payload) return "skipped";
+    await notify(db, {
+      kind: "weekly_summary",
+      recipients: await superadminRecipients(db),
+      payload,
+      dedupBase: `weekly:${vnDate(new Date(job.runAt))}`,
+      now,
+      gate: true,
+    });
+    return "done";
+  }
+  if (job.kind === "outbox_retry") {
+    // drainOutbox tự kiểm công tắc và giữ chỗ từng mail trước khi gửi.
+    await drainOutbox(db, { now });
+    return "done";
+  }
   return "skipped";
+}
+
+/**
+ * Ghi kết quả một lượt chạy. Chỉ đổi dòng còn `scheduled`: lượt khác đã kết
+ * thúc job (hoặc lịch đã đổi) thì giữ nguyên.
+ */
+export async function finishJob(
+  db: DbOrTx,
+  jobId: number,
+  outcome: "done" | "skipped",
+  now: Date,
+): Promise<void> {
+  await db
+    .update(scheduledJobs)
+    .set({ status: outcome, updatedAt: now.toISOString() })
+    .where(
+      and(eq(scheduledJobs.id, jobId), eq(scheduledJobs.status, "scheduled")),
+    );
+}
+
+/**
+ * Hẹn một job không gắn buổi (vd tóm tắt tuần) đúng `runAt`. Chèn trước, trùng
+ * `jobKey` thì thôi (cron chạy lại không đăng thêm). Có QStash thì đăng;
+ * không có thì chạy luôn. QStash lỗi lúc đăng thì dòng giữ `scheduled` và lượt
+ * quét bù của cron hôm sau chạy nó.
+ */
+export async function scheduleOneOffJob(
+  db: DbOrTx,
+  job: {
+    jobKey: string;
+    kind: string;
+    runAt: Date;
+    payload: Record<string, unknown>;
+  },
+  now: Date,
+): Promise<void> {
+  const nowIso = now.toISOString();
+  const [row] = await db
+    .insert(scheduledJobs)
+    .values({
+      jobKey: job.jobKey,
+      kind: job.kind,
+      sessionId: null,
+      runAt: job.runAt.toISOString(),
+      status: "scheduled",
+      messageId: null,
+      payload: job.payload,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    })
+    .onConflictDoNothing({ target: scheduledJobs.jobKey })
+    .returning();
+  if (!row) return;
+  if (getQstashConfig()) {
+    await publishRow(
+      db,
+      { id: row.id, jobKey: row.jobKey, runAt: job.runAt },
+      now,
+    );
+    return;
+  }
+  await finishJob(db, row.id, await runJob(db, row, now), now);
 }

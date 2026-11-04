@@ -52,31 +52,34 @@ reason against the real invariants, and you return a verdict with evidence.
 
 ## The real invariants — check EVERY one by id
 
-All ten live in `src/actions/reconcile-fund.ts`, function `reconcileFund()`
-(docblock lines 49-73 cover I1–I9; I10 is inline at lines 187-199). Each pushes a
+All ten live in `src/lib/reconcile-core.ts`, function `runReconcile(db)`
+(docblock lines 41-68 cover I1–I9; I10 is inline at lines 168-180). The admin action
+`reconcileFund()` in `src/actions/reconcile-fund.ts` is now only the `requireAdmin`
+gate plus a call to `runReconcile(db)`; the daily notification cron
+(`src/lib/notifications/daily.ts`) calls the same core. Each pushes a
 `ReconcileIssue` with a `code` when violated. Your review must reason about whether
 the diff could make any of these fire that didn't before, or remove a guard.
 
 | Id      | Statement                                                                                                                                                                                                                 | Severity / code                      | Where                     |
 | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | ------------------------- |
-| **I1**  | `netInternal` (Σ direction=in − Σ direction=out − Σ refund, over fund types) must equal `netByMembers` (Σ per-member balance).                                                                                            | error `I1_imbalance`                 | reconcile-fund.ts:143-185 |
-| **I2**  | `Σ(positive balances) + Σ(negative balances) = total fund balance` (`sumPositive + sumNegative = netByMembers`). Definition feeding I1, no separate push.                                                                 | (reported in totals)                 | reconcile-fund.ts:171-177 |
-| **I3**  | Every `paymentNotifications` row with `status='matched'` has a linked `financialTransaction`.                                                                                                                             | warn `I3_matched_without_tx`         | reconcile-fund.ts:201-224 |
-| **I4**  | Every `financialTransaction.paymentNotificationId` references a row that still exists.                                                                                                                                    | error `I4_missing_notif`             | reconcile-fund.ts:226-238 |
-| **I5**  | No financial transaction has a negative or non-integer amount (`!Number.isInteger(tx.amount) \|\| tx.amount < 0`).                                                                                                        | error `I5_invalid_amount`            | reconcile-fund.ts:124-133 |
-| **I6**  | No two transactions share the same non-null `idempotency_key` (DB UNIQUE also catches; double-checked for visibility).                                                                                                    | error `I6_duplicate_idempotency_key` | reconcile-fund.ts:240-254 |
-| **I7**  | Every debt-scoped tx (`bank_payment_received` / `debt_member_confirmed` / `debt_admin_confirmed` / `debt_undo` / `debt_created`) references a `sessionDebts` row that still exists.                                       | warn `I7_orphan_debt_ref`            | reconcile-fund.ts:256-303 |
-| **I8**  | Any debt with a `bank_payment_received` tx MUST have its `sessionDebts` row both `memberConfirmed` AND `adminConfirmed`. **Exception:** debts that also have a `debt_undo` row are skipped (valid "nợ trở lại chưa trả"). | error `I8_bank_paid_partial_flags`   | reconcile-fund.ts:305-335 |
-| **I9**  | Every `fund_contribution` with `reversalOfId` points at an existing `fund_deduction`.                                                                                                                                     | warn `I9_orphan_reversal`            | reconcile-fund.ts:337-362 |
-| **I10** | A member OUTSIDE the fund roster (locked / unapproved) with `balance ≠ 0` (frozen balance) is flagged so admin can refund/collect.                                                                                        | warn `I10_frozen_balance`            | reconcile-fund.ts:187-199 |
+| **I1**  | `netInternal` (Σ direction=in − Σ direction=out − Σ refund, over fund types) must equal `netByMembers` (Σ per-member balance).                                                                                            | error `I1_imbalance`                 | reconcile-core.ts:124-166 |
+| **I2**  | `Σ(positive balances) + Σ(negative balances) = total fund balance` (`sumPositive + sumNegative = netByMembers`). Definition feeding I1, no separate push.                                                                 | (reported in totals)                 | reconcile-core.ts:152-158 |
+| **I3**  | Every `paymentNotifications` row with `status='matched'` has a linked `financialTransaction`.                                                                                                                             | warn `I3_matched_without_tx`         | reconcile-core.ts:182-205 |
+| **I4**  | Every `financialTransaction.paymentNotificationId` references a row that still exists.                                                                                                                                    | error `I4_missing_notif`             | reconcile-core.ts:207-219 |
+| **I5**  | No financial transaction has a negative or non-integer amount (`!Number.isInteger(tx.amount) \|\| tx.amount < 0`).                                                                                                        | error `I5_invalid_amount`            | reconcile-core.ts:105-114 |
+| **I6**  | No two transactions share the same non-null `idempotency_key` (DB UNIQUE also catches; double-checked for visibility).                                                                                                    | error `I6_duplicate_idempotency_key` | reconcile-core.ts:221-235 |
+| **I7**  | Every debt-scoped tx (`bank_payment_received` / `debt_member_confirmed` / `debt_admin_confirmed` / `debt_undo` / `debt_created`) references a `sessionDebts` row that still exists.                                       | warn `I7_orphan_debt_ref`            | reconcile-core.ts:237-284 |
+| **I8**  | Any debt with a `bank_payment_received` tx MUST have its `sessionDebts` row both `memberConfirmed` AND `adminConfirmed`. **Exception:** debts that also have a `debt_undo` row are skipped (valid "nợ trở lại chưa trả"). | error `I8_bank_paid_partial_flags`   | reconcile-core.ts:286-316 |
+| **I9**  | Every `fund_contribution` with `reversalOfId` points at an existing `fund_deduction`.                                                                                                                                     | warn `I9_orphan_reversal`            | reconcile-core.ts:318-343 |
+| **I10** | A member OUTSIDE the fund roster (locked / unapproved) with `balance ≠ 0` (frozen balance) is flagged so admin can refund/collect.                                                                                        | warn `I10_frozen_balance`            | reconcile-core.ts:168-180 |
 
-**Extra sanity check (not numbered):** `lib_vs_agg` (reconcile-fund.ts:364-381, error) —
+**Extra sanity check (not numbered):** `lib_vs_agg` (reconcile-core.ts:345-362, error) —
 recomputes one member's balance via `computeBalanceFromTransactions` and asserts it
 equals the in-function aggregation. If the diff changes the balance formula in one
 place but not the other, this is what breaks. Always check it when fund-core or the
 reconcile aggregation is touched.
 
-Roster definition (reconcile-fund.ts:106-114): fund roster =
+Roster definition (reconcile-core.ts:87-95): fund roster =
 `members.isActive=true AND approvalStatus='approved'`. The `fund_members` table is
 gone — do not reintroduce it.
 
@@ -191,7 +194,8 @@ Treat a diff touching any of these as money-critical:
 - `src/actions/fund.ts` — `recordContribution` (L46), `recordRefund` (L126),
   `confirmFundClaim` (L923).
 - `src/actions/auto-fund.ts` — `claimFundContribution`.
-- `src/actions/reconcile-fund.ts` — `reconcileFund` (the I1..I10 source).
+- `src/lib/reconcile-core.ts` — `runReconcile` (the I1..I10 source); `src/actions/reconcile-fund.ts` `reconcileFund` = auth + call.
+- `src/lib/court-rent-report.ts` — `computeCourtRentReport` (court-rent math); `src/actions/court-rent.ts` `getCourtRentReport` = auth + call.
 - `src/actions/merge-debt-fund.ts` — `mergeLegacyDebtsIntoFund`.
 - `src/actions/members.ts` — `mergeMember(sourceId, targetId)` (L483).
 - `src/actions/shuttlecock-finance.ts`, `src/actions/court-rent.ts`,
