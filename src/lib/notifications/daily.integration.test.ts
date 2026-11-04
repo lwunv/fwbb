@@ -402,6 +402,86 @@ describe("runDailyNotifications", () => {
     ]);
   });
 
+  it("weekly_summary lists up to 20 long-term debtors by amount, with the full count", async () => {
+    const admin = await addSuperadmin();
+    // 22 người nợ từ 1/10 (quá 30 ngày tới 9/11): người thứ i nợ (10 + i) nghìn.
+    const debtors: { id: number; amount: number }[] = [];
+    for (let i = 1; i <= 22; i++) {
+      const id = await addMember();
+      const amount = (10 + i) * 1_000;
+      await ledger(
+        id,
+        "fund_deduction",
+        amount,
+        new Date("2026-10-01T22:30:00+07:00"),
+      );
+      debtors.push({ id, amount });
+    }
+    // Nợ mới 5 ngày và nợ lâu nhưng dưới 10K: không tính.
+    const recent = await addMember();
+    await ledger(
+      recent,
+      "fund_deduction",
+      500_000,
+      new Date("2026-11-04T22:30:00+07:00"),
+    );
+    const small = await addMember();
+    await ledger(
+      small,
+      "fund_deduction",
+      9_000,
+      new Date("2026-10-01T22:30:00+07:00"),
+    );
+    const names = new Map(
+      (await testDb.select().from(members)).map((m) => [m.id, m.name]),
+    );
+
+    const report = await runDailyNotifications(
+      testDb,
+      new Date("2026-11-08T23:30:00Z"),
+    );
+    expect(report.errors).toEqual([]);
+    const [sent] = await notificationsOf("weekly_summary");
+    expect(sent.recipientId).toBe(admin);
+    const payload = sent.payload as {
+      debtorCount: number;
+      debtors: { name: string; amount: number }[];
+    };
+    expect(payload.debtorCount).toBe(22);
+    const expected = [...debtors]
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 20)
+      .map((d) => ({ name: names.get(d.id), amount: d.amount }));
+    expect(payload.debtors).toEqual(expected);
+    expect(payload.debtors.every((d) => Number.isInteger(d.amount))).toBe(true);
+  });
+
+  it("a failing step records its code with the error name, never the message", async () => {
+    await addSuperadmin();
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    // Bảng sân đề xuất biến mất: bước tóm tắt tuần (đếm việc chờ duyệt) lỗi.
+    await client.execute("ALTER TABLE venues RENAME TO venues_gone");
+    try {
+      const report = await runDailyNotifications(
+        testDb,
+        new Date("2026-11-08T23:30:00Z"),
+      );
+      expect(report.errors).toHaveLength(1);
+      expect(report.errors[0]).toMatch(/^weekly:[A-Za-z]*Error$/);
+      const [, fields] = log.mock.calls.find(
+        ([msg]) => msg === "[Notify] daily_step_failed",
+      )!;
+      expect(fields).toEqual({
+        step: "weekly",
+        error: report.errors[0].slice("weekly:".length),
+      });
+      expect(JSON.stringify(log.mock.calls)).not.toContain("venues");
+    } finally {
+      await client.execute("ALTER TABLE venues_gone RENAME TO venues");
+      log.mockRestore();
+    }
+  });
+
   it("reports a reconcile error to superadmins without member figures, once a day", async () => {
     const admin = await addSuperadmin();
     // Số âm trong sổ: I5 báo lỗi.

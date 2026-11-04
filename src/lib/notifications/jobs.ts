@@ -347,19 +347,42 @@ export async function scheduleOutboxRetry(
   await publishRow(db, { id: row.id, jobKey, runAt: at }, now);
 }
 
-/** Số đếm trong payload job tuần; payload hỏng thì `null` (không gửi gì). */
+/**
+ * Số đếm và danh sách người nợ lâu trong payload job tuần; payload hỏng thì
+ * `null` (không gửi gì). Job tạo trước khi có `debtors` vẫn gửi được.
+ */
 function weeklySummaryPayload(
   payload: ScheduledJob["payload"],
 ): NotificationPayloads["weekly_summary"] | null {
-  const { debtorCount, upcomingCount, pendingCount } = payload ?? {};
+  const { debtorCount, upcomingCount, pendingCount, debtors } = (payload ??
+    {}) as Record<string, unknown>;
   const counts = [debtorCount, upcomingCount, pendingCount];
   if (!counts.every((n) => Number.isInteger(n) && (n as number) >= 0)) {
     return null;
   }
-  return {
+  const base = {
     debtorCount: debtorCount as number,
     upcomingCount: upcomingCount as number,
     pendingCount: pendingCount as number,
+  };
+  if (debtors === undefined) return base;
+  const valid =
+    Array.isArray(debtors) &&
+    debtors.every(
+      (d: unknown) =>
+        typeof d === "object" &&
+        d !== null &&
+        typeof (d as { name?: unknown }).name === "string" &&
+        Number.isInteger((d as { amount?: unknown }).amount) &&
+        (d as { amount: number }).amount > 0,
+    );
+  if (!valid) return null;
+  return {
+    ...base,
+    debtors: (debtors as { name: string; amount: number }[]).map((d) => ({
+      name: d.name,
+      amount: d.amount,
+    })),
   };
 }
 

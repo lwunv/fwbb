@@ -124,6 +124,70 @@ describe("render", () => {
   });
 });
 
+describe("vote_due_soon", () => {
+  it("renders any number of hours, with English singular for 1", () => {
+    const at = (hoursLeft: number, locale: "vi" | "en" | "zh") =>
+      renderNotification(
+        translator(locale),
+        view("vote_due_soon", {
+          sessionDate: "2026-11-05",
+          startTime: "20:30",
+          hoursLeft,
+        }),
+        locale,
+      ).body;
+    expect(at(10, "vi")).toContain("Còn 10 giờ");
+    expect(at(1, "en")).toContain("closes in 1 hour.");
+    expect(at(10, "en")).toContain("closes in 10 hours.");
+    expect(at(10, "zh")).toContain("10");
+  });
+});
+
+describe("weekly_summary", () => {
+  const base = { debtorCount: 22, upcomingCount: 2, pendingCount: 1 };
+  const debtors = [
+    { name: "An", amount: 150_000 },
+    { name: "Bình", amount: 90_000 },
+  ];
+
+  it("lists long-term debtors with amounts and says how many more are not listed", () => {
+    for (const locale of ["vi", "en", "zh"] as const) {
+      const { body } = renderNotification(
+        translator(locale),
+        view("weekly_summary", { ...base, debtors }),
+        locale,
+      );
+      expect(body, locale).toContain(`An (${formatVND(150_000)})`);
+      expect(body, locale).toContain(`Bình (${formatVND(90_000)})`);
+      expect(body, locale).toContain("20");
+      expect(body, locale).not.toMatch(/[{}]|object Object/);
+    }
+    const vi20 = renderNotification(
+      translator("vi"),
+      view("weekly_summary", { ...base, debtors }),
+      "vi",
+    ).body;
+    expect(vi20).toContain("và 20 người khác");
+  });
+
+  it("all debtors listed: no 'more' clause; old payloads without names still render", () => {
+    const full = renderNotification(
+      translator("en"),
+      view("weekly_summary", { ...base, debtorCount: 2, debtors }),
+      "en",
+    ).body;
+    expect(full).toContain("An (");
+    expect(full).not.toContain("more");
+    const old = renderNotification(
+      translator("vi"),
+      view("weekly_summary", base),
+      "vi",
+    ).body;
+    expect(old).toContain("22 người đang nợ quá 30 ngày");
+    expect(old).not.toMatch(/[{}]|object Object/);
+  });
+});
+
 describe("money kinds", () => {
   it("session_deleted_refund with a negative amount says the pass money was taken back, without a minus sign", () => {
     const out = renderNotification(

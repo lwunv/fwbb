@@ -57,6 +57,8 @@ const DEBT_REMINDER_MIN = 10_000;
 /** Tuổi nợ (ngày) được nhắc member; quá 30 ngày thì chỉ còn báo admin. */
 const DEBT_REMINDER_DAYS: ReadonlySet<number> = new Set([1, 7, 14, 30]);
 const LONG_DEBT_DAYS = 30;
+/** Tóm tắt tuần liệt kê tối đa chừng này người nợ lâu (nợ nhiều nhất trước). */
+const WEEKLY_DEBTOR_LIST_MAX = 20;
 /** Job quá giờ chừng này mà vẫn `scheduled` thì coi như QStash đã lỡ. */
 const MISSED_JOB_GRACE_MS = 10 * MINUTE_MS;
 const MISSED_JOB_LIMIT = 100;
@@ -80,7 +82,23 @@ export type DailyReport = {
   errors: string[];
 };
 
-type DebtState = { memberId: number; balance: number; ageDays: number };
+type DebtState = {
+  memberId: number;
+  /** Tên hiển thị (nickname trước), chỉ dùng cho tin gửi admin. */
+  name: string;
+  balance: number;
+  ageDays: number;
+};
+
+/**
+ * Tên lỗi để chẩn đoán (`LibsqlError`, `TypeError`...), KHÔNG lấy message vì
+ * message có thể chứa dữ liệu (câu SQL, email). Lỗi không phải Error → "unknown".
+ */
+function errorName(err: unknown): string {
+  if (!(err instanceof Error)) return "unknown";
+  if (err.name && err.name !== "Error") return err.name;
+  return err.constructor?.name || "Error";
+}
 
 /**
  * Số dư và tuổi nợ của mọi member trong roster quỹ đang nợ. Đọc sổ đúng MỘT
@@ -93,7 +111,11 @@ async function loadDebtStates(
 ): Promise<DebtState[]> {
   const [roster, rows] = await Promise.all([
     db
-      .select({ id: members.id })
+      .select({
+        id: members.id,
+        name: members.name,
+        nickname: members.nickname,
+      })
       .from(members)
       .where(
         and(eq(members.isActive, true), eq(members.approvalStatus, "approved")),
@@ -118,7 +140,7 @@ async function loadDebtStates(
     byMember.set(r.memberId, list);
   }
   const states: DebtState[] = [];
-  for (const { id } of roster) {
+  for (const { id, name, nickname } of roster) {
     const txs = byMember.get(id) ?? [];
     const { balance } = computeBalanceFromTransactions(id, txs);
     if (balance >= 0) continue;
@@ -126,6 +148,7 @@ async function loadDebtStates(
     if (since === null) continue;
     states.push({
       memberId: id,
+      name: nickname || name,
       balance,
       ageDays: debtAgeDays(since, todayYmd),
     });
@@ -281,9 +304,10 @@ export async function runDailyNotifications(
   const step = async (code: string, fn: () => Promise<void>) => {
     try {
       await fn();
-    } catch {
-      report.errors.push(code);
-      console.error("[Notify] daily_step_failed", { step: code });
+    } catch (err) {
+      const error = errorName(err);
+      report.errors.push(`${code}:${error}`);
+      console.error("[Notify] daily_step_failed", { step: code, error });
     }
   };
   // Sổ quỹ đọc một lần, dùng chung cho nhắc nợ và tóm tắt tuần.
@@ -325,18 +349,24 @@ export async function runDailyNotifications(
       )
       .orderBy(asc(scheduledJobs.runAt))
       .limit(MISSED_JOB_LIMIT);
+    let firstError: unknown;
     let failed = false;
     for (const job of due) {
       try {
         await finishJob(db, job.id, await runJob(db, job, now), now);
         report.jobsRun++;
-      } catch {
+      } catch (err) {
         // Giữ `scheduled`: lượt sau thử lại; các job khác vẫn chạy.
+        if (!failed) firstError = err;
         failed = true;
-        console.error("[Notify] daily_job_failed", { kind: job.kind });
+        console.error("[Notify] daily_job_failed", {
+          kind: job.kind,
+          error: errorName(err),
+        });
       }
     }
-    if (failed) throw new Error("job_failed");
+    // Ném lại lỗi đầu tiên để `errors` mang đúng tên lỗi thật.
+    if (failed) throw firstError;
   });
 
   // 3. Đồng bộ lịch nhắc của các buổi trong 8 ngày tới (đăng job mới vào
@@ -377,9 +407,13 @@ export async function runDailyNotifications(
   // 5. Thứ 2: hẹn tóm tắt tuần cho superadmin lúc 08:00 VN.
   if (dayOfWeekVN(today) === 1) {
     await step("weekly", async () => {
-      const debtorCount = (await getDebtStates()).filter(
-        (d) => d.balance <= -DEBT_REMINDER_MIN && d.ageDays > LONG_DEBT_DAYS,
-      ).length;
+      // Chụp lúc 06:00 (job chạy 08:00 không đọc lại sổ). Số tiền là số dư
+      // âm đổi dấu, VND nguyên từ computeBalanceFromTransactions.
+      const longDebtors = (await getDebtStates())
+        .filter(
+          (d) => d.balance <= -DEBT_REMINDER_MIN && d.ageDays > LONG_DEBT_DAYS,
+        )
+        .sort((a, b) => a.balance - b.balance || a.memberId - b.memberId);
       const [[upcoming], pendingCount] = await Promise.all([
         db
           .select({ n: count() })
@@ -400,9 +434,12 @@ export async function runDailyNotifications(
           kind: "weekly_summary",
           runAt: new Date(`${today}T08:00:00+07:00`),
           payload: {
-            debtorCount,
+            debtorCount: longDebtors.length,
             upcomingCount: upcoming?.n ?? 0,
             pendingCount,
+            debtors: longDebtors
+              .slice(0, WEEKLY_DEBTOR_LIST_MAX)
+              .map((d) => ({ name: d.name, amount: -d.balance })),
           },
         },
         now,

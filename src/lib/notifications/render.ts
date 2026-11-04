@@ -108,10 +108,40 @@ export function renderNotification(
     values.direction = amount < 0 ? "out" : "in";
     values.amount = formatVND(Math.abs(amount));
   }
+  const body = t(`kinds.${item.kind}.body`, values);
   return {
     title: t(`kinds.${item.kind}.title`, values),
-    body: t(`kinds.${item.kind}.body`, values),
+    body:
+      item.kind === "weekly_summary"
+        ? withDebtorList(t, body, item.payload)
+        : body,
   };
+}
+
+/**
+ * Tóm tắt tuần: thêm danh sách người nợ lâu ("Tên (số tiền)") sau câu số đếm,
+ * kèm "và N người khác" khi tổng nhiều hơn danh sách. Job cũ không có
+ * `debtors` thì giữ nguyên câu số đếm.
+ */
+function withDebtorList(
+  t: Translate,
+  body: string,
+  payload: Record<string, unknown>,
+): string {
+  const raw = Array.isArray(payload.debtors) ? payload.debtors : [];
+  const debtors = raw.filter(
+    (d): d is { name: string; amount: number } =>
+      typeof d?.name === "string" && Number.isInteger(d?.amount),
+  );
+  if (debtors.length === 0) return body;
+  const total = Number(payload.debtorCount);
+  const more = Number.isInteger(total)
+    ? Math.max(0, total - debtors.length)
+    : 0;
+  const list = debtors
+    .map((d) => `${d.name} (${formatVND(d.amount)})`)
+    .join(", ");
+  return `${body} ${t("kinds.weekly_summary.debtors", { list, more })}`;
 }
 
 /**
