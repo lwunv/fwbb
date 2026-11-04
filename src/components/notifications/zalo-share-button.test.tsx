@@ -40,6 +40,7 @@ beforeEach(() => {
   });
 });
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   vi.unstubAllGlobals();
   Reflect.deleteProperty(navigator, "share");
@@ -111,19 +112,22 @@ describe("ZaloShareButton", () => {
   });
 
   it("the check mark goes back to the share icon after 2 seconds", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    try {
-      const { container } = renderButton("");
+    // Đồng hồ giả thuần (không shouldAdvanceTime): chạy cả bộ test thì đồng hồ
+    // thật trôi lệch làm test chập chờn.
+    vi.useFakeTimers();
+    const { container } = renderButton("");
+    // act async xả hết promise của lượt bấm (copy xong, setDone(true)).
+    await act(async () => {
       fireEvent.click(screen.getByRole("button"));
-      await waitFor(() =>
-        expect(container.querySelector(".lucide-check")).toBeTruthy(),
-      );
-      act(() => {
-        vi.advanceTimersByTime(2000);
-      });
-      expect(container.querySelector(".lucide-check")).toBeNull();
-    } finally {
-      vi.useRealTimers();
-    }
+    });
+    expect(container.querySelector(".lucide-check")).toBeTruthy();
+    act(() => {
+      vi.advanceTimersByTime(1999);
+    });
+    expect(container.querySelector(".lucide-check")).toBeTruthy();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(container.querySelector(".lucide-check")).toBeNull();
   });
 });
