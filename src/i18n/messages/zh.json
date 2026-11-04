@@ -1560,6 +1560,7 @@
     "loadError": "无法加载场馆列表，请稍后重试。",
     "retry": "重试",
     "backToList": "全部场馆",
+    "mapUnsupported": "此浏览器无法显示地图，请改用场馆列表。",
     "attribution": "地址坐标：© OpenStreetMap contributors",
     "saveFailed": "保存失败。请检查网络连接后重试。"
   }

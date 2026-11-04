@@ -1560,6 +1560,7 @@
     "loadError": "Không tải được danh sách sân. Thử lại sau.",
     "retry": "Thử lại",
     "backToList": "Danh sách sân",
+    "mapUnsupported": "Trình duyệt này không hiển thị được bản đồ. Bạn xem danh sách sân thay thế nhé.",
     "attribution": "Toạ độ địa chỉ: © OpenStreetMap contributors",
     "saveFailed": "Không lưu được. Kiểm tra kết nối mạng rồi thử lại."
   }
