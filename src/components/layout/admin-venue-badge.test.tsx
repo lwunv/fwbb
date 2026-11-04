@@ -12,6 +12,9 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/admin/dashboard",
   useRouter: () => ({ push: vi.fn() }),
 }));
+vi.mock("@/components/notifications/notification-bell", () => ({
+  NotificationBell: () => null,
+}));
 vi.mock("@/actions/auth", () => ({ logout: vi.fn() }));
 vi.mock("@/components/shared/theme-toggle", () => ({
   ThemeToggle: () => null,

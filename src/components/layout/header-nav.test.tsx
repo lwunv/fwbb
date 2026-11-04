@@ -21,6 +21,9 @@ vi.mock("next/navigation", () => ({
   usePathname: () => nav.pathname,
   useRouter: () => ({ push: nav.push }),
 }));
+vi.mock("@/components/notifications/notification-bell", () => ({
+  NotificationBell: () => null,
+}));
 vi.mock("@/components/shared/theme-toggle", () => ({
   ThemeToggle: () => null,
 }));

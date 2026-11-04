@@ -8,6 +8,7 @@ import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { LanguageSelector } from "@/components/shared/language-selector";
 import { NavDrawer } from "@/components/layout/nav-drawer";
 import { Button } from "@/components/ui/button";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { safeNextPath } from "@/lib/safe-next-path";
 
 const DEFAULT_LOGIN_HREF = "/login";
@@ -19,6 +20,7 @@ export function Header({
   loginHref = DEFAULT_LOGIN_HREF,
   homeHref = "/",
   navItems = "group",
+  showBell = false,
 }: {
   appName?: string;
   /** Hiện nút "Đăng nhập" — dùng ở shell khách chưa đăng nhập (trang chủ public). */
@@ -35,6 +37,8 @@ export function Header({
   homeHref?: string;
   /** Bộ mục menu của ngăn kéo (xem NavDrawer). */
   navItems?: "group" | "exchange";
+  /** Chuông thông báo của member (công tắc notificationsEnabled đang bật). */
+  showBell?: boolean;
 }) {
   const t = useTranslations("publicLayout");
   const pathname = usePathname();
@@ -69,19 +73,24 @@ export function Header({
             />
           </Link>
         </div>
-        <div className="flex items-center gap-1" data-tour="header-prefs">
-          <LanguageSelector />
-          <ThemeToggle />
-          {loginVisible && (
-            <Button
-              size="sm"
-              className="ml-1"
-              render={<Link href={loginLink} />}
-            >
-              <LogIn className="mr-1.5 h-4 w-4" />
-              {t("loginButton")}
-            </Button>
-          )}
+        <div className="flex items-center gap-1">
+          {/* Chuông nằm NGOÀI khung tour: tour trang chủ chỉ khoanh cụm
+              ngôn ngữ/giao diện. */}
+          {showBell && <NotificationBell scope="member" />}
+          <div className="flex items-center gap-1" data-tour="header-prefs">
+            <LanguageSelector />
+            <ThemeToggle />
+            {loginVisible && (
+              <Button
+                size="sm"
+                className="ml-1"
+                render={<Link href={loginLink} />}
+              >
+                <LogIn className="mr-1.5 h-4 w-4" />
+                {t("loginButton")}
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </header>

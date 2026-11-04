@@ -7,8 +7,13 @@ import { Header } from "@/components/layout/header";
 import { PendingApprovalGate } from "@/app/(public)/pending-approval-gate";
 import { ForceChangePasswordGate } from "@/app/(public)/force-change-password-gate";
 import { ExchangeAccountNotice } from "@/app/(public)/exchange-account-notice";
-import { getAppName } from "@/actions/settings";
+import { getAppName, getSettings } from "@/actions/settings";
 import { isExchangeEnabled } from "@/lib/exchange-flag";
+
+/**
+ * Cờ tắt thì KHÔNG truyền prop nào cho Header: cây render y hệt trước N1.
+ */
+const bellProps = (on: boolean) => (on ? { showBell: true } : {});
 
 /**
  * Khung chung cho layout của member: chọn màn theo người xem (khách, bị khoá,
@@ -59,9 +64,13 @@ export async function MemberShell({
   });
 
   if (!member || !member.isActive || member.approvalStatus === "rejected") {
+    // Member bị từ chối vẫn xem được tin tài khoản (lý do từ chối); tài khoản
+    // bị khoá thì không có chuông.
+    const rejectedBell =
+      !!member?.isActive && (await getSettings()).notificationsEnabled;
     return (
       <div className="flex min-h-screen flex-col">
-        <Header appName={appName} />
+        <Header appName={appName} {...bellProps(rejectedBell)} />
         <main className="flex flex-1 items-center justify-center p-4">
           <div className="max-w-sm space-y-4 text-center">
             <div className="text-4xl">🚫</div>
@@ -141,6 +150,7 @@ export async function MemberShell({
         </div>
       );
     }
+    const showBell = (await getSettings()).notificationsEnabled;
     return (
       <div className="flex min-h-screen flex-col">
         <Header
@@ -148,15 +158,19 @@ export async function MemberShell({
           showMenu
           navItems="exchange"
           homeHref="/giao-luu"
+          {...bellProps(showBell)}
         />
         <main className="flex-1 px-4 py-4 pb-6">{children}</main>
       </div>
     );
   }
 
+  // Chỉ cờ bật/tắt, KHÔNG đếm chưa đọc ở server: trang chủ có AutoRefresh 30s
+  // làm render lại layout, đếm ở đây sẽ thành truy vấn định kỳ.
+  const showBell = (await getSettings()).notificationsEnabled;
   return (
     <div className="flex min-h-screen flex-col">
-      <Header appName={appName} showMenu />
+      <Header appName={appName} showMenu {...bellProps(showBell)} />
       <main className="flex-1 px-4 py-4 pb-6">{children}</main>
     </div>
   );

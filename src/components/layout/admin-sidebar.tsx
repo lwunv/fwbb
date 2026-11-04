@@ -22,6 +22,7 @@ import {
 import { logout } from "@/actions/auth";
 import { LanguageSelector } from "@/components/shared/language-selector";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { NavPendingIcon } from "./nav-pending-icon";
 
 const navItems = [
@@ -65,10 +66,12 @@ export function AdminSidebar({
   appName = "FWBB",
   pendingMemberCount = 0,
   pendingVenueCount = 0,
+  showBell = false,
 }: {
   appName?: string;
   pendingMemberCount?: number;
   pendingVenueCount?: number;
+  showBell?: boolean;
 }) {
   const pathname = usePathname();
   const t = useTranslations("adminNav");
@@ -81,6 +84,11 @@ export function AdminSidebar({
           <img src="/fwbb-wordmark.svg" alt={appName} className="h-8 w-auto" />
         </Link>
         <h1 className="text-xl font-bold">Admin</h1>
+        {showBell && (
+          <span className="ml-auto">
+            <NotificationBell scope="admin" />
+          </span>
+        )}
       </div>
       <nav className="flex-1 space-y-1 px-3">
         {navItems.map((item) => {

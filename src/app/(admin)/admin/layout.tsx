@@ -2,7 +2,7 @@ import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { AdminMobileNav } from "@/components/layout/admin-mobile-nav";
 import { AdminDefaultTheme } from "@/components/shared/admin-default-theme";
 import { getAdminFromCookie } from "@/lib/auth";
-import { getAppName } from "@/actions/settings";
+import { getAppName, getSettings } from "@/actions/settings";
 import { countPendingGroupMembers } from "./members/pending-queue";
 import { countPendingVenues } from "@/lib/pending-venues";
 
@@ -25,11 +25,13 @@ export default async function AdminLayout({
   }
 
   // Chỉ đếm người đã xin vào nhóm; tài khoản giao lưu không làm nhảy số.
-  const [appName, pendingMemberCount, pendingVenueCount] = await Promise.all([
-    getAppName(),
-    countPendingGroupMembers(),
-    countPendingVenues(),
-  ]);
+  const [appName, settings, pendingMemberCount, pendingVenueCount] =
+    await Promise.all([
+      getAppName(),
+      getSettings(),
+      countPendingGroupMembers(),
+      countPendingVenues(),
+    ]);
 
   return (
     <div className="min-h-screen overflow-x-hidden">
@@ -38,11 +40,13 @@ export default async function AdminLayout({
         appName={appName}
         pendingMemberCount={pendingMemberCount}
         pendingVenueCount={pendingVenueCount}
+        showBell={settings.notificationsEnabled}
       />
       <AdminMobileNav
         appName={appName}
         pendingMemberCount={pendingMemberCount}
         pendingVenueCount={pendingVenueCount}
+        showBell={settings.notificationsEnabled}
       />
       <main className="p-4 pb-24 md:p-6 lg:ml-60">{children}</main>
     </div>
