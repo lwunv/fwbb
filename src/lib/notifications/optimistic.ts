@@ -1,3 +1,4 @@
+import type { NotificationGroup } from "./catalog";
 import type { NotificationView } from "./render";
 
 /** Hình dữ liệu của `useInfiniteQuery` danh sách thông báo. */
@@ -33,4 +34,49 @@ export function markReadInPages(
 /** Số chưa đọc sau khi đọc `n` tin; không bao giờ âm. */
 export function decrementUnread(count: number | undefined, n: number) {
   return count === undefined ? count : Math.max(0, count - n);
+}
+
+/**
+ * Đặt lại `readAt = null` cho đúng các tin `ids` (rollback khi đánh dấu đã đọc
+ * lỗi). Chỉ đụng các tin đó, nên lần đọc khác chạy song song không bị xoá theo.
+ */
+export function markUnreadInPages(
+  data: NotificationPages | undefined,
+  ids: readonly number[],
+): NotificationPages | undefined {
+  if (!data || ids.length === 0) return data;
+  const set = new Set(ids);
+  return {
+    ...data,
+    pages: data.pages.map((p) => ({
+      ...p,
+      items: p.items.map((it) =>
+        set.has(it.id) && it.readAt !== null ? { ...it, readAt: null } : it,
+      ),
+    })),
+  };
+}
+
+/** Id các tin chưa đọc đang có trong cache danh sách. */
+export function unreadIdsInPages(data: NotificationPages | undefined) {
+  return (
+    data?.pages.flatMap((p) =>
+      p.items.filter((it) => it.readAt === null).map((it) => it.id),
+    ) ?? []
+  );
+}
+
+/** Số chưa đọc sau khi trả lại `n` tin về chưa đọc. */
+export function incrementUnread(count: number | undefined, n: number) {
+  return count === undefined ? count : count + n;
+}
+
+/** Danh sách nhóm đang tắt sau khi tắt (`mute`) hoặc bật lại một nhóm. */
+export function setGroupMuted(
+  muted: readonly NotificationGroup[],
+  group: NotificationGroup,
+  mute: boolean,
+): NotificationGroup[] {
+  const rest = muted.filter((g) => g !== group);
+  return mute ? [...rest, group] : rest;
 }

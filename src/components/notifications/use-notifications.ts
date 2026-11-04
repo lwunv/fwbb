@@ -17,7 +17,10 @@ import {
 import { fireAction } from "@/lib/optimistic-action";
 import {
   decrementUnread,
+  incrementUnread,
   markReadInPages,
+  markUnreadInPages,
+  unreadIdsInPages,
   type NotificationPages,
 } from "@/lib/notifications/optimistic";
 import type { NotificationView } from "@/lib/notifications/render";
@@ -65,32 +68,45 @@ export function useNotificationList(
   });
 }
 
-function snapshot(qc: QueryClient, scope: NotificationScope) {
-  return {
-    list: qc.getQueryData<NotificationPages>(listKey(scope)),
-    unread: qc.getQueriesData<number>({ queryKey: unreadKey(scope) }),
-  };
+/**
+ * Huỷ các lần đọc đang bay về trước khi sửa cache lạc quan, để bản cũ từ server
+ * không ghi đè lên (TanStack "optimistic updates").
+ */
+function cancelInFlight(qc: QueryClient, scope: NotificationScope) {
+  void qc.cancelQueries({ queryKey: listKey(scope) });
+  void qc.cancelQueries({ queryKey: unreadKey(scope) });
 }
 
-/** Optimistic: đặt `readAt` + giảm đếm ngay, rollback cả hai khi server lỗi. */
+/**
+ * Optimistic: đặt `readAt` + giảm đếm ngay. Lỗi thì chỉ trả lại đúng các tin
+ * vừa đổi và cộng lại đúng số vừa trừ, không chép đè cả snapshot (sẽ xoá mất
+ * lần đọc khác chạy song song).
+ */
 export function useNotificationActions(scope: NotificationScope) {
   const qc = useQueryClient();
 
   const markRead = useCallback(
     (item: NotificationView) => {
       if (item.readAt !== null) return;
-      const before = snapshot(qc, scope);
+      cancelInFlight(qc, scope);
       qc.setQueryData<NotificationPages>(listKey(scope), (d) =>
         markReadInPages(d, item.id, new Date().toISOString()),
       );
+      // Đếm đang là 0 thì không trừ được, nên rollback cũng không cộng lại.
+      const counts = qc.getQueriesData<number>({ queryKey: unreadKey(scope) });
       qc.setQueriesData<number>({ queryKey: unreadKey(scope) }, (c) =>
         decrementUnread(c, 1),
       );
       fireAction(
         () => markNotificationRead(scope, item.id),
         () => {
-          qc.setQueryData(listKey(scope), before.list);
-          for (const [key, value] of before.unread) qc.setQueryData(key, value);
+          qc.setQueryData<NotificationPages>(listKey(scope), (d) =>
+            markUnreadInPages(d, [item.id]),
+          );
+          for (const [key, value] of counts) {
+            if (value)
+              qc.setQueryData<number>(key, (c) => incrementUnread(c, 1));
+          }
         },
       );
     },
@@ -98,7 +114,11 @@ export function useNotificationActions(scope: NotificationScope) {
   );
 
   const markAll = useCallback(() => {
-    const before = snapshot(qc, scope);
+    cancelInFlight(qc, scope);
+    const ids = unreadIdsInPages(
+      qc.getQueryData<NotificationPages>(listKey(scope)),
+    );
+    const counts = qc.getQueriesData<number>({ queryKey: unreadKey(scope) });
     qc.setQueryData<NotificationPages>(listKey(scope), (d) =>
       markReadInPages(d, "all", new Date().toISOString()),
     );
@@ -106,8 +126,12 @@ export function useNotificationActions(scope: NotificationScope) {
     fireAction(
       () => markAllNotificationsRead(scope),
       () => {
-        qc.setQueryData(listKey(scope), before.list);
-        for (const [key, value] of before.unread) qc.setQueryData(key, value);
+        qc.setQueryData<NotificationPages>(listKey(scope), (d) =>
+          markUnreadInPages(d, ids),
+        );
+        for (const [key, value] of counts) {
+          qc.setQueryData<number>(key, (c) => incrementUnread(c, value ?? 0));
+        }
       },
     );
   }, [qc, scope]);

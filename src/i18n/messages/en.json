@@ -1572,6 +1572,7 @@
     "saveFailed": "Could not save. Check your connection and try again."
   },
   "notifications": {
+    "retry": "Try again",
     "share": {
       "label": "Draft Zalo message",
       "copied": "Copied, paste it into the Zalo group",

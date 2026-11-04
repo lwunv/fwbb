@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, ChevronDown, Lock } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
@@ -19,6 +20,7 @@ import {
   isGroupMutable,
   type NotificationGroup,
 } from "@/lib/notifications/catalog";
+import { setGroupMuted } from "@/lib/notifications/optimistic";
 import type { NotificationScope } from "./use-notifications";
 
 type Prefs = Exclude<
@@ -34,9 +36,12 @@ const prefsKey = (scope: NotificationScope) =>
  * tắc. Nhóm toàn tin bắt buộc (tài khoản) hiện khoá kèm lời giải thích thay vì
  * ẩn đi, để người dùng biết vì sao không tắt được.
  *
- * Bật/tắt là lạc quan: đổi cache ngay, gửi nền qua `fireAction`, lỗi thì trả
- * cache về như cũ. Mỗi lần gửi cả danh sách nhóm đang tắt (không gửi delta) nên
- * hai lần bấm liền nhau vẫn hội tụ về trạng thái cuối trên màn hình.
+ * Bật/tắt là lạc quan: đổi cache ngay rồi gửi nền qua `fireAction`. Server
+ * nhận cả danh sách nhóm đang tắt (không nhận delta), nên danh sách gửi đi được
+ * đọc từ cache NGAY LÚC GỬI: lần thử lại của `fireAction` mang trạng thái mới
+ * nhất, không gửi lại danh sách cũ làm tắt/bật nhầm nhóm vừa bấm sau. Lỗi thì
+ * chỉ trả lại đúng nhóm vừa bấm. Mọi lần gửi xong (thành công hay lỗi) thì đọc
+ * lại server để màn hình và server không lệch nhau.
  */
 export function NotificationPrefsSection({
   scope,
@@ -47,7 +52,7 @@ export function NotificationPrefsSection({
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(false);
 
-  const { data, isPending, isError } = useQuery({
+  const { data, isPending, isError, refetch, isRefetching } = useQuery({
     queryKey: prefsKey(scope),
     queryFn: async (): Promise<Prefs> => {
       const res = await getMyNotificationPrefs(scope);
@@ -60,19 +65,42 @@ export function NotificationPrefsSection({
     scope === "admin" ? ADMIN_GROUPS : MEMBER_GROUPS;
   const muted = data?.mutedGroups ?? [];
 
+  // Số lần gửi chưa xong. Chỉ đọc lại server khi không còn lần nào đang chạy,
+  // để bản đọc lại không ghi đè trạng thái lạc quan của lần bấm còn đang gửi.
+  const inFlight = useRef(0);
+
   function toggle(group: NotificationGroup, on: boolean) {
-    const before = queryClient.getQueryData<Prefs>(prefsKey(scope));
-    if (!before) return;
-    const next = on
-      ? before.mutedGroups.filter((g) => g !== group)
-      : [...before.mutedGroups.filter((g) => g !== group), group];
-    queryClient.setQueryData<Prefs>(prefsKey(scope), {
-      ...before,
-      mutedGroups: next,
-    });
+    const key = prefsKey(scope);
+    const current = queryClient.getQueryData<Prefs>(key);
+    if (!current) return;
+    const wasMuted = current.mutedGroups.includes(group);
+    const patch = (mute: boolean) =>
+      queryClient.setQueryData<Prefs>(key, (d) =>
+        d
+          ? { ...d, mutedGroups: setGroupMuted(d.mutedGroups, group, mute) }
+          : d,
+      );
+    // Bản đọc server đang bay về có thể ghi đè trạng thái lạc quan.
+    void queryClient.cancelQueries({ queryKey: key });
+    patch(!on);
+
+    const settle = () => {
+      inFlight.current -= 1;
+      if (inFlight.current === 0) {
+        void queryClient.invalidateQueries({ queryKey: key });
+      }
+    };
+    inFlight.current += 1;
     fireAction(
-      () => updateMyNotificationPrefs(scope, { mutedGroups: next }),
-      () => queryClient.setQueryData<Prefs>(prefsKey(scope), before),
+      async () => {
+        const latest = queryClient.getQueryData<Prefs>(key);
+        if (!latest) return { error: t("prefs.loadError") };
+        return updateMyNotificationPrefs(scope, {
+          mutedGroups: latest.mutedGroups,
+        });
+      },
+      () => patch(wasMuted),
+      { onSuccess: settle, onError: settle },
     );
   }
 
@@ -113,9 +141,20 @@ export function NotificationPrefsSection({
                 <Skeleton key={i} className="h-14 w-full rounded-lg" />
               ))
             ) : isError ? (
-              <p className="text-destructive px-1 text-sm">
-                {t("prefs.loadError")}
-              </p>
+              <div className="flex flex-col items-start gap-2 px-1">
+                <p className="text-destructive text-sm">
+                  {t("prefs.loadError")}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-11"
+                  disabled={isRefetching}
+                  onClick={() => void refetch()}
+                >
+                  {t("retry")}
+                </Button>
+              </div>
             ) : (
               groups.map((group) => {
                 const mutable = isGroupMutable(group);

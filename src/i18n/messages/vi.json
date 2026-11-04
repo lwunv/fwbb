@@ -1572,6 +1572,7 @@
     "saveFailed": "Không lưu được. Kiểm tra kết nối mạng rồi thử lại."
   },
   "notifications": {
+    "retry": "Thử lại",
     "share": {
       "label": "Soạn tin Zalo",
       "copied": "Đã chép, dán vào nhóm Zalo",
