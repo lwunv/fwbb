@@ -6,7 +6,7 @@ database.
 
 Nguồn sự thật là code, không phải tài liệu này. Mọi mục dưới đây trỏ tới file và
 hàm thật. Khi code đổi mà quên sửa đây, tin code. Soạn lần đầu 03/11/2026, đọc
-trực tiếp từ `src/db/schema.ts` (19 bảng, 27 migration tới `0026`), `src/lib/`
+trực tiếp từ `src/db/schema.ts` (23 bảng, 29 migration tới `0028`), `src/lib/`
 và `src/actions/`.
 
 Những thứ KHÔNG nằm ở đây, để tránh chép lại:
@@ -189,6 +189,46 @@ serverless, dễ bị khuếch đại).
 
 **`dup_ignored_pairs`** — ghi nhớ các cặp member trùng tên mà admin đã xác nhận
 là hai người khác nhau, để banner "nghi trùng" thôi nhắc.
+
+### Thông báo
+
+Thêm ở migration 0028, chỉ DDL. Công tắc `notificationsEnabled` (trong
+`app_settings`, mặc định tắt) chặn mọi ghi vào bốn bảng này. Hướng dẫn cấu hình
+email và hẹn giờ: [notifications-setup.md](./notifications-setup.md).
+
+**`notifications`**: một dòng cho mỗi tin của một người nhận.
+`recipient_type` 'member'|'admin' cùng `recipient_id` (không có FK vì trỏ hai
+bảng). `kind` là mã tin, `entity_type`/`entity_id` trỏ buổi, member, giao dịch,
+sân, brand hoặc tháng. `payload` JSON chỉ chứa dữ liệu của chính người nhận.
+`mandatory` đánh dấu tin không tắt được, `read_at` rỗng là chưa đọc.
+`dedup_key` UNIQUE để chống ghi trùng khi sự kiện chạy lại. Mọi thời điểm là ISO
+UTC do app ghi. Tin được ghi trong cùng transaction với nghiệp vụ.
+
+**`notification_deliveries`**: hàng đợi gửi email, tối đa một dòng cho mỗi cặp
+(tin, kênh) nhờ unique `(notification_id, channel)`. `channel` hiện chỉ có
+'email'. `status` 'pending'|'sent'|'failed'|'skipped', `attempts`,
+`next_attempt_at` (mốc thử lại), `error_code`. Xoá tin thì xoá theo (CASCADE).
+
+**`notification_prefs`**: tuỳ chọn của từng người nhận, unique
+`(recipient_type, recipient_id)`. `muted_groups` là JSON danh sách nhóm đã tắt
+(nhóm có tin bắt buộc không tắt được), `email_enabled` mặc định bật,
+`unsub_token` là 32 byte ngẫu nhiên base64url (unique) dùng cho link huỷ nhận
+email, tạo khi gửi mail tuỳ chọn đầu tiên.
+
+**`scheduled_jobs`**: các việc hẹn giờ (nhắc hạn vote, nhắc trong ngày, thử lại
+email, chỗ giữ cho tóm tắt ngày). `job_key` định danh việc, `run_at` mốc chạy,
+`status` 'scheduled'|'done'|'skipped'|'cancelled'|'failed', `message_id` là mã
+message bên QStash, `session_id` buổi liên quan. Cron 06:00 nhặt việc quá giờ mà
+còn `scheduled` (QStash bị lỡ) và chạy bù.
+
+Hai cột thêm vào bảng cũ:
+
+- **`admins.role`**: mặc định 'superadmin', hiện chỉ có giá trị đó. Admin có
+  `role = 'superadmin'` là người nhận tin của admin. Không liên quan claim
+  `role: "admin"` trong JWT.
+- **`members.notify_email_verified_for`**: email (chữ thường) đã bấm link xác
+  minh. Member chỉ được gửi mail thông báo khi giá trị này bằng `lower(email)`
+  hiện tại, nên đổi email là tự mất xác minh, không cần sửa từng đường đổi.
 
 ### Bảng đã bỏ / bảng của bản dự phòng
 
@@ -512,7 +552,7 @@ sẽ **phá dữ liệu thật**. Test local dùng database file `e2e/local.db`.
 
 ## 8. Lịch sử migration, mấy điều cần biết
 
-- 27 migration, 0000 (2026-03) tới 0026 (venues, 03/11/2026), theo
+- 29 migration, 0000 (2026-03) tới 0028 (thông báo, 04/11/2026), theo
   `src/db/migrations/meta/_journal.json`.
 - **Migration recreate-table (loại nguy hiểm)**: 0007 (members), 0011 (nhiều
   bảng), 0014 (financial_transactions lần nữa, inventory_purchases,
@@ -529,7 +569,8 @@ sẽ **phá dữ liệu thật**. Test local dùng database file `e2e/local.db`.
   `vote_deadline` CHỈ cho buổi voting/confirmed, để completed/cancelled NULL cố ý
   để buổi chết không âm thầm mở lại.
 - Cột thêm muộn nên dòng cũ mang default: xem danh sách đầy đủ trong
-  `_journal.json`. Gần nhất: `courts.venue_id` (0026), `members.skill_level`
+  `_journal.json`. Gần nhất: `admins.role` và `members.notify_email_verified_for` (0028),
+  `members.signup_intent` (0027), `courts.venue_id` (0026), `members.skill_level`
   (0025), các cột gender (0024).
 
 ---
