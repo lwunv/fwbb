@@ -150,6 +150,36 @@ async function sessionWithVoters(date = "2026-11-20") {
   return { sid, a, b, c, d };
 }
 
+/**
+ * Client file của test mở kết nối mới (không có busy_timeout) cho mỗi
+ * transaction, nên hai BEGIN IMMEDIATE cùng lúc báo SQLITE_BUSY ngay. Turso thì
+ * xếp hàng người ghi. Xếp hàng các transaction ở đây để mô phỏng việc chờ khoá;
+ * các lần gọi song song vẫn đọc trạng thái cũ trước khi vào tx. `beforeEach`
+ * chạy ngay trước mỗi transaction (mô phỏng thao tác khác chen vào).
+ */
+async function withQueuedTransactions<T>(
+  run: () => Promise<T>,
+  beforeEachTx?: () => Promise<void>,
+): Promise<T> {
+  const realTransaction = testDb.transaction.bind(testDb);
+  let queue: Promise<unknown> = Promise.resolve();
+  const spy = vi.spyOn(testDb, "transaction").mockImplementation(((
+    ...args: Parameters<typeof realTransaction>
+  ) => {
+    const next = queue.then(async () => {
+      await beforeEachTx?.();
+      return realTransaction(...args);
+    });
+    queue = next.catch(() => undefined);
+    return next;
+  }) as typeof testDb.transaction);
+  try {
+    return await run();
+  } finally {
+    spy.mockRestore();
+  }
+}
+
 beforeEach(reset);
 
 describe("sessionStartInstant", () => {
@@ -294,29 +324,12 @@ describe("cancel and reopen", () => {
     const adminMemberId = await linkAdmin();
     const { sid, a, b } = await sessionWithVoters();
 
-    // Client file của test mở kết nối mới (không có busy_timeout) cho mỗi
-    // transaction, nên hai BEGIN IMMEDIATE cùng lúc báo SQLITE_BUSY ngay. Turso
-    // thì xếp hàng người ghi. Xếp hàng các transaction ở đây để mô phỏng việc
-    // chờ khoá; cả hai lần gọi vẫn đọc trạng thái "voting" cũ trước khi vào tx.
-    const realTransaction = testDb.transaction.bind(testDb);
-    let queue: Promise<unknown> = Promise.resolve();
-    const spy = vi.spyOn(testDb, "transaction").mockImplementation(((
-      ...args: Parameters<typeof realTransaction>
-    ) => {
-      const run = queue.then(() => realTransaction(...args));
-      queue = run.catch(() => undefined);
-      return run;
-    }) as typeof testDb.transaction);
-
-    let results;
-    try {
-      results = await Promise.all([
+    const results = await withQueuedTransactions(() =>
+      Promise.all([
         cancelSession(sid, { passed: true, passRevenue: 100_000 }),
         cancelSession(sid, { passed: true, passRevenue: 100_000 }),
-      ]);
-    } finally {
-      spy.mockRestore();
-    }
+      ]),
+    );
     expect(results).toContainEqual({ success: true });
     expect(results).toContainEqual({ success: true, alreadyCancelled: true });
 
@@ -334,6 +347,73 @@ describe("cancel and reopen", () => {
         ),
       );
     expect(pass).toEqual([{ amount: 100_000 }]);
+  });
+
+  it("two concurrent reopenSession calls reverse the pass revenue once; the loser rolls back and gets onlyCancelledCanReopen", async () => {
+    await enableNotificationsForTest(testDb);
+    const adminMemberId = await linkAdmin();
+    const { sid, a, b } = await sessionWithVoters();
+    expect(
+      await cancelSession(sid, { passed: true, passRevenue: 120_000 }),
+    ).toEqual({ success: true });
+    const [contribution] = await testDb
+      .select({ id: financialTransactions.id })
+      .from(financialTransactions)
+      .where(eq(financialTransactions.type, "fund_contribution"));
+
+    const results = await withQueuedTransactions(() =>
+      Promise.all([reopenSession(sid), reopenSession(sid)]),
+    );
+    expect(results).toContainEqual({ success: true });
+    expect(results).toContainEqual({ error: "onlyCancelledCanReopen" });
+
+    const deductions = await testDb
+      .select({
+        reversalOfId: financialTransactions.reversalOfId,
+        amount: financialTransactions.amount,
+        memberId: financialTransactions.memberId,
+      })
+      .from(financialTransactions)
+      .where(eq(financialTransactions.type, "fund_deduction"));
+    expect(deductions).toEqual([
+      {
+        reversalOfId: contribution.id,
+        amount: 120_000,
+        memberId: adminMemberId,
+      },
+    ]);
+    expect(ids(await rows("session_reopened"))).toEqual(
+      [a, b].sort((x, y) => x - y),
+    );
+    const s = await testDb.query.sessions.findFirst({
+      where: eq(sessions.id, sid),
+    });
+    expect(s?.status).toBe("voting");
+  });
+
+  it("cancelSession on a session finalized after the first read returns cannotCancelCompleted and writes nothing", async () => {
+    await enableNotificationsForTest(testDb);
+    await linkAdmin();
+    const { sid } = await sessionWithVoters();
+
+    // Chốt sổ chen vào giữa bước đọc trạng thái và UPDATE có điều kiện.
+    const r = await withQueuedTransactions(
+      () => cancelSession(sid, { passed: true, passRevenue: 100_000 }),
+      async () => {
+        await testDb
+          .update(sessions)
+          .set({ status: "completed" })
+          .where(eq(sessions.id, sid));
+      },
+    );
+    expect(r).toEqual({ error: "cannotCancelCompleted" });
+    const s = await testDb.query.sessions.findFirst({
+      where: eq(sessions.id, sid),
+    });
+    expect(s?.status).toBe("completed");
+    expect(s?.passRevenue).toBeNull();
+    expect(await testDb.query.financialTransactions.findMany({})).toEqual([]);
+    expect(await rows()).toHaveLength(0);
   });
 
   it("switch off: cancelSession result and DB state identical to before, zero notification rows", async () => {

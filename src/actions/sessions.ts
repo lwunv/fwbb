@@ -642,6 +642,15 @@ export async function cancelSession(
     };
   }
   if (!cancelledNow) {
+    // UPDATE không đổi dòng nào: buổi vừa bị hủy hoặc vừa chốt sổ bởi thao tác
+    // chạy song song. Đọc lại để trả đúng kết quả như khi gọi tuần tự.
+    const current = await db.query.sessions.findFirst({
+      where: eq(sessions.id, sessionId),
+      columns: { status: true },
+    });
+    if (current?.status === "completed") {
+      return { error: t("cannotCancelCompleted") };
+    }
     return { success: true as const, alreadyCancelled: true };
   }
 
