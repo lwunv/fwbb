@@ -223,10 +223,13 @@ export async function finalizeSession(
   }
 
   // Đọc công tắc thông báo đúng 1 lần cho cả action (tin chốt sổ + kiểm kho).
-  const notificationsOn = await isNotificationsEnabled(db);
+  let notificationsOn = false;
 
   // === All mutating operations atomic via transaction ===
   try {
+    // Đọc TRONG try: lỗi DB trả { error } như mọi lỗi chốt sổ khác, không ném
+    // ra ngoài action tiền.
+    notificationsOn = await isNotificationsEnabled(db);
     await db.transaction(async (tx) => {
       // 2. Reverse prior fund deductions (idempotent — skip already reversed)
       const priorFundDeductions = await tx.query.financialTransactions.findMany(
