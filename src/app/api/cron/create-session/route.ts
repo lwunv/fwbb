@@ -17,6 +17,7 @@ import {
 import { computeDefaultDeadline } from "@/lib/vote-deadline";
 import { computeCourtTotal } from "@/lib/cost-calculator";
 import type { AppSettings } from "@/lib/settings-registry";
+import { notifySessionOpened } from "@/lib/notifications/session-events";
 
 type Court = {
   id: number;
@@ -59,37 +60,42 @@ async function createSessionIfMissing(
   // at-least-once, có thể double-fire) cùng chèn 1 ngày, lần thứ 2 KHÔNG ném
   // UNIQUE error (trước đây throw giữa vòng lặp Thứ Bảy → bỏ dở các buổi còn
   // lại của tuần). Conflict → returning [] → coi như đã tồn tại, bỏ qua.
-  const [newSession] = await db
-    .insert(sessions)
-    .values({
-      date: dateStr,
-      status: "voting",
-      startTime: settings.defaultStartTime,
-      endTime: settings.defaultEndTime,
-      courtQuantity: settings.defaultCourtQuantity,
-      maxPlayers: settings.defaultMaxPlayers,
-      courtId: defaultCourt?.id ?? null,
-      courtPrice,
-      useMinDeduction: true,
-      voteDeadline: computeDefaultDeadline(
-        dateStr,
-        settings.defaultStartTime,
-        settings.voteDeadlineOffsetHours,
-      ),
-    })
-    .onConflictDoNothing({ target: sessions.date })
-    .returning();
-  if (!newSession) return false;
+  return db.transaction(async (tx) => {
+    const [newSession] = await tx
+      .insert(sessions)
+      .values({
+        date: dateStr,
+        status: "voting",
+        startTime: settings.defaultStartTime,
+        endTime: settings.defaultEndTime,
+        courtQuantity: settings.defaultCourtQuantity,
+        maxPlayers: settings.defaultMaxPlayers,
+        courtId: defaultCourt?.id ?? null,
+        courtPrice,
+        useMinDeduction: true,
+        voteDeadline: computeDefaultDeadline(
+          dateStr,
+          settings.defaultStartTime,
+          settings.voteDeadlineOffsetHours,
+        ),
+      })
+      .onConflictDoNothing({ target: sessions.date })
+      .returning();
+    if (!newSession) return false;
 
-  if (defaultBrand) {
-    await db.insert(sessionShuttlecocks).values({
-      sessionId: newSession.id,
-      brandId: defaultBrand.id,
-      quantityUsed: 1,
-      pricePerTube: defaultBrand.pricePerTube,
-    });
-  }
-  return true;
+    if (defaultBrand) {
+      await tx.insert(sessionShuttlecocks).values({
+        sessionId: newSession.id,
+        brandId: defaultBrand.id,
+        quantityUsed: 1,
+        pricePerTube: defaultBrand.pricePerTube,
+      });
+    }
+    // Chỉ báo khi lần chạy này thật sự tạo dòng; buổi ngoài khung 48h để cron
+    // hằng ngày báo sau.
+    await notifySessionOpened(tx, newSession.id);
+    return true;
+  });
 }
 
 export async function GET(request: NextRequest) {

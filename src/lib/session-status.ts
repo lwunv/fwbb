@@ -131,17 +131,17 @@ export function assertEditable(
  *
  * See docs/superpowers/specs/2026-05-21-vote-deadline-design.md.
  */
-export function isVoteOpen(session: {
-  status: SessionStatus;
-  voteDeadline: string | null;
-}): { open: true } | { open: false; reason: "status" | "deadline" } {
+export function isVoteOpen(
+  session: {
+    status: SessionStatus;
+    voteDeadline: string | null;
+  },
+  now: Date = new Date(),
+): { open: true } | { open: false; reason: "status" | "deadline" } {
   if (session.status !== "voting" && session.status !== "confirmed") {
     return { open: false, reason: "status" };
   }
-  if (
-    session.voteDeadline &&
-    parseVoteDeadline(session.voteDeadline) <= new Date()
-  ) {
+  if (session.voteDeadline && parseVoteDeadline(session.voteDeadline) <= now) {
     return { open: false, reason: "deadline" };
   }
   return { open: true };

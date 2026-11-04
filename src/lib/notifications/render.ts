@@ -23,7 +23,7 @@ export type Translate = (
   values?: Record<string, string | number>,
 ) => string;
 
-const MONEY_KEYS = new Set(["total", "balance", "amount"]);
+const MONEY_KEYS = new Set(["total", "balance", "amount", "courtPrice"]);
 const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?Z$/;
 const VN_OFFSET_MS = 7 * 3_600_000;
 

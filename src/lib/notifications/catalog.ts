@@ -53,9 +53,16 @@ interface SessionWhen {
 export interface NotificationPayloads {
   session_opened: SessionWhen;
   vote_due_soon: SessionWhen & { hoursLeft: 24 | 2 };
-  vote_reopened: SessionWhen;
+  /** Hạn vote mới (giờ VN, `YYYY-MM-DDTHH:MM:SS`); null = không có hạn. */
+  vote_reopened: SessionWhen & { voteDeadline: string | null };
   vote_edited_by_admin: SessionWhen;
-  session_changed: SessionWhen & { fields: ("time" | "court" | "price")[] };
+  /** Giá trị SAU khi đổi; `courtPrice` là tổng tiền sân (VND). */
+  session_changed: SessionWhen & {
+    fields: ("time" | "court" | "price")[];
+    endTime: string;
+    courtName: string | null;
+    courtPrice: number | null;
+  };
   session_cancelled: SessionWhen;
   session_reopened: SessionWhen;
   session_almost_full: SessionWhen;

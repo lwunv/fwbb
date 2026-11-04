@@ -26,16 +26,26 @@ import {
   ne,
   isNull,
   inArray,
+  notInArray,
   like,
   or,
 } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
   computeDefaultDeadline,
-  formatLocalDeadline,
   nowDeadlineVN,
+  parseVoteDeadline,
   DEFAULT_PLAY_START_TIME,
 } from "@/lib/vote-deadline";
+import {
+  notifySessionCancelled,
+  notifySessionChanged,
+  notifySessionOpened,
+  notifySessionReopened,
+  notifyVoteReopened,
+  shouldNotifyVoteReopened,
+  type SessionChangeField,
+} from "@/lib/notifications/session-events";
 import {
   sendGroupMessage,
   buildNewSessionMessage,
@@ -151,28 +161,32 @@ export async function getNextSession() {
       where: eq(sessions.date, candidate),
     });
     if (exists) continue; // có rồi (chắc completed/cancelled) → bỏ qua
-    const [newSession] = await db
-      .insert(sessions)
-      .values({
-        date: candidate,
-        status: "voting",
-        courtId: defaultCourt?.id ?? null,
-        courtPrice: defaultCourt?.pricePerSession ?? null,
-        useMinDeduction: true,
-        voteDeadline: computeDefaultDeadline(
-          candidate,
-          DEFAULT_PLAY_START_TIME,
-        ),
-      })
-      .returning();
-    if (defaultBrand) {
-      await db.insert(sessionShuttlecocks).values({
-        sessionId: newSession.id,
-        brandId: defaultBrand.id,
-        quantityUsed: 1,
-        pricePerTube: defaultBrand.pricePerTube,
-      });
-    }
+    const newSession = await db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(sessions)
+        .values({
+          date: candidate,
+          status: "voting",
+          courtId: defaultCourt?.id ?? null,
+          courtPrice: defaultCourt?.pricePerSession ?? null,
+          useMinDeduction: true,
+          voteDeadline: computeDefaultDeadline(
+            candidate,
+            DEFAULT_PLAY_START_TIME,
+          ),
+        })
+        .returning();
+      if (defaultBrand) {
+        await tx.insert(sessionShuttlecocks).values({
+          sessionId: created.id,
+          brandId: defaultBrand.id,
+          quantityUsed: 1,
+          pricePerTube: defaultBrand.pricePerTube,
+        });
+      }
+      await notifySessionOpened(tx, created.id);
+      return created;
+    });
     return db.query.sessions.findFirst({
       where: eq(sessions.id, newSession.id),
       with: { court: true, shuttlecocks: { with: { brand: true } } },
@@ -226,25 +240,32 @@ export async function getAdminUpcomingSession() {
         getDefaultCourt(),
         getDefaultBrand(),
       ]);
-      const [newSession] = await db
-        .insert(sessions)
-        .values({
-          date: today,
-          status: "voting",
-          courtId: defaultCourt?.id ?? null,
-          courtPrice: defaultCourt?.pricePerSession ?? null,
-          useMinDeduction: true,
-          voteDeadline: computeDefaultDeadline(today, DEFAULT_PLAY_START_TIME),
-        })
-        .returning();
-      if (defaultBrand) {
-        await db.insert(sessionShuttlecocks).values({
-          sessionId: newSession.id,
-          brandId: defaultBrand.id,
-          quantityUsed: 1,
-          pricePerTube: defaultBrand.pricePerTube,
-        });
-      }
+      const newSession = await db.transaction(async (tx) => {
+        const [created] = await tx
+          .insert(sessions)
+          .values({
+            date: today,
+            status: "voting",
+            courtId: defaultCourt?.id ?? null,
+            courtPrice: defaultCourt?.pricePerSession ?? null,
+            useMinDeduction: true,
+            voteDeadline: computeDefaultDeadline(
+              today,
+              DEFAULT_PLAY_START_TIME,
+            ),
+          })
+          .returning();
+        if (defaultBrand) {
+          await tx.insert(sessionShuttlecocks).values({
+            sessionId: created.id,
+            brandId: defaultBrand.id,
+            quantityUsed: 1,
+            pricePerTube: defaultBrand.pricePerTube,
+          });
+        }
+        await notifySessionOpened(tx, created.id);
+        return created;
+      });
       return db.query.sessions.findFirst({
         where: eq(sessions.id, newSession.id),
         with: { court: true, shuttlecocks: { with: { brand: true } } },
@@ -326,7 +347,12 @@ export async function selectCourt(
   // Guard fintech: không cho đổi giá sân khi đã chốt sổ — admin phải Mở lại trước.
   const existing = await db.query.sessions.findFirst({
     where: eq(sessions.id, data.sessionId),
-    columns: { status: true },
+    columns: {
+      status: true,
+      courtId: true,
+      courtQuantity: true,
+      courtPrice: true,
+    },
   });
   if (!existing) return { error: t("sessionNotFound") };
   const editGuard = assertEditable(existing.status as SessionStatus);
@@ -364,16 +390,30 @@ export async function selectCourt(
 
   // Đổi sân / số sân = intent dùng lại formula → clear override flag.
   // Nếu admin muốn override, họ sẽ bấm "Sửa giá" sau khi đã chọn sân.
-  await db
-    .update(sessions)
-    .set({
-      courtId: data.courtId,
-      courtQuantity: Math.max(1, data.courtQuantity),
-      courtPrice: totalCourtPrice,
-      courtPriceOverridden: false,
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(sessions.id, data.sessionId));
+  const newQuantity = Math.max(1, data.courtQuantity);
+  // Chỉ báo member khi sân thật sự đổi; giá đổi kèm thì gộp vào cùng tin.
+  const changed: SessionChangeField[] = [];
+  if (
+    existing.courtId !== data.courtId ||
+    (existing.courtQuantity ?? 1) !== newQuantity
+  ) {
+    changed.push("court");
+    if (existing.courtPrice !== totalCourtPrice) changed.push("price");
+  }
+  const token = new Date().toISOString();
+  await db.transaction(async (tx) => {
+    await tx
+      .update(sessions)
+      .set({
+        courtId: data.courtId,
+        courtQuantity: newQuantity,
+        courtPrice: totalCourtPrice,
+        courtPriceOverridden: false,
+        updatedAt: token,
+      })
+      .where(eq(sessions.id, data.sessionId));
+    await notifySessionChanged(tx, data.sessionId, changed, token);
+  });
 
   revalidatePath("/admin/sessions");
   revalidatePath(`/admin/sessions/${data.sessionId}`);
@@ -445,14 +485,21 @@ export async function confirmSession(sessionId: number) {
     };
   }
 
-  await db
-    .update(sessions)
-    .set({
-      status: "confirmed",
-      courtPrice: recomputedCourtPrice,
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(sessions.id, sessionId));
+  const token = new Date().toISOString();
+  await db.transaction(async (tx) => {
+    await tx
+      .update(sessions)
+      .set({
+        status: "confirmed",
+        courtPrice: recomputedCourtPrice,
+        updatedAt: token,
+      })
+      .where(eq(sessions.id, sessionId));
+    // Giá sân tính lại lúc xác nhận có thể khác giá member đã thấy khi vote.
+    if (session.courtPrice !== recomputedCourtPrice) {
+      await notifySessionChanged(tx, sessionId, ["price"], token);
+    }
+  });
 
   // Count voters for notification
   const sessionVotes = await db.query.votes.findMany({
@@ -527,16 +574,29 @@ export async function cancelSession(
   }
 
   // Atomic: update session + record fund contribution (if any)
+  const token = new Date().toISOString();
+  let cancelledNow = false;
   try {
     await db.transaction(async (tx) => {
-      await tx
+      // Điều kiện trạng thái nằm ngay trong UPDATE: hai lần hủy chạy song song
+      // đều qua được bước đọc ở trên, nhưng chỉ một lần đổi được dòng. Lần còn
+      // lại không ghi tiền pass, không gửi tin, trả kết quả như hủy lặp lại.
+      const updated = await tx
         .update(sessions)
         .set({
           status: "cancelled",
           passRevenue: passRevenue > 0 ? passRevenue : null,
-          updatedAt: new Date().toISOString(),
+          updatedAt: token,
         })
-        .where(eq(sessions.id, sessionId));
+        .where(
+          and(
+            eq(sessions.id, sessionId),
+            notInArray(sessions.status, ["cancelled", "completed"]),
+          ),
+        )
+        .returning({ id: sessions.id });
+      if (updated.length === 0) return;
+      cancelledNow = true;
 
       if (passed && passRevenue > 0 && adminMemberId !== null) {
         // Cycle-fresh idempotencyKey. Re-entry within the SAME cancel is blocked
@@ -573,11 +633,16 @@ export async function cancelSession(
         );
         if ("error" in r) throw new Error(r.error);
       }
+
+      await notifySessionCancelled(tx, sessionId, token);
     });
   } catch (err) {
     return {
       error: err instanceof Error ? err.message : "Không hủy được buổi",
     };
+  }
+  if (!cancelledNow) {
+    return { success: true as const, alreadyCancelled: true };
   }
 
   revalidatePath("/admin/sessions");
@@ -589,6 +654,9 @@ export async function cancelSession(
   }
   return { success: true };
 }
+
+/** Ném trong tx của reopenSession để rollback khi buổi không còn ở trạng thái hủy. */
+class ReopenRaceLost extends Error {}
 
 /**
  * Reopen một buổi đã hủy → đưa về `voting`.
@@ -632,6 +700,7 @@ export async function reopenSession(sessionId: number) {
     alreadyReversed = !!existingReversal;
   }
 
+  const token = new Date().toISOString();
   try {
     await db.transaction(async (tx) => {
       if (passContribution && !alreadyReversed) {
@@ -651,7 +720,7 @@ export async function reopenSession(sessionId: number) {
         if ("error" in r) throw new Error(r.error);
       }
 
-      await tx
+      const updated = await tx
         .update(sessions)
         .set({
           status: "voting",
@@ -660,11 +729,22 @@ export async function reopenSession(sessionId: number) {
           // the past. Clear so admin can re-collect votes; admin can set a
           // new deadline via setVoteDeadline if they want one.
           voteDeadline: null,
-          updatedAt: new Date().toISOString(),
+          updatedAt: token,
         })
-        .where(eq(sessions.id, sessionId));
+        .where(
+          and(eq(sessions.id, sessionId), eq(sessions.status, "cancelled")),
+        )
+        .returning({ id: sessions.id });
+      // Lần mở lại chạy song song đã đổi trạng thái trước: rollback cả dòng
+      // đảo tiền pass ở trên (giữ thứ tự ghi cũ) và trả lỗi như mở lại lặp.
+      if (updated.length === 0) throw new ReopenRaceLost();
+
+      await notifySessionReopened(tx, sessionId, token);
     });
   } catch (err) {
+    if (err instanceof ReopenRaceLost) {
+      return { error: t("onlyCancelledCanReopen") };
+    }
     return {
       error: err instanceof Error ? err.message : t("reopenFailed"),
     };
@@ -1140,35 +1220,39 @@ export async function createSessionManually(
     });
   }
 
-  const [newSession] = await db
-    .insert(sessions)
-    .values({
-      date,
-      status: "voting",
-      startTime: startTime || settings.defaultStartTime,
-      endTime: endTime || settings.defaultEndTime,
-      courtQuantity: settings.defaultCourtQuantity,
-      maxPlayers: settings.defaultMaxPlayers,
-      courtId: resolvedCourtId,
-      courtPrice,
-      useMinDeduction: true,
-      voteDeadline: computeDefaultDeadline(
-        date,
-        startTime || settings.defaultStartTime,
-        settings.voteDeadlineOffsetHours,
-      ),
-    })
-    .returning();
-  // Pre-fill brand mặc định để admin chỉ cần đổi ống nếu cần.
+  // Pre-fill brand mặc định để admin chỉ cần đổi ống nếu cần. Đọc trước tx để
+  // trong tx chỉ còn lệnh ghi.
   const defaultBrand = await getDefaultBrand();
-  if (defaultBrand && newSession) {
-    await db.insert(sessionShuttlecocks).values({
-      sessionId: newSession.id,
-      brandId: defaultBrand.id,
-      quantityUsed: 1,
-      pricePerTube: defaultBrand.pricePerTube,
-    });
-  }
+  await db.transaction(async (tx) => {
+    const [newSession] = await tx
+      .insert(sessions)
+      .values({
+        date,
+        status: "voting",
+        startTime: startTime || settings.defaultStartTime,
+        endTime: endTime || settings.defaultEndTime,
+        courtQuantity: settings.defaultCourtQuantity,
+        maxPlayers: settings.defaultMaxPlayers,
+        courtId: resolvedCourtId,
+        courtPrice,
+        useMinDeduction: true,
+        voteDeadline: computeDefaultDeadline(
+          date,
+          startTime || settings.defaultStartTime,
+          settings.voteDeadlineOffsetHours,
+        ),
+      })
+      .returning();
+    if (defaultBrand && newSession) {
+      await tx.insert(sessionShuttlecocks).values({
+        sessionId: newSession.id,
+        brandId: defaultBrand.id,
+        quantityUsed: 1,
+        pricePerTube: defaultBrand.pricePerTube,
+      });
+    }
+    if (newSession) await notifySessionOpened(tx, newSession.id);
+  });
   revalidatePath("/admin/sessions");
   revalidatePath("/");
 
@@ -1315,17 +1399,30 @@ export async function setSessionCourtPriceOverride(
   const editGuard = assertEditable(session.status as SessionStatus);
   if (!editGuard.ok) return { error: editGuard.error };
 
+  const token = new Date().toISOString();
+  // Ghi giá + báo member (khi giá thật sự đổi) trong cùng một transaction.
+  const writePrice = (patch: {
+    courtPrice?: number;
+    courtPriceOverridden: boolean;
+  }) =>
+    db.transaction(async (tx) => {
+      await tx
+        .update(sessions)
+        .set({ ...patch, updatedAt: token })
+        .where(eq(sessions.id, data.sessionId));
+      if (
+        patch.courtPrice !== undefined &&
+        patch.courtPrice !== session.courtPrice
+      ) {
+        await notifySessionChanged(tx, data.sessionId, ["price"], token);
+      }
+    });
+
   // Reset → recompute từ formula.
   if (data.customPrice === null) {
     if (!session.courtId) {
       // Chưa chọn sân → không có gì để recompute, chỉ clear flag.
-      await db
-        .update(sessions)
-        .set({
-          courtPriceOverridden: false,
-          updatedAt: new Date().toISOString(),
-        })
-        .where(eq(sessions.id, data.sessionId));
+      await writePrice({ courtPriceOverridden: false });
     } else {
       const [court, defaultCourt, sessionDays] = await Promise.all([
         db.query.courts.findFirst({ where: eq(courts.id, session.courtId) }),
@@ -1343,24 +1440,13 @@ export async function setSessionCourtPriceOverride(
             sessionDays,
           })
         : (session.courtPrice ?? 0);
-      await db
-        .update(sessions)
-        .set({
-          courtPrice: autoPrice,
-          courtPriceOverridden: false,
-          updatedAt: new Date().toISOString(),
-        })
-        .where(eq(sessions.id, data.sessionId));
+      await writePrice({ courtPrice: autoPrice, courtPriceOverridden: false });
     }
   } else {
-    await db
-      .update(sessions)
-      .set({
-        courtPrice: data.customPrice,
-        courtPriceOverridden: true,
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(sessions.id, data.sessionId));
+    await writePrice({
+      courtPrice: data.customPrice,
+      courtPriceOverridden: true,
+    });
   }
 
   revalidatePath("/admin/sessions");
@@ -1633,6 +1719,7 @@ export async function setVoteDeadline(
     return { error: t("invalidSessionId") };
   }
 
+  const now = new Date();
   if (deadline !== null) {
     // Strict component-level validation: regex alone allows roll-over inputs
     // like "2026-02-30T10:00:00" which JS Date silently coerces to Mar 02.
@@ -1657,14 +1744,16 @@ export async function setVoteDeadline(
     ) {
       return { error: t("invalidDeadlineFormat") };
     }
-    if (parsed.getTime() <= Date.now()) {
+    // Hạn là giờ VN: so bằng parseVoteDeadline (ghim +07:00). `parsed` ở trên
+    // đọc theo múi giờ máy, trên server UTC sẽ nhận nhầm hạn đã qua 7 tiếng.
+    if (parseVoteDeadline(deadline) <= now) {
       return { error: t("deadlineMustBeFuture") };
     }
   }
 
   const session = await db.query.sessions.findFirst({
     where: eq(sessions.id, sessionId),
-    columns: { status: true },
+    columns: { status: true, voteDeadline: true },
   });
   if (!session) return { error: t("sessionNotFound") };
   // Editable check: don't let admin set a deadline on a session that's
@@ -1674,13 +1763,28 @@ export async function setVoteDeadline(
   const guard = assertEditable(session.status as SessionStatus);
   if (!guard.ok) return { error: guard.error };
 
-  await db
-    .update(sessions)
-    .set({
-      voteDeadline: deadline,
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(sessions.id, sessionId));
+  const token = now.toISOString();
+  await db.transaction(async (tx) => {
+    await tx
+      .update(sessions)
+      .set({
+        voteDeadline: deadline,
+        updatedAt: token,
+      })
+      .where(eq(sessions.id, sessionId));
+    if (
+      shouldNotifyVoteReopened(
+        {
+          status: session.status as SessionStatus,
+          voteDeadline: session.voteDeadline,
+        },
+        deadline,
+        now,
+      )
+    ) {
+      await notifyVoteReopened(tx, sessionId, token);
+    }
+  });
 
   revalidatePath("/");
   revalidatePath(`/vote/${sessionId}`);
@@ -1811,16 +1915,24 @@ export async function setSessionTime(
 
   const session = await db.query.sessions.findFirst({
     where: eq(sessions.id, sessionId),
-    columns: { status: true },
+    columns: { status: true, startTime: true, endTime: true },
   });
   if (!session) return { error: t("sessionNotFound") };
   const guard = assertEditable(session.status as SessionStatus);
   if (!guard.ok) return { error: guard.error };
 
-  await db
-    .update(sessions)
-    .set({ startTime, endTime, updatedAt: new Date().toISOString() })
-    .where(eq(sessions.id, sessionId));
+  const timeChanged =
+    session.startTime !== startTime || session.endTime !== endTime;
+  const token = new Date().toISOString();
+  await db.transaction(async (tx) => {
+    await tx
+      .update(sessions)
+      .set({ startTime, endTime, updatedAt: token })
+      .where(eq(sessions.id, sessionId));
+    if (timeChanged) {
+      await notifySessionChanged(tx, sessionId, ["time"], token);
+    }
+  });
 
   revalidatePath("/");
   revalidatePath(`/vote/${sessionId}`);
@@ -1854,21 +1966,41 @@ export async function extendVoteDeadline(sessionId: number, hours: 2 | 24) {
   const guard = assertEditable(session.status as SessionStatus);
   if (!guard.ok) return { error: guard.error };
 
-  const now = Date.now();
+  // Hạn lưu theo giờ VN không offset: đọc bằng parseVoteDeadline và ghi bằng
+  // nowDeadlineVN. Bản cũ dùng `new Date(hạn)` + formatLocalDeadline theo múi
+  // giờ máy, trên server UTC hạn mới lệch sớm 7 tiếng.
+  const now = new Date();
+  const nowMs = now.getTime();
   const currentDeadlineMs = session.voteDeadline
-    ? new Date(session.voteDeadline).getTime()
-    : now;
-  const baseMs = Math.max(now, currentDeadlineMs);
-  const newDeadline = new Date(baseMs + hours * 60 * 60 * 1000);
-  const newDeadlineStr = formatLocalDeadline(newDeadline);
+    ? parseVoteDeadline(session.voteDeadline).getTime()
+    : nowMs;
+  const baseMs = Math.max(nowMs, currentDeadlineMs);
+  const newDeadlineStr = nowDeadlineVN(
+    new Date(baseMs + hours * 60 * 60 * 1000),
+  );
 
-  await db
-    .update(sessions)
-    .set({
-      voteDeadline: newDeadlineStr,
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(sessions.id, sessionId));
+  const token = now.toISOString();
+  await db.transaction(async (tx) => {
+    await tx
+      .update(sessions)
+      .set({
+        voteDeadline: newDeadlineStr,
+        updatedAt: token,
+      })
+      .where(eq(sessions.id, sessionId));
+    if (
+      shouldNotifyVoteReopened(
+        {
+          status: session.status as SessionStatus,
+          voteDeadline: session.voteDeadline,
+        },
+        newDeadlineStr,
+        now,
+      )
+    ) {
+      await notifyVoteReopened(tx, sessionId, token);
+    }
+  });
 
   revalidatePath("/");
   revalidatePath(`/vote/${sessionId}`);
