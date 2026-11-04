@@ -17,6 +17,10 @@ import {
 } from "@/lib/notifications/catalog";
 import { isNotificationsEnabled } from "@/lib/notifications/notify";
 import type { NotificationView } from "@/lib/notifications/render";
+import { sealVerifyToken } from "@/lib/notifications/tokens";
+import { runAfterResponse } from "@/lib/notifications/after";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { sendMail } from "@/lib/mailer";
 
 type Scope = "member" | "admin";
 type Cursor = { createdAt: string; id: number };
@@ -245,13 +249,14 @@ export async function getMyNotificationPrefs(scope: Scope): Promise<
     emailVerified =
       !!m?.email && m.verifiedFor === m.email.trim().toLowerCase();
   } else {
-    // Admin chưa có bước xác minh email thông báo; Task 14 quyết định cách nối.
+    // Admin tự điền email ở trang tài khoản và không cần xác minh: có email là dùng được.
     const [a] = await db
       .select({ email: admins.email })
       .from(admins)
       .where(eq(admins.id, viewer.recipientId))
       .limit(1);
     email = a?.email ?? null;
+    emailVerified = !!email;
   }
   return {
     mutedGroups: muted,
@@ -296,5 +301,55 @@ export async function updateMyNotificationPrefs(
       // Chỉ ghi trường có trong patch: đổi nhóm không được đụng emailEnabled.
       set: { ...set, updatedAt },
     });
+  return { success: true };
+}
+
+/**
+ * Gửi link xác minh email nhận thông báo cho member đang đăng nhập. Link ký
+ * bằng USER_COOKIE_SECRET (thiếu thì báo không khả dụng, không có khoá dự
+ * phòng) và hết hạn sau 7 ngày. Mail gửi sau phản hồi, không log địa chỉ/token.
+ */
+export async function requestNotifyEmailVerification(): Promise<
+  { success: true } | { error: string }
+> {
+  const user = await getUserFromCookie();
+  if (!user) return { error: "Unauthorized" };
+  const [m] = await db
+    .select({ email: members.email, isActive: members.isActive })
+    .from(members)
+    .where(eq(members.id, user.memberId))
+    .limit(1);
+  if (!m || !m.isActive) return { error: "Unauthorized" };
+  const email = m.email?.trim();
+  if (!email) return { error: "No email" };
+
+  const rl = await checkRateLimit(
+    `notify-verify:${user.memberId}`,
+    3,
+    60 * 60_000,
+  );
+  if (!rl.ok) return { error: "Too many requests" };
+
+  let token: string;
+  try {
+    token = sealVerifyToken(user.memberId, email);
+  } catch {
+    return { error: "Verification unavailable" };
+  }
+  const link = `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/api/notifications/verify-email?token=${encodeURIComponent(token)}`;
+  runAfterResponse(async () => {
+    await sendMail({
+      to: email,
+      subject: "Xác minh email nhận thông báo FWBB",
+      text: [
+        "Bạn vừa yêu cầu nhận thông báo FWBB qua email này.",
+        "Mở liên kết sau để xác minh (hết hạn sau 7 ngày):",
+        link,
+        "",
+        "Nếu không phải bạn yêu cầu, hãy bỏ qua email này.",
+      ].join("\n"),
+      html: `<div style="font-family:system-ui,Arial,sans-serif;max-width:480px;margin:0 auto;padding:16px;color:#111"><p style="font-size:16px;line-height:1.5">Bạn vừa yêu cầu nhận thông báo FWBB qua email này. Nhấn nút dưới đây để xác minh (hết hạn sau 7 ngày).</p><p style="margin:20px 0"><a href="${link}" style="background:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;font-size:16px">Xác minh email</a></p><p style="font-size:14px;color:#666">Nếu không phải bạn yêu cầu, hãy bỏ qua email này.</p></div>`,
+    });
+  });
   return { success: true };
 }

@@ -1584,7 +1584,19 @@
       "allOn": "接收全部",
       "mutedCount": "已关闭 {count} 项",
       "mandatory": "重要通知始终会发送",
-      "loadError": "无法加载通知设置，请稍后再试。"
+      "loadError": "无法加载通知设置，请稍后再试。",
+      "emailTitle": "邮件通知",
+      "emailNone": "还没有邮箱，请在个人资料中填写。",
+      "emailNoneAdmin": "还没有邮箱，请在账户页面填写。",
+      "emailVerified": "已验证",
+      "emailUnverified": "未验证",
+      "emailSend": "发送验证链接",
+      "emailSending": "发送中...",
+      "emailSent": "验证链接已发送，请查看邮箱。",
+      "emailSendError": "无法发送验证链接，请稍后再试。",
+      "emailToggle": "通过邮件接收通知",
+      "emailVerifiedToast": "邮箱已验证。",
+      "emailInvalidToast": "验证链接无效或已过期，请重新发送。"
     },
     "bell": {
       "title": "通知",

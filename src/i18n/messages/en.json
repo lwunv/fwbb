@@ -1584,7 +1584,19 @@
       "allOn": "Getting everything",
       "mutedCount": "{count} turned off",
       "mandatory": "Important notices are always sent",
-      "loadError": "Couldn't load notification settings. Please try again later."
+      "loadError": "Couldn't load notification settings. Please try again later.",
+      "emailTitle": "Email notifications",
+      "emailNone": "No email yet. Add one in your profile.",
+      "emailNoneAdmin": "No email yet. Add one on the account page.",
+      "emailVerified": "Verified",
+      "emailUnverified": "Not verified",
+      "emailSend": "Send verification link",
+      "emailSending": "Sending...",
+      "emailSent": "Verification link sent. Please check your inbox.",
+      "emailSendError": "Couldn't send the verification link. Please try again later.",
+      "emailToggle": "Receive notifications by email",
+      "emailVerifiedToast": "Your email is verified.",
+      "emailInvalidToast": "That verification link is invalid or has expired. Please request a new one."
     },
     "bell": {
       "title": "Notifications",

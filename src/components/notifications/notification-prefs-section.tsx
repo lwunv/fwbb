@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, ChevronDown, Lock } from "lucide-react";
+import { Bell, ChevronDown, Lock, Mail } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { fireAction } from "@/lib/optimistic-action";
 import {
   getMyNotificationPrefs,
+  requestNotifyEmailVerification,
   updateMyNotificationPrefs,
 } from "@/actions/notifications";
 import {
@@ -51,6 +53,26 @@ export function NotificationPrefsSection({
   const t = useTranslations("notifications");
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  // Kết quả từ link trong mail (/me?email=verified|invalid): mở thẻ, báo kết quả, dọn URL.
+  useEffect(() => {
+    if (scope !== "member") return;
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get("email");
+    if (result !== "verified" && result !== "invalid") return;
+    setExpanded(true);
+    if (result === "verified") toast.success(t("prefs.emailVerifiedToast"));
+    else toast.error(t("prefs.emailInvalidToast"));
+    void queryClient.invalidateQueries({ queryKey: prefsKey(scope) });
+    params.delete("email");
+    const qs = params.toString();
+    window.history.replaceState(
+      null,
+      "",
+      window.location.pathname + (qs ? `?${qs}` : ""),
+    );
+  }, [scope, t, queryClient]);
 
   const { data, isPending, isError, refetch, isRefetching } = useQuery({
     queryKey: prefsKey(scope),
@@ -102,6 +124,44 @@ export function NotificationPrefsSection({
       () => patch(wasMuted),
       { onSuccess: settle, onError: settle },
     );
+  }
+
+  function toggleEmail(on: boolean) {
+    const key = prefsKey(scope);
+    const current = queryClient.getQueryData<Prefs>(key);
+    if (!current) return;
+    const was = current.emailEnabled;
+    const patch = (v: boolean) =>
+      queryClient.setQueryData<Prefs>(key, (d) =>
+        d ? { ...d, emailEnabled: v } : d,
+      );
+    void queryClient.cancelQueries({ queryKey: key });
+    patch(on);
+    inFlight.current += 1;
+    const settle = () => {
+      inFlight.current -= 1;
+      if (inFlight.current === 0) {
+        void queryClient.invalidateQueries({ queryKey: key });
+      }
+    };
+    fireAction(
+      () => updateMyNotificationPrefs(scope, { emailEnabled: on }),
+      () => patch(was),
+      { onSuccess: settle, onError: settle },
+    );
+  }
+
+  async function sendVerification() {
+    setSending(true);
+    try {
+      const res = await requestNotifyEmailVerification();
+      if ("error" in res) toast.error(t("prefs.emailSendError"));
+      else toast.success(t("prefs.emailSent"));
+    } catch {
+      toast.error(t("prefs.emailSendError"));
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
@@ -190,9 +250,67 @@ export function NotificationPrefsSection({
                 );
               })
             )}
-            {/* TASK-14-EMAIL-SLOT: Task 14 thêm phần email (công tắc emailEnabled,
-                địa chỉ, xác minh) ngay dưới danh sách nhóm. `data.email`,
-                `data.emailEnabled`, `data.emailVerified` đã có sẵn trong Prefs. */}
+            {data && (
+              <div className="space-y-2 rounded-lg border p-3">
+                <div className="flex min-h-11 items-center gap-1.5 text-base font-medium">
+                  <Mail
+                    className="text-muted-foreground h-4 w-4 shrink-0"
+                    aria-hidden
+                  />
+                  {t("prefs.emailTitle")}
+                </div>
+                {data.email ? (
+                  <>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="min-w-0 text-base break-all">
+                        {data.email}
+                      </span>
+                      <span
+                        className={cn(
+                          "shrink-0 rounded-lg border px-2 py-0.5 text-sm font-medium",
+                          data.emailVerified
+                            ? "text-primary"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        {data.emailVerified
+                          ? t("prefs.emailVerified")
+                          : t("prefs.emailUnverified")}
+                      </span>
+                    </div>
+                    {!data.emailVerified && scope === "member" && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="min-h-11 w-full sm:w-auto"
+                        disabled={sending}
+                        onClick={() => void sendVerification()}
+                      >
+                        {sending
+                          ? t("prefs.emailSending")
+                          : t("prefs.emailSend")}
+                      </Button>
+                    )}
+                    <div className="flex min-h-11 items-center justify-between gap-3">
+                      <span className="text-base">
+                        {t("prefs.emailToggle")}
+                      </span>
+                      <Switch
+                        checked={data.emailEnabled}
+                        onCheckedChange={toggleEmail}
+                        aria-label={t("prefs.emailToggle")}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-muted-foreground text-sm">
+                    {scope === "admin"
+                      ? t("prefs.emailNoneAdmin")
+                      : t("prefs.emailNone")}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
       </CardContent>

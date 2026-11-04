@@ -1584,7 +1584,19 @@
       "allOn": "Nhận tất cả",
       "mutedCount": "Đã tắt {count}",
       "mandatory": "Tin quan trọng luôn được gửi",
-      "loadError": "Không tải được tuỳ chọn thông báo. Thử lại sau nhé."
+      "loadError": "Không tải được tuỳ chọn thông báo. Thử lại sau nhé.",
+      "emailTitle": "Nhận qua email",
+      "emailNone": "Chưa có email. Hãy điền email ở mục hồ sơ.",
+      "emailNoneAdmin": "Chưa có email. Hãy điền email ở trang tài khoản.",
+      "emailVerified": "Đã xác minh",
+      "emailUnverified": "Chưa xác minh",
+      "emailSend": "Gửi link xác minh",
+      "emailSending": "Đang gửi...",
+      "emailSent": "Đã gửi link xác minh. Hãy kiểm tra hộp thư của bạn.",
+      "emailSendError": "Không gửi được link xác minh. Thử lại sau nhé.",
+      "emailToggle": "Nhận thông báo qua email",
+      "emailVerifiedToast": "Email đã được xác minh.",
+      "emailInvalidToast": "Link xác minh không dùng được hoặc đã hết hạn. Hãy gửi link mới."
     },
     "bell": {
       "title": "Thông báo",
