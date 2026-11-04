@@ -1,5 +1,6 @@
 "use server";
 
+import { notifySignupPending } from "@/lib/notifications/account-events";
 import { db } from "@/db";
 import { members } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -114,21 +115,32 @@ export async function facebookLogin(accessToken: string) {
   // 3. Create new member — pending admin approval. Khác với member admin
   // tạo trực tiếp (mặc định approved): OAuth signup phải qua approval flow.
   const avatarUrl = fbUser.picture?.data?.url ?? null;
-  const [newMember] = await db
-    .insert(members)
-    .values({
-      name: fbUser.name,
-      facebookId: fbUser.id,
-      avatarUrl,
-      approvalStatus: "pending",
-    })
-    .returning();
+  const newMember = await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(members)
+      .values({
+        name: fbUser.name,
+        facebookId: fbUser.id,
+        avatarUrl,
+        approvalStatus: "pending",
+      })
+      .returning();
 
-  await ensureOAuthIdentity({
-    memberId: newMember.id,
-    provider: "facebook",
-    uid: fbUser.id,
-    email: null,
+    await ensureOAuthIdentity(
+      {
+        memberId: created.id,
+        provider: "facebook",
+        uid: fbUser.id,
+        email: null,
+      },
+      tx,
+    );
+    await notifySignupPending(tx, {
+      memberId: created.id,
+      provider: "facebook",
+      signupIntent: created.signupIntent,
+    });
+    return created;
   });
   await setUserCookie(newMember.id, newMember.facebookId ?? `fb:${fbUser.id}`);
   revalidatePath("/");

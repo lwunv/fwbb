@@ -114,7 +114,7 @@ export interface NotificationPayloads {
   account_rejected: Record<string, never>;
   group_request_declined: Record<string, never>;
   account_merged: Record<string, never>;
-  password_changed: Record<string, never>;
+  password_changed: { byAdmin?: boolean };
   login_method_linked: { provider: string };
   login_method_unlinked: { provider: string };
   venue_approved: { venueName: string };
@@ -141,7 +141,7 @@ export interface NotificationPayloads {
     purpose: "debt" | "fund";
     sessionDate?: string;
   };
-  signup_pending: { memberName: string };
+  signup_pending: { memberName: string; provider?: string };
   group_join_request: { memberName: string };
   venue_pending: { venueName: string; proposerName: string };
   low_stock: { brandName: string; stockQua: number };

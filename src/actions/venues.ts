@@ -1,5 +1,9 @@
 "use server";
 
+import {
+  notifyVenuePending,
+  notifyVenueStatus,
+} from "@/lib/notifications/account-events";
 import { db } from "@/db";
 import { members, venues } from "@/db/schema";
 import { and, between, eq, ne, sql } from "drizzle-orm";
@@ -28,6 +32,19 @@ import { ipRateLimitKey } from "@/lib/ip-rate-limit-key";
 const DUPLICATE_RADIUS_M = 100;
 const SUBMIT_LIMIT_PER_DAY = 3;
 const SUBMIT_TRIES_PER_MIN = 10;
+
+/*
+ * Xếp hàng các lần ghi sân đề xuất trong một process. Transaction chạy song
+ * song trên DB file local (test) bị SQLITE_BUSY ngay lúc COMMIT; ở Turso thật
+ * thì không, và ràng buộc "tối đa N sân/ngày" vẫn do câu INSERT ... WHERE đảm
+ * bảo. Hàng đợi chỉ giữ cho tx mới (insert + tin) không đua nhau.
+ */
+let submitQueue: Promise<unknown> = Promise.resolve();
+function runSerial<T>(fn: () => Promise<T>): Promise<T> {
+  const run = submitQueue.then(fn, fn);
+  submitQueue = run.catch(() => undefined);
+  return run;
+}
 
 /**
  * Member đã duyệt đề xuất một sân vào danh bạ (status `pending`, chờ admin).
@@ -86,7 +103,9 @@ export async function submitVenue(
   // lần bị báo trùng không bị tính). Đếm và ghi trong CÙNG một câu lệnh
   // (INSERT ... SELECT ... WHERE count < N): tách đếm rồi mới insert thì N
   // request song song cùng thấy count=0 và cùng lọt qua.
-  const rows = await db.all<{ id: number }>(sql`
+  const row = await runSerial(() =>
+    db.transaction(async (tx) => {
+      const rows = await tx.all<{ id: number }>(sql`
     INSERT INTO ${venues} (
       name, address, lat, lng, map_link, court_count, open_hours, amenities,
       phone, ref_price_per_hour, photo_link, submitted_by_member_id
@@ -104,7 +123,17 @@ export async function submitVenue(
     ) < ${SUBMIT_LIMIT_PER_DAY}
     RETURNING id
   `);
-  const row = rows[0];
+      const inserted = rows[0];
+      if (inserted) {
+        await notifyVenuePending(tx, {
+          venueId: inserted.id,
+          venueName: data.name,
+          proposerId: memberId,
+        });
+      }
+      return inserted;
+    }),
+  );
   if (!row) return { error: t("venueSubmitLimit") };
 
   // Layout admin (huy hiệu số sân chờ duyệt) cũng phải tươi, không chỉ trang sân.
@@ -419,18 +448,41 @@ export async function setVenueStatus(
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
   const t = await getTranslations("serverErrors");
-  const updated = await db
-    .update(venues)
-    .set({
-      status,
-      ...(status === "approved"
-        ? { approvedAt: new Date().toISOString() }
-        : {}),
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(venues.id, id))
-    .returning({ id: venues.id });
-  if (updated.length === 0) return { error: t("venueNotFound") };
+  const found = await db.transaction(async (tx) => {
+    const [before] = await tx
+      .select({ status: venues.status })
+      .from(venues)
+      .where(eq(venues.id, id))
+      .limit(1);
+    const updated = await tx
+      .update(venues)
+      .set({
+        status,
+        ...(status === "approved"
+          ? { approvedAt: new Date().toISOString() }
+          : {}),
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(venues.id, id))
+      .returning({
+        id: venues.id,
+        name: venues.name,
+        submittedByMemberId: venues.submittedByMemberId,
+      });
+    const row = updated[0];
+    if (!row) return false;
+    // Bấm lại cùng trạng thái không phải sự kiện mới.
+    if (before?.status !== status) {
+      await notifyVenueStatus(tx, {
+        venueId: row.id,
+        venueName: row.name,
+        status,
+        proposerId: row.submittedByMemberId,
+      });
+    }
+    return true;
+  });
+  if (!found) return { error: t("venueNotFound") };
   afterAdminVenueChange();
   return { success: true };
 }

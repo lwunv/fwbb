@@ -1,5 +1,9 @@
 "use server";
 
+import {
+  notifyMemberAccount,
+  notifySignupPending,
+} from "@/lib/notifications/account-events";
 import { db } from "@/db";
 import { members } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -95,19 +99,27 @@ export async function signupWithPassword(input: {
 
   const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
 
-  const [newMember] = await db
-    .insert(members)
-    .values({
-      name,
-      email,
-      passwordHash,
-      nickname,
-      phoneNumber,
-      bankAccountNo,
-      defaultWithPartner: input.defaultWithPartner === true,
-      approvalStatus: "pending",
-    })
-    .returning();
+  const newMember = await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(members)
+      .values({
+        name,
+        email,
+        passwordHash,
+        nickname,
+        phoneNumber,
+        bankAccountNo,
+        defaultWithPartner: input.defaultWithPartner === true,
+        approvalStatus: "pending",
+      })
+      .returning();
+    await notifySignupPending(tx, {
+      memberId: created.id,
+      provider: "password",
+      signupIntent: created.signupIntent,
+    });
+    return created;
+  });
 
   await setUserCookie(newMember.id, `pw:${newMember.id}`);
   revalidatePath("/");
@@ -272,16 +284,23 @@ export async function setPassword(input: {
   }
 
   const hash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
-  await db
-    .update(members)
-    .set({
-      passwordHash: hash,
-      ...(emailToSave ? { email: emailToSave } : {}),
-      // Đổi xong → gỡ chế độ bắt-đổi + xoá hạn mật khẩu tạm (nếu có).
-      mustChangePassword: false,
-      passwordResetExpiresAt: null,
-    })
-    .where(eq(members.id, member.id));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(members)
+      .set({
+        passwordHash: hash,
+        ...(emailToSave ? { email: emailToSave } : {}),
+        // Đổi xong → gỡ chế độ bắt-đổi + xoá hạn mật khẩu tạm (nếu có).
+        mustChangePassword: false,
+        passwordResetExpiresAt: null,
+      })
+      .where(eq(members.id, member.id));
+    await notifyMemberAccount(tx, {
+      kind: "password_changed",
+      memberId: member.id,
+      dedupBase: `pwd:m${member.id}`,
+    });
+  });
 
   revalidatePath("/me");
   revalidatePath("/");

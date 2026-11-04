@@ -15,6 +15,7 @@
  *    read-rồi-write) — an toàn kể cả 2 submit đồng thời.
  */
 
+import { notifyMemberAccount } from "@/lib/notifications/account-events";
 import { db } from "@/db";
 import { members, admins, passwordResetTokens } from "@/db/schema";
 import { eq, and, isNull, gt } from "drizzle-orm";
@@ -274,17 +275,25 @@ export async function resetPasswordWithToken(input: {
   const passwordHash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
 
   if (tokenRow?.memberId != null) {
-    await db
-      .update(members)
-      .set({
-        passwordHash,
-        // Đổi mật khẩu thật (self-service) → gỡ luôn cờ bắt-đổi + hạn mật
-        // khẩu tạm nếu có, tránh member bị loginWithPassword từ chối vì
-        // "mật khẩu tạm hết hạn" dù họ vừa tự đặt mật khẩu MỚI.
-        mustChangePassword: false,
-        passwordResetExpiresAt: null,
-      })
-      .where(eq(members.id, tokenRow.memberId));
+    const resetMemberId = tokenRow.memberId;
+    await db.transaction(async (tx) => {
+      await tx
+        .update(members)
+        .set({
+          passwordHash,
+          // Đổi mật khẩu thật (self-service) → gỡ luôn cờ bắt-đổi + hạn mật
+          // khẩu tạm nếu có, tránh member bị loginWithPassword từ chối vì
+          // "mật khẩu tạm hết hạn" dù họ vừa tự đặt mật khẩu MỚI.
+          mustChangePassword: false,
+          passwordResetExpiresAt: null,
+        })
+        .where(eq(members.id, resetMemberId));
+      await notifyMemberAccount(tx, {
+        kind: "password_changed",
+        memberId: resetMemberId,
+        dedupBase: `pwd:m${resetMemberId}`,
+      });
+    });
 
     // Vô hiệu các token còn lại của member (chống link song song).
     await db

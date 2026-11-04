@@ -13,6 +13,11 @@ import { foldOAuthIntoTarget } from "@/lib/oauth-identity";
 import { isExchangeEnabled } from "@/lib/exchange-flag";
 import { requireExchangeMember } from "@/lib/member-auth";
 import { isExchangeAccount } from "@/lib/exchange-account";
+import {
+  notifyGroupJoinRequest,
+  notifyMemberAccount,
+  repointNotifications,
+} from "@/lib/notifications/account-events";
 
 /** Helper: normalize Vietnamese name for fuzzy matching (lowercase + strip
  *  diacritics + collapse whitespace). Đủ cho UX gợi ý, không phải search engine. */
@@ -333,14 +338,26 @@ export async function approveMember(memberId: number) {
   if (member.approvalStatus === "approved") return { success: true };
 
   const adminId = parseInt(String(auth.admin.sub), 10) || null;
-  await db
-    .update(members)
-    .set({
-      approvalStatus: "approved",
-      approvedAt: new Date().toISOString(),
-      approvedBy: adminId,
-    })
-    .where(eq(members.id, memberId));
+  await db.transaction(async (tx) => {
+    const changed = await tx
+      .update(members)
+      .set({
+        approvalStatus: "approved",
+        approvedAt: new Date().toISOString(),
+        approvedBy: adminId,
+      })
+      .where(
+        and(eq(members.id, memberId), ne(members.approvalStatus, "approved")),
+      )
+      .returning({ id: members.id });
+    if (changed.length > 0) {
+      await notifyMemberAccount(tx, {
+        kind: "account_approved",
+        memberId,
+        dedupBase: `acct:approve:m${memberId}`,
+      });
+    }
+  });
 
   revalidatePath("/admin/members");
   revalidatePath("/pending-approval");
@@ -367,14 +384,26 @@ export async function rejectMember(memberId: number) {
   if (!member) return { error: t("memberNotFound") };
 
   const adminId = parseInt(String(auth.admin.sub), 10) || null;
-  await db
-    .update(members)
-    .set({
-      approvalStatus: "rejected",
-      approvedAt: new Date().toISOString(),
-      approvedBy: adminId,
-    })
-    .where(eq(members.id, memberId));
+  await db.transaction(async (tx) => {
+    const changed = await tx
+      .update(members)
+      .set({
+        approvalStatus: "rejected",
+        approvedAt: new Date().toISOString(),
+        approvedBy: adminId,
+      })
+      .where(
+        and(eq(members.id, memberId), ne(members.approvalStatus, "rejected")),
+      )
+      .returning({ id: members.id });
+    if (changed.length > 0) {
+      await notifyMemberAccount(tx, {
+        kind: "account_rejected",
+        memberId,
+        dedupBase: `acct:reject:m${memberId}`,
+      });
+    }
+  });
 
   revalidatePath("/admin/members");
   revalidatePath("/pending-approval");
@@ -483,7 +512,15 @@ export async function approveAndMergeMember(
     // signup) → hard delete safe. Phòng trường hợp họ đã vote ngay, dùng
     // mergeMember pattern sẽ an toàn hơn — nhưng pending users đáng lẽ bị
     // gate khỏi vote, nên hard delete OK.
+    // Tin đã gửi cho tài khoản chờ duyệt chuyển sang target trước khi xoá nó.
+    await repointNotifications(tx, pendingMemberId, targetMemberId);
     await tx.delete(members).where(eq(members.id, pendingMemberId));
+
+    await notifyMemberAccount(tx, {
+      kind: "account_merged",
+      memberId: targetMemberId,
+      dedupBase: `acct:merge:m${targetMemberId}`,
+    });
   });
 
   revalidatePath("/admin/members");
@@ -514,18 +551,28 @@ export async function declineGroupRequest(
     return { error: t("invalidId") };
   }
 
-  const updated = await db
-    .update(members)
-    .set({ signupIntent: "exchange" })
-    .where(
-      and(
-        eq(members.id, memberId),
-        eq(members.approvalStatus, "pending"),
-        eq(members.signupIntent, "group"),
-        eq(members.isActive, true),
-      ),
-    )
-    .returning({ id: members.id });
+  const updated = await db.transaction(async (tx) => {
+    const rows = await tx
+      .update(members)
+      .set({ signupIntent: "exchange" })
+      .where(
+        and(
+          eq(members.id, memberId),
+          eq(members.approvalStatus, "pending"),
+          eq(members.signupIntent, "group"),
+          eq(members.isActive, true),
+        ),
+      )
+      .returning({ id: members.id });
+    if (rows.length > 0) {
+      await notifyMemberAccount(tx, {
+        kind: "group_request_declined",
+        memberId,
+        dedupBase: `acct:decline:m${memberId}`,
+      });
+    }
+    return rows;
+  });
   if (updated.length === 0) {
     return {
       error: "Chỉ nhận được yêu cầu đang chờ duyệt của member đang hoạt động",
@@ -574,12 +621,16 @@ export async function requestGroupMembership(): Promise<
 
   // WHERE lặp lại điều kiện đã đọc: nếu admin vừa duyệt/từ chối giữa chừng thì
   // câu lệnh không khớp dòng nào thay vì ghi đè trạng thái mới.
-  await db
-    .update(members)
-    .set({ signupIntent: "group" })
-    .where(
-      and(eq(members.id, member.id), eq(members.approvalStatus, "pending")),
-    );
+  await db.transaction(async (tx) => {
+    const changed = await tx
+      .update(members)
+      .set({ signupIntent: "group" })
+      .where(
+        and(eq(members.id, member.id), eq(members.approvalStatus, "pending")),
+      )
+      .returning({ id: members.id });
+    if (changed.length > 0) await notifyGroupJoinRequest(tx, member.id);
+  });
 
   revalidatePath("/admin/members");
   revalidatePath("/giao-luu");

@@ -1,4 +1,5 @@
 import { db } from "@/db";
+import type { DbOrTx } from "@/db/tx";
 import { members, memberOauthIdentities } from "@/db/schema";
 import { and, eq, ne } from "drizzle-orm";
 
@@ -105,13 +106,16 @@ export async function oauthLinkState(
  * (trả về false — caller xử lý). Dùng để lazy-link lúc login (row cũ chỉ có
  * cột legacy) và khi tạo member mới qua OAuth.
  */
-export async function ensureOAuthIdentity(input: {
-  memberId: number;
-  provider: OAuthProvider;
-  uid: string;
-  email?: string | null;
-}): Promise<boolean> {
-  const existing = await db.query.memberOauthIdentities.findFirst({
+export async function ensureOAuthIdentity(
+  input: {
+    memberId: number;
+    provider: OAuthProvider;
+    uid: string;
+    email?: string | null;
+  },
+  conn: DbOrTx = db,
+): Promise<boolean> {
+  const existing = await conn.query.memberOauthIdentities.findFirst({
     where: and(
       eq(memberOauthIdentities.provider, input.provider),
       eq(memberOauthIdentities.providerUid, input.uid),
@@ -119,7 +123,7 @@ export async function ensureOAuthIdentity(input: {
     columns: { id: true, memberId: true },
   });
   if (existing) return existing.memberId === input.memberId;
-  await db.insert(memberOauthIdentities).values({
+  await conn.insert(memberOauthIdentities).values({
     memberId: input.memberId,
     provider: input.provider,
     providerUid: input.uid,

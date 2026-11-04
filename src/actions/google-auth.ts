@@ -1,5 +1,9 @@
 "use server";
 
+import {
+  notifyLoginMethod,
+  notifySignupPending,
+} from "@/lib/notifications/account-events";
 import { db } from "@/db";
 import { members } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -159,23 +163,34 @@ export async function googleLogin(idToken: string, opts?: GoogleLoginOptions) {
 
   // Create new member — pending admin approval. Khác với member admin tạo
   // trực tiếp (mặc định approved): OAuth signup phải qua approval flow.
-  const [newMember] = await db
-    .insert(members)
-    .values({
-      name: claims.name ?? "Google user",
-      googleId: claims.sub,
-      email: emailToWrite,
-      avatarUrl: claims.picture ?? null,
-      approvalStatus: "pending",
-      signupIntent: isExchange ? "exchange" : "group",
-    })
-    .returning();
+  const newMember = await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(members)
+      .values({
+        name: claims.name ?? "Google user",
+        googleId: claims.sub,
+        email: emailToWrite,
+        avatarUrl: claims.picture ?? null,
+        approvalStatus: "pending",
+        signupIntent: isExchange ? "exchange" : "group",
+      })
+      .returning();
 
-  await ensureOAuthIdentity({
-    memberId: newMember.id,
-    provider: "google",
-    uid: claims.sub,
-    email: claims.email ?? null,
+    await ensureOAuthIdentity(
+      {
+        memberId: created.id,
+        provider: "google",
+        uid: claims.sub,
+        email: claims.email ?? null,
+      },
+      tx,
+    );
+    await notifySignupPending(tx, {
+      memberId: created.id,
+      provider: "google",
+      signupIntent: created.signupIntent,
+    });
+    return created;
   });
   await setUserCookie(newMember.id, `g:${claims.sub}`);
   revalidatePath("/");
@@ -235,11 +250,26 @@ export async function linkGoogleIdentity(idToken: string) {
   // → ensureOAuthIdentity trả false hoặc ném lỗi unique → coi như đã thuộc nơi
   // khác/không link được.
   try {
-    const ok = await ensureOAuthIdentity({
-      memberId: user.memberId,
-      provider: "google",
-      uid: claims.sub,
-      email: claims.emailVerified ? (claims.email ?? null) : null,
+    const ok = await db.transaction(async (tx) => {
+      const linked = await ensureOAuthIdentity(
+        {
+          memberId: user.memberId,
+          provider: "google",
+          uid: claims.sub,
+          email: claims.emailVerified ? (claims.email ?? null) : null,
+        },
+        tx,
+      );
+      // Chỉ báo khi thật sự thêm mới, không báo khi backfill dòng đã có.
+      if (linked && state.state !== "self") {
+        await notifyLoginMethod(
+          tx,
+          "login_method_linked",
+          user.memberId,
+          "google",
+        );
+      }
+      return linked;
     });
     if (!ok) return { error: t("oauthLinkedToOther") };
   } catch {

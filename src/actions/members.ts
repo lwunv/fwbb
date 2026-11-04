@@ -41,6 +41,11 @@ import {
 } from "@/lib/oauth-identity";
 import { sendInviteEmail } from "@/lib/mailer";
 import {
+  notifyLoginMethod,
+  notifyMemberAccount,
+  repointNotifications,
+} from "@/lib/notifications/account-events";
+import {
   generateResetToken,
   inviteTokenExpiryIso,
 } from "@/lib/password-reset-token";
@@ -602,14 +607,22 @@ export async function resetMemberPassword(memberId: number) {
   const passwordHash = await bcrypt.hash(tempPassword, 12);
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
-  await db
-    .update(members)
-    .set({
-      passwordHash,
-      passwordResetExpiresAt: expiresAt,
-      mustChangePassword: true,
-    })
-    .where(eq(members.id, memberId));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(members)
+      .set({
+        passwordHash,
+        passwordResetExpiresAt: expiresAt,
+        mustChangePassword: true,
+      })
+      .where(eq(members.id, memberId));
+    await notifyMemberAccount(tx, {
+      kind: "password_changed",
+      memberId,
+      dedupBase: `pwd:m${memberId}`,
+      payload: { byAdmin: true },
+    });
+  });
 
   revalidatePath("/admin/members");
   // tempPassword chỉ trả về UI 1 lần — không lưu, không log.
@@ -1189,6 +1202,9 @@ export async function mergeMember(sourceId: number, targetId: number) {
       email: source.email,
     });
 
+    // 6c. Tin thông báo của source chuyển sang target.
+    await repointNotifications(tx, sourceId, targetId);
+
     // 7. Xóa member nguồn.
     await tx.delete(members).where(eq(members.id, sourceId));
   });
@@ -1264,6 +1280,12 @@ export async function unlinkOAuthIdentity(identityId: number) {
       if (remaining.length === 0 && !pwUsable) {
         throw new Error(ROLLBACK);
       }
+      await notifyLoginMethod(
+        tx,
+        "login_method_unlinked",
+        user.memberId,
+        identity.provider,
+      );
       // Dọn cột legacy nếu đang trỏ đúng uid vừa gỡ (fallback trong
       // findMemberByOAuth đọc cột này → phải clear để login qua uid đó tắt hẳn).
       if (identity.provider === "google") {
