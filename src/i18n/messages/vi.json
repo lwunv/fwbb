@@ -1707,7 +1707,7 @@
       },
       "member_dropped_late": {
         "title": "Có người bỏ chơi sát giờ",
-        "body": "{memberName} vừa bỏ chơi buổi {sessionDate} lúc {startTime}."
+        "body": "{memberName} vừa bỏ chơi buổi {sessionDate} lúc {startTime}. Còn {headcount}/{maxPlayers} người chơi."
       },
       "unvoted_before_deadline": {
         "title": "Còn người chưa vote",

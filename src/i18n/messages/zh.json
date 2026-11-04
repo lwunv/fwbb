@@ -1707,7 +1707,7 @@
       },
       "member_dropped_late": {
         "title": "有人临时退出",
-        "body": "{memberName} 退出了 {sessionDate} {startTime} 的场次。"
+        "body": "{memberName} 退出了 {sessionDate} {startTime} 的场次。现有 {headcount}/{maxPlayers} 人打球。"
       },
       "unvoted_before_deadline": {
         "title": "还有人没投票",

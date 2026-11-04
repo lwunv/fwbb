@@ -23,6 +23,13 @@ import {
   type SessionStatus,
 } from "@/lib/session-status";
 import { getTranslations } from "next-intl/server";
+import type { Tx } from "@/db/tx";
+import { isNotificationsEnabled } from "@/lib/notifications/notify";
+import {
+  evaluateCapacity,
+  notifyLateDropout,
+  notifyVoteEditedByAdmin,
+} from "@/lib/notifications/capacity";
 
 export async function submitVote(
   sessionId: number,
@@ -115,40 +122,58 @@ export async function submitVote(
   // dòng đó rỗng nghĩa. Giữ nó lại thì member rơi khỏi CẢ "đã vote" (cần
   // willPlay/willDine) LẪN "chưa vote" (coi là không có dòng), tức biến mất khỏi
   // danh sách. Xem splitMembersByVote ở lib/vote-list-utils.
-  if (!data.willPlay && !data.willDine) {
-    if (selfVote) {
-      await db.delete(votes).where(eq(votes.id, selfVote.id));
-    }
-  } else {
-    await db
-      .insert(votes)
-      .values({
-        sessionId: data.sessionId,
-        memberId: user.memberId,
-        willPlay: data.willPlay,
-        willDine: data.willDine,
-        guestPlayCount: 0,
-        guestDineCount: 0,
-        // Member không thêm được khách (bỏ từ 7/7/2026), nên cả tổng lẫn phần nữ
-        // đều ép 0 ở server, không tin tham số client gửi lên.
-        guestPlayFemaleCount: 0,
-        guestDineFemaleCount: 0,
-        withPartner: data.withPartner,
-      })
-      .onConflictDoUpdate({
-        target: [votes.sessionId, votes.memberId],
-        set: {
+  const token = new Date().toISOString();
+  await db.transaction(async (tx) => {
+    if (!data.willPlay && !data.willDine) {
+      if (selfVote) {
+        await tx.delete(votes).where(eq(votes.id, selfVote.id));
+      }
+    } else {
+      await tx
+        .insert(votes)
+        .values({
+          sessionId: data.sessionId,
+          memberId: user.memberId,
           willPlay: data.willPlay,
           willDine: data.willDine,
           guestPlayCount: 0,
           guestDineCount: 0,
+          // Member không thêm được khách (bỏ từ 7/7/2026), nên cả tổng lẫn phần
+          // nữ đều ép 0 ở server, không tin tham số client gửi lên.
           guestPlayFemaleCount: 0,
           guestDineFemaleCount: 0,
           withPartner: data.withPartner,
-          updatedAt: new Date().toISOString(),
-        },
-      });
-  }
+        })
+        .onConflictDoUpdate({
+          target: [votes.sessionId, votes.memberId],
+          set: {
+            willPlay: data.willPlay,
+            willDine: data.willDine,
+            guestPlayCount: 0,
+            guestDineCount: 0,
+            guestPlayFemaleCount: 0,
+            guestDineFemaleCount: 0,
+            withPartner: data.withPartner,
+            updatedAt: new Date().toISOString(),
+          },
+        });
+    }
+
+    // Tin ghi cùng transaction với vote (spec 4.9). Công tắc đọc 1 lần rồi
+    // truyền xuống, tắt thì không helper nào chạm bảng thông báo.
+    const on = await isNotificationsEnabled(tx);
+    if (selfVote?.willPlay && !data.willPlay) {
+      await notifyLateDropout(
+        tx,
+        data.sessionId,
+        user.memberId,
+        token,
+        undefined,
+        on,
+      );
+    }
+    await evaluateCapacity(tx, data.sessionId, undefined, on);
+  });
 
   revalidatePath("/");
   revalidatePath(`/vote/${data.sessionId}`);
@@ -170,6 +195,21 @@ async function assertSessionAllowsVoteEdits(sessionId: number) {
   const guard = assertEditable(session.status as SessionStatus);
   if (!guard.ok) return { error: guard.error } as const;
   return { session } as const;
+}
+
+/**
+ * Tin sau khi admin sửa vote của một member, chạy trong cùng transaction với
+ * lệnh ghi: báo chính member đó, rồi xét lại ngưỡng sân. Công tắc đọc 1 lần.
+ */
+async function notifyAdminVoteEdit(
+  tx: Tx,
+  sessionId: number,
+  memberId: number,
+) {
+  const on = await isNotificationsEnabled(tx);
+  const token = new Date().toISOString();
+  await notifyVoteEditedByAdmin(tx, sessionId, memberId, token, on);
+  await evaluateCapacity(tx, sessionId, undefined, on);
 }
 
 export async function adminSetVote(
@@ -194,35 +234,38 @@ export async function adminSetVote(
   const allow = await assertSessionAllowsVoteEdits(sessionId);
   if ("error" in allow) return allow;
 
-  await db
-    .insert(votes)
-    .values({
-      sessionId,
-      memberId,
-      willPlay,
-      willDine,
-      guestPlayCount: 0,
-      guestDineCount: 0,
-    })
-    .onConflictDoUpdate({
-      target: [votes.sessionId, votes.memberId],
-      set: {
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(votes)
+      .values({
+        sessionId,
+        memberId,
         willPlay,
         willDine,
-        // Atomically drop guests for a flag turned OFF — một member không
-        // chơi/nhậu thì không thể có khách chơi/nhậu. Làm ở ĐÂY (thay vì client
-        // gọi thêm adminSetGuestCount riêng) để bỏ desync: trước đây 2 request
-        // độc lập, nếu 1 cái fail thì finalize vẫn tính "ghost guest". finalize
-        // (buildAttendees) tạo guest theo guestPlayCount/DineCount không phụ
-        // thuộc willPlay/willDine nên phải zero ở đây mới thật sự không tính.
-        // Zero phần nữ TRONG CÙNG câu lệnh zero tổng khách. Tách ra 2 câu là
-        // 2 cơ hội để một câu thành công còn câu kia không, để lại khách nữ ma
-        // nhiều hơn tổng khách.
-        ...(willPlay ? {} : { guestPlayCount: 0, guestPlayFemaleCount: 0 }),
-        ...(willDine ? {} : { guestDineCount: 0, guestDineFemaleCount: 0 }),
-        updatedAt: new Date().toISOString(),
-      },
-    });
+        guestPlayCount: 0,
+        guestDineCount: 0,
+      })
+      .onConflictDoUpdate({
+        target: [votes.sessionId, votes.memberId],
+        set: {
+          willPlay,
+          willDine,
+          // Atomically drop guests for a flag turned OFF — một member không
+          // chơi/nhậu thì không thể có khách chơi/nhậu. Làm ở ĐÂY (thay vì client
+          // gọi thêm adminSetGuestCount riêng) để bỏ desync: trước đây 2 request
+          // độc lập, nếu 1 cái fail thì finalize vẫn tính "ghost guest". finalize
+          // (buildAttendees) tạo guest theo guestPlayCount/DineCount không phụ
+          // thuộc willPlay/willDine nên phải zero ở đây mới thật sự không tính.
+          // Zero phần nữ TRONG CÙNG câu lệnh zero tổng khách. Tách ra 2 câu là
+          // 2 cơ hội để một câu thành công còn câu kia không, để lại khách nữ ma
+          // nhiều hơn tổng khách.
+          ...(willPlay ? {} : { guestPlayCount: 0, guestPlayFemaleCount: 0 }),
+          ...(willDine ? {} : { guestDineCount: 0, guestDineFemaleCount: 0 }),
+          updatedAt: new Date().toISOString(),
+        },
+      });
+    await notifyAdminVoteEdit(tx, sessionId, memberId);
+  });
 
   revalidatePath(`/admin/sessions/${sessionId}`);
   revalidatePath("/");
@@ -259,10 +302,13 @@ export async function adminSetPartner(
   });
   if (!existing) return { error: "Vote not found" };
 
-  await db
-    .update(votes)
-    .set({ withPartner, updatedAt: new Date().toISOString() })
-    .where(eq(votes.id, existing.id));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(votes)
+      .set({ withPartner, updatedAt: new Date().toISOString() })
+      .where(eq(votes.id, existing.id));
+    await notifyAdminVoteEdit(tx, sessionId, memberId);
+  });
 
   revalidatePath(`/admin/sessions/${sessionId}`);
   revalidatePath("/");
@@ -307,16 +353,19 @@ export async function adminSetGuestCount(
   });
   if (!existing) return { error: "Vote not found" };
 
-  await db
-    .update(votes)
-    .set({
-      guestPlayCount: parsed.data.guestPlayCount,
-      guestDineCount: parsed.data.guestDineCount,
-      guestPlayFemaleCount: parsed.data.guestPlayFemaleCount,
-      guestDineFemaleCount: parsed.data.guestDineFemaleCount,
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(votes.id, existing.id));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(votes)
+      .set({
+        guestPlayCount: parsed.data.guestPlayCount,
+        guestDineCount: parsed.data.guestDineCount,
+        guestPlayFemaleCount: parsed.data.guestPlayFemaleCount,
+        guestDineFemaleCount: parsed.data.guestDineFemaleCount,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(votes.id, existing.id));
+    await notifyAdminVoteEdit(tx, sessionId, memberId);
+  });
 
   revalidatePath(`/admin/sessions/${sessionId}`);
   revalidatePath("/");
@@ -336,7 +385,10 @@ export async function adminRemoveVote(sessionId: number, memberId: number) {
       and(eq(v.sessionId, sessionId), eq(v.memberId, memberId)),
   });
   if (existing) {
-    await db.delete(votes).where(eq(votes.id, existing.id));
+    await db.transaction(async (tx) => {
+      await tx.delete(votes).where(eq(votes.id, existing.id));
+      await notifyAdminVoteEdit(tx, sessionId, memberId);
+    });
   }
   revalidatePath(`/admin/sessions/${sessionId}`);
   revalidatePath("/");

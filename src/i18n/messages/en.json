@@ -1707,7 +1707,7 @@
       },
       "member_dropped_late": {
         "title": "Late dropout",
-        "body": "{memberName} dropped out of the session on {sessionDate} at {startTime}."
+        "body": "{memberName} dropped out of the session on {sessionDate} at {startTime}. {headcount}/{maxPlayers} players are left."
       },
       "unvoted_before_deadline": {
         "title": "Some members have not voted",

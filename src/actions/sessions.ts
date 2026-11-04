@@ -47,6 +47,7 @@ import {
   shouldNotifyVoteReopened,
   type SessionChangeField,
 } from "@/lib/notifications/session-events";
+import { evaluateCapacity } from "@/lib/notifications/capacity";
 import {
   sendGroupMessage,
   buildNewSessionMessage,
@@ -1591,16 +1592,20 @@ export async function setAdminGuestCount(
   const editGuard = assertEditable(sessionRow.status as SessionStatus);
   if (!editGuard.ok) return { error: editGuard.error };
 
-  await db
-    .update(sessions)
-    .set({
-      adminGuestPlayCount: data.guestPlayCount,
-      adminGuestDineCount: data.guestDineCount,
-      adminGuestPlayFemaleCount: data.guestPlayFemaleCount,
-      adminGuestDineFemaleCount: data.guestDineFemaleCount,
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(sessions.id, data.sessionId));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(sessions)
+      .set({
+        adminGuestPlayCount: data.guestPlayCount,
+        adminGuestDineCount: data.guestDineCount,
+        adminGuestPlayFemaleCount: data.guestPlayFemaleCount,
+        adminGuestDineFemaleCount: data.guestDineFemaleCount,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(sessions.id, data.sessionId));
+    // Khách của admin tính vào số người chơi, nên xét lại ngưỡng sân.
+    await evaluateCapacity(tx, data.sessionId);
+  });
 
   revalidatePath(`/admin/sessions`);
   revalidatePath(`/admin/sessions/${data.sessionId}`);
@@ -1897,10 +1902,14 @@ export async function setSessionMaxPlayers(
   const guard = assertEditable(session.status as SessionStatus);
   if (!guard.ok) return { error: guard.error };
 
-  await db
-    .update(sessions)
-    .set({ maxPlayers, updatedAt: new Date().toISOString() })
-    .where(eq(sessions.id, sessionId));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(sessions)
+      .set({ maxPlayers, updatedAt: new Date().toISOString() })
+      .where(eq(sessions.id, sessionId));
+    // Đổi sức chứa thì bậc ngưỡng tính lại từ đầu cho sức chứa mới.
+    await evaluateCapacity(tx, sessionId);
+  });
 
   revalidatePath("/");
   revalidatePath(`/vote/${sessionId}`);

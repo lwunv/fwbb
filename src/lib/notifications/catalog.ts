@@ -55,7 +55,14 @@ export interface NotificationPayloads {
   vote_due_soon: SessionWhen & { hoursLeft: 24 | 2 };
   /** Hạn vote mới (giờ VN, `YYYY-MM-DDTHH:MM:SS`); null = không có hạn. */
   vote_reopened: SessionWhen & { voteDeadline: string | null };
-  vote_edited_by_admin: SessionWhen;
+  /** Vote MỚI của chính member (xoá vote thì tất cả false / 0). */
+  vote_edited_by_admin: SessionWhen & {
+    willPlay: boolean;
+    willDine: boolean;
+    withPartner: boolean;
+    guestPlayCount: number;
+    guestDineCount: number;
+  };
   /** Giá trị SAU khi đổi; `courtPrice` là tổng tiền sân (VND). */
   session_changed: SessionWhen & {
     fields: ("time" | "court" | "price")[];
@@ -96,7 +103,12 @@ export interface NotificationPayloads {
     courtLockAt: string;
   };
   low_attendance: SessionWhen & { headcount: number; maxPlayers: number };
-  member_dropped_late: SessionWhen & { memberName: string };
+  /** `headcount` = số người chơi còn lại sau khi bỏ. */
+  member_dropped_late: SessionWhen & {
+    memberName: string;
+    headcount: number;
+    maxPlayers: number;
+  };
   unvoted_before_deadline: SessionWhen & { names: string[] };
   member_reported_transfer: { memberName: string; amount: number };
   signup_pending: { memberName: string };
