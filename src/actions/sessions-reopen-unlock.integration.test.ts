@@ -252,6 +252,88 @@ describe("reopenSession (integration)", () => {
     }
     expect(await getFundBalance(memberId)).toEqual(startBalance);
   });
+
+  it("reopen never reverses a bank-payment balance contribution that carries the sessionId", async () => {
+    // Regression: the reopen lookup matched ANY live fund_contribution of the
+    // session, so the debt-balancing row written by the bank webhook (key
+    // `bank-payment-balance-*`) was reversed and the member's real payment
+    // vanished from their balance.
+    const memberId = await seedMember("Payer");
+    await seedAdmin(null);
+    const sId = await seedSession("confirmed");
+    const [bankRow] = await testDb
+      .insert(financialTransactions)
+      .values({
+        type: "fund_contribution",
+        direction: "in",
+        amount: 85_000,
+        memberId,
+        sessionId: sId,
+        description: "Cân bằng quỹ — đã trả nợ qua chuyển khoản",
+        metadataJson: JSON.stringify({ transId: "T1", balancesDebt: true }),
+        idempotencyKey: "bank-payment-balance-T1-1",
+      })
+      .returning({ id: financialTransactions.id });
+    const { getFundBalance } = await import("@/lib/fund-calculator");
+    const before = await getFundBalance(memberId);
+
+    expect(await cancelSession(sId)).toEqual({ success: true });
+    expect(await reopenSession(sId)).toEqual({ success: true });
+
+    const reversals = await testDb.query.financialTransactions.findMany({
+      where: eq(financialTransactions.reversalOfId, bankRow.id),
+    });
+    expect(reversals).toHaveLength(0);
+    expect(await getFundBalance(memberId)).toEqual(before);
+  });
+
+  it("reopen still reverses legacy pass rows (static key, or auto key with session_passed metadata)", async () => {
+    const memberId = await seedMember("Admin");
+    await seedAdmin(memberId);
+    const legacy: { sId: number; key: string }[] = [];
+    for (const [date, key] of [
+      ["2026-04-11", null],
+      ["2026-04-12", "legacy-tx-999"],
+    ] as const) {
+      const sId = await seedSession("cancelled", { date, passRevenue: 50_000 });
+      legacy.push({ sId, key: key ?? `session-pass-${sId}` });
+    }
+    for (const { sId, key } of legacy) {
+      await testDb.insert(financialTransactions).values({
+        type: "fund_contribution",
+        direction: "in",
+        amount: 50_000,
+        memberId,
+        sessionId: sId,
+        metadataJson: key.startsWith("legacy")
+          ? JSON.stringify({ source: "session_passed", sessionId: sId })
+          : null,
+        idempotencyKey: key,
+      });
+      expect(await reopenSession(sId)).toEqual({ success: true });
+      const txs = await testDb.query.financialTransactions.findMany({
+        where: eq(financialTransactions.sessionId, sId),
+      });
+      expect(txs.filter((t) => t.type === "fund_deduction")).toHaveLength(1);
+    }
+  });
+
+  it("reopen reversal carries a deterministic idempotency key", async () => {
+    const memberId = await seedMember("Admin");
+    await seedAdmin(memberId);
+    const sId = await seedSession("confirmed");
+    await cancelSession(sId, { passed: true, passRevenue: 90_000 });
+    expect(await reopenSession(sId)).toEqual({ success: true });
+
+    const txs = await testDb.query.financialTransactions.findMany({
+      where: eq(financialTransactions.sessionId, sId),
+    });
+    const contribution = txs.find((t) => t.type === "fund_contribution")!;
+    const reversal = txs.find((t) => t.reversalOfId === contribution.id)!;
+    expect(reversal.idempotencyKey).toBe(
+      `reopen-reverse-pass-${contribution.id}`,
+    );
+  });
 });
 
 describe("unlockSession (integration)", () => {

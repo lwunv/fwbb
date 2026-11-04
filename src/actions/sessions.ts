@@ -29,6 +29,7 @@ import {
   notInArray,
   like,
   or,
+  sql,
 } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
@@ -688,17 +689,29 @@ export async function reopenSession(sessionId: number) {
     return { error: t("onlyCancelledCanReopen") };
   }
 
-  // Tìm pass-sân contribution gốc (nếu có) — match theo sessionId + type +
-  // direction để chắc chắn không reverse nhầm transaction khác. Mỗi vòng
-  // hủy(pass) → mở lại sinh một contribution mới, nên phải lấy cái MỚI NHẤT
-  // chưa bị đảo. Trước đây findFirst không orderBy nhặt contribution của vòng
-  // đầu (đã đảo), bỏ qua, và để nguyên tiền pass vòng sau trong quỹ admin.
+  // Tìm pass-sân contribution do cancelSession ghi. Chỉ nhận dòng pass: key
+  // `session-pass-${id}-${seed}` (hiện tại) hoặc `session-pass-${id}` (bản cũ),
+  // hoặc metadata.source = "session_passed" (dòng cũ nhận key tự sinh). Buổi
+  // còn có fund_contribution khác mang sessionId (vd dòng cân bằng nợ của
+  // webhook ngân hàng, key `bank-payment-balance-*`) mà mở lại buổi KHÔNG được
+  // đảo, giống unlockSession. Mỗi vòng hủy(pass) → mở lại sinh một contribution
+  // mới, nên lấy cái MỚI NHẤT chưa bị đảo (findFirst không orderBy trước đây
+  // nhặt dòng của vòng đầu đã đảo và bỏ sót tiền pass vòng sau).
   const passContributions = await db.query.financialTransactions.findMany({
     where: and(
       eq(financialTransactions.sessionId, sessionId),
       eq(financialTransactions.type, "fund_contribution"),
       eq(financialTransactions.direction, "in"),
       isNull(financialTransactions.reversalOfId),
+      or(
+        like(
+          financialTransactions.idempotencyKey,
+          `session-pass-${sessionId}-%`,
+        ),
+        eq(financialTransactions.idempotencyKey, `session-pass-${sessionId}`),
+        // json_valid trước: một dòng metadata hỏng không được làm hỏng cả truy vấn.
+        sql`CASE WHEN json_valid(${financialTransactions.metadataJson}) THEN json_extract(${financialTransactions.metadataJson}, '$.source') END = 'session_passed'`,
+      ),
     ),
     orderBy: [desc(financialTransactions.id)],
   });
@@ -734,6 +747,9 @@ export async function reopenSession(sessionId: number) {
             reversalOfId: passContribution.id,
             description: `Reverse pass-sân buổi ${session.date} — mở lại buổi`,
             metadata: { source: "session_reopened", sessionId },
+            // Khoá cố định theo dòng gốc (như `unlock-reverse-*`): UNIQUE
+            // index chặn ghi đảo hai lần cho cùng một contribution.
+            idempotencyKey: `reopen-reverse-pass-${passContribution.id}`,
           },
           tx,
         );
