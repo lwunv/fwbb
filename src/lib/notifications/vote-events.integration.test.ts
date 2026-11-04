@@ -144,6 +144,11 @@ async function rows(kind: string) {
   return all.filter((r) => r.kind === kind);
 }
 
+const markAllRead = () =>
+  client.execute(
+    "UPDATE notifications SET read_at = '2026-01-01T00:00:00.000Z' WHERE read_at IS NULL",
+  );
+
 const ranks = async () =>
   (await rows("capacity_alert")).map((r) => [
     (r.payload as { rank: number }).rank,
@@ -368,8 +373,12 @@ describe("vote edited by admin", () => {
     const [a] = await addMembers(1);
     const sid = await addSession({ date: "2026-12-27", maxPlayers: 16 });
 
+    // Member đọc tin sau mỗi lần sửa: tin chưa đọc được gộp (test bên dưới),
+    // nên phải đọc thì mỗi action mới ra một dòng riêng.
     await adminSetVote(sid, a, true, true);
+    await markAllRead();
     await adminSetPartner(sid, a, true);
+    await markAllRead();
     await adminRemoveVote(sid, a);
     const edits = (await rows("vote_edited_by_admin")).map((r) => r.payload);
     const when = { sessionDate: "2026-12-27", startTime: "20:30" };
@@ -399,6 +408,86 @@ describe("vote edited by admin", () => {
         guestDineCount: 0,
       },
     ]);
+  });
+
+  it("5 stepper taps while the notice is unread leave one row with the final counts", async () => {
+    await enableNotificationsForTest(testDb);
+    const [a] = await addMembers(1);
+    const sid = await addSession({ date: "2026-12-28", maxPlayers: 16 });
+    await seedPlayVotes(sid, [a]);
+
+    for (const n of [1, 2, 3, 4, 3]) {
+      expect(await adminSetGuestCount(sid, a, n, 0)).toEqual({
+        success: true,
+      });
+    }
+    const edits = await rows("vote_edited_by_admin");
+    expect(edits).toHaveLength(1);
+    expect(edits[0].payload).toMatchObject({
+      willPlay: true,
+      guestPlayCount: 3,
+      guestDineCount: 0,
+    });
+  });
+
+  it("the coalesced notice moves to the top: createdAt follows the latest edit", async () => {
+    await enableNotificationsForTest(testDb);
+    const [a] = await addMembers(1);
+    const sid = await addSession({ date: "2026-12-28", maxPlayers: 16 });
+    await seedPlayVotes(sid, [a]);
+
+    await adminSetGuestCount(sid, a, 1, 0);
+    await client.execute(
+      "UPDATE notifications SET created_at = '2020-01-01T00:00:00.000Z'",
+    );
+    await adminSetGuestCount(sid, a, 2, 0);
+    const [row] = await testDb
+      .select({ createdAt: notifications.createdAt })
+      .from(notifications)
+      .where(eq(notifications.kind, "vote_edited_by_admin"));
+    expect(row.createdAt > "2020-01-01T00:00:00.000Z").toBe(true);
+  });
+
+  it("an edit after the member read the notice creates a new row", async () => {
+    await enableNotificationsForTest(testDb);
+    const [a] = await addMembers(1);
+    const sid = await addSession({ date: "2026-12-28", maxPlayers: 16 });
+    await seedPlayVotes(sid, [a]);
+
+    await adminSetGuestCount(sid, a, 1, 0);
+    await markAllRead();
+    await adminSetGuestCount(sid, a, 2, 0);
+    const edits = await rows("vote_edited_by_admin");
+    expect(edits.map((r) => r.payload.guestPlayCount)).toEqual([1, 2]);
+  });
+
+  it("an unread notice for another session is not reused", async () => {
+    await enableNotificationsForTest(testDb);
+    const [a] = await addMembers(1);
+    const s1 = await addSession({ date: "2026-12-28", maxPlayers: 16 });
+    const s2 = await addSession({ date: "2026-12-29", maxPlayers: 16 });
+    await seedPlayVotes(s1, [a]);
+    await seedPlayVotes(s2, [a]);
+
+    await adminSetGuestCount(s1, a, 1, 0);
+    await adminSetGuestCount(s2, a, 2, 0);
+    const edits = await rows("vote_edited_by_admin");
+    expect(edits.map((r) => r.payload.sessionDate)).toEqual([
+      "2026-12-28",
+      "2026-12-29",
+    ]);
+  });
+
+  it("a write that leaves the vote unchanged sends nothing", async () => {
+    await enableNotificationsForTest(testDb);
+    const [a] = await addMembers(1);
+    const sid = await addSession({ date: "2026-12-28", maxPlayers: 16 });
+    await seedPlayVotes(sid, [a]);
+
+    expect(await adminSetGuestCount(sid, a, 0, 0)).toEqual({ success: true });
+    expect(await adminSetVote(sid, a, true, false)).toEqual({ success: true });
+    expect(await adminSetPartner(sid, a, false)).toEqual({ success: true });
+    expect(await rows("vote_edited_by_admin")).toHaveLength(0);
   });
 });
 

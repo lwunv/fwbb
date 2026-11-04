@@ -1,4 +1,4 @@
-import { and, eq, gte, lt } from "drizzle-orm";
+import { and, eq, gte, isNull, lt } from "drizzle-orm";
 import {
   appSettings,
   members,
@@ -244,21 +244,24 @@ export async function notifyLateDropout(
   });
 }
 
+/** Phần vote member thấy trong tin "admin sửa vote"; `null` = chưa có vote. */
+export type AdminEditedVote = {
+  willPlay: boolean;
+  willDine: boolean;
+  withPartner: boolean;
+  guestPlayCount: number;
+  guestDineCount: number;
+} | null;
+
 /**
- * Admin vừa sửa vote của member: gửi cho chính member đó vote mới của họ (chỉ
- * dữ liệu của họ). Gọi SAU lệnh ghi; không còn dòng vote nghĩa là đã bị xoá,
- * gửi tất cả false.
+ * Đọc vote của member theo đúng các trường có trong tin. Action gọi trước lệnh
+ * ghi (chỉ khi công tắc bật) để so với vote sau khi ghi.
  */
-export async function notifyVoteEditedByAdmin(
+export async function readAdminEditedVote(
   db: DbOrTx,
   sessionId: number,
   memberId: number,
-  token: string,
-  gate?: boolean,
-): Promise<void> {
-  if (!(await enabled(db, gate))) return;
-  const s = await loadSession(db, sessionId);
-  if (!s) return;
+): Promise<AdminEditedVote> {
   const [v] = await db
     .select({
       willPlay: votes.willPlay,
@@ -270,19 +273,93 @@ export async function notifyVoteEditedByAdmin(
     .from(votes)
     .where(and(eq(votes.sessionId, sessionId), eq(votes.memberId, memberId)))
     .limit(1);
+  if (!v) return null;
+  return {
+    willPlay: v.willPlay ?? false,
+    willDine: v.willDine ?? false,
+    withPartner: v.withPartner ?? false,
+    guestPlayCount: v.guestPlayCount ?? 0,
+    guestDineCount: v.guestDineCount ?? 0,
+  };
+}
+
+function sameVote(a: AdminEditedVote, b: AdminEditedVote): boolean {
+  if (a === null || b === null) return a === b;
+  return (
+    a.willPlay === b.willPlay &&
+    a.willDine === b.willDine &&
+    a.withPartner === b.withPartner &&
+    a.guestPlayCount === b.guestPlayCount &&
+    a.guestDineCount === b.guestDineCount
+  );
+}
+
+/**
+ * Admin vừa sửa vote của member: gửi cho chính member đó vote mới của họ (chỉ
+ * dữ liệu của họ). Gọi SAU lệnh ghi với `previous` đọc TRƯỚC lệnh ghi.
+ *
+ * Màn admin gọi một action cho mỗi lần bấm (stepper khách bấm 3 lần là 3 lần
+ * ghi), mà tin này bắt buộc nên member không tắt được. Vì vậy:
+ * - vote sau khi ghi giống hệt trước (so trên các trường của tin) thì không gửi;
+ * - member còn một tin này CHƯA ĐỌC cho cùng buổi thì sửa nội dung và đẩy
+ *   `created_at` của dòng đó lên, không thêm dòng. Đọc rồi thì lần sửa sau ra
+ *   dòng mới với token mới, nên dedup vẫn là "một tin cho một lần member cần
+ *   biết". Dòng gộp giữ nguyên `dedup_key` của lần đầu.
+ * Không còn dòng vote nghĩa là đã bị xoá, gửi tất cả false.
+ */
+export async function notifyVoteEditedByAdmin(
+  db: DbOrTx,
+  sessionId: number,
+  memberId: number,
+  token: string,
+  previous: AdminEditedVote,
+  gate?: boolean,
+  now: Date = new Date(),
+): Promise<void> {
+  if (!(await enabled(db, gate))) return;
+  const current = await readAdminEditedVote(db, sessionId, memberId);
+  if (sameVote(previous, current)) return;
+  const s = await loadSession(db, sessionId);
+  if (!s) return;
+  const payload = {
+    sessionDate: s.date,
+    startTime: s.startTime,
+    willPlay: current?.willPlay ?? false,
+    willDine: current?.willDine ?? false,
+    withPartner: current?.withPartner ?? false,
+    guestPlayCount: current?.guestPlayCount ?? 0,
+    guestDineCount: current?.guestDineCount ?? 0,
+  };
+
+  // Khoảng trên index unique của dedup_key, như `highestSentRank`: gồm mọi
+  // khoá `vedit:s{sid}:m{mid}:...` mà không dính `m{mid}0`.
+  const prefix = `vedit:s${sessionId}:m${memberId}`;
+  const [unread] = await db
+    .select({ id: notifications.id })
+    .from(notifications)
+    .where(
+      and(
+        gte(notifications.dedupKey, `${prefix}:`),
+        lt(notifications.dedupKey, `${prefix};`),
+        isNull(notifications.readAt),
+      ),
+    )
+    .limit(1);
+  if (unread) {
+    await db
+      .update(notifications)
+      .set({ payload, createdAt: now.toISOString() })
+      .where(eq(notifications.id, unread.id));
+    return;
+  }
+
   await notify(db, {
     kind: "vote_edited_by_admin",
     recipients: [{ type: "member", id: memberId }],
-    payload: {
-      sessionDate: s.date,
-      startTime: s.startTime,
-      willPlay: v?.willPlay ?? false,
-      willDine: v?.willDine ?? false,
-      withPartner: v?.withPartner ?? false,
-      guestPlayCount: v?.guestPlayCount ?? 0,
-      guestDineCount: v?.guestDineCount ?? 0,
-    },
-    dedupBase: `vedit:s${sessionId}:m${memberId}:${token}`,
+    payload,
+    dedupBase: `${prefix}:${token}`,
     entity: sessionEntity(sessionId),
+    now,
+    gate: true,
   });
 }

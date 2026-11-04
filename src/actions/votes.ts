@@ -29,6 +29,7 @@ import {
   evaluateCapacity,
   notifyLateDropout,
   notifyVoteEditedByAdmin,
+  readAdminEditedVote,
 } from "@/lib/notifications/capacity";
 
 export async function submitVote(
@@ -198,17 +199,23 @@ async function assertSessionAllowsVoteEdits(sessionId: number) {
 }
 
 /**
- * Tin sau khi admin sửa vote của một member, chạy trong cùng transaction với
- * lệnh ghi: báo chính member đó, rồi xét lại ngưỡng sân. Công tắc đọc 1 lần.
+ * Lệnh ghi vote của admin kèm tin, trong cùng transaction: đọc công tắc 1 lần,
+ * bật thì chụp vote trước khi ghi để tin chỉ gửi khi vote thật sự đổi (và gộp
+ * vào tin chưa đọc, xem `notifyVoteEditedByAdmin`), rồi xét lại ngưỡng sân.
  */
-async function notifyAdminVoteEdit(
+async function writeAdminVoteEdit(
   tx: Tx,
   sessionId: number,
   memberId: number,
+  write: () => Promise<unknown>,
 ) {
   const on = await isNotificationsEnabled(tx);
+  const previous = on
+    ? await readAdminEditedVote(tx, sessionId, memberId)
+    : null;
+  await write();
   const token = new Date().toISOString();
-  await notifyVoteEditedByAdmin(tx, sessionId, memberId, token, on);
+  await notifyVoteEditedByAdmin(tx, sessionId, memberId, token, previous, on);
   await evaluateCapacity(tx, sessionId, undefined, on);
 }
 
@@ -235,36 +242,37 @@ export async function adminSetVote(
   if ("error" in allow) return allow;
 
   await db.transaction(async (tx) => {
-    await tx
-      .insert(votes)
-      .values({
-        sessionId,
-        memberId,
-        willPlay,
-        willDine,
-        guestPlayCount: 0,
-        guestDineCount: 0,
-      })
-      .onConflictDoUpdate({
-        target: [votes.sessionId, votes.memberId],
-        set: {
+    await writeAdminVoteEdit(tx, sessionId, memberId, () =>
+      tx
+        .insert(votes)
+        .values({
+          sessionId,
+          memberId,
           willPlay,
           willDine,
-          // Atomically drop guests for a flag turned OFF — một member không
-          // chơi/nhậu thì không thể có khách chơi/nhậu. Làm ở ĐÂY (thay vì client
-          // gọi thêm adminSetGuestCount riêng) để bỏ desync: trước đây 2 request
-          // độc lập, nếu 1 cái fail thì finalize vẫn tính "ghost guest". finalize
-          // (buildAttendees) tạo guest theo guestPlayCount/DineCount không phụ
-          // thuộc willPlay/willDine nên phải zero ở đây mới thật sự không tính.
-          // Zero phần nữ TRONG CÙNG câu lệnh zero tổng khách. Tách ra 2 câu là
-          // 2 cơ hội để một câu thành công còn câu kia không, để lại khách nữ ma
-          // nhiều hơn tổng khách.
-          ...(willPlay ? {} : { guestPlayCount: 0, guestPlayFemaleCount: 0 }),
-          ...(willDine ? {} : { guestDineCount: 0, guestDineFemaleCount: 0 }),
-          updatedAt: new Date().toISOString(),
-        },
-      });
-    await notifyAdminVoteEdit(tx, sessionId, memberId);
+          guestPlayCount: 0,
+          guestDineCount: 0,
+        })
+        .onConflictDoUpdate({
+          target: [votes.sessionId, votes.memberId],
+          set: {
+            willPlay,
+            willDine,
+            // Atomically drop guests for a flag turned OFF — một member không
+            // chơi/nhậu thì không thể có khách chơi/nhậu. Làm ở ĐÂY (thay vì client
+            // gọi thêm adminSetGuestCount riêng) để bỏ desync: trước đây 2 request
+            // độc lập, nếu 1 cái fail thì finalize vẫn tính "ghost guest". finalize
+            // (buildAttendees) tạo guest theo guestPlayCount/DineCount không phụ
+            // thuộc willPlay/willDine nên phải zero ở đây mới thật sự không tính.
+            // Zero phần nữ TRONG CÙNG câu lệnh zero tổng khách. Tách ra 2 câu là
+            // 2 cơ hội để một câu thành công còn câu kia không, để lại khách nữ ma
+            // nhiều hơn tổng khách.
+            ...(willPlay ? {} : { guestPlayCount: 0, guestPlayFemaleCount: 0 }),
+            ...(willDine ? {} : { guestDineCount: 0, guestDineFemaleCount: 0 }),
+            updatedAt: new Date().toISOString(),
+          },
+        }),
+    );
   });
 
   revalidatePath(`/admin/sessions/${sessionId}`);
@@ -303,11 +311,12 @@ export async function adminSetPartner(
   if (!existing) return { error: "Vote not found" };
 
   await db.transaction(async (tx) => {
-    await tx
-      .update(votes)
-      .set({ withPartner, updatedAt: new Date().toISOString() })
-      .where(eq(votes.id, existing.id));
-    await notifyAdminVoteEdit(tx, sessionId, memberId);
+    await writeAdminVoteEdit(tx, sessionId, memberId, () =>
+      tx
+        .update(votes)
+        .set({ withPartner, updatedAt: new Date().toISOString() })
+        .where(eq(votes.id, existing.id)),
+    );
   });
 
   revalidatePath(`/admin/sessions/${sessionId}`);
@@ -354,17 +363,18 @@ export async function adminSetGuestCount(
   if (!existing) return { error: "Vote not found" };
 
   await db.transaction(async (tx) => {
-    await tx
-      .update(votes)
-      .set({
-        guestPlayCount: parsed.data.guestPlayCount,
-        guestDineCount: parsed.data.guestDineCount,
-        guestPlayFemaleCount: parsed.data.guestPlayFemaleCount,
-        guestDineFemaleCount: parsed.data.guestDineFemaleCount,
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(votes.id, existing.id));
-    await notifyAdminVoteEdit(tx, sessionId, memberId);
+    await writeAdminVoteEdit(tx, sessionId, memberId, () =>
+      tx
+        .update(votes)
+        .set({
+          guestPlayCount: parsed.data.guestPlayCount,
+          guestDineCount: parsed.data.guestDineCount,
+          guestPlayFemaleCount: parsed.data.guestPlayFemaleCount,
+          guestDineFemaleCount: parsed.data.guestDineFemaleCount,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(votes.id, existing.id)),
+    );
   });
 
   revalidatePath(`/admin/sessions/${sessionId}`);
@@ -386,8 +396,9 @@ export async function adminRemoveVote(sessionId: number, memberId: number) {
   });
   if (existing) {
     await db.transaction(async (tx) => {
-      await tx.delete(votes).where(eq(votes.id, existing.id));
-      await notifyAdminVoteEdit(tx, sessionId, memberId);
+      await writeAdminVoteEdit(tx, sessionId, memberId, () =>
+        tx.delete(votes).where(eq(votes.id, existing.id)),
+      );
     });
   }
   revalidatePath(`/admin/sessions/${sessionId}`);
