@@ -9,22 +9,29 @@ import {
 } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  NuqsTestingAdapter,
+  type OnUrlUpdateFunction,
+} from "nuqs/adapters/testing";
 import viMessages from "@/i18n/messages/vi.json";
 
 type Result = { success: true } | { error: string };
 
 const h = vi.hoisted(() => ({
   toastError: vi.fn(),
+  toastSuccess: vi.fn(),
   get: vi.fn(),
   update: vi.fn(),
+  verify: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({
-  toast: { error: h.toastError, success: vi.fn() },
+  toast: { error: h.toastError, success: h.toastSuccess },
 }));
 vi.mock("@/actions/notifications", () => ({
   getMyNotificationPrefs: h.get,
   updateMyNotificationPrefs: h.update,
+  requestNotifyEmailVerification: h.verify,
 }));
 
 const { NotificationPrefsSection } =
@@ -49,16 +56,20 @@ function deferredUpdates() {
   return calls;
 }
 
-function setup() {
+function setup(
+  url: { searchParams?: string; onUrlUpdate?: OnUrlUpdateFunction } = {},
+) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   render(
-    <QueryClientProvider client={qc}>
-      <NextIntlClientProvider locale="vi" messages={viMessages}>
-        <NotificationPrefsSection scope="member" />
-      </NextIntlClientProvider>
-    </QueryClientProvider>,
+    <NuqsTestingAdapter {...url}>
+      <QueryClientProvider client={qc}>
+        <NextIntlClientProvider locale="vi" messages={viMessages}>
+          <NotificationPrefsSection scope="member" />
+        </NextIntlClientProvider>
+      </QueryClientProvider>
+    </NuqsTestingAdapter>,
   );
   return qc;
 }
@@ -74,6 +85,8 @@ const muted = (qc: QueryClient) =>
 
 beforeEach(() => {
   h.toastError.mockReset();
+  h.toastSuccess.mockReset();
+  h.verify.mockReset();
   h.get.mockReset().mockResolvedValue(prefs([]));
   h.update.mockReset();
 });
@@ -147,5 +160,63 @@ describe("NotificationPrefsSection", () => {
     fireEvent.click(retry);
     await screen.findByRole("switch", { name: groups.session });
     expect(h.get).toHaveBeenCalledTimes(2);
+  });
+  it("?email=verified from the mail link opens the card, toasts once and clears the param through the URL state", async () => {
+    const onUrlUpdate = vi.fn<OnUrlUpdateFunction>();
+    setup({ searchParams: "?email=verified&tab=x", onUrlUpdate });
+    // Thẻ tự mở: thấy công tắc mà không cần bấm tiêu đề.
+    await screen.findByRole("switch", { name: groups.session });
+    expect(h.toastSuccess).toHaveBeenCalledTimes(1);
+    expect(h.toastSuccess).toHaveBeenCalledWith(
+      viMessages.notifications.prefs.emailVerifiedToast,
+    );
+    await waitFor(() => expect(onUrlUpdate).toHaveBeenCalled());
+    const last = onUrlUpdate.mock.calls.at(-1)![0];
+    expect(last.searchParams.get("email")).toBeNull();
+    expect(last.searchParams.get("tab")).toBe("x");
+  });
+
+  it("?email=invalid shows the error toast; other values are ignored", async () => {
+    setup({ searchParams: "?email=invalid" });
+    await screen.findByRole("switch", { name: groups.session });
+    expect(h.toastError).toHaveBeenCalledWith(
+      viMessages.notifications.prefs.emailInvalidToast,
+    );
+    cleanup();
+    h.toastError.mockReset();
+    setup({ searchParams: "?email=weird" });
+    await waitFor(() => expect(h.get).toHaveBeenCalled());
+    expect(h.toastError).not.toHaveBeenCalled();
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("the send-verification button shows a spinner and is locked while sending", async () => {
+    h.get.mockResolvedValue({
+      ...prefs([]),
+      email: "me@example.com",
+      emailVerified: false,
+    });
+    let finish!: (r: Result) => void;
+    h.verify.mockImplementation(
+      () => new Promise<Result>((resolve) => (finish = resolve)),
+    );
+    setup();
+    await openCard();
+    const send = screen.getByRole("button", {
+      name: viMessages.notifications.prefs.emailSend,
+    });
+    fireEvent.click(send);
+    const busy = await screen.findByRole("button", {
+      name: viMessages.notifications.prefs.emailSending,
+    });
+    expect((busy as HTMLButtonElement).disabled).toBe(true);
+    expect(busy.querySelector("svg.animate-spin")).not.toBeNull();
+    finish({ success: true });
+    await screen.findByRole("button", {
+      name: viMessages.notifications.prefs.emailSend,
+    });
+    expect(h.toastSuccess).toHaveBeenCalledWith(
+      viMessages.notifications.prefs.emailSent,
+    );
   });
 });

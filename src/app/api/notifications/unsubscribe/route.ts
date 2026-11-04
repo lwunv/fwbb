@@ -33,7 +33,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 }
 
-/** GET không đổi gì (máy quét link trong mail hay mở trước): trang xác nhận ở /huy-nhan-thong-bao. */
-export function GET(): NextResponse {
-  return new NextResponse(null, { status: 405, headers: { Allow: "POST" } });
+/**
+ * GET không đổi gì (máy quét link trong mail hay mở trước). Mail client không
+ * làm POST một chạm thì mở link này trong trình duyệt: chuyển (303) sang trang
+ * xác nhận /huy-nhan-thong-bao, ở đó người nhận tự bấm nút.
+ */
+export function GET(request: NextRequest): NextResponse {
+  const target = new URL("/huy-nhan-thong-bao", request.nextUrl.origin);
+  const token = request.nextUrl.searchParams.get("token");
+  if (token) target.searchParams.set("token", token);
+  return NextResponse.redirect(target, 303);
 }

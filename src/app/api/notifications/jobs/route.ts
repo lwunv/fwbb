@@ -6,6 +6,9 @@ import { isNotificationsEnabled } from "@/lib/notifications/gate";
 import { runJob } from "@/lib/notifications/jobs";
 import { verifyQstashRequest } from "@/lib/notifications/qstash";
 
+// Job outbox_retry gửi tới 50 mail, mỗi mail một kết nối SMTP: cần hơn mặc định.
+export const maxDuration = 60;
+
 function parseBody(raw: string): { jobKey: string; runAt: string } | null {
   try {
     const body: unknown = JSON.parse(raw);

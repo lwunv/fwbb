@@ -4,34 +4,38 @@ import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { motion } from "framer-motion";
-import { Loader2, MailX } from "lucide-react";
-import { toast } from "sonner";
+import { MailX } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { fireAction } from "@/lib/optimistic-action";
 
 type Phase = "idle" | "done";
+
+const profileLinkClass =
+  "text-primary inline-flex min-h-11 items-center justify-center rounded-xl px-4 text-base font-medium underline-offset-4 hover:underline";
 
 export function UnsubscribeCard({ token }: { token: string }) {
   const t = useTranslations("notifications.unsubscribe");
   const [phase, setPhase] = useState<Phase>("idle");
-  const [pending, setPending] = useState(false);
 
-  async function unsubscribe() {
-    if (pending) return;
-    setPending(true);
-    // Optimistic: hiện kết quả ngay, quay lại nút nếu máy chủ từ chối.
+  function unsubscribe() {
+    // Optimistic: hiện kết quả ngay (nút biến mất nên không bấm lặp được).
+    // fireAction thử lại một lần khi lỗi mạng thoáng qua, hết lượt thì quay
+    // lại nút và báo lỗi. POST lặp lại an toàn (chỉ đặt cờ về false).
     setPhase("done");
-    try {
-      const res = await fetch(
-        `/api/notifications/unsubscribe?token=${encodeURIComponent(token)}`,
-        { method: "POST" },
-      );
-      if (!res.ok) throw new Error(String(res.status));
-    } catch {
-      setPhase("idle");
-      toast.error(t("failed"));
-    } finally {
-      setPending(false);
-    }
+    fireAction(
+      async () => {
+        try {
+          const res = await fetch(
+            `/api/notifications/unsubscribe?token=${encodeURIComponent(token)}`,
+            { method: "POST" },
+          );
+          return res.ok ? undefined : { error: t("failed") };
+        } catch {
+          return { error: t("failed") };
+        }
+      },
+      () => setPhase("idle"),
+    );
   }
 
   return (
@@ -43,14 +47,19 @@ export function UnsubscribeCard({ token }: { token: string }) {
       <div className="bg-primary/10 text-primary mx-auto flex size-14 items-center justify-center rounded-full">
         <MailX className="size-7" aria-hidden />
       </div>
-      {phase === "done" ? (
+      {token === "" ? (
+        <div className="space-y-4">
+          <h1 className="text-xl font-semibold">{t("invalidTitle")}</h1>
+          <p className="text-muted-foreground text-base">{t("invalidBody")}</p>
+          <Link href="/me" className={profileLinkClass}>
+            {t("openProfile")}
+          </Link>
+        </div>
+      ) : phase === "done" ? (
         <div className="space-y-4" role="status">
           <h1 className="text-xl font-semibold">{t("doneTitle")}</h1>
           <p className="text-muted-foreground text-base">{t("doneBody")}</p>
-          <Link
-            href="/me"
-            className="text-primary inline-flex min-h-11 items-center justify-center rounded-xl px-4 text-base font-medium underline-offset-4 hover:underline"
-          >
+          <Link href="/me" className={profileLinkClass}>
             {t("reenable")}
           </Link>
         </div>
@@ -58,13 +67,7 @@ export function UnsubscribeCard({ token }: { token: string }) {
         <div className="space-y-4">
           <h1 className="text-xl font-semibold">{t("title")}</h1>
           <p className="text-muted-foreground text-base">{t("body")}</p>
-          <Button
-            size="lg"
-            className="w-full"
-            onClick={unsubscribe}
-            disabled={pending || token === ""}
-          >
-            {pending && <Loader2 className="animate-spin" aria-hidden />}
+          <Button size="lg" className="w-full" onClick={unsubscribe}>
             {t("button")}
           </Button>
         </div>

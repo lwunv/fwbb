@@ -63,12 +63,29 @@ describe("one-click email unsubscribe", () => {
     expect((await post(tokenA)).status).toBe(200);
   });
 
-  it("GET page does not change prefs", async () => {
+  it("GET redirects to the confirm page and does not change prefs", async () => {
     const a = await addMember(1);
     const token = await ensureUnsubToken(testDb, { type: "member", id: a });
-    const res = GET();
-    expect(res.status).toBe(405);
+    const res = GET(
+      new NextRequest(
+        `${ORIGIN}/api/notifications/unsubscribe?token=${encodeURIComponent(token)}`,
+      ),
+    );
+    // Mail client không hỗ trợ POST một chạm mở link trong trình duyệt: đưa
+    // tới trang có nút bấm thay vì trang trắng 405.
+    expect(res.status).toBe(303);
+    const loc = new URL(res.headers.get("location")!);
+    expect(loc.origin).toBe(ORIGIN);
+    expect(loc.pathname).toBe("/huy-nhan-thong-bao");
+    expect(loc.searchParams.get("token")).toBe(token);
     expect(await emailEnabled(a)).toBe(true);
+
+    // Không có token vẫn về trang (trang tự báo link không hợp lệ).
+    const bare = GET(
+      new NextRequest(`${ORIGIN}/api/notifications/unsubscribe`),
+    );
+    expect(bare.status).toBe(303);
+    expect(new URL(bare.headers.get("location")!).search).toBe("");
 
     const { default: Page } = await import("../../../huy-nhan-thong-bao/page");
     await Page({ searchParams: Promise.resolve({ token }) });

@@ -10,8 +10,9 @@ import bcrypt from "bcryptjs";
  *     tắt email.
  *
  * Fixture bằng SQL thô trên e2e/local.db. Công tắc `notificationsEnabled` chỉ
- * bật trong bài cần nó và luôn trả về giá trị cũ. Chọn member id nhỏ nhất (member
- * id lớn nhất có mật khẩu tạm đã hết hạn).
+ * bật trong bài cần nó và luôn trả về giá trị cũ. Chọn member id nhỏ nhất KHÔNG
+ * bị buộc đổi mật khẩu: member có mật khẩu tạm chỉ thấy form đổi mật khẩu thay
+ * cho mọi trang, nên không mở được thẻ Thông báo ở /me.
  */
 
 const EMAIL = "e2eprefs@example.com";
@@ -84,7 +85,7 @@ test.beforeAll(async () => {
   try {
     const m = (
       await c.execute(
-        "SELECT id, email, password_hash FROM members WHERE is_active=1 AND approval_status='approved' ORDER BY id LIMIT 1",
+        "SELECT id, email, password_hash FROM members WHERE is_active=1 AND approval_status='approved' AND must_change_password=0 ORDER BY id LIMIT 1",
       )
     ).rows[0];
     memberId = Number(m.id);
@@ -256,11 +257,16 @@ test("unsubscribe page GET shows a button and changes nothing until pressed", as
     expect(box!.height).toBeGreaterThanOrEqual(44);
 
     // Mở trang (GET) và GET thẳng vào API (như máy quét link) đều không đổi gì.
+    // GET vào API chuyển sang trang xác nhận thay vì trang trắng 405.
     expect(await emailEnabled()).toBe(1);
     const get = await page.request.get(
       `/api/notifications/unsubscribe?token=${UNSUB_TOKEN}`,
+      { maxRedirects: 0 },
     );
-    expect(get.status()).toBe(405);
+    expect(get.status()).toBe(303);
+    expect(get.headers()["location"]).toContain(
+      `/huy-nhan-thong-bao?token=${UNSUB_TOKEN}`,
+    );
     expect(await emailEnabled()).toBe(1);
 
     await button.click();

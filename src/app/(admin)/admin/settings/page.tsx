@@ -5,8 +5,7 @@ import { courts, members, shuttlecockBrands } from "@/db/schema";
 import { getSettings } from "@/actions/settings";
 import { AlertTriangle } from "lucide-react";
 import { InlineNotice } from "@/components/shared/inline-notice";
-import { isSmtpConfigured } from "@/lib/mailer";
-import { getQstashConfig } from "@/lib/notifications/qstash";
+import { notificationConfigWarnings } from "@/lib/notifications/config-warnings";
 import { getLastEmailFailure } from "@/lib/notifications/outbox";
 import { SettingsClient } from "./settings-client";
 
@@ -46,8 +45,7 @@ export default async function AdminSettingsPage() {
   // Cảnh báo cấu hình thông báo: chỉ khi công tắc bật (tắt thì không đọc bảng
   // thông báo nào). Env đọc lúc render, không chốt lúc build.
   const notificationsOn = settings.notificationsEnabled === true;
-  const qstashMissing = notificationsOn && getQstashConfig() === null;
-  const smtpMissing = notificationsOn && !isSmtpConfigured();
+  const configWarnings = notificationsOn ? notificationConfigWarnings() : [];
   const lastEmailFailure = notificationsOn
     ? await getLastEmailFailure(db)
     : null;
@@ -69,16 +67,11 @@ export default async function AdminSettingsPage() {
         <h1 className="font-heading text-2xl font-bold">{t("title")}</h1>
         <p className="text-muted-foreground text-sm">{t("subtitle")}</p>
       </div>
-      {qstashMissing && (
-        <InlineNotice tone="warning" icon={AlertTriangle}>
-          {t("qstashMissing")}
+      {configWarnings.map((key) => (
+        <InlineNotice key={key} tone="warning" icon={AlertTriangle}>
+          {t(key)}
         </InlineNotice>
-      )}
-      {smtpMissing && (
-        <InlineNotice tone="warning" icon={AlertTriangle}>
-          {t("smtpMissing")}
-        </InlineNotice>
-      )}
+      ))}
       {lastEmailFailure && (
         <InlineNotice tone="warning" icon={AlertTriangle}>
           {t("lastEmailFailure", {

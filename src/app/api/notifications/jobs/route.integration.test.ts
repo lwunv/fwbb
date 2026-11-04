@@ -33,7 +33,8 @@ vi.mock("@/lib/notifications/jobs", async (importOriginal) => ({
   runJob,
 }));
 
-const { POST } = await import("./route");
+const route = await import("./route");
+const { POST } = route;
 
 const RUN_AT = "2026-11-07T07:30:00.000Z";
 const JOB_KEY = "vote_due_2h:s1:abcd1234";
@@ -169,5 +170,9 @@ describe("POST /api/notifications/jobs", () => {
     expect(await res.json()).toEqual({ skipped: "disabled" });
     expect(runJob).not.toHaveBeenCalled();
     expect(await jobStatus()).toBe("scheduled");
+  });
+
+  it("allows 60 s like the cron routes (an outbox_retry drains up to 50 mails)", () => {
+    expect(route.maxDuration).toBe(60);
   });
 });

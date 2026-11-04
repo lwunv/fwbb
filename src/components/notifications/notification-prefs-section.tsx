@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, ChevronDown, Lock, Mail } from "lucide-react";
+import { useQueryState } from "nuqs";
+import { Bell, ChevronDown, Loader2, Lock, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -54,25 +55,22 @@ export function NotificationPrefsSection({
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(false);
   const [sending, setSending] = useState(false);
+  const [emailResult, setEmailResult] = useQueryState("email");
 
-  // Kết quả từ link trong mail (/me?email=verified|invalid): mở thẻ, báo kết quả, dọn URL.
+  // Kết quả từ link trong mail (/me?email=verified|invalid): mở thẻ, báo kết
+  // quả, rồi xoá tham số (replace, không thêm lịch sử) để tải lại không báo lần nữa.
   useEffect(() => {
     if (scope !== "member") return;
-    const params = new URLSearchParams(window.location.search);
-    const result = params.get("email");
-    if (result !== "verified" && result !== "invalid") return;
+    if (emailResult !== "verified" && emailResult !== "invalid") return;
     setExpanded(true);
-    if (result === "verified") toast.success(t("prefs.emailVerifiedToast"));
-    else toast.error(t("prefs.emailInvalidToast"));
+    if (emailResult === "verified") {
+      toast.success(t("prefs.emailVerifiedToast"));
+    } else {
+      toast.error(t("prefs.emailInvalidToast"));
+    }
     void queryClient.invalidateQueries({ queryKey: prefsKey(scope) });
-    params.delete("email");
-    const qs = params.toString();
-    window.history.replaceState(
-      null,
-      "",
-      window.location.pathname + (qs ? `?${qs}` : ""),
-    );
-  }, [scope, t, queryClient]);
+    void setEmailResult(null);
+  }, [scope, emailResult, setEmailResult, t, queryClient]);
 
   const { data, isPending, isError, refetch, isRefetching } = useQuery({
     queryKey: prefsKey(scope),
@@ -286,6 +284,9 @@ export function NotificationPrefsSection({
                         disabled={sending}
                         onClick={() => void sendVerification()}
                       >
+                        {sending && (
+                          <Loader2 className="animate-spin" aria-hidden />
+                        )}
                         {sending
                           ? t("prefs.emailSending")
                           : t("prefs.emailSend")}

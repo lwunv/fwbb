@@ -14,6 +14,7 @@ vi.mock("@/lib/user-identity", () => userMock);
 vi.mock("@/lib/auth", () => ({ requireAdmin: vi.fn() }));
 const mailMock = vi.hoisted(() => ({
   sendMail: vi.fn(async (_m: { to: string; text: string }) => ({ ok: true })),
+  isSmtpConfigured: vi.fn(() => true),
 }));
 vi.mock("@/lib/mailer", () => mailMock);
 // Chạy callback ngay để kiểm mail đã được xếp.
@@ -241,6 +242,28 @@ describe("requestNotifyEmailVerification", () => {
     vi.stubEnv("NEXT_PUBLIC_APP_URL", ORIGIN);
 
     expect(Number(await buckets())).toBe(0);
+    expect(afterMock.runAfterResponse).not.toHaveBeenCalled();
+    expect(mailMock.sendMail).not.toHaveBeenCalled();
+  });
+
+  it("refuses without SMTP instead of reporting sent: no rate limit slot used, no send scheduled", async () => {
+    const id = await addMember("smtp@example.com");
+    userMock.getUserFromCookie.mockResolvedValue({
+      memberId: id,
+      externalId: "x",
+    });
+    mailMock.isSmtpConfigured.mockReturnValue(false);
+    try {
+      expect(await requestNotifyEmailVerification()).toEqual({
+        error: "Verification unavailable",
+      });
+    } finally {
+      mailMock.isSmtpConfigured.mockReturnValue(true);
+    }
+    const n = (
+      await client.execute("SELECT COUNT(*) AS n FROM rate_limit_buckets")
+    ).rows[0].n;
+    expect(Number(n)).toBe(0);
     expect(afterMock.runAfterResponse).not.toHaveBeenCalled();
     expect(mailMock.sendMail).not.toHaveBeenCalled();
   });

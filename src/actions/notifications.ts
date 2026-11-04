@@ -20,7 +20,7 @@ import type { NotificationView } from "@/lib/notifications/render";
 import { sealVerifyToken } from "@/lib/notifications/tokens";
 import { runAfterResponse } from "@/lib/notifications/after";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { sendMail } from "@/lib/mailer";
+import { isSmtpConfigured, sendMail } from "@/lib/mailer";
 
 type Scope = "member" | "admin";
 type Cursor = { createdAt: string; id: number };
@@ -324,7 +324,9 @@ export async function requestNotifyEmailVerification(): Promise<
   if (!email) return { error: "No email" };
 
   // Kiểm cấu hình TRƯỚC rate limit: thiếu env thì báo không khả dụng, không
-  // tiêu lượt của member và không hẹn gửi mail có link chết.
+  // tiêu lượt của member và không hẹn gửi mail có link chết. Thiếu SMTP thì
+  // mail không đi được, không được báo "đã gửi".
+  if (!isSmtpConfigured()) return { error: "Verification unavailable" };
   const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, "");
   if (!appUrl) return { error: "Verification unavailable" };
   let token: string;
