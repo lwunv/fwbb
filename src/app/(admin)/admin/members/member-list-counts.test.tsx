@@ -79,6 +79,7 @@ function member(id: number, name: string, isActive = true): Member {
     phoneNumber: null,
     username: null,
     passwordResetExpiresAt: null,
+    notifyEmailVerifiedFor: null,
     mustChangePassword: false,
     bankAccountNo: null,
     approvalStatus: "approved",

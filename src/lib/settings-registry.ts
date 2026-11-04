@@ -335,6 +335,32 @@ export const SETTINGS = {
     perSession: true,
     revalidate: ["/admin/sessions", "/admin/dashboard", "/"],
   }),
+
+  // ─── Thông báo (N1) ───
+  notificationsEnabled: def({
+    key: "notificationsEnabled",
+    schema: z.boolean(),
+    default: false,
+    perSession: false,
+    revalidate: ["/", "/admin", "/admin/settings"],
+  }),
+  courtLockHoursBefore: def({
+    key: "courtLockHoursBefore",
+    schema: z.number().int().min(1).max(72),
+    default: 24,
+    perSession: false,
+    revalidate: ["/admin/settings"],
+  }),
+  zaloGroupUrl: def({
+    key: "zaloGroupUrl",
+    schema: z.union([
+      z.literal(""),
+      z.string().url().startsWith("https://zalo.me/"),
+    ]),
+    default: "",
+    perSession: false,
+    revalidate: ["/admin/settings"],
+  }),
 } as const;
 
 export type SettingKey = keyof typeof SETTINGS;

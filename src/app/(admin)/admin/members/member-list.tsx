@@ -550,6 +550,7 @@ export function MemberList({
       phoneNumber: null,
       username: null,
       passwordResetExpiresAt: null,
+      notifyEmailVerifiedFor: null,
       mustChangePassword: false,
       bankAccountNo: null,
       approvalStatus: "approved",

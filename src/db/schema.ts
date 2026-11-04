@@ -36,6 +36,14 @@ export const admins = sqliteTable(
     memberId: integer("member_id").references(() => members.id, {
       onDelete: "set null",
     }),
+    /**
+     * Vai trò admin trong app (nhận thông báo). KHÁC claim `role: "admin"` trong
+     * JWT (`src/lib/auth.ts`). Chỉ có "superadmin"; enum ở TS, không CHECK để
+     * drizzle-kit không sinh recreate-table.
+     */
+    role: text("role", { enum: ["superadmin"] })
+      .notNull()
+      .default("superadmin"),
     createdAt: text("created_at").default(sql`(current_timestamp)`),
   },
   (table) => [
@@ -98,6 +106,13 @@ export const members = sqliteTable(
      *  này tồn tại). */
     approvedBy: integer("approved_by"),
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    /**
+     * Địa chỉ email (chữ thường) đã bấm link xác minh để nhận thông báo qua
+     * email. Member chỉ được coi là đã xác minh khi giá trị này bằng
+     * `lower(email)` hiện tại, nên mọi đường đổi email tự mất hiệu lực mà không
+     * cần sửa từng chỗ.
+     */
+    notifyEmailVerifiedFor: text("notify_email_verified_for"),
     /**
      * Giới tính, CHỈ dùng để xếp nhóm chia tiền khi admin bật công tắc
      * `genderPricingEnabled` (giai đoạn 3, chặng 2). Tắt công tắc thì không ai
@@ -855,3 +870,147 @@ export const paymentNotifications = sqliteTable("payment_notifications", {
   rawSnippet: text("raw_snippet"),
   receivedAt: text("received_at").default(sql`(current_timestamp)`),
 });
+
+// ─── Thông báo (N1) ───
+// Không FK tới members/sessions: buổi có thể bị xoá cứng, member bị gộp; tin
+// cũ vẫn phải đọc được. Enum ở TS, unique bằng uniqueIndex riêng (tránh
+// recreate-table trên Turso).
+
+export const notifications = sqliteTable(
+  "notifications",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    recipientType: text("recipient_type", {
+      enum: ["member", "admin"],
+    }).notNull(),
+    recipientId: integer("recipient_id").notNull(),
+    kind: text("kind").notNull(),
+    entityType: text("entity_type", {
+      enum: ["session", "member", "transaction", "venue", "brand", "month"],
+    }),
+    entityId: integer("entity_id"),
+    payload: text("payload", { mode: "json" })
+      .$type<Record<string, unknown>>()
+      .notNull(),
+    mandatory: integer("mandatory", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    readAt: text("read_at"),
+    createdAt: text("created_at").notNull(),
+    dedupKey: text("dedup_key").notNull(),
+  },
+  (table) => [
+    uniqueIndex("notifications_dedup_key_unique").on(table.dedupKey),
+    index("notifications_recipient_unread_idx").on(
+      table.recipientType,
+      table.recipientId,
+      table.readAt,
+      table.createdAt,
+    ),
+    index("notifications_recipient_created_idx").on(
+      table.recipientType,
+      table.recipientId,
+      table.createdAt,
+    ),
+    index("notifications_entity_idx").on(table.entityType, table.entityId),
+  ],
+);
+
+export const notificationDeliveries = sqliteTable(
+  "notification_deliveries",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    notificationId: integer("notification_id")
+      .notNull()
+      .references(() => notifications.id, { onDelete: "cascade" }),
+    recipientType: text("recipient_type", {
+      enum: ["member", "admin"],
+    }).notNull(),
+    recipientId: integer("recipient_id").notNull(),
+    channel: text("channel", { enum: ["email"] }).notNull(),
+    status: text("status", {
+      enum: ["pending", "sent", "failed", "skipped"],
+    })
+      .notNull()
+      .default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    nextAttemptAt: text("next_attempt_at").notNull(),
+    errorCode: text("error_code"),
+    sentAt: text("sent_at"),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("notification_deliveries_notification_channel_unique").on(
+      table.notificationId,
+      table.channel,
+    ),
+    index("notification_deliveries_status_next_idx").on(
+      table.status,
+      table.nextAttemptAt,
+    ),
+    index("notification_deliveries_recipient_sent_idx").on(
+      table.recipientType,
+      table.recipientId,
+      table.sentAt,
+    ),
+  ],
+);
+
+export const notificationPrefs = sqliteTable(
+  "notification_prefs",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    recipientType: text("recipient_type", {
+      enum: ["member", "admin"],
+    }).notNull(),
+    recipientId: integer("recipient_id").notNull(),
+    mutedGroups: text("muted_groups", { mode: "json" })
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'`),
+    emailEnabled: integer("email_enabled", { mode: "boolean" })
+      .notNull()
+      .default(true),
+    /** 32 byte ngẫu nhiên base64url, tạo khi gửi mail tuỳ chọn đầu tiên. */
+    unsubToken: text("unsub_token"),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("notification_prefs_recipient_unique").on(
+      table.recipientType,
+      table.recipientId,
+    ),
+    uniqueIndex("notification_prefs_unsub_token_unique").on(table.unsubToken),
+  ],
+);
+
+export const scheduledJobs = sqliteTable(
+  "scheduled_jobs",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    jobKey: text("job_key").notNull(),
+    kind: text("kind").notNull(),
+    sessionId: integer("session_id"),
+    runAt: text("run_at").notNull(),
+    status: text("status", {
+      enum: ["scheduled", "done", "skipped", "cancelled", "failed"],
+    })
+      .notNull()
+      .default("scheduled"),
+    messageId: text("message_id"),
+    payload: text("payload", { mode: "json" })
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'`),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("scheduled_jobs_job_key_unique").on(table.jobKey),
+    index("scheduled_jobs_status_run_at_idx").on(table.status, table.runAt),
+    index("scheduled_jobs_session_status_idx").on(
+      table.sessionId,
+      table.status,
+    ),
+  ],
+);

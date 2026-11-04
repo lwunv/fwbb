@@ -113,6 +113,8 @@ export async function getActiveMembers() {
     phoneNumber: null,
     username: null,
     passwordResetExpiresAt: null,
+    // Cột xác minh email thông báo: không phải dữ liệu công khai, luôn null.
+    notifyEmailVerifiedFor: null,
     mustChangePassword: false,
     approvalStatus: "approved" as const,
     // Payload công khai: không lộ ý định đăng ký, trả giá trị mặc định.
