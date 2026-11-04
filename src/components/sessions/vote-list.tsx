@@ -73,23 +73,13 @@ export function VoteList({
                      `min-h` để MỌI dòng cao bằng nhau: người có biệt danh thì
                      hai dòng chữ, người không có chỉ một, mà cụm badge bên
                      phải lúc một hàng lúc hai. Không chốt chiều cao thì danh
-                     sách lệch nhấp nhô. 78px là ca cao nhất: avatar 40 + nhãn
-                     trình độ 20 bên dưới + khe 2 + padding 16. */
+                     sách lệch nhấp nhô. 72px là ca cao nhất: avatar 40 + phần
+                     nhãn trình độ thò xuống dưới avatar 14 (kể cả viền) + padding
+                     16, dư vài pixel. */
                   data-slot="vote-row"
-                  className="flex min-h-[78px] items-center gap-3 px-3 py-2"
+                  className="flex min-h-[72px] items-center gap-2.5 px-2.5 py-2"
                 >
-                  {/* Nhãn trình độ nằm DƯỚI avatar, không cạnh tên: trên
-                      điện thoại cột tên chỉ còn vài chữ, nhãn chen vào là tên
-                      bị cắt còn "Trần ...". */}
-                  <div className="flex shrink-0 flex-col items-center gap-0.5">
-                    <MemberAvatar
-                      memberId={member.id}
-                      avatarKey={member.avatarKey}
-                      avatarUrl={member.avatarUrl}
-                      size={40}
-                    />
-                    <SkillChip level={member.skillLevel} withBlurb />
-                  </div>
+                  <AvatarWithSkill member={member} />
                   <div className="min-w-0 flex-1">
                     {/* Biệt danh XUỐNG DÒNG riêng. Tên vẫn có thể bị cắt khi
                         quá dài, chạm/rê vào thì hiện đủ. */}
@@ -177,18 +167,10 @@ export function VoteList({
                       key={member.id}
                       /* Cùng lý do min-h như danh sách đã vote: người có biệt
                          danh thì hai dòng, người không có thì một; người có nhãn
-                         trình độ dưới avatar thì cao 78px. */
-                      className="flex min-h-[78px] items-center gap-3 px-3 py-2 opacity-60"
+                         trình độ dưới avatar thì cao 72px. */
+                      className="flex min-h-[72px] items-center gap-2.5 px-2.5 py-2 opacity-60"
                     >
-                      <div className="flex shrink-0 flex-col items-center gap-0.5">
-                        <MemberAvatar
-                          memberId={member.id}
-                          avatarKey={member.avatarKey}
-                          avatarUrl={member.avatarUrl}
-                          size={40}
-                        />
-                        <SkillChip level={member.skillLevel} withBlurb />
-                      </div>
+                      <AvatarWithSkill member={member} />
                       <div className="min-w-0">
                         <TruncatedName
                           name={member.name}
@@ -212,6 +194,42 @@ export function VoteList({
       {members.length === 0 && (
         <EmptyState icon={Users} title={t("noMembers")} />
       )}
+    </div>
+  );
+}
+
+/**
+ * Avatar kèm nhãn trình độ đè lên mép dưới.
+ *
+ * Cột có bề ngang CỐ ĐỊNH để avatar mọi dòng thẳng một hàng dọc: nếu để cột
+ * co giãn theo nhãn thì "Tập chơi" rộng hơn avatar còn "TB" hẹp hơn, avatar bị
+ * xô lệch từng dòng. Nhãn dài hơn cột thì tràn đều hai bên vào khe giữa các
+ * cột, không đẩy tên. Nhãn đặt dưới avatar (không cạnh tên) vì trên điện thoại
+ * cột tên chỉ còn vài chữ, nhãn chen vào là tên bị cắt còn "Trần ...".
+ */
+function AvatarWithSkill({
+  member,
+}: {
+  member: Pick<Member, "id" | "avatarKey" | "avatarUrl" | "skillLevel">;
+}) {
+  return (
+    <div
+      data-slot="vote-row-avatar"
+      className="flex w-10 shrink-0 flex-col items-center"
+    >
+      <MemberAvatar
+        memberId={member.id}
+        avatarKey={member.avatarKey}
+        avatarUrl={member.avatarUrl}
+        size={40}
+      />
+      <SkillChip
+        level={member.skillLevel}
+        withBlurb
+        // Nền đặc bên dưới: màu nhãn hơi trong, đè lên avatar thì lộ hình
+        // avatar phía sau, chữ khó đọc.
+        className="bg-card relative z-10 -mt-2 rounded-md whitespace-nowrap"
+      />
     </div>
   );
 }
