@@ -21,7 +21,7 @@ import { usePolling } from "@/lib/use-polling";
 import { useLocale } from "next-intl";
 import { formatSessionDate } from "@/lib/date-format";
 import type { AppLocale } from "@/lib/date-fns-locale";
-import type { StockByBrand } from "@/actions/inventory";
+import type { StockByBrand } from "@/lib/inventory-stock";
 import type { InferSelectModel } from "drizzle-orm";
 import type {
   inventoryPurchases as purchasesTable,

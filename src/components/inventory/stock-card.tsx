@@ -13,7 +13,7 @@ import { setStockQua } from "@/actions/inventory";
 import { fireAction } from "@/lib/optimistic-action";
 import { tubesToQua, splitOngQua, isLowStock } from "@/lib/inventory-core";
 import { useSettings } from "@/components/settings-provider";
-import type { StockByBrand } from "@/actions/inventory";
+import type { StockByBrand } from "@/lib/inventory-stock";
 
 interface StockCardProps {
   stock: StockByBrand;

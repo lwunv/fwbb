@@ -247,8 +247,6 @@ export async function setStockQua(brandId: number, desiredQua: number) {
   return { success: true };
 }
 
-export type { StockByBrand };
-
 export async function getStockByBrand(): Promise<StockByBrand[]> {
   // Admin-only: exposes per-brand prices + stock (business data). Gating the
   // source also covers checkLowStock (which calls this). Matches the gated
