@@ -46,6 +46,17 @@ interface SessionWhen {
   startTime: string;
 }
 
+/** Các khoản tiền buổi của một member trong tin chốt sổ (VND). */
+interface SessionAmounts {
+  playAmount: number;
+  dineAmount: number;
+  guestPlayAmount: number;
+  guestDineAmount: number;
+  guestToFund: number;
+  total: number;
+  balance: number;
+}
+
 /**
  * Payload mỗi kind. Chỉ chứa giá trị JSON phẳng (string, number, boolean, null,
  * string[]). Tiền là số nguyên VND.
@@ -77,13 +88,26 @@ export interface NotificationPayloads {
     when: "morning" | "3h";
     courtName: string;
   };
-  session_finalized: SessionWhen & { total: number; balance: number };
-  session_amount_changed: SessionWhen & { total: number; balance: number };
+  /**
+   * Khoản của CHÍNH member theo dòng `session_debts` vừa ghi. `total` là số bị
+   * trừ khỏi số dư; với member gắn admin, tiền khách của admin không trừ vào
+   * admin mà vào quỹ chung (`guestToFund`), các ô khách để 0. `balance` là số
+   * dư sau khi ghi sổ.
+   */
+  session_finalized: SessionWhen & SessionAmounts;
+  /** `total` là tổng mới (0 khi bị bỏ khỏi buổi), `oldTotal` là tổng đã báo trước. */
+  session_amount_changed: SessionWhen & SessionAmounts & { oldTotal: number };
+  /** `amount` = thay đổi số dư do xoá buổi (âm khi tiền pass bị rút lại). */
   session_deleted_refund: SessionWhen & { amount: number; balance: number };
-  payment_confirmed: { amount: number; balance: number };
+  /*
+   * Ba kind dưới KHÔNG có `balance`: action của chúng có nhánh chạy
+   * autoApplyFundToDebts SAU transaction, nên số dư đọc trong tx có thể khác
+   * số member thấy ở /my-fund (plan N1, Review Focus 4).
+   */
+  payment_confirmed: { amount: number };
   payment_undone: { amount: number; balance: number; reason: string };
-  transaction_reversed: { amount: number; balance: number; reason: string };
-  fund_contribution_recorded: { amount: number; balance: number };
+  transaction_reversed: { amount: number; reason: string };
+  fund_contribution_recorded: { amount: number };
   fund_refund_recorded: { amount: number; balance: number };
   debt_reminder: { amount: number; days: number };
   account_approved: Record<string, never>;
@@ -110,7 +134,13 @@ export interface NotificationPayloads {
     maxPlayers: number;
   };
   unvoted_before_deadline: SessionWhen & { names: string[] };
-  member_reported_transfer: { memberName: string; amount: number };
+  /** `sessionDate` chỉ có khi `purpose` là "debt". */
+  member_reported_transfer: {
+    memberName: string;
+    amount: number;
+    purpose: "debt" | "fund";
+    sessionDate?: string;
+  };
   signup_pending: { memberName: string };
   group_join_request: { memberName: string };
   venue_pending: { venueName: string; proposerName: string };

@@ -85,8 +85,10 @@ describe("render", () => {
       when: "3h",
       courtName: "San A",
       total: 1000,
+      oldTotal: 500,
       balance: 2000,
       amount: 3000,
+      purpose: "fund",
       reason: "",
       days: 7,
       provider: "Google",
@@ -119,6 +121,55 @@ describe("render", () => {
         expect(out.title + out.body, `${locale}.${kind}`).not.toMatch(/[{}]/);
       }
     }
+  });
+});
+
+describe("money kinds", () => {
+  it("session_deleted_refund with a negative amount says the pass money was taken back, without a minus sign", () => {
+    const out = renderNotification(
+      translator("vi"),
+      view("session_deleted_refund", {
+        sessionDate: "2026-11-05",
+        startTime: "20:30",
+        amount: -150000,
+        balance: 0,
+      }),
+      "vi",
+    );
+    expect(out.title).toContain("rút lại");
+    expect(out.body).toContain(formatVND(150000));
+    expect(out.body).not.toContain("-");
+  });
+
+  it("member_reported_transfer for a debt names the session date", () => {
+    const { body } = renderNotification(
+      translator("en"),
+      view("member_reported_transfer", {
+        memberName: "An",
+        amount: 85000,
+        purpose: "debt",
+        sessionDate: "2026-11-05",
+      }),
+      "en",
+    );
+    expect(body).toContain(formatSessionDate("2026-11-05", "weekday", "en"));
+    expect(body).toContain(formatVND(85000));
+  });
+
+  it("session_amount_changed shows the old and the new total", () => {
+    const { body } = renderNotification(
+      translator("vi"),
+      view("session_amount_changed", {
+        sessionDate: "2026-11-05",
+        startTime: "20:30",
+        oldTotal: 100000,
+        total: 130000,
+        balance: -130000,
+      }),
+      "vi",
+    );
+    expect(body).toContain(formatVND(100000));
+    expect(body).toContain(formatVND(130000));
   });
 });
 

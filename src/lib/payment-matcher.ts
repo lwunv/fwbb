@@ -25,6 +25,7 @@ import { isFundMember } from "./fund-calculator";
 import { recordFinancialTransaction } from "./financial-ledger";
 import { restoreVoidedLedgerForDebt } from "./ledger-restore";
 import { formatVND, roundToThousand } from "./utils";
+import { notify } from "./notifications/notify";
 
 export interface MatchResult {
   status: "matched_debt" | "matched_fund" | "pending" | "duplicate";
@@ -211,6 +212,16 @@ async function matchFundContribution(
         status: "matched_fund",
         transactionId: r.id,
       });
+      // Không có số dư: autoApplyFundToDebts chạy sau tx có thể trừ tiếp.
+      if (!r.replayed) {
+        await notify(innerTx, {
+          kind: "fund_contribution_recorded",
+          recipients: [{ type: "member", id: member.id }],
+          payload: { amount: payment.amount },
+          dedupBase: `bank:${payment.transId}`,
+          entity: { type: "transaction", id: r.id },
+        });
+      }
     });
   } catch (err) {
     return {
@@ -478,6 +489,16 @@ async function matchAllDebts(
           tx,
         );
         if ("error" in balanceFix) throw new Error(balanceFix.error);
+
+        if (!r.replayed) {
+          await notify(tx, {
+            kind: "payment_confirmed",
+            recipients: [{ type: "member", id: memberId }],
+            payload: { amount: debt.totalAmount },
+            dedupBase: `bank:${payment.transId}:d${debt.id}`,
+            entity: { type: "session", id: debt.sessionId },
+          });
+        }
       }
 
       // Overpay credit — member chuyển dư so với tổng nợ → ghi credit vào
@@ -714,6 +735,16 @@ async function confirmDebtFromBankTransfer(
         tx,
       );
       if ("error" in balanceFix) throw new Error(balanceFix.error);
+
+      if (!r.replayed) {
+        await notify(tx, {
+          kind: "payment_confirmed",
+          recipients: [{ type: "member", id: debt.memberId }],
+          payload: { amount: debt.totalAmount },
+          dedupBase: `bank:${payment.transId}:d${debt.id}`,
+          entity: { type: "session", id: debt.sessionId },
+        });
+      }
 
       // Overpay credit — không gắn debt/session để member rút sau.
       if (overpay > 0) {

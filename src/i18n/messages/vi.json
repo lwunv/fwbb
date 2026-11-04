@@ -1631,15 +1631,15 @@
       },
       "session_amount_changed": {
         "title": "Số tiền buổi chơi đổi",
-        "body": "Buổi {sessionDate} lúc {startTime} được tính lại. Bạn phải trả {total}. Số dư hiện tại: {balance}."
+        "body": "Buổi {sessionDate} lúc {startTime} được tính lại. Số tiền của bạn đổi từ {oldTotal} thành {total}. Số dư hiện tại: {balance}."
       },
       "session_deleted_refund": {
-        "title": "Buổi đã xóa, quỹ được hoàn",
-        "body": "Buổi {sessionDate} lúc {startTime} đã bị xóa. Quỹ của bạn được hoàn {amount}. Số dư hiện tại: {balance}."
+        "title": "{direction, select, out {Buổi đã xóa, tiền pass được rút lại} other {Buổi đã xóa, quỹ được hoàn}}",
+        "body": "Buổi {sessionDate} lúc {startTime} đã bị xóa. {direction, select, out {Khoản {amount} của buổi này từng cộng vào quỹ của bạn nay được rút lại.} other {Quỹ của bạn được hoàn {amount}.}} Số dư hiện tại: {balance}."
       },
       "payment_confirmed": {
         "title": "Đã nhận tiền của bạn",
-        "body": "Admin xác nhận đã nhận {amount}. Số dư hiện tại: {balance}."
+        "body": "Khoản thanh toán {amount} của bạn đã được ghi nhận. Xem số dư ở mục Quỹ của tôi."
       },
       "payment_undone": {
         "title": "Thanh toán bị hoàn tác",
@@ -1647,11 +1647,11 @@
       },
       "transaction_reversed": {
         "title": "Giao dịch quỹ đã được hoàn lại",
-        "body": "Một giao dịch {amount} của bạn đã được hoàn lại, lý do: {reason}. Số dư hiện tại: {balance}."
+        "body": "Một giao dịch {amount} của bạn đã được hoàn lại, lý do: {reason}. Xem số dư ở mục Quỹ của tôi."
       },
       "fund_contribution_recorded": {
         "title": "Đã ghi nạp quỹ",
-        "body": "Quỹ của bạn vừa được ghi nạp {amount}. Số dư hiện tại: {balance}."
+        "body": "Quỹ của bạn vừa được ghi nạp {amount}. Xem số dư ở mục Quỹ của tôi."
       },
       "fund_refund_recorded": {
         "title": "Đã hoàn tiền quỹ",
@@ -1715,7 +1715,7 @@
       },
       "member_reported_transfer": {
         "title": "Có người báo đã chuyển tiền",
-        "body": "{memberName} báo đã chuyển {amount}. Kiểm tra tài khoản rồi xác nhận nhé."
+        "body": "{memberName} báo đã chuyển {amount} {purpose, select, debt {cho buổi {sessionDate}} other {để nạp quỹ}}. Kiểm tra tài khoản rồi xác nhận nhé."
       },
       "signup_pending": {
         "title": "Có đăng ký mới chờ duyệt",

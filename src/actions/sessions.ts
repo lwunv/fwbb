@@ -48,6 +48,7 @@ import {
   type SessionChangeField,
 } from "@/lib/notifications/session-events";
 import { evaluateCapacity } from "@/lib/notifications/capacity";
+import { notifySessionDeletedRefund } from "@/lib/notifications/money-events";
 import {
   sendGroupMessage,
   buildNewSessionMessage,
@@ -1015,6 +1016,15 @@ export async function deleteSession(sessionId: number) {
 
   try {
     await db.transaction(async (tx) => {
+      // Thay đổi số dư của từng member do CHÍNH các dòng đảo ghi ở tx này (cho
+      // tin hoàn quỹ). Không gom từ liveDeductions: danh sách đó còn chứa khoản
+      // đã bị đảo trước đây (mở khoá, hoàn tác).
+      const refundDeltas = new Map<number, number>();
+      const addDelta = (memberId: number | null, delta: number) => {
+        if (memberId === null) return;
+        refundDeltas.set(memberId, (refundDeltas.get(memberId) ?? 0) + delta);
+      };
+
       // Reverse any fund_deduction that hasn't been reversed yet, so members
       // who already paid this session via their fund balance get the money
       // back when the session is deleted. The reversal row stays in the
@@ -1048,6 +1058,7 @@ export async function deleteSession(sessionId: number) {
           tx,
         );
         if ("error" in r) throw new Error(r.error);
+        if (!r.replayed) addDelta(ftx.memberId, ftx.amount);
       }
 
       // Reverse any pass-revenue fund_contribution attributed to this
@@ -1082,6 +1093,7 @@ export async function deleteSession(sessionId: number) {
           tx,
         );
         if ("error" in r) throw new Error(r.error);
+        if (!r.replayed) addDelta(ftx.memberId, -ftx.amount);
       }
 
       // Reverse any admin-guest income (session_guest_income) recorded for this
@@ -1117,6 +1129,8 @@ export async function deleteSession(sessionId: number) {
         );
         if ("error" in r) throw new Error(r.error);
       }
+
+      await notifySessionDeletedRefund(tx, session, refundDeltas);
 
       // NULL out `paymentNotifications.matchedDebtId` for all debts being
       // deleted — libsql doesn't enforce FK by default so these would

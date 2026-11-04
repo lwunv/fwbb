@@ -38,6 +38,12 @@ import {
   resolveSessionSettings,
   serializeSnapshot,
 } from "@/lib/session-money-settings";
+import {
+  notifyFinalized,
+  notifyMemberReportedTransfer,
+  notifyPaymentUndone,
+} from "@/lib/notifications/money-events";
+import { notify } from "@/lib/notifications/notify";
 
 export interface FinalizeAttendee {
   memberId: number | null;
@@ -557,6 +563,10 @@ export async function finalizeSession(
             : { settingsSnapshot: serializeSnapshot(settings) }),
         })
         .where(eq(sessions.id, data.sessionId));
+
+      // Tin chốt sổ cho đúng danh sách vừa ghi vào session_debts (sau sàn
+      // min-deduction), cùng tx: ghi tin lỗi thì cả lần chốt rollback.
+      await notifyFinalized(tx, data.sessionId, memberDebts, adminMemberId);
     });
   } catch (err) {
     return {
@@ -832,6 +842,15 @@ export async function confirmPaymentByMember(
         tx,
       );
       if ("error" in r) throw new Error(r.error);
+
+      await notifyMemberReportedTransfer(tx, {
+        memberId: debt.memberId,
+        amount: debt.totalAmount,
+        purpose: "debt",
+        sessionDate: debt.session.date,
+        dedupBase: `paymember:d${debtId}:${idempotencyKey}`,
+        entity: { type: "session", id: debt.sessionId },
+      });
     });
   } catch (err) {
     return {
@@ -930,6 +949,14 @@ export async function confirmPaymentByAdmin(
         tx,
       );
       if ("error" in r) throw new Error(r.error);
+
+      await notify(tx, {
+        kind: "payment_confirmed",
+        recipients: [{ type: "member", id: debt.memberId }],
+        payload: { amount: debt.totalAmount },
+        dedupBase: `paycf:d${debtId}:${idempotencyKey}`,
+        entity: { type: "session", id: debt.sessionId },
+      });
     });
   } catch (err) {
     return {
@@ -985,6 +1012,11 @@ export async function undoPaymentByAdmin(debtId: number) {
       // Track the most recent live deduction id for the audit key suffix
       // (keeps each cycle's debt_undo row distinct).
       let lastLiveDeductionId: number | null = null;
+      // Cho tin "hoàn tác thanh toán": chỉ gửi khi tx này thật sự ghi dòng đảo
+      // (bấm lần 2 chạy tx không ghi gì). `undoneAmount` = khoản trừ quỹ của
+      // chính member vừa được đảo, tức số tiền thanh toán bị hoàn tác.
+      let lastReversedId: number | null = null;
+      let undoneAmount = 0;
 
       for (const originalDeduction of originalDeductions) {
         // Đã có sẵn reversal cho deduction này chưa? (idempotent guard)
@@ -1020,6 +1052,12 @@ export async function undoPaymentByAdmin(debtId: number) {
           tx,
         );
         if ("error" in r) throw new Error(r.error);
+        if (!r.replayed) {
+          lastReversedId = r.id;
+          if (originalDeduction.memberId === debt.memberId) {
+            undoneAmount += originalDeduction.amount;
+          }
+        }
       }
 
       // CRITICAL FIX: nếu debt được trả qua bank webhook, payment-matcher đã
@@ -1077,6 +1115,7 @@ export async function undoPaymentByAdmin(debtId: number) {
           tx,
         );
         if ("error" in rr) throw new Error(rr.error);
+        if (!rr.replayed) lastReversedId = lastReversedId ?? rr.id;
       }
 
       await tx
@@ -1112,6 +1151,16 @@ export async function undoPaymentByAdmin(debtId: number) {
         tx,
       );
       if ("error" in r) throw new Error(r.error);
+
+      if (lastReversedId !== null) {
+        await notifyPaymentUndone(tx, {
+          memberId: debt.memberId,
+          debtId,
+          sessionId: debt.sessionId,
+          amount: undoneAmount,
+          lastReversedId: lastLiveDeductionId ?? lastReversedId,
+        });
+      }
     });
   } catch (err) {
     return {

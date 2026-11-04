@@ -23,7 +23,18 @@ export type Translate = (
   values?: Record<string, string | number>,
 ) => string;
 
-const MONEY_KEYS = new Set(["total", "balance", "amount", "courtPrice"]);
+const MONEY_KEYS = new Set([
+  "total",
+  "oldTotal",
+  "balance",
+  "amount",
+  "courtPrice",
+  "playAmount",
+  "dineAmount",
+  "guestPlayAmount",
+  "guestDineAmount",
+  "guestToFund",
+]);
 const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?Z$/;
 const VN_OFFSET_MS = 7 * 3_600_000;
 
@@ -90,6 +101,12 @@ export function renderNotification(
   const values = toValues(t, item.payload ?? {}, locale);
   if (item.kind === "capacity_alert") {
     values.level = capacityLevel(item.payload?.rank);
+  }
+  if (item.kind === "session_deleted_refund") {
+    // Âm = tiền pass của buổi bị rút lại; câu chữ nói chiều, số hiện trị tuyệt đối.
+    const amount = Number(item.payload?.amount ?? 0);
+    values.direction = amount < 0 ? "out" : "in";
+    values.amount = formatVND(Math.abs(amount));
   }
   return {
     title: t(`kinds.${item.kind}.title`, values),

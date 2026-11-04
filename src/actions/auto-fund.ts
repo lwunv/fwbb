@@ -6,6 +6,7 @@ import { isFundMember } from "@/lib/fund-calculator";
 import { requireApprovedMember } from "@/lib/member-auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getTranslations } from "next-intl/server";
+import { notifyMemberReportedTransfer } from "@/lib/notifications/money-events";
 
 // NOTE: autoApplyFundToDebts moved to src/lib/auto-fund-core.ts — it is an
 // internal helper, NOT a server action. Exporting it from a "use server" file
@@ -76,14 +77,24 @@ export async function claimFundContribution(
   }
 
   try {
-    await db.insert(paymentNotifications).values({
-      gmailMessageId,
-      senderBank: "manual",
-      amount,
-      transferContent: `FWBB QUY ${memberId}`,
-      senderAccountNo: null,
-      status: "pending",
-      rawSnippet: `Member ${memberId} self-claim fund top-up ${amount}`,
+    // Ghi claim và tin báo admin trong cùng tx: ghi tin lỗi thì claim cũng
+    // không được ghi (spec 4.9).
+    await db.transaction(async (tx) => {
+      await tx.insert(paymentNotifications).values({
+        gmailMessageId,
+        senderBank: "manual",
+        amount,
+        transferContent: `FWBB QUY ${memberId}`,
+        senderAccountNo: null,
+        status: "pending",
+        rawSnippet: `Member ${memberId} self-claim fund top-up ${amount}`,
+      });
+      await notifyMemberReportedTransfer(tx, {
+        memberId,
+        amount,
+        purpose: "fund",
+        dedupBase: `fclaimreq:${gmailMessageId}`,
+      });
     });
   } catch (err) {
     // Lost the race — the winner already inserted. Treat as replay.

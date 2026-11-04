@@ -13,6 +13,7 @@ import { getUserFromCookie } from "@/lib/user-identity";
 import { formatVND } from "@/lib/utils";
 import { fundContributionSchema, fundRefundSchema } from "@/lib/validators";
 import { getTranslations } from "next-intl/server";
+import { notify } from "@/lib/notifications/notify";
 
 type FundTransactionType =
   | "fund_contribution"
@@ -93,6 +94,15 @@ export async function recordContribution(
       );
       if ("error" in r) throw new Error(r.error);
       replayed = r.replayed === true;
+      if (!replayed) {
+        await notify(tx, {
+          kind: "fund_contribution_recorded",
+          recipients: [{ type: "member", id: parsed.data.memberId }],
+          payload: { amount: parsed.data.amount },
+          dedupBase: `fcontrib:${idempotencyKey}`,
+          entity: { type: "transaction", id: r.id },
+        });
+      }
     });
   } catch (err) {
     return {
@@ -180,6 +190,19 @@ export async function recordRefund(
       );
       if ("error" in r) throw new Error(r.error);
       inserted = { id: r.id, replayed: r.replayed };
+      if (!r.replayed) {
+        await notify(tx, {
+          kind: "fund_refund_recorded",
+          recipients: [{ type: "member", id: parsed.data.memberId }],
+          // Không có autoApply sau hoàn quỹ: số này là số member thấy.
+          payload: {
+            amount: parsed.data.amount,
+            balance: bal - parsed.data.amount,
+          },
+          dedupBase: `frefund:${idempotencyKey}`,
+          entity: { type: "transaction", id: r.id },
+        });
+      }
     });
   } catch (err) {
     return {
@@ -514,6 +537,15 @@ export async function reverseFinancialTransaction(
       );
       if ("error" in r) throw new Error(r.error);
       replayed = r.replayed === true;
+      if (!replayed && original.memberId !== null) {
+        await notify(tx, {
+          kind: "transaction_reversed",
+          recipients: [{ type: "member", id: original.memberId }],
+          payload: { amount: original.amount, reason: reason?.trim() ?? "" },
+          dedupBase: `txrev:${idempotencyKey}`,
+          entity: { type: "transaction", id: r.id },
+        });
+      }
     });
   } catch (err) {
     return {
@@ -996,6 +1028,16 @@ export async function confirmFundClaim(notificationId: number) {
         .update(paymentNotifications)
         .set({ status: "matched", matchedTransactionId: r.id })
         .where(eq(paymentNotifications.id, notif.id));
+
+      if (!replayed) {
+        await notify(tx, {
+          kind: "fund_contribution_recorded",
+          recipients: [{ type: "member", id: memberId }],
+          payload: { amount: notif.amount! },
+          dedupBase: `fclaim:${notif.id}`,
+          entity: { type: "transaction", id: r.id },
+        });
+      }
     });
   } catch (err) {
     return {

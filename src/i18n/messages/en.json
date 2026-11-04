@@ -1631,15 +1631,15 @@
       },
       "session_amount_changed": {
         "title": "Session amount changed",
-        "body": "The session on {sessionDate} at {startTime} was recalculated. You owe {total}. Your balance is now {balance}."
+        "body": "The session on {sessionDate} at {startTime} was recalculated. Your amount changed from {oldTotal} to {total}. Your balance is now {balance}."
       },
       "session_deleted_refund": {
-        "title": "Session deleted, fund refunded",
-        "body": "The session on {sessionDate} at {startTime} was deleted. {amount} went back to your fund. Your balance is now {balance}."
+        "title": "{direction, select, out {Session deleted, pass money taken back} other {Session deleted, fund refunded}}",
+        "body": "The session on {sessionDate} at {startTime} was deleted. {direction, select, out {The {amount} this session added to your fund was taken back.} other {{amount} went back to your fund.}} Your balance is now {balance}."
       },
       "payment_confirmed": {
         "title": "Payment received",
-        "body": "The admin confirmed they received {amount}. Your balance is now {balance}."
+        "body": "Your payment of {amount} was recorded. Open My fund to see your balance."
       },
       "payment_undone": {
         "title": "Payment undone",
@@ -1647,11 +1647,11 @@
       },
       "transaction_reversed": {
         "title": "Fund transaction reversed",
-        "body": "A transaction of {amount} was reversed, reason: {reason}. Your balance is now {balance}."
+        "body": "A transaction of {amount} was reversed, reason: {reason}. Open My fund to see your balance."
       },
       "fund_contribution_recorded": {
         "title": "Fund top-up recorded",
-        "body": "A top-up of {amount} was added to your fund. Your balance is now {balance}."
+        "body": "A top-up of {amount} was added to your fund. Open My fund to see your balance."
       },
       "fund_refund_recorded": {
         "title": "Fund refund recorded",
@@ -1715,7 +1715,7 @@
       },
       "member_reported_transfer": {
         "title": "Transfer reported",
-        "body": "{memberName} says they transferred {amount}. Check the account, then confirm."
+        "body": "{memberName} says they transferred {amount} {purpose, select, debt {for the session on {sessionDate}} other {as a fund top-up}}. Check the account, then confirm."
       },
       "signup_pending": {
         "title": "New sign-up to approve",

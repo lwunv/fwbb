@@ -73,6 +73,13 @@ vi.mock("./fund-calculator", () => ({
   isFundMember: vi.fn(),
 }));
 
+// DB giả ở trên không có `select`, mà tin thông báo (đọc công tắc, ghi bảng
+// notifications) dùng nó. Test này chỉ kiểm logic khớp tiền; phần tin có test
+// tích hợp riêng ở notifications/money-events.integration.test.ts.
+vi.mock("./notifications/notify", () => ({
+  notify: vi.fn(async () => ({ inserted: 0, ids: [] })),
+}));
+
 import { isFundMember } from "./fund-calculator";
 
 const mockPayment = {

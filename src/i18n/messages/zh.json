@@ -1631,15 +1631,15 @@
       },
       "session_amount_changed": {
         "title": "场次金额有变化",
-        "body": "{sessionDate} {startTime} 的场次已重新计算，你需支付 {total}。当前余额：{balance}。"
+        "body": "{sessionDate} {startTime} 的场次已重新计算，你的金额从 {oldTotal} 变为 {total}。当前余额：{balance}。"
       },
       "session_deleted_refund": {
-        "title": "场次已删除，基金已退回",
-        "body": "{sessionDate} {startTime} 的场次已删除，{amount} 已退回你的基金。当前余额：{balance}。"
+        "title": "{direction, select, out {场次已删除，转让收入已收回} other {场次已删除，基金已退回}}",
+        "body": "{sessionDate} {startTime} 的场次已删除，{direction, select, out {该场次曾记入你基金的 {amount} 已收回。} other {{amount} 已退回你的基金。}}当前余额：{balance}。"
       },
       "payment_confirmed": {
         "title": "已收到你的付款",
-        "body": "管理员确认已收到 {amount}。当前余额：{balance}。"
+        "body": "你的付款 {amount} 已记录。请到“我的基金”查看余额。"
       },
       "payment_undone": {
         "title": "付款已撤销",
@@ -1647,11 +1647,11 @@
       },
       "transaction_reversed": {
         "title": "基金交易已冲销",
-        "body": "{amount} 的交易已冲销，原因：{reason}。当前余额：{balance}。"
+        "body": "{amount} 的交易已冲销，原因：{reason}。请到“我的基金”查看余额。"
       },
       "fund_contribution_recorded": {
         "title": "已记录基金充值",
-        "body": "你的基金已充值 {amount}。当前余额：{balance}。"
+        "body": "你的基金已充值 {amount}。请到“我的基金”查看余额。"
       },
       "fund_refund_recorded": {
         "title": "已记录基金退款",
@@ -1715,7 +1715,7 @@
       },
       "member_reported_transfer": {
         "title": "有人报告已转账",
-        "body": "{memberName} 称已转账 {amount}，请核对账户后确认。"
+        "body": "{memberName} 称已转账 {amount}（{purpose, select, debt {{sessionDate} 的场次} other {基金充值}}），请核对账户后确认。"
       },
       "signup_pending": {
         "title": "有新注册待审核",
