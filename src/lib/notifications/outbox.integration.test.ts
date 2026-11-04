@@ -177,6 +177,32 @@ describe("email outbox", () => {
     expect(mailer.sendMail).toHaveBeenCalledTimes(1);
   });
 
+  it("quiet hours: a cancellation for a session that starts before 07:00 VN sends now; one two days out is deferred", async () => {
+    const m = await addMember();
+    const late = new Date("2026-11-10T23:10:00+07:00");
+    // Buổi 06:00 sáng mai: dồn tới 07:00 là quá giờ chơi, phải gửi ngay.
+    await notify(testDb, {
+      kind: "session_cancelled",
+      recipients: [{ type: "member", id: m }],
+      payload: { sessionDate: "2026-11-11", startTime: "06:00" },
+      dedupBase: "scancel:s1:t1",
+      now: late,
+    });
+    // Buổi ngày kia: chờ tới 07:00 sáng mai.
+    await notify(testDb, {
+      kind: "session_cancelled",
+      recipients: [{ type: "member", id: m }],
+      payload: { sessionDate: "2026-11-12", startTime: "06:00" },
+      dedupBase: "scancel:s2:t1",
+      now: late,
+    });
+    const rows = await deliveries();
+    expect(rows.map((r) => r.nextAttemptAt)).toEqual([
+      late.toISOString(),
+      new Date("2026-11-11T07:00:00+07:00").toISOString(),
+    ]);
+  });
+
   it("two concurrent drains send each delivery once", async () => {
     for (let i = 0; i < 3; i++) await notifyPassword(await addMember());
     const [a, b] = await Promise.all([

@@ -21,7 +21,13 @@ import { renderNotificationEmail } from "./email-render";
 import { isNotificationsEnabled } from "./gate";
 import type { Recipient } from "./recipients";
 import type { NotificationView } from "./render";
-import { isQuietHourVN, nextQuietEndVN, startOfVNDay, vnDate } from "./time";
+import {
+  isQuietHourVN,
+  nextQuietEndVN,
+  sessionStartInstant,
+  startOfVNDay,
+  vnDate,
+} from "./time";
 import { ensureUnsubToken } from "./tokens";
 
 /** Mỗi người nhận tối đa 6 mail không bắt buộc mỗi ngày VN; tin vẫn ở chuông. */
@@ -59,7 +65,8 @@ export function scheduleOutboxDrain(deliveryIds: number[]): void {
 
 /**
  * Thời điểm được gửi: ngay, hoặc 07:00 VN kế tiếp khi đang giờ yên lặng. Kind có
- * `quietHoursBypassSameDay` vẫn gửi ngay nếu buổi diễn ra trong ngày VN hôm nay.
+ * `quietHoursBypassSameDay` vẫn gửi ngay khi buổi diễn ra trong ngày VN hôm nay,
+ * hoặc khi buổi bắt đầu trước 07:00 VN kế tiếp (dồn thì mail tới sau giờ chơi).
  */
 function firstAttemptAt(
   kind: NotificationKind,
@@ -67,15 +74,21 @@ function firstAttemptAt(
   now: Date,
 ): Date {
   if (!isQuietHourVN(now)) return now;
-  const sessionDate = (payload as { sessionDate?: unknown } | null)
-    ?.sessionDate;
+  const quietEnd = nextQuietEndVN(now);
+  if (!NOTIFICATION_CATALOG[kind].quietHoursBypassSameDay) return quietEnd;
+  const { sessionDate, startTime } = (payload ?? {}) as {
+    sessionDate?: unknown;
+    startTime?: unknown;
+  };
+  if (typeof sessionDate !== "string") return quietEnd;
+  if (sessionDate === vnDate(now)) return now;
   if (
-    NOTIFICATION_CATALOG[kind].quietHoursBypassSameDay &&
-    sessionDate === vnDate(now)
+    typeof startTime === "string" &&
+    sessionStartInstant(sessionDate, startTime).getTime() < quietEnd.getTime()
   ) {
     return now;
   }
-  return nextQuietEndVN(now);
+  return quietEnd;
 }
 
 /**
