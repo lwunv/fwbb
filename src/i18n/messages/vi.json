@@ -1646,8 +1646,8 @@
         "body": "Khoản {amount} đã được hoàn tác, lý do: {reason}. Số dư hiện tại: {balance}."
       },
       "transaction_reversed": {
-        "title": "Giao dịch quỹ bị đảo",
-        "body": "Giao dịch {amount} đã được đảo, lý do: {reason}. Số dư hiện tại: {balance}."
+        "title": "Giao dịch quỹ đã được hoàn lại",
+        "body": "Một giao dịch {amount} của bạn đã được hoàn lại, lý do: {reason}. Số dư hiện tại: {balance}."
       },
       "fund_contribution_recorded": {
         "title": "Đã ghi nạp quỹ",
@@ -1698,8 +1698,8 @@
         "body": "Sân {venueName} đã bị ẩn khỏi danh sách."
       },
       "capacity_alert": {
-        "title": "Cảnh báo sức chứa",
-        "body": "Buổi {sessionDate} lúc {startTime} có {headcount}/{maxPlayers} người chơi. Hạn chốt sân: {courtLockAt}."
+        "title": "{level, select, almost {Buổi sắp đầy chỗ} full {Buổi đã đầy chỗ} other {Buổi vượt sức chứa}}",
+        "body": "{level, select, almost {Buổi {sessionDate} lúc {startTime} có {headcount}/{maxPlayers} người, chỉ còn ít chỗ. Hạn chốt sân là {courtLockAt}, đến lúc đó bạn cần quyết định giữ hay trả sân.} full {Buổi {sessionDate} lúc {startTime} có {headcount}/{maxPlayers} người, đã đầy. Cân nhắc đặt thêm sân hoặc khoá vote trước {courtLockAt}.} other {Buổi {sessionDate} lúc {startTime} có {headcount}/{maxPlayers} người, vượt sức chứa. Nên đặt thêm sân hoặc khoá vote, hạn chốt sân là {courtLockAt}.}}"
       },
       "low_attendance": {
         "title": "Buổi ít người",

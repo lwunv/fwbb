@@ -81,6 +81,7 @@ export interface NotificationPayloads {
   login_method_unlinked: { provider: string };
   venue_approved: { venueName: string };
   venue_hidden: { venueName: string };
+  /** rank 1 = sắp đầy, 2 = đầy, 3+ = vượt sức chứa; `courtLockAt` là ISO UTC. */
   capacity_alert: SessionWhen & {
     rank: number;
     headcount: number;

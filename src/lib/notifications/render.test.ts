@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { createTranslator } from "next-intl";
 import vi from "@/i18n/messages/vi.json";
 import en from "@/i18n/messages/en.json";
+import zh from "@/i18n/messages/zh.json";
 import { formatVND } from "@/lib/utils";
 import { formatSessionDate } from "@/lib/date-format";
 import type { NotificationKind } from "./catalog";
@@ -12,10 +13,10 @@ import {
   type Translate,
 } from "./render";
 
-function translator(locale: "vi" | "en"): Translate {
+function translator(locale: "vi" | "en" | "zh"): Translate {
   const t = createTranslator({
     locale,
-    messages: locale === "vi" ? vi : en,
+    messages: { vi, en, zh }[locale],
     namespace: "notifications",
   });
   return (key, values) =>
@@ -75,7 +76,7 @@ describe("render", () => {
     expect(body).toContain("Thu");
   });
 
-  it("every kind renders in vi and en without leftover placeholders", () => {
+  it("every kind renders in vi, en and zh without leftover placeholders", () => {
     const payload = {
       sessionDate: "2026-11-05",
       startTime: "20:30",
@@ -93,7 +94,7 @@ describe("render", () => {
       rank: 1,
       headcount: 15,
       maxPlayers: 16,
-      courtLockAt: "05/11 08:00",
+      courtLockAt: "2026-11-04T13:30:00.000Z",
       memberName: "An",
       names: ["An", "Binh"],
       proposerName: "Chi",
@@ -108,7 +109,7 @@ describe("render", () => {
     const kinds = Object.keys(vi.notifications.kinds).filter(
       (k) => k !== "unknown",
     );
-    for (const locale of ["vi", "en"] as const) {
+    for (const locale of ["vi", "en", "zh"] as const) {
       for (const kind of kinds) {
         const out = renderNotification(
           translator(locale),
@@ -117,6 +118,55 @@ describe("render", () => {
         );
         expect(out.title + out.body, `${locale}.${kind}`).not.toMatch(/[{}]/);
       }
+    }
+  });
+});
+
+describe("capacity_alert", () => {
+  const base = {
+    sessionDate: "2026-11-05",
+    startTime: "20:30",
+    headcount: 14,
+    maxPlayers: 16,
+    courtLockAt: "2026-11-04T13:30:00.000Z",
+  };
+
+  it("has its own text per rank, with counts and the court deadline", () => {
+    const out = [1, 2, 3, 4].map((rank) =>
+      renderNotification(
+        translator("vi"),
+        view("capacity_alert", { ...base, rank }),
+        "vi",
+      ),
+    );
+    const titles = out.map((o) => o.title);
+    expect(titles[0]).toContain("sắp đầy");
+    expect(titles[1]).toContain("đầy chỗ");
+    expect(titles[2]).toContain("vượt");
+    expect(titles[3]).toBe(titles[2]);
+    expect(new Set(out.map((o) => o.body)).size).toBe(3);
+    for (const o of out) {
+      expect(o.body).toContain("14/16");
+      expect(o.body).toContain("04/11 20:30");
+    }
+    expect(out[1].body).toContain("đặt thêm sân hoặc khoá vote");
+    expect(out[2].body).toContain("đặt thêm sân hoặc khoá vote");
+  });
+
+  it("renders ISO instants in Vietnam time whatever the server TZ", () => {
+    const prev = process.env.TZ;
+    process.env.TZ = "UTC";
+    try {
+      const { body } = renderNotification(
+        translator("en"),
+        view("capacity_alert", { ...base, rank: 2 }),
+        "en",
+      );
+      expect(body).toContain("04/11 20:30");
+      expect(body).not.toContain("13:30");
+    } finally {
+      if (prev === undefined) delete process.env.TZ;
+      else process.env.TZ = prev;
     }
   });
 });

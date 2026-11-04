@@ -1698,8 +1698,8 @@
         "body": "场地 {venueName} 已从列表中隐藏。"
       },
       "capacity_alert": {
-        "title": "人数提醒",
-        "body": "{sessionDate} {startTime} 的场次已有 {headcount}/{maxPlayers} 人。订场截止：{courtLockAt}。"
+        "title": "{level, select, almost {场次快满了} full {场次已满} other {场次超出容量}}",
+        "body": "{level, select, almost {{sessionDate} {startTime} 的场次已有 {headcount}/{maxPlayers} 人，只剩少量名额。订场截止时间是 {courtLockAt}，到时需要决定保留还是退掉场地。} full {{sessionDate} {startTime} 的场次已有 {headcount}/{maxPlayers} 人，已经满员。请在 {courtLockAt} 前考虑加订场地或锁定投票。} other {{sessionDate} {startTime} 的场次已有 {headcount}/{maxPlayers} 人，超出容量。建议加订场地或锁定投票，订场截止时间是 {courtLockAt}。}}"
       },
       "low_attendance": {
         "title": "人数偏少",

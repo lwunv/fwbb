@@ -1698,8 +1698,8 @@
         "body": "The venue {venueName} was hidden from the list."
       },
       "capacity_alert": {
-        "title": "Capacity alert",
-        "body": "The session on {sessionDate} at {startTime} has {headcount}/{maxPlayers} players. Court lock deadline: {courtLockAt}."
+        "title": "{level, select, almost {Session almost full} full {Session is full} other {Session over capacity}}",
+        "body": "{level, select, almost {The session on {sessionDate} at {startTime} has {headcount}/{maxPlayers} players, only a few spots left. The court lock deadline is {courtLockAt}, so you will need to decide whether to keep or release the court by then.} full {The session on {sessionDate} at {startTime} has {headcount}/{maxPlayers} players and is full. Consider booking another court or locking votes before {courtLockAt}.} other {The session on {sessionDate} at {startTime} has {headcount}/{maxPlayers} players, over capacity. Book another court or lock votes. The court lock deadline is {courtLockAt}.}}"
       },
       "low_attendance": {
         "title": "Low attendance",

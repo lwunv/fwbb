@@ -24,6 +24,25 @@ export type Translate = (
 ) => string;
 
 const MONEY_KEYS = new Set(["total", "balance", "amount"]);
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?Z$/;
+const VN_OFFSET_MS = 7 * 3_600_000;
+
+/**
+ * Mốc thời gian (ISO UTC) hiển thị theo giờ Việt Nam bất kể múi giờ máy chạy
+ * (server Vercel là UTC), dạng "ngày/tháng HH:mm" theo locale.
+ */
+function formatVnInstant(iso: string, locale: "vi" | "en" | "zh"): string {
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) return iso;
+  const vn = new Date(ms + VN_OFFSET_MS).toISOString(); // đọc bằng trường UTC
+  return `${formatSessionDate(vn.slice(0, 10), "short", locale)} ${vn.slice(11, 16)}`;
+}
+
+/** rank 1 = sắp đầy, 2 = đầy, 3 trở lên = vượt sức chứa (spec 4.3). */
+function capacityLevel(rank: unknown): "almost" | "full" | "over" {
+  const n = Number(rank);
+  return n <= 1 ? "almost" : n === 2 ? "full" : "over";
+}
 
 /**
  * Đổi payload thô thành giá trị đưa vào ICU. Tiền và ngày phải định dạng ở đây
@@ -44,6 +63,8 @@ function toValues(
       out[key] = raw.map((f) => t(`fields.${String(f)}`)).join(", ");
     } else if (Array.isArray(raw)) {
       out[key] = raw.join(", ");
+    } else if (typeof raw === "string" && ISO_INSTANT.test(raw)) {
+      out[key] = formatVnInstant(raw, locale);
     } else if (typeof raw === "number" || typeof raw === "string") {
       out[key] = raw;
     } else if (typeof raw === "boolean") {
@@ -67,6 +88,9 @@ export function renderNotification(
     return { title: t("kinds.unknown.title"), body: t("kinds.unknown.body") };
   }
   const values = toValues(t, item.payload ?? {}, locale);
+  if (item.kind === "capacity_alert") {
+    values.level = capacityLevel(item.payload?.rank);
+  }
   return {
     title: t(`kinds.${item.kind}.title`, values),
     body: t(`kinds.${item.kind}.body`, values),
