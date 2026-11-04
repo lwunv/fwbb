@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { SkillChip } from "@/components/shared/skill-chip";
+import { TruncatedName } from "@/components/shared/truncated-name";
 import { Badge } from "@/components/ui/badge";
 import { useTranslations } from "next-intl";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -72,33 +73,30 @@ export function VoteList({
                      `min-h` để MỌI dòng cao bằng nhau: người có biệt danh thì
                      hai dòng chữ, người không có chỉ một, mà cụm badge bên
                      phải lúc một hàng lúc hai. Không chốt chiều cao thì danh
-                     sách lệch nhấp nhô. 72px là ca cao nhất (hai hàng badge
-                     cộng padding) thêm vài pixel dư, để dòng nhiều badge nhất
-                     cũng không nhỉnh hơn mấy dòng kia. */
+                     sách lệch nhấp nhô. 78px là ca cao nhất: avatar 40 + nhãn
+                     trình độ 20 bên dưới + khe 2 + padding 16. */
                   data-slot="vote-row"
-                  className="flex min-h-[72px] items-center gap-3 px-3 py-2"
+                  className="flex min-h-[78px] items-center gap-3 px-3 py-2"
                 >
-                  <MemberAvatar
-                    memberId={member.id}
-                    avatarKey={member.avatarKey}
-                    avatarUrl={member.avatarUrl}
-                    size={40}
-                  />
+                  {/* Nhãn trình độ nằm DƯỚI avatar, không cạnh tên: trên
+                      điện thoại cột tên chỉ còn vài chữ, nhãn chen vào là tên
+                      bị cắt còn "Trần ...". */}
+                  <div className="flex shrink-0 flex-col items-center gap-0.5">
+                    <MemberAvatar
+                      memberId={member.id}
+                      avatarKey={member.avatarKey}
+                      avatarUrl={member.avatarUrl}
+                      size={40}
+                    />
+                    <SkillChip level={member.skillLevel} withBlurb />
+                  </div>
                   <div className="min-w-0 flex-1">
-                    {/* Tên và nhãn trình độ ở hàng trên, biệt danh XUỐNG DÒNG
-                        riêng. Nhét cả hai vào một hàng thì trên điện thoại
-                        tên dài làm vỡ hàng hoặc bị cắt cụt. */}
-                    {/* flex + items-center: tên và nhãn có hai cỡ chữ khác
-                        nhau, để chúng chảy theo dòng chữ thường thì lệch
-                        đường chân chữ, nhìn như bị xô. `min-w-0` + `truncate`
-                        ở riêng phần tên để tên dài không đẩy nhãn ra khỏi
-                        hàng. */}
-                    <p className="flex min-w-0 items-center gap-1.5">
-                      <span className="truncate text-base font-semibold">
-                        {member.name}
-                      </span>
-                      <SkillChip level={member.skillLevel} withBlurb />
-                    </p>
+                    {/* Biệt danh XUỐNG DÒNG riêng. Tên vẫn có thể bị cắt khi
+                        quá dài, chạm/rê vào thì hiện đủ. */}
+                    <TruncatedName
+                      name={member.name}
+                      className="text-base font-semibold"
+                    />
                     {member.nickname && (
                       <p className="text-muted-foreground truncate text-sm font-normal">
                         ({member.nickname})
@@ -178,22 +176,24 @@ export function VoteList({
                     <div
                       key={member.id}
                       /* Cùng lý do min-h như danh sách đã vote: người có biệt
-                         danh thì hai dòng, người không có thì một. */
-                      className="flex min-h-[56px] items-center gap-3 px-3 py-2 opacity-60"
+                         danh thì hai dòng, người không có thì một; người có nhãn
+                         trình độ dưới avatar thì cao 78px. */
+                      className="flex min-h-[78px] items-center gap-3 px-3 py-2 opacity-60"
                     >
-                      <MemberAvatar
-                        memberId={member.id}
-                        avatarKey={member.avatarKey}
-                        avatarUrl={member.avatarUrl}
-                        size={40}
-                      />
+                      <div className="flex shrink-0 flex-col items-center gap-0.5">
+                        <MemberAvatar
+                          memberId={member.id}
+                          avatarKey={member.avatarKey}
+                          avatarUrl={member.avatarUrl}
+                          size={40}
+                        />
+                        <SkillChip level={member.skillLevel} withBlurb />
+                      </div>
                       <div className="min-w-0">
-                        <p className="flex min-w-0 items-center gap-1.5">
-                          <span className="truncate text-base font-medium">
-                            {member.name}
-                          </span>
-                          <SkillChip level={member.skillLevel} withBlurb />
-                        </p>
+                        <TruncatedName
+                          name={member.name}
+                          className="text-base font-medium"
+                        />
                         {member.nickname && (
                           <p className="text-muted-foreground truncate text-sm font-normal">
                             ({member.nickname})
