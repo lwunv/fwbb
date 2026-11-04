@@ -3,7 +3,10 @@ import { courts, sessions } from "@/db/schema";
 import type { DbOrTx } from "@/db/tx";
 import { MAX_PLAY_SLOTS } from "@/lib/vote-capacity";
 import { isVoteOpen, type SessionStatus } from "@/lib/session-status";
-import { DEFAULT_PLAY_START_TIME } from "@/lib/vote-deadline";
+import {
+  DEFAULT_PLAY_START_TIME,
+  parseVoteDeadline,
+} from "@/lib/vote-deadline";
 import { courtLockHoursBefore, currentHeadcount } from "./capacity";
 import { notify } from "./notify";
 import {
@@ -31,6 +34,22 @@ export const isSessionJobKind = (kind: string): kind is SessionJobKind =>
 
 /** Buổi dưới 50% sức chứa thì admin được báo trước giờ khoá sân. */
 const LOW_ATTENDANCE_RATIO = 0.5;
+
+const HOUR_MS = 3_600_000;
+/**
+ * QStash giao trễ vài giây tới vài phút. Trễ trong khoảng này vẫn nói đúng mốc
+ * của job ("còn 24 giờ"), không ra "còn 23 giờ" chỉ vì trễ vài giây.
+ */
+const DELIVERY_SLACK_MS = 10 * 60_000;
+
+/**
+ * Số giờ nguyên còn tới hạn vote, tính lúc job THẬT SỰ chạy (lượt quét bù của
+ * cron có thể chạy job 24 giờ khi chỉ còn vài giờ). Tối thiểu 1.
+ */
+function hoursUntil(deadline: Date, now: Date): number {
+  const left = deadline.getTime() - now.getTime() + DELIVERY_SLACK_MS;
+  return Math.max(1, Math.floor(left / HOUR_MS));
+}
 
 /**
  * Chạy một job theo buổi. Luôn đọc lại buổi: không còn, đã hủy/chốt, vân tay
@@ -85,13 +104,15 @@ export async function runSessionJob(
   if (kind === "vote_due_24h" || kind === "vote_due_2h") {
     // Hạn vote phải còn trong tương lai và vote còn mở (isVoteOpen kiểm cả hai).
     if (!row.voteDeadline || !isVoteOpen(session, now).open) return "skipped";
-    const hoursLeft = kind === "vote_due_24h" ? 24 : 2;
+    // Khoá chống lặp theo mốc của job; số giờ trong tin theo đồng hồ lúc chạy.
+    const slotHours = kind === "vote_due_24h" ? 24 : 2;
+    const hoursLeft = hoursUntil(parseVoteDeadline(row.voteDeadline), now);
     const notVoted = await sessionVoteRecipients(db, sid, "notVoted");
     await notify(db, {
       kind: "vote_due_soon",
       recipients: notVoted,
       payload: { ...when, hoursLeft },
-      dedupBase: `vdue:s${sid}:${hoursLeft}h:${fp}`,
+      dedupBase: `vdue:s${sid}:${slotHours}h:${fp}`,
       entity,
       now,
       gate,

@@ -158,6 +158,41 @@ describe("scheduled session reminders", () => {
     expect(await notifs("unvoted_before_deadline")).toHaveLength(0);
   });
 
+  it("vote_due_24h run late by the daily sweep reports the real hours left, not 24", async () => {
+    await addAdmin();
+    const a = await addMember("An");
+    const sid = await addSession();
+    const job = await jobOf(sid, "vote_due_24h");
+    // Hạn 16:30 ngày 7/11; lượt quét 06:30 cùng ngày còn 10 giờ.
+    const sweep = new Date("2026-11-07T06:30:00+07:00");
+    expect(await runJob(testDb, job, sweep)).toBe("done");
+    const soon = await notifs("vote_due_soon");
+    expect(soon.map((n) => n.recipientId)).toEqual([a]);
+    expect(soon[0].payload).toMatchObject({ hoursLeft: 10 });
+    // Khoá chống lặp vẫn theo mốc của job, không theo số giờ còn lại.
+    expect(soon[0].dedupKey).toMatch(new RegExp(`^vdue:s${sid}:24h:`));
+  });
+
+  it("vote_due reminders delivered a little late keep the nominal hours; under one hour left says 1", async () => {
+    await addAdmin();
+    await addMember("An");
+    const sid = await addSession();
+    const day = await jobOf(sid, "vote_due_24h");
+    const two = await jobOf(sid, "vote_due_2h");
+    const late = (iso: string, ms: number) =>
+      new Date(new Date(iso).getTime() + ms);
+    // QStash giao trễ vài chục giây: vẫn là 24 giờ.
+    await runJob(testDb, day, late(day.runAt, 40_000));
+    // Job 2 giờ chạy lúc còn 20 phút: tối thiểu 1 giờ.
+    await runJob(testDb, two, late(two.runAt, 100 * 60_000));
+    const soon = await notifs("vote_due_soon");
+    expect(
+      soon
+        .map((n) => (n.payload as { hoursLeft: number }).hoursLeft)
+        .sort((x, y) => x - y),
+    ).toEqual([1, 24]);
+  });
+
   it("vote_due_2h after admin moved the deadline is skipped", async () => {
     await addAdmin();
     await addMember("An");

@@ -59,6 +59,7 @@
     "notificationsEnabledHint": "Hiện chuông thông báo cho thành viên và admin. Tắt thì app ngừng tạo thông báo mới.",
     "qstashMissing": "Nhắc đúng giờ đang chạy theo lịch hằng ngày vì thiếu khoá QStash",
     "smtpMissing": "Email thông báo chưa gửi được vì máy chủ mail (SMTP) chưa được cấu hình",
+    "appUrlMissing": "Chưa đặt NEXT_PUBLIC_APP_URL nên nhắc đúng giờ qua QStash, việc kiểm chữ ký QStash và link trong email đều đang tắt",
     "lastEmailFailure": "Lần gửi mail lỗi gần nhất: {at} (mã {code})",
     "zaloGroupUrl": "Link nhóm Zalo",
     "zaloGroupUrlHint": "Dán link nhóm bắt đầu bằng https://zalo.me/. Nút soạn tin sẽ mở nhóm này sau khi chép nội dung.",
@@ -1780,7 +1781,8 @@
       },
       "weekly_summary": {
         "title": "Tóm tắt tuần",
-        "body": "{debtorCount} người đang nợ quá 30 ngày, {upcomingCount} buổi tuần tới, {pendingCount} việc chờ duyệt."
+        "body": "{debtorCount} người đang nợ quá 30 ngày, {upcomingCount} buổi tuần tới, {pendingCount} việc chờ duyệt.",
+        "debtors": "Nợ quá 30 ngày: {list}{more, plural, =0 {} other { và # người khác}}."
       },
       "unknown": {
         "title": "Thông báo mới",
@@ -1794,7 +1796,10 @@
       "doneTitle": "Đã ngừng nhận email",
       "doneBody": "Thông báo vẫn có trên chuông của bạn.",
       "reenable": "Bật lại email trong trang cá nhân",
-      "failed": "Chưa huỷ được. Bạn thử lại nhé."
+      "failed": "Chưa huỷ được. Bạn thử lại nhé.",
+      "invalidTitle": "Link không hợp lệ",
+      "invalidBody": "Link huỷ nhận này bị thiếu mã. Bạn có thể tắt email thông báo trong trang cá nhân.",
+      "openProfile": "Mở trang cá nhân"
     }
   }
 }

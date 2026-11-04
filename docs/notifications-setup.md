@@ -48,7 +48,7 @@ Giới hạn của gói free: QStash chỉ hẹn tối đa 7 ngày. Việc xa h�
 ## 3. Các biến bắt buộc khác
 
 - `CRON_SECRET`: đã dùng cho cron tạo buổi. Kiểm lại nó đang có trên Vercel. Thiếu biến này thì hai cron thông báo trả lỗi 500 (cố ý, để không ai gọi được khi không có khoá).
-- `NEXT_PUBLIC_APP_URL`: địa chỉ gốc của app, dạng `https://...` không có dấu `/` cuối. Link trong email và link xác minh dựng từ biến này.
+- `NEXT_PUBLIC_APP_URL`: địa chỉ gốc của app, dạng `https://...` không có dấu `/` cuối. Link trong email và link xác minh dựng từ biến này. Thiếu biến này thì app cũng không hẹn được tin qua QStash và không kiểm được chữ ký QStash, kể cả khi đã đặt đủ ba khoá.
 - `USER_COOKIE_SECRET`: ít nhất 16 ký tự. Link xác minh email được ký bằng khoá này, nên thiếu thì app từ chối gửi link xác minh.
 
 ## 4. Hai cron hằng ngày
@@ -63,11 +63,17 @@ Sau khi deploy, mở trang Crons của project trên Vercel và kiểm hai cron 
 ## 5. Bật công tắc
 
 1. Vào admin, Cài đặt, mục thông báo, bật "Bật thông báo trong app", bấm Lưu.
-2. Nếu thiếu khoá, trang cài đặt hiện cảnh báo: thiếu QStash thì nhắc giờ chạy theo cron hằng ngày, thiếu SMTP thì email chưa gửi được.
+2. Nếu thiếu cấu hình, trang cài đặt hiện cảnh báo: thiếu `NEXT_PUBLIC_APP_URL` thì QStash, kiểm chữ ký và link trong email đều tắt; thiếu QStash thì nhắc giờ chạy theo cron hằng ngày; thiếu SMTP thì email chưa gửi được và nút gửi mail xác minh báo lỗi.
 3. Thử: tự vào `/me`, mở thẻ Thông báo, điền email, bấm "Gửi link xác minh", mở email và bấm link. Không tạo hay hủy buổi giả trên bản thật để thử.
 
 Tắt công tắc bất cứ lúc nào để dừng tạo tin mới.
 
 ## Giới hạn đã biết
 
-Khi chưa có khoá QStash, các tin nhắc trong ngày và việc thử lại email lỗi phải chờ hai cron hằng ngày (06:00 và 07:00). Không có tin nào bị mất, chỉ đến chậm. Nhắc "sắp hết hạn vote" cách giờ hẹn vài giờ có thể tới sau giờ đó.
+Khi chưa có khoá QStash, các tin hẹn giờ chỉ được gửi khi cron hằng ngày chạy (06:00 và 07:00), nên có tin đến muộn và có tin bị bỏ hẳn:
+
+- Tin có mốc rơi trước lượt 06:00 mà hạn vote hoặc giờ chơi vẫn chưa qua thì đến muộn, vào lượt 06:00. Ví dụ nhắc "sắp hết hạn vote" trước 24 giờ. Tin ghi đúng số giờ còn lại lúc gửi, không ghi cứng "24 giờ".
+- Tin có mốc rơi sau 06:00 của ngày đó thường bị bỏ hẳn: nhắc trước hạn vote 2 giờ, nhắc buổi sáng ngày chơi (08:00), nhắc 3 giờ trước giờ chơi, và báo chốt sân nếu mốc rơi sau 06:00. Tới lượt cron kế tiếp thì hạn vote hoặc giờ chơi đã qua, app không gửi tin đã lỗi thời.
+- Email thử lại sau lỗi phải chờ cron kế tiếp.
+
+Muốn các nhắc này đến đúng giờ thì cần cấu hình QStash (mục 2).

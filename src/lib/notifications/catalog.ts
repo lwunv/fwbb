@@ -63,7 +63,8 @@ interface SessionAmounts {
  */
 export interface NotificationPayloads {
   session_opened: SessionWhen;
-  vote_due_soon: SessionWhen & { hoursLeft: 24 | 2 };
+  /** Số giờ nguyên còn tới hạn vote lúc gửi (≥ 1), không phải mốc của job. */
+  vote_due_soon: SessionWhen & { hoursLeft: number };
   /** Hạn vote mới (giờ VN, `YYYY-MM-DDTHH:MM:SS`); null = không có hạn. */
   vote_reopened: SessionWhen & { voteDeadline: string | null };
   /** Vote MỚI của chính member (xoá vote thì tất cả false / 0). */
@@ -154,9 +155,15 @@ export interface NotificationPayloads {
   court_rent_unpaid: { month: string; amount: number };
   reconcile_failed: { errorCount: number };
   weekly_summary: {
+    /** Tổng số người nợ quá 30 ngày (có thể nhiều hơn danh sách `debtors`). */
     debtorCount: number;
     upcomingCount: number;
     pendingCount: number;
+    /**
+     * Tối đa 20 người nợ lâu, nợ nhiều nhất trước; `amount` là VND nguyên đang
+     * nợ. Tin chỉ cho superadmin nên được có tên. Job tạo trước bản này không có.
+     */
+    debtors?: { name: string; amount: number }[];
   };
 }
 

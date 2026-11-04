@@ -59,6 +59,7 @@
     "notificationsEnabledHint": "向成员和管理员显示通知铃铛。关闭后应用不再生成新通知。",
     "qstashMissing": "缺少 QStash 密钥，定时提醒暂按每日计划运行",
     "smtpMissing": "邮件服务器（SMTP）未配置，通知邮件无法发送",
+    "appUrlMissing": "未设置 NEXT_PUBLIC_APP_URL，QStash 定时提醒、QStash 签名校验和邮件中的链接都已停用",
     "lastEmailFailure": "最近一次邮件发送失败：{at}（代码 {code}）",
     "zaloGroupUrl": "Zalo 群链接",
     "zaloGroupUrlHint": "粘贴以 https://zalo.me/ 开头的群链接。复制消息后，按钮会打开该群。",
@@ -1780,7 +1781,8 @@
       },
       "weekly_summary": {
         "title": "每周汇总",
-        "body": "{debtorCount} 人欠款超过 30 天，下周有 {upcomingCount} 场，{pendingCount} 项待审核。"
+        "body": "{debtorCount} 人欠款超过 30 天，下周有 {upcomingCount} 场，{pendingCount} 项待审核。",
+        "debtors": "欠款超过 30 天：{list}{more, plural, =0 {} other {，另有 # 人}}。"
       },
       "unknown": {
         "title": "新通知",
@@ -1794,7 +1796,10 @@
       "doneTitle": "已停止接收邮件",
       "doneBody": "通知仍会显示在你的铃铛里。",
       "reenable": "在个人页面重新开启邮件",
-      "failed": "取消失败，请重试。"
+      "failed": "取消失败，请重试。",
+      "invalidTitle": "链接无效",
+      "invalidBody": "这个退订链接缺少代码。你可以在个人页面关闭通知邮件。",
+      "openProfile": "打开个人页面"
     }
   }
 }

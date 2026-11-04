@@ -59,6 +59,7 @@
     "notificationsEnabledHint": "Shows the notification bell to members and admins. When it is off, the app stops creating new notifications.",
     "qstashMissing": "On-time reminders run on the daily schedule because the QStash keys are missing",
     "smtpMissing": "Notification emails cannot be sent because the mail server (SMTP) is not configured",
+    "appUrlMissing": "NEXT_PUBLIC_APP_URL is not set, so QStash reminders, QStash signature checks and email links are all off",
     "lastEmailFailure": "Last email failure: {at} (code {code})",
     "zaloGroupUrl": "Zalo group link",
     "zaloGroupUrlHint": "Paste the group link starting with https://zalo.me/. The draft button opens this group after copying the message.",
@@ -1632,7 +1633,7 @@
       },
       "vote_due_soon": {
         "title": "Voting closes soon",
-        "body": "Voting for the session on {sessionDate} at {startTime} closes in {hoursLeft} hours. You have not voted yet."
+        "body": "Voting for the session on {sessionDate} at {startTime} closes in {hoursLeft, plural, one {# hour} other {# hours}}. You have not voted yet."
       },
       "vote_reopened": {
         "title": "Voting reopened",
@@ -1780,7 +1781,8 @@
       },
       "weekly_summary": {
         "title": "Weekly summary",
-        "body": "{debtorCount} members owe for over 30 days, {upcomingCount} sessions next week, {pendingCount} items waiting for approval."
+        "body": "{debtorCount} members owe for over 30 days, {upcomingCount} sessions next week, {pendingCount} items waiting for approval.",
+        "debtors": "Owing for over 30 days: {list}{more, plural, =0 {} other { and # more}}."
       },
       "unknown": {
         "title": "New notification",
@@ -1794,7 +1796,10 @@
       "doneTitle": "Emails turned off",
       "doneBody": "Notifications still show on your bell.",
       "reenable": "Turn emails back on in your profile",
-      "failed": "Could not unsubscribe. Please try again."
+      "failed": "Could not unsubscribe. Please try again.",
+      "invalidTitle": "Invalid link",
+      "invalidBody": "This unsubscribe link is missing its code. You can turn off notification emails in your profile.",
+      "openProfile": "Open your profile"
     }
   }
 }
