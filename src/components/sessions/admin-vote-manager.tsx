@@ -91,6 +91,8 @@ interface AdminVoteManagerProps {
   /** Có mặt → nút soạn tin Zalo nhắc những người chưa vote. */
   zaloShare?: {
     sessionDate: string;
+    /** Giờ chơi thật của buổi, in trong tin nhắc. */
+    startTime: string;
     voteDeadline: string | null;
     zaloGroupUrl: string;
   };
@@ -1250,7 +1252,6 @@ export function AdminVoteManager({
               }),
               search,
             );
-            if (inactiveMembers.length === 0) return null;
             // Tin Zalo nhắc TẤT CẢ người chưa vote, không bị ô tìm kiếm lọc mất.
             const unvotedNames = members
               .filter((m) => {
@@ -1258,18 +1259,22 @@ export function AdminVoteManager({
                 return !v || (!v.willPlay && !v.willDine);
               })
               .map((m) => m.nickname?.trim() || m.name);
+            // Ô tìm kiếm lọc hết danh sách thì vẫn giữ tiêu đề + nút soạn tin,
+            // vì tin nhắc không phụ thuộc ô tìm kiếm.
+            const showShare = !!zaloShare && unvotedNames.length > 0;
+            if (inactiveMembers.length === 0 && !showShare) return null;
             return (
               <div className="space-y-1 border-t pt-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
                     {t("notVoted")} ({inactiveMembers.length})
                   </p>
-                  {zaloShare && (
+                  {showShare && zaloShare && (
                     <ZaloShareButton
                       zaloGroupUrl={zaloShare.zaloGroupUrl}
                       text={buildUnvotedReminderText({
                         sessionDate: zaloShare.sessionDate,
-                        startTime: sessionCosts?.startTime ?? "20:30",
+                        startTime: zaloShare.startTime,
                         voteDeadline: zaloShare.voteDeadline,
                         names: unvotedNames,
                       })}

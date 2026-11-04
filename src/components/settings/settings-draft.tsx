@@ -26,6 +26,11 @@ interface SettingsDraftValue {
   saving: boolean;
   save: () => void;
   discard: () => void;
+  /**
+   * Tăng mỗi lần bản nháp bị làm mới từ ngoài ô (bấm Bỏ, hoặc Lưu xong). Ô nào
+   * giữ chữ tạm ngoài bản nháp (vd link Zalo sai) dùng nó để bỏ chữ tạm đó.
+   */
+  draftEpoch: number;
 }
 
 const Ctx = createContext<SettingsDraftValue | null>(null);
@@ -66,6 +71,7 @@ export function SettingsDraftProvider({
 }) {
   const [draft, setDraft] = useState<Draft>({});
   const [saving, setSaving] = useState(false);
+  const [draftEpoch, setDraftEpoch] = useState(0);
   const inFlight = useRef(false);
 
   const get = useCallback(
@@ -129,14 +135,18 @@ export function SettingsDraftProvider({
       else toast.success("Đã lưu cài đặt");
       inFlight.current = false;
       setSaving(false);
+      setDraftEpoch((e) => e + 1);
     })();
   }, [draft, dirtyKeys]);
 
-  const discard = useCallback(() => setDraft({}), []);
+  const discard = useCallback(() => {
+    setDraft({});
+    setDraftEpoch((e) => e + 1);
+  }, []);
 
   const value = useMemo(
-    () => ({ get, set, reset, dirtyKeys, saving, save, discard }),
-    [get, set, reset, dirtyKeys, saving, save, discard],
+    () => ({ get, set, reset, dirtyKeys, saving, save, discard, draftEpoch }),
+    [get, set, reset, dirtyKeys, saving, save, discard, draftEpoch],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -39,6 +39,7 @@ import {
   X,
 } from "lucide-react";
 import { formatSessionDate as fmtSessionDate } from "@/lib/date-format";
+import { DEFAULT_PLAY_START_TIME } from "@/lib/vote-deadline";
 import type { SessionBadge, SessionStatus } from "@/lib/session-status";
 import type { InferSelectModel } from "drizzle-orm";
 import type {
@@ -441,6 +442,7 @@ export function AdminSessionCard({
           ? undefined
           : {
               sessionDate: session.date,
+              startTime: session.startTime ?? DEFAULT_PLAY_START_TIME,
               voteDeadline: session.voteDeadline ?? null,
               zaloGroupUrl,
             }

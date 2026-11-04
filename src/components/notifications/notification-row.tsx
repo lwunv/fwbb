@@ -17,18 +17,24 @@ import {
 
 type AppLocale = "vi" | "en" | "zh";
 
-/** Giờ Việt Nam bất kể múi giờ máy xem (cùng quy ước với render.ts). */
-function formatWhen(iso: string, locale: AppLocale): string {
+/**
+ * "dd/MM HH:mm" theo giờ Việt Nam bất kể múi giờ máy xem (cùng quy ước với
+ * render.ts). Ghép từ `formatToParts` để thứ tự ngày/tháng không đổi theo
+ * ngôn ngữ giao diện.
+ */
+function formatWhen(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return new Intl.DateTimeFormat(locale, {
+  const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Ho_Chi_Minh",
     day: "2-digit",
     month: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false,
-  }).format(d);
+    hourCycle: "h23",
+  }).formatToParts(d);
+  const g = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${g("day")}/${g("month")} ${g("hour")}:${g("minute")}`;
 }
 
 const str = (v: unknown) => (typeof v === "string" ? v : "");
@@ -117,7 +123,7 @@ export function NotificationRow({
             {body}
           </span>
           <span className="text-muted-foreground block text-sm">
-            {formatWhen(item.createdAt, locale)}
+            {formatWhen(item.createdAt)}
           </span>
         </span>
       </button>

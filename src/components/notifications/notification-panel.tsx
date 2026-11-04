@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Bell } from "lucide-react";
+import { Bell, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/empty-state";
 import { SkeletonCard } from "@/components/shared/skeleton-card";
@@ -30,6 +30,7 @@ export function NotificationPanel({
   onNavigate: () => void;
 }) {
   const t = useTranslations("notifications.bell");
+  const tn = useTranslations("notifications");
   const router = useRouter();
   const list = useNotificationList(scope, true);
   const { data: unread = 0 } = useUnreadCount(scope);
@@ -61,7 +62,22 @@ export function NotificationPanel({
             <SkeletonCard key={i} variant="row" />
           ))
         ) : list.isError ? (
-          <EmptyState variant="inline" icon={Bell} title={t("error")} />
+          <EmptyState
+            variant="inline"
+            icon={Bell}
+            title={t("error")}
+            action={
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11"
+                disabled={list.isRefetching}
+                onClick={() => void list.refetch()}
+              >
+                {tn("retry")}
+              </Button>
+            }
+          />
         ) : items.length === 0 ? (
           <EmptyState variant="inline" icon={Bell} title={t("empty")} />
         ) : (
@@ -83,6 +99,9 @@ export function NotificationPanel({
             disabled={list.isFetchingNextPage}
             onClick={() => list.fetchNextPage()}
           >
+            {list.isFetchingNextPage && (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            )}
             {t("loadMore")}
           </Button>
         )}

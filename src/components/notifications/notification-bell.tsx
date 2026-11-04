@@ -34,6 +34,9 @@ export function NotificationBell({
   const { data: unread = 0 } = useUnreadCount(scope);
   const label = unread >= 100 ? "99+" : String(unread);
 
+  // Sheet/Dialog chỉ gắn nội dung khi đang mở hoặc đang trượt ra, nên panel
+  // (và truy vấn danh sách) không chạy khi đóng. Không bọc `open &&` ở đây:
+  // làm vậy thì lúc đóng panel biến mất trước, sheet trượt ra trống trơn.
   const panel = (
     <NotificationPanel
       scope={scope}
@@ -58,7 +61,7 @@ export function NotificationBell({
         {unread > 0 && (
           <span
             aria-hidden
-            className="bg-destructive absolute top-1 right-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] leading-none font-bold text-white"
+            className="bg-destructive absolute top-1 right-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs leading-none font-bold text-white"
           >
             {label}
           </span>
@@ -73,7 +76,7 @@ export function NotificationBell({
             <SheetHeader className="p-0">
               <SheetTitle className="text-lg">{t("title")}</SheetTitle>
             </SheetHeader>
-            {open && panel}
+            {panel}
           </SheetContent>
         </Sheet>
       ) : (
@@ -82,7 +85,7 @@ export function NotificationBell({
             <DialogHeader>
               <DialogTitle className="text-lg">{t("title")}</DialogTitle>
             </DialogHeader>
-            {open && panel}
+            {panel}
           </DialogContent>
         </Dialog>
       )}

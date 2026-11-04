@@ -87,4 +87,42 @@ describe("cài đặt thông báo ở mục Vận hành", () => {
     fireEvent.blur(hours);
     expect((hours as HTMLInputElement).value).toBe("72");
   });
+
+  it("bấm Hoàn tác thì bỏ chữ link Zalo sai, ô hiện lại giá trị thật", () => {
+    wrap();
+    fireEvent.click(
+      screen.getByRole("switch", { name: m.notificationsEnabled }),
+    );
+    const zalo = screen.getByLabelText(m.zaloGroupUrl) as HTMLInputElement;
+    fireEvent.change(zalo, { target: { value: "https://example.com/x" } });
+    expect(screen.getByText(m.zaloGroupUrlInvalid)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hoàn tác" }));
+    expect(screen.queryByText(m.zaloGroupUrlInvalid)).toBeNull();
+    expect(zalo.value).toBe("");
+  });
+
+  it("lưu xong thì bỏ chữ link Zalo sai", async () => {
+    wrap();
+    fireEvent.click(
+      screen.getByRole("switch", { name: m.notificationsEnabled }),
+    );
+    fireEvent.change(screen.getByLabelText(m.zaloGroupUrl), {
+      target: { value: "https://example.com/x" },
+    });
+    fireEvent.click(saveButton());
+    await waitFor(() =>
+      expect(screen.queryByText(m.zaloGroupUrlInvalid)).toBeNull(),
+    );
+    expect(updateSetting).toHaveBeenCalledTimes(1);
+    expect(updateSetting).toHaveBeenCalledWith("notificationsEnabled", true);
+  });
+
+  it("gõ link sai sau khi đã có link đúng trong nháp vẫn giữ báo lỗi", () => {
+    wrap();
+    const zalo = screen.getByLabelText(m.zaloGroupUrl);
+    fireEvent.change(zalo, { target: { value: "https://zalo.me/g/abc" } });
+    fireEvent.change(zalo, { target: { value: "https://example.com/y" } });
+    expect(screen.getByText(m.zaloGroupUrlInvalid)).toBeTruthy();
+  });
 });

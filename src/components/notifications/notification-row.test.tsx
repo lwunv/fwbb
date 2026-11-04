@@ -131,3 +131,17 @@ describe("NotificationRow share slot", () => {
     expect(shareButton()).toBeNull();
   });
 });
+
+describe("NotificationRow time", () => {
+  it('shows "dd/MM HH:mm" in Vietnam time whatever the machine timezone', () => {
+    renderRow(
+      {
+        kind: "session_opened",
+        payload: { sessionDate: "2026-11-05", startTime: "20:30" },
+      },
+      "member",
+    );
+    // 10:00Z = 17:00 giờ VN.
+    expect(screen.getByText("04/11 17:00")).toBeTruthy();
+  });
+});

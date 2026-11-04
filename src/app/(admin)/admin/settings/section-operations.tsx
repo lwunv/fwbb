@@ -28,7 +28,7 @@ export function SectionOperations() {
   // Đọc/ghi thẳng bản nháp chung, server chỉ nhận khi bấm Lưu. Bảy cặp
   // state + useEffect đồng bộ trước đây không còn cần: bản nháp tự trả về
   // giá trị server cho khoá nào chưa sửa.
-  const { get, set, reset } = useSettingsDraft();
+  const { get, set, reset, draftEpoch } = useSettingsDraft();
 
   const appName = get("appName");
   const bankBin = get("bankBin");
@@ -55,14 +55,23 @@ export function SectionOperations() {
 
   // Link Zalo sai KHÔNG vào bản nháp (registry sẽ từ chối lúc Lưu và admin chỉ
   // thấy lỗi muộn). Giữ chữ đang gõ ở state cục bộ, nháp quay về giá trị server.
-  const [badZaloText, setBadZaloText] = useState<string | null>(null);
+  // Chữ tạm gắn với `draftEpoch` lúc gõ: bấm Bỏ hoặc Lưu xong thì epoch tăng
+  // và chữ tạm hết hiệu lực (epoch chỉ tăng nên không bao giờ khớp lại), ô hiện
+  // lại giá trị thật. Không xoá theo `dirtyKeys`, vì chính lệnh `reset` ở dưới
+  // cũng đổi `dirtyKeys`.
+  const [badZalo, setBadZalo] = useState<{
+    text: string;
+    epoch: number;
+  } | null>(null);
+  const badZaloText =
+    badZalo !== null && badZalo.epoch === draftEpoch ? badZalo.text : null;
   function changeZalo(raw: string) {
     const v = raw.trim();
     if (SETTINGS.zaloGroupUrl.schema.safeParse(v).success) {
-      setBadZaloText(null);
+      setBadZalo(null);
       set("zaloGroupUrl", v);
     } else {
-      setBadZaloText(raw);
+      setBadZalo({ text: raw, epoch: draftEpoch });
       reset("zaloGroupUrl");
     }
   }
@@ -139,7 +148,7 @@ export function SectionOperations() {
               <div className="text-sm font-medium">
                 {t("notificationsEnabled")}
               </div>
-              <p className="text-muted-foreground text-xs">
+              <p className="text-muted-foreground text-sm">
                 {t("notificationsEnabledHint")}
               </p>
             </div>
@@ -150,7 +159,7 @@ export function SectionOperations() {
             />
           </div>
           <label className="block">
-            <span className="text-muted-foreground mb-1 block text-xs font-medium">
+            <span className="text-muted-foreground mb-1 block text-sm font-medium">
               {t("zaloGroupUrl")}
             </span>
             <Input
@@ -164,17 +173,17 @@ export function SectionOperations() {
               onChange={(e) => changeZalo(e.target.value)}
             />
             {badZaloText !== null ? (
-              <span className="text-destructive mt-1 block text-xs">
+              <span className="text-destructive mt-1 block text-sm">
                 {t("zaloGroupUrlInvalid")}
               </span>
             ) : (
-              <span className="text-muted-foreground mt-1 block text-xs">
+              <span className="text-muted-foreground mt-1 block text-sm">
                 {t("zaloGroupUrlHint")}
               </span>
             )}
           </label>
           <label className="block">
-            <span className="text-muted-foreground mb-1 block text-xs font-medium">
+            <span className="text-muted-foreground mb-1 block text-sm font-medium">
               {t("courtLockHoursBefore")}
             </span>
             <Input
@@ -188,7 +197,7 @@ export function SectionOperations() {
               onChange={(e) => changeLockHours(e.target.value)}
               onBlur={blurLockHours}
             />
-            <span className="text-muted-foreground mt-1 block text-xs">
+            <span className="text-muted-foreground mt-1 block text-sm">
               {t("courtLockHoursBeforeHint")}
             </span>
           </label>

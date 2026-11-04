@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import {
+  act,
   render,
   screen,
   cleanup,
@@ -94,5 +95,35 @@ describe("ZaloShareButton", () => {
         viMessages.notifications.share.copyFailed,
       ),
     );
+  });
+
+  it("opens the group inside the click itself, before the copy settles", () => {
+    // Safari và trình duyệt trong app chặn window.open chạy sau một await.
+    writeText.mockReturnValue(new Promise<void>(() => {}));
+    renderButton("https://zalo.me/g/abc");
+    fireEvent.click(screen.getByRole("button"));
+    expect(writeText).toHaveBeenCalledWith("Nhắc vote: An, Bình");
+    expect(open).toHaveBeenCalledWith(
+      "https://zalo.me/g/abc",
+      "_blank",
+      "noopener,noreferrer",
+    );
+  });
+
+  it("the check mark goes back to the share icon after 2 seconds", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { container } = renderButton("");
+      fireEvent.click(screen.getByRole("button"));
+      await waitFor(() =>
+        expect(container.querySelector(".lucide-check")).toBeTruthy(),
+      );
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(container.querySelector(".lucide-check")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

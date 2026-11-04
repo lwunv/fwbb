@@ -117,6 +117,35 @@ describe("NotificationBell", () => {
     expect(unread[0][1]).toBe(3);
   });
 
+  it("the list is not fetched until the bell opens (mobile and desktop)", async () => {
+    for (const mobile of [true, false]) {
+      h.isMobile = mobile;
+      h.list.mockClear();
+      setup();
+      await screen.findByText("3");
+      expect(h.list).not.toHaveBeenCalled();
+      fireEvent.click(bellButton());
+      await waitFor(() => expect(h.list).toHaveBeenCalledTimes(1));
+      cleanup();
+    }
+  });
+
+  it("list load error shows a retry button that refetches", async () => {
+    h.list.mockRejectedValueOnce(new Error("down"));
+    setup();
+    fireEvent.click(bellButton());
+    const retry = await screen.findByRole("button", {
+      name: viMessages.notifications.retry,
+    });
+    fireEvent.click(retry);
+    expect(
+      await screen.findByText(
+        viMessages.notifications.kinds.session_opened.title,
+      ),
+    ).toBeTruthy();
+    expect(h.list).toHaveBeenCalledTimes(2);
+  });
+
   it("mobile renders a bottom sheet, desktop a dialog", async () => {
     h.isMobile = true;
     setup();
