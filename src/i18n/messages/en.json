@@ -1783,6 +1783,15 @@
         "title": "New notification",
         "body": "You have a new notification."
       }
+    },
+    "unsubscribe": {
+      "title": "Stop notification emails?",
+      "body": "You will no longer get notification emails from the group.",
+      "button": "Stop emails",
+      "doneTitle": "Emails turned off",
+      "doneBody": "Notifications still show on your bell.",
+      "reenable": "Turn emails back on in your profile",
+      "failed": "Could not unsubscribe. Please try again."
     }
   }
 }

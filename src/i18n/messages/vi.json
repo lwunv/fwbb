@@ -1783,6 +1783,15 @@
         "title": "Thông báo mới",
         "body": "Bạn có một thông báo mới."
       }
+    },
+    "unsubscribe": {
+      "title": "Ngừng nhận email thông báo?",
+      "body": "Bạn sẽ không nhận email thông báo từ nhóm nữa.",
+      "button": "Ngừng nhận email",
+      "doneTitle": "Đã ngừng nhận email",
+      "doneBody": "Thông báo vẫn có trên chuông của bạn.",
+      "reenable": "Bật lại email trong trang cá nhân",
+      "failed": "Chưa huỷ được. Bạn thử lại nhé."
     }
   }
 }
