@@ -28,7 +28,9 @@ export default async function PublicLayout({
     return (
       <div className="flex min-h-screen flex-col">
         <Header appName={appName} showLogin />
-        <main className="flex flex-1 flex-col px-4 py-4">{children}</main>
+        <main className="flex flex-1 flex-col px-3 py-4 sm:px-4">
+          {children}
+        </main>
       </div>
     );
   }
@@ -103,7 +105,8 @@ export default async function PublicLayout({
   return (
     <div className="flex min-h-screen flex-col">
       <Header appName={appName} showMenu />
-      <main className="flex-1 px-4 py-4 pb-6">{children}</main>
+      {/* px-3 trên điện thoại: màn hẹp, mỗi pixel lề là bớt chữ của nội dung. */}
+      <main className="flex-1 px-3 py-4 pb-6 sm:px-4">{children}</main>
     </div>
   );
 }

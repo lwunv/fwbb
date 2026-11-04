@@ -215,8 +215,8 @@ export function SessionVoteOptimisticPanel({
       />
 
       <Card data-tour="vote-list">
-        {/* p-3 trên điện thoại: mỗi pixel ngang ở đây là thêm chữ cho tên. */}
-        <CardContent className="p-3 sm:p-4">
+        {/* Lề ngang hẹp trên điện thoại: mỗi pixel ở đây là thêm chữ cho tên. */}
+        <CardContent className="px-2.5 py-3 sm:p-4">
           <div className="mb-3 flex items-start justify-between gap-2">
             <h2 className="text-lg font-bold sm:text-xl">
               <span className="inline-flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">

@@ -221,9 +221,7 @@ test("trên điện thoại, avatar mọi dòng thẳng một hàng dọc dù nh
   expect(new Set(xs).size, `mép trái avatar: ${xs.join("px, ")}px`).toBe(1);
 
   if (process.env.VOTE_LIST_SHOT) {
-    await rows
-      .first()
-      .locator("xpath=../..")
-      .screenshot({ path: process.env.VOTE_LIST_SHOT });
+    await rows.first().scrollIntoViewIfNeeded();
+    await page.screenshot({ path: process.env.VOTE_LIST_SHOT });
   }
 });

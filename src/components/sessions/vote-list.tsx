@@ -77,7 +77,7 @@ export function VoteList({
                      nhãn trình độ thò xuống dưới avatar 14 (kể cả viền) + padding
                      16, dư vài pixel. */
                   data-slot="vote-row"
-                  className="flex min-h-[72px] items-center gap-2.5 px-2.5 py-2"
+                  className="flex min-h-[72px] items-center gap-2.5 px-2 py-2 sm:px-3"
                 >
                   <AvatarWithSkill member={member} />
                   <div className="min-w-0 flex-1">
@@ -168,7 +168,7 @@ export function VoteList({
                       /* Cùng lý do min-h như danh sách đã vote: người có biệt
                          danh thì hai dòng, người không có thì một; người có nhãn
                          trình độ dưới avatar thì cao 72px. */
-                      className="flex min-h-[72px] items-center gap-2.5 px-2.5 py-2 opacity-60"
+                      className="flex min-h-[72px] items-center gap-2.5 px-2 py-2 opacity-60 sm:px-3"
                     >
                       <AvatarWithSkill member={member} />
                       <div className="min-w-0">
@@ -203,8 +203,9 @@ export function VoteList({
  *
  * Cột có bề ngang CỐ ĐỊNH để avatar mọi dòng thẳng một hàng dọc: nếu để cột
  * co giãn theo nhãn thì "Tập chơi" rộng hơn avatar còn "TB" hẹp hơn, avatar bị
- * xô lệch từng dòng. Nhãn dài hơn cột thì tràn đều hai bên vào khe giữa các
- * cột, không đẩy tên. Nhãn đặt dưới avatar (không cạnh tên) vì trên điện thoại
+ * xô lệch từng dòng. Cột rộng 48px (hơn avatar 40) và nhãn bớt lề trong, để
+ * nhãn dài nhất ("Tập chơi", "Learning") chỉ tràn vài pixel, không chạm viền
+ * danh sách khi lề dòng hẹp trên điện thoại. Nhãn đặt dưới avatar (không cạnh tên) vì trên điện thoại
  * cột tên chỉ còn vài chữ, nhãn chen vào là tên bị cắt còn "Trần ...".
  */
 function AvatarWithSkill({
@@ -215,7 +216,7 @@ function AvatarWithSkill({
   return (
     <div
       data-slot="vote-row-avatar"
-      className="flex w-10 shrink-0 flex-col items-center"
+      className="flex w-12 shrink-0 flex-col items-center"
     >
       <MemberAvatar
         memberId={member.id}
@@ -228,7 +229,7 @@ function AvatarWithSkill({
         withBlurb
         // Nền đặc bên dưới: màu nhãn hơi trong, đè lên avatar thì lộ hình
         // avatar phía sau, chữ khó đọc.
-        className="bg-card relative z-10 -mt-2 rounded-md whitespace-nowrap"
+        className="bg-card relative z-10 -mt-2 rounded-md whitespace-nowrap [&>button]:px-1"
       />
     </div>
   );
