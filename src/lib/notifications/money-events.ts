@@ -75,6 +75,7 @@ export async function notifyFinalized(
     .select({
       recipientId: notifications.recipientId,
       payload: notifications.payload,
+      dedupKey: notifications.dedupKey,
     })
     .from(notifications)
     .where(
@@ -86,17 +87,22 @@ export async function notifyFinalized(
       ),
     )
     .orderBy(asc(notifications.id));
-  const history = new Map<number, { count: number; lastTotal: number }>();
+  // `next` = chỉ số n lớn nhất đã có trong khoá `fin:s{sid}:n{n}` + 1, KHÔNG
+  // phải số tin còn lại: dọn tin cũ làm số tin giảm, đếm lại sẽ trùng khoá của
+  // một tin còn sống và onConflictDoNothing nuốt mất tin mới.
+  const keyIndex = new RegExp(`^fin:s${sessionId}:n([0-9]+):`);
+  const history = new Map<number, { next: number; lastTotal: number }>();
   for (const row of prior) {
-    const h = history.get(row.recipientId) ?? { count: 0, lastTotal: 0 };
-    h.count += 1;
+    const h = history.get(row.recipientId) ?? { next: 0, lastTotal: 0 };
+    const n = keyIndex.exec(row.dedupKey)?.[1];
+    if (n !== undefined) h.next = Math.max(h.next, Number(n) + 1);
     h.lastTotal = Number(row.payload?.total ?? 0);
     history.set(row.recipientId, h);
   }
 
   const entity = { type: "session" as const, id: sessionId };
   const dedupBase = (memberId: number) =>
-    `fin:s${sessionId}:n${history.get(memberId)?.count ?? 0}`;
+    `fin:s${sessionId}:n${history.get(memberId)?.next ?? 0}`;
 
   for (const debt of debts) {
     const isAdminDebt = debt.memberId === adminMemberId;
@@ -125,6 +131,7 @@ export async function notifyFinalized(
     const recipients = [{ type: "member" as const, id: debt.memberId }];
     if (!h) {
       await notify(tx, {
+        gate: true,
         kind: "session_finalized",
         recipients,
         payload: { ...when, ...amounts, balance },
@@ -133,6 +140,7 @@ export async function notifyFinalized(
       });
     } else {
       await notify(tx, {
+        gate: true,
         kind: "session_amount_changed",
         recipients,
         payload: { ...when, ...amounts, balance, oldTotal: h.lastTotal },
@@ -146,6 +154,7 @@ export async function notifyFinalized(
   for (const [memberId, h] of history) {
     if (still.has(memberId) || h.lastTotal === 0) continue;
     await notify(tx, {
+      gate: true,
       kind: "session_amount_changed",
       recipients: [{ type: "member", id: memberId }],
       payload: {
@@ -180,6 +189,7 @@ export async function notifySessionDeletedRefund(
   if (!(await enabled(tx, gate))) return;
   for (const [memberId, delta] of changed) {
     await notify(tx, {
+      gate: true,
       kind: "session_deleted_refund",
       recipients: [{ type: "member", id: memberId }],
       payload: {
@@ -207,6 +217,7 @@ export async function notifyPaymentUndone(
 ): Promise<void> {
   if (!(await isNotificationsEnabled(tx))) return;
   await notify(tx, {
+    gate: true,
     kind: "payment_undone",
     recipients: [{ type: "member", id: input.memberId }],
     payload: {
@@ -234,6 +245,7 @@ export async function notifyMemberReportedTransfer(
 ): Promise<void> {
   if (!(await isNotificationsEnabled(tx))) return;
   await notify(tx, {
+    gate: true,
     kind: "member_reported_transfer",
     recipients: await superadminRecipients(tx),
     payload: {

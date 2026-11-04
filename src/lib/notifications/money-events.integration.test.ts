@@ -47,6 +47,7 @@ const { claimFundContribution } = await import("@/actions/auto-fund");
 const { deleteSession, unlockSession, cancelSession } =
   await import("@/actions/sessions");
 const { processPayment } = await import("@/lib/payment-matcher");
+const { recordFinancialTransaction } = await import("@/lib/financial-ledger");
 const { getFundBalance } = await import("@/lib/fund-calculator");
 const { enableNotificationsForTest } = await import("./test-helpers");
 const { requireAdmin } = await import("@/lib/auth");
@@ -296,6 +297,35 @@ describe("finalize", () => {
       balance: await balanceOf(adminMemberId),
     });
   });
+
+  it("after an old finalize notice is cleaned up, the next changed total still gets a new notice with a fresh key", async () => {
+    await enableNotificationsForTest(testDb);
+    await linkAdmin();
+    const [a, b] = [await addMember(), await addMember()];
+    const sid = await addSession();
+    await finalize(sid, [{ id: a }, { id: b }]); // n0
+    await unlockSession(sid);
+    await finalize(sid, [{ id: a, dine: true }, { id: b }], 40_000); // n1
+    expect((await notes()).filter((n) => n.recipientId === a)).toHaveLength(2);
+
+    // Dọn tin cũ (job hằng ngày xoá tin đã đọc quá hạn) xoá n0 của a.
+    await client.execute({
+      sql: "DELETE FROM notifications WHERE dedup_key = ?",
+      args: [`fin:s${sid}:n0:m${a}`],
+    });
+    await unlockSession(sid);
+    await finalize(sid, [{ id: a, dine: true }, { id: b }], 80_000);
+
+    const mine = (await notes()).filter((n) => n.recipientId === a);
+    expect(mine.map((n) => n.dedupKey)).toEqual([
+      `fin:s${sid}:n1:m${a}`,
+      `fin:s${sid}:n2:m${a}`,
+    ]);
+    expect(mine[1].payload).toMatchObject({
+      oldTotal: (mine[0].payload as { total: number }).total,
+      total: (await debtOf(sid, a)).totalAmount,
+    });
+  });
 });
 
 describe("switch off", () => {
@@ -358,6 +388,42 @@ describe("switch off", () => {
     ).toHaveLength(1);
     expect(await notes()).toHaveLength(0);
   });
+
+  it("switch off: a bank transfer paying two debts reads the switch once", async () => {
+    await linkAdmin();
+    const a = await addMember();
+    const acct = `acct-${seq}`;
+    let owed = 0;
+    for (const date of ["2026-11-10", "2026-11-11"]) {
+      const sid = await addSession({ date });
+      await finalize(sid, [{ id: a }]);
+      const debt = await debtOf(sid, a);
+      await undoPaymentByAdmin(debt.id);
+      owed += debt.totalAmount;
+    }
+    const spy = spySql();
+    let status: string;
+    try {
+      status = (
+        await processPayment(
+          {
+            amount: owed,
+            memo: `FWBB NO ${a}`,
+            transId: "FT-OFF",
+            senderAccountNo: acct,
+          },
+          "gmail-off",
+        )
+      ).status;
+    } finally {
+      spy.restore();
+    }
+    expect(status).toBe("matched_debt");
+    expect(
+      spy.stmts.filter((s) => s.args.includes("notificationsEnabled")),
+    ).toHaveLength(1);
+    expect(await notes()).toHaveLength(0);
+  });
 });
 
 describe("payments", () => {
@@ -379,6 +445,60 @@ describe("payments", () => {
     expect(sent).toHaveLength(1);
     expect(sent[0].recipientId).toBe(a);
     expect(sent[0].payload).toEqual({
+      amount: debt.totalAmount,
+      reason: "",
+      balance: await balanceOf(a),
+    });
+  });
+
+  it("undo that only reverses a bank balance-fix row (deduction already reversed) sends no payment_undone", async () => {
+    await enableNotificationsForTest(testDb);
+    const { a, sid, debt } = await undoneDebt();
+    // Dòng cân bằng quỹ gắn debt còn sống trong khi khoản trừ đã bị đảo.
+    const fix = await recordFinancialTransaction(
+      {
+        type: "fund_contribution",
+        direction: "in",
+        amount: debt.totalAmount,
+        memberId: a,
+        sessionId: sid,
+        debtId: debt.id,
+        description: "balance fix",
+        idempotencyKey: `bank-payment-balance-T-${debt.id}`,
+      },
+      testDb,
+    );
+    expect(fix).toHaveProperty("success", true);
+
+    expect(await undoPaymentByAdmin(debt.id)).toHaveProperty("success", true);
+    // Sổ cái vẫn đảo dòng cân bằng như trước; chỉ không có tin "0 đ".
+    const reversal = await testDb.query.financialTransactions.findFirst({
+      where: and(
+        eq(financialTransactions.type, "fund_refund"),
+        eq(financialTransactions.debtId, debt.id),
+      ),
+    });
+    expect(reversal).toBeDefined();
+    expect(await notes("payment_undone")).toHaveLength(1);
+  });
+
+  it("undo of a bank-paid debt reports the debt amount and the balance the member sees", async () => {
+    await enableNotificationsForTest(testDb);
+    const { a, debt } = await undoneDebt();
+    const r = await processPayment(
+      {
+        amount: debt.totalAmount,
+        memo: `FWBB NO ${a}`,
+        transId: "FT-PAID",
+        senderAccountNo: `acct-${seq}`,
+      },
+      "gmail-paid",
+    );
+    expect(r.status).toBe("matched_debt");
+    expect(await undoPaymentByAdmin(debt.id)).toHaveProperty("success", true);
+    const sent = await notes("payment_undone");
+    expect(sent).toHaveLength(2);
+    expect(sent[1].payload).toEqual({
       amount: debt.totalAmount,
       reason: "",
       balance: await balanceOf(a),

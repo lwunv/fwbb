@@ -25,7 +25,7 @@ import { isFundMember } from "./fund-calculator";
 import { recordFinancialTransaction } from "./financial-ledger";
 import { restoreVoidedLedgerForDebt } from "./ledger-restore";
 import { formatVND, roundToThousand } from "./utils";
-import { notify } from "./notifications/notify";
+import { isNotificationsEnabled, notify } from "./notifications/notify";
 
 export interface MatchResult {
   status: "matched_debt" | "matched_fund" | "pending" | "duplicate";
@@ -398,6 +398,8 @@ async function matchAllDebts(
 
   try {
     await db.transaction(async (tx) => {
+      // Công tắc thông báo đọc 1 lần cho cả lần chuyển khoản, không mỗi debt.
+      const notifyOn = await isNotificationsEnabled(tx);
       for (const debt of unpaid) {
         // Bank webhook is a strong-authenticity signal (Pub/Sub OIDC + Gmail
         // DKIM): once tiền đã thực sự về tài khoản admin, BOTH flags should
@@ -492,6 +494,7 @@ async function matchAllDebts(
 
         if (!r.replayed) {
           await notify(tx, {
+            gate: notifyOn,
             kind: "payment_confirmed",
             recipients: [{ type: "member", id: memberId }],
             payload: { amount: debt.totalAmount },

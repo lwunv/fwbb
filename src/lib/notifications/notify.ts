@@ -21,6 +21,11 @@ export type NotifyInput<K extends NotificationKind> = {
   dedupBase: string;
   entity?: { type: EntityType; id: number };
   now?: Date;
+  /**
+   * Công tắc do caller đã đọc sẵn (đọc 1 lần cho cả action rồi truyền xuống).
+   * Không truyền thì notify tự đọc.
+   */
+  gate?: boolean;
 };
 
 /**
@@ -48,7 +53,8 @@ export async function notify<K extends NotificationKind>(
 ): Promise<{ inserted: number; ids: number[] }> {
   const none = { inserted: 0, ids: [] as number[] };
   if (input.recipients.length === 0) return none;
-  if (!(await isNotificationsEnabled(db))) return none;
+  const on = input.gate ?? (await isNotificationsEnabled(db));
+  if (!on) return none;
 
   const def = NOTIFICATION_CATALOG[input.kind];
   const seen = new Set<string>();

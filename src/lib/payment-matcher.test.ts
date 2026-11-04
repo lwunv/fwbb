@@ -78,6 +78,7 @@ vi.mock("./fund-calculator", () => ({
 // tích hợp riêng ở notifications/money-events.integration.test.ts.
 vi.mock("./notifications/notify", () => ({
   notify: vi.fn(async () => ({ inserted: 0, ids: [] })),
+  isNotificationsEnabled: vi.fn(async () => false),
 }));
 
 import { isFundMember } from "./fund-calculator";

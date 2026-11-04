@@ -1012,11 +1012,12 @@ export async function undoPaymentByAdmin(debtId: number) {
       // Track the most recent live deduction id for the audit key suffix
       // (keeps each cycle's debt_undo row distinct).
       let lastLiveDeductionId: number | null = null;
-      // Cho tin "hoàn tác thanh toán": chỉ gửi khi tx này thật sự ghi dòng đảo
-      // (bấm lần 2 chạy tx không ghi gì). `undoneAmount` = khoản trừ quỹ của
-      // chính member vừa được đảo, tức số tiền thanh toán bị hoàn tác.
-      let lastReversedId: number | null = null;
+      // Cho tin "hoàn tác thanh toán": `undoneAmount` = khoản trừ quỹ của chính
+      // member mà tx NÀY vừa đảo, tức số tiền thanh toán bị hoàn tác. Bằng 0
+      // (bấm lần 2, hoặc chỉ đảo dòng cân bằng quỹ của chuyển khoản) thì không
+      // gửi tin. `undoneDeductionId` là khoản trừ đó, làm hậu tố dedup.
       let undoneAmount = 0;
+      let undoneDeductionId: number | null = null;
 
       for (const originalDeduction of originalDeductions) {
         // Đã có sẵn reversal cho deduction này chưa? (idempotent guard)
@@ -1052,11 +1053,9 @@ export async function undoPaymentByAdmin(debtId: number) {
           tx,
         );
         if ("error" in r) throw new Error(r.error);
-        if (!r.replayed) {
-          lastReversedId = r.id;
-          if (originalDeduction.memberId === debt.memberId) {
-            undoneAmount += originalDeduction.amount;
-          }
+        if (!r.replayed && originalDeduction.memberId === debt.memberId) {
+          undoneAmount += originalDeduction.amount;
+          undoneDeductionId = originalDeduction.id;
         }
       }
 
@@ -1115,7 +1114,6 @@ export async function undoPaymentByAdmin(debtId: number) {
           tx,
         );
         if ("error" in rr) throw new Error(rr.error);
-        if (!rr.replayed) lastReversedId = lastReversedId ?? rr.id;
       }
 
       await tx
@@ -1152,13 +1150,13 @@ export async function undoPaymentByAdmin(debtId: number) {
       );
       if ("error" in r) throw new Error(r.error);
 
-      if (lastReversedId !== null) {
+      if (undoneAmount > 0 && undoneDeductionId !== null) {
         await notifyPaymentUndone(tx, {
           memberId: debt.memberId,
           debtId,
           sessionId: debt.sessionId,
           amount: undoneAmount,
-          lastReversedId: lastLiveDeductionId ?? lastReversedId,
+          lastReversedId: undoneDeductionId,
         });
       }
     });
