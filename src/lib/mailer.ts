@@ -144,3 +144,63 @@ export async function sendInviteEmail(
     return { success: false, error: "send failed" };
   }
 }
+
+export type MailOutcome =
+  | { ok: true }
+  | { ok: false; code: "not_configured" | "transient" | "permanent" };
+
+export interface MailMessage {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+  headers?: Record<string, string>;
+}
+
+/**
+ * 5xx từ máy chủ mail hoặc EENVELOPE (địa chỉ không hợp lệ) thì thử lại vô ích.
+ * Mạng, timeout, 4xx (greylist, quá tải) thì hàng đợi nên thử lại sau.
+ */
+function classifySendError(err: unknown): "transient" | "permanent" {
+  const e = err as { code?: unknown; responseCode?: unknown } | null;
+  if (e?.code === "EENVELOPE") return "permanent";
+  const rc = Number(e?.responseCode);
+  return rc >= 500 && rc < 600 ? "permanent" : "transient";
+}
+
+/**
+ * Gửi một email thông báo. Không bao giờ throw và không log địa chỉ hay nội dung
+ * thư; người gọi (outbox) dựa vào `code` để quyết định thử lại hay bỏ.
+ * Đọc env lúc gọi (không chốt lúc import) để thiếu cấu hình hiện ra đúng chỗ.
+ * Cần runtime Node.js (nodemailer dùng net/tls), không import ở Edge.
+ */
+export async function sendMail(msg: MailMessage): Promise<MailOutcome> {
+  const host = process.env.SMTP_HOST;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  if (!host || !user || !pass) {
+    console.warn("[Mailer] SMTP not configured (SMTP_HOST/USER/PASS)");
+    return { ok: false, code: "not_configured" };
+  }
+  try {
+    const transporter = nodemailer.createTransport({
+      host,
+      port: Number(process.env.SMTP_PORT ?? 465),
+      secure: (process.env.SMTP_SECURE ?? "true") === "true",
+      auth: { user, pass },
+    });
+    await transporter.sendMail({
+      from: process.env.MAIL_FROM ?? "FWBB <no-reply@fwbb>",
+      to: msg.to,
+      subject: msg.subject,
+      text: msg.text,
+      html: msg.html,
+      headers: msg.headers,
+    });
+    return { ok: true };
+  } catch (err) {
+    const code = classifySendError(err);
+    console.error("[Mailer] send failed", { code });
+    return { ok: false, code };
+  }
+}
