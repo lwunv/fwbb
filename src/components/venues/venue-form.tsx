@@ -5,12 +5,13 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslations } from "next-intl";
 import type { z } from "zod";
-import { Loader2 } from "lucide-react";
+import { Loader2, MapPin } from "lucide-react";
 import { venueSubmitSchema } from "@/lib/validators";
 import { VENUE_AMENITIES } from "@/lib/venue-amenities";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LocationPicker } from "@/components/map/location-picker";
 import { MoneyInput } from "@/components/shared/money-input";
 import { cn } from "@/lib/utils";
 
@@ -35,10 +36,13 @@ export function VenueForm({
   const [showCoords, setShowCoords] = useState(
     defaultValues?.lat !== undefined && !defaultValues?.mapLink,
   );
+  const [pickerOpen, setPickerOpen] = useState(false);
   const {
     register,
     control,
     handleSubmit,
+    getValues,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<VenueFormInput, unknown, VenueFormValues>({
     resolver: zodResolver(venueSubmitSchema),
@@ -47,6 +51,19 @@ export function VenueForm({
 
   const numberOrUndefined = (v: unknown) =>
     v === "" || v === null || v === undefined ? undefined : Number(v);
+
+  // Tâm khởi đầu của bản đồ chọn: toạ độ đang có trong form (nếu hợp lệ).
+  const currentCoords = () => {
+    const lat = numberOrUndefined(getValues("lat"));
+    const lng = numberOrUndefined(getValues("lng"));
+    return lat !== undefined &&
+      lng !== undefined &&
+      Number.isFinite(lat) &&
+      Number.isFinite(lng)
+      ? { lat, lng }
+      : null;
+  };
+  const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
 
   return (
     <form
@@ -115,6 +132,30 @@ export function VenueForm({
         >
           {t("enterCoordsInstead")}
         </button>
+      )}
+
+      <Button
+        type="button"
+        variant="outline"
+        className="min-h-11 w-full"
+        onClick={() => setPickerOpen(true)}
+      >
+        <MapPin className="mr-2 h-4 w-4" aria-hidden />
+        {t("pickOnMap")}
+      </Button>
+      {/* Mount khi mở: form không tốn gì cho bản đồ nếu người dùng không bấm. */}
+      {pickerOpen && (
+        <LocationPicker
+          open
+          onOpenChange={setPickerOpen}
+          initial={currentCoords()}
+          onPick={(p) => {
+            const opts = { shouldValidate: true, shouldDirty: true };
+            setValue("lat", round6(p.lat), opts);
+            setValue("lng", round6(p.lng), opts);
+            setShowCoords(true);
+          }}
+        />
       )}
 
       <Field id="venue-address" label={t("address")}>

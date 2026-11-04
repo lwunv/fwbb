@@ -1568,6 +1568,10 @@
     "searchThisArea": "Search this area",
     "selectedArea": "Selected area",
     "attribution": "Address coordinates: © OpenStreetMap contributors",
-    "saveFailed": "Could not save. Check your connection and try again."
+    "saveFailed": "Could not save. Check your connection and try again.",
+    "pickOnMap": "Pick on map",
+    "pickerTitle": "Pick the venue location",
+    "pickerHint": "Drag the map until the pin sits on the venue.",
+    "useThisLocation": "Use this location"
   }
 }
