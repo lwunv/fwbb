@@ -15,6 +15,12 @@ Trang `/san` (G1, đã lên prod) chỉ có danh sách sân xếp theo khoảng 
 5. Form đề xuất / sửa sân (`venue-form.tsx`): thêm "Chọn trên bản đồ" khi người dùng không có link Google Maps tách được toạ độ: kéo ghim, ghi lat/lng vào đúng các ô toạ độ hiện có.
 6. Sẵn chỗ cho G2b: lớp ghim được viết dạng danh sách điểm có `kind` (`venue` hôm nay; `exchange` sau này) để G2b chỉ thêm dữ liệu và kiểu ghim.
 
+7. **Chủ quyền (user yêu cầu 4/11/2026, bắt buộc):** mọi bản đồ trong app (trang sân, bản đồ nhỏ, chọn vị trí) phải hiện **Quần đảo Hoàng Sa** và **Quần đảo Trường Sa** là của Việt Nam:
+   - Thêm lớp nhãn riêng của app: "Quần đảo Hoàng Sa (Việt Nam)" tại khoảng 16.5°N 112.0°E và "Quần đảo Trường Sa (Việt Nam)" tại khoảng 10.0°N 114.0°E, hiện ở mọi mức zoom từ khi thấy được vùng biển (≥ 3). Bản en: "Hoang Sa Archipelago (Viet Nam)", "Truong Sa Archipelago (Viet Nam)"; bản zh: "黄沙群岛（越南）", "长沙群岛（越南）". Không bao giờ dùng tên Paracel/Spratly hay 西沙/南沙.
+   - Ẩn mọi nhãn của bản đồ nền nằm trong hai vùng này (lọc các lớp chữ bằng biểu thức `within` với 2 đa giác bao quanh: Hoàng Sa khoảng 15.6°N đến 17.3°N, 110.9°E đến 113.0°E; Trường Sa khoảng 6.8°N đến 12.2°N, 111.4°E đến 117.9°E), để không còn tên nước ngoài.
+   - Ẩn đường biên giới tranh chấp (`disputed`) và đường biên trên biển của bản đồ nền nếu style có. Không hiện "đường lưỡi bò" dưới mọi hình thức.
+   - Nhãn địa danh chung ưu tiên tên tiếng Việt (`name:vi`, rồi `name`) khi người xem dùng tiếng Việt.
+
 ## Không làm
 
 - Không thêm truy vấn server mới, không đổi `listVenuesNear` (trừ khi cần thêm tham số tâm, mà tâm đã là `lat/lng`).
