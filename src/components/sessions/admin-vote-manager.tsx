@@ -33,6 +33,8 @@ import {
 } from "@/components/fund/fund-adjust-dialog";
 import { confirmPaymentByAdmin, undoPaymentByAdmin } from "@/actions/finance";
 import { fireAction } from "@/lib/optimistic-action";
+import { ZaloShareButton } from "@/components/notifications/zalo-share-button";
+import { buildUnvotedReminderText } from "@/lib/zalo-share";
 import type { InferSelectModel } from "drizzle-orm";
 import type { votes as votesTable, members as membersTable } from "@/db/schema";
 
@@ -86,6 +88,12 @@ interface AdminVoteManagerProps {
   exemptMemberIds?: number[];
   /** Map memberId → fund balance để render warning icon cạnh tên member. */
   memberBalances?: Record<number, number>;
+  /** Có mặt → nút soạn tin Zalo nhắc những người chưa vote. */
+  zaloShare?: {
+    sessionDate: string;
+    voteDeadline: string | null;
+    zaloGroupUrl: string;
+  };
 }
 
 // Local optimistic state types
@@ -112,6 +120,7 @@ export function AdminVoteManager({
   minDeductionEnabled = false,
   exemptMemberIds = [],
   memberBalances = {},
+  zaloShare,
 }: AdminVoteManagerProps) {
   const t = useTranslations("voting");
   const tCommon = useTranslations("common");
@@ -1242,11 +1251,31 @@ export function AdminVoteManager({
               search,
             );
             if (inactiveMembers.length === 0) return null;
+            // Tin Zalo nhắc TẤT CẢ người chưa vote, không bị ô tìm kiếm lọc mất.
+            const unvotedNames = members
+              .filter((m) => {
+                const v = getVote(m.id);
+                return !v || (!v.willPlay && !v.willDine);
+              })
+              .map((m) => m.nickname?.trim() || m.name);
             return (
               <div className="space-y-1 border-t pt-3">
-                <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
-                  {t("notVoted")} ({inactiveMembers.length})
-                </p>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
+                    {t("notVoted")} ({inactiveMembers.length})
+                  </p>
+                  {zaloShare && (
+                    <ZaloShareButton
+                      zaloGroupUrl={zaloShare.zaloGroupUrl}
+                      text={buildUnvotedReminderText({
+                        sessionDate: zaloShare.sessionDate,
+                        startTime: sessionCosts?.startTime ?? "20:30",
+                        voteDeadline: zaloShare.voteDeadline,
+                        names: unvotedNames,
+                      })}
+                    />
+                  )}
+                </div>
                 <div className="divide-y">
                   {inactiveMembers.map((m) => (
                     <div

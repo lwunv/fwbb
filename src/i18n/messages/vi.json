@@ -54,6 +54,14 @@
     "autoCreateHint": "Tự tạo buổi vote vào các ngày chọn bên dưới, admin không phải tạo tay.",
     "exchangeEnabled": "Mở tính năng giao lưu",
     "exchangeEnabledHint": "Cho người ngoài nhóm đăng nhập bằng Zalo và xem danh bạ sân. Phải đặt đủ biến Zalo và Turnstile trên Vercel trước khi bật.",
+    "notificationsTitle": "Thông báo",
+    "notificationsEnabled": "Bật thông báo trong app",
+    "notificationsEnabledHint": "Hiện chuông thông báo cho thành viên và admin. Tắt thì app ngừng tạo thông báo mới.",
+    "zaloGroupUrl": "Link nhóm Zalo",
+    "zaloGroupUrlHint": "Dán link nhóm bắt đầu bằng https://zalo.me/. Nút soạn tin sẽ mở nhóm này sau khi chép nội dung.",
+    "zaloGroupUrlInvalid": "Link phải bắt đầu bằng https://zalo.me/",
+    "courtLockHoursBefore": "Nhắc chốt sân trước giờ chơi (giờ)",
+    "courtLockHoursBeforeHint": "Từ 1 đến 72 giờ. Admin được nhắc khi buổi chơi còn đúng số giờ này mà chưa chốt sân.",
     "appName": "Tên nhóm",
     "bankAccount": "Tài khoản nhận tiền",
     "bankName": "Ngân hàng",
@@ -1564,6 +1572,19 @@
     "saveFailed": "Không lưu được. Kiểm tra kết nối mạng rồi thử lại."
   },
   "notifications": {
+    "share": {
+      "label": "Soạn tin Zalo",
+      "copied": "Đã chép, dán vào nhóm Zalo",
+      "copyFailed": "Không chép được tin nhắn. Bạn thử lại nhé."
+    },
+    "prefs": {
+      "title": "Thông báo",
+      "hint": "Chọn loại thông báo bạn muốn nhận trong app.",
+      "allOn": "Nhận tất cả",
+      "mutedCount": "Đã tắt {count}",
+      "mandatory": "Tin quan trọng luôn được gửi",
+      "loadError": "Không tải được tuỳ chọn thông báo. Thử lại sau nhé."
+    },
     "bell": {
       "title": "Thông báo",
       "empty": "Chưa có thông báo nào",

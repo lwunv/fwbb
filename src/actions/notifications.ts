@@ -3,11 +3,16 @@
 import { and, count, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { db } from "@/db";
-import { members, notifications } from "@/db/schema";
+import { z } from "zod";
+import { admins, members, notificationPrefs, notifications } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
 import { getUserFromCookie } from "@/lib/user-identity";
 import {
+  ADMIN_GROUPS,
+  MEMBER_GROUPS,
+  isGroupMutable,
   NOTIFICATION_CATALOG,
+  type NotificationGroup,
   type NotificationKind,
 } from "@/lib/notifications/catalog";
 import { isNotificationsEnabled } from "@/lib/notifications/notify";
@@ -172,5 +177,124 @@ export async function markAllNotificationsRead(
     .update(notifications)
     .set({ readAt: new Date().toISOString() })
     .where(and(...viewerFilter(viewer), isNull(notifications.readAt)));
+  return { success: true };
+}
+
+/** Nhóm người nhận được phép tắt: đúng phía của họ và không phải nhóm toàn tin bắt buộc. */
+function mutableGroups(scope: Scope): NotificationGroup[] {
+  const groups: readonly NotificationGroup[] =
+    scope === "admin" ? ADMIN_GROUPS : MEMBER_GROUPS;
+  return groups.filter(isGroupMutable);
+}
+
+const ALL_GROUPS = [...MEMBER_GROUPS, ...ADMIN_GROUPS] as const;
+const prefsPatchSchema = z
+  .object({
+    mutedGroups: z.array(z.enum(ALL_GROUPS)).max(ALL_GROUPS.length).optional(),
+    emailEnabled: z.boolean().optional(),
+  })
+  .strict()
+  .refine((p) => p.mutedGroups !== undefined || p.emailEnabled !== undefined);
+
+/**
+ * Tuỳ chọn thông báo của chính người đang đăng nhập. Người nhận lấy từ phiên
+ * (cùng `resolveViewer` với chuông), không bao giờ từ tham số client.
+ */
+export async function getMyNotificationPrefs(scope: Scope): Promise<
+  | {
+      mutedGroups: NotificationGroup[];
+      emailEnabled: boolean;
+      email: string | null;
+      emailVerified: boolean;
+    }
+  | { error: string }
+> {
+  const viewer = await resolveViewer(scope);
+  if (!viewer) return { error: "Unauthorized" };
+  const [prefs] = await db
+    .select({
+      mutedGroups: notificationPrefs.mutedGroups,
+      emailEnabled: notificationPrefs.emailEnabled,
+    })
+    .from(notificationPrefs)
+    .where(
+      and(
+        eq(notificationPrefs.recipientType, viewer.recipientType),
+        eq(notificationPrefs.recipientId, viewer.recipientId),
+      ),
+    )
+    .limit(1);
+  const muted = (
+    Array.isArray(prefs?.mutedGroups) ? prefs.mutedGroups : []
+  ).filter((g): g is NotificationGroup =>
+    (ALL_GROUPS as readonly string[]).includes(g),
+  );
+
+  let email: string | null = null;
+  let emailVerified = false;
+  if (scope === "member") {
+    const [m] = await db
+      .select({
+        email: members.email,
+        verifiedFor: members.notifyEmailVerifiedFor,
+      })
+      .from(members)
+      .where(eq(members.id, viewer.recipientId))
+      .limit(1);
+    email = m?.email ?? null;
+    emailVerified =
+      !!m?.email && m.verifiedFor === m.email.trim().toLowerCase();
+  } else {
+    // Admin chưa có bước xác minh email thông báo; Task 14 quyết định cách nối.
+    const [a] = await db
+      .select({ email: admins.email })
+      .from(admins)
+      .where(eq(admins.id, viewer.recipientId))
+      .limit(1);
+    email = a?.email ?? null;
+  }
+  return {
+    mutedGroups: muted,
+    emailEnabled: prefs?.emailEnabled ?? true,
+    email,
+    emailVerified,
+  };
+}
+
+export async function updateMyNotificationPrefs(
+  scope: Scope,
+  patch: { mutedGroups?: NotificationGroup[]; emailEnabled?: boolean },
+): Promise<{ success: true } | { error: string }> {
+  const viewer = await resolveViewer(scope);
+  if (!viewer) return { error: "Unauthorized" };
+  const parsed = prefsPatchSchema.safeParse(patch);
+  if (!parsed.success) return { error: "Invalid preferences" };
+
+  const set: { mutedGroups?: string[]; emailEnabled?: boolean } = {};
+  if (parsed.data.mutedGroups) {
+    const allowed = new Set<string>(mutableGroups(scope));
+    const groups = Array.from(new Set(parsed.data.mutedGroups));
+    if (groups.some((g) => !allowed.has(g))) {
+      return { error: "Group cannot be muted" };
+    }
+    set.mutedGroups = groups;
+  }
+  if (parsed.data.emailEnabled !== undefined) {
+    set.emailEnabled = parsed.data.emailEnabled;
+  }
+  const updatedAt = new Date().toISOString();
+  await db
+    .insert(notificationPrefs)
+    .values({
+      recipientType: viewer.recipientType,
+      recipientId: viewer.recipientId,
+      ...set,
+      updatedAt,
+    })
+    .onConflictDoUpdate({
+      target: [notificationPrefs.recipientType, notificationPrefs.recipientId],
+      // Chỉ ghi trường có trong patch: đổi nhóm không được đụng emailEnabled.
+      set: { ...set, updatedAt },
+    });
   return { success: true };
 }

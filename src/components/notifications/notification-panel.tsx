@@ -21,9 +21,11 @@ import {
 /** Nội dung dùng chung cho bottom sheet (mobile) và dialog (từ `sm:`). */
 export function NotificationPanel({
   scope,
+  zaloGroupUrl,
   onNavigate,
 }: {
   scope: NotificationScope;
+  zaloGroupUrl?: string;
   /** Đóng panel khi đã chọn một tin. */
   onNavigate: () => void;
 }) {
@@ -64,7 +66,13 @@ export function NotificationPanel({
           <EmptyState variant="inline" icon={Bell} title={t("empty")} />
         ) : (
           items.map((item) => (
-            <NotificationRow key={item.id} item={item} onSelect={select} />
+            <NotificationRow
+              key={item.id}
+              item={item}
+              scope={scope}
+              zaloGroupUrl={zaloGroupUrl}
+              onSelect={select}
+            />
           ))
         )}
         {list.hasNextPage && (

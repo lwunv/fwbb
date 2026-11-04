@@ -227,6 +227,16 @@ export const NOTIFICATION_CATALOG: Record<NotificationKind, KindDef> = {
   weekly_summary: def("admin", "admin_session", false, true, "scheduled"),
 };
 
+/**
+ * Nhóm tắt được khi còn ít nhất 1 kind không bắt buộc. Nhóm toàn kind bắt buộc
+ * (vd "account") không có công tắc: tin quan trọng luôn được gửi.
+ */
+export function isGroupMutable(group: NotificationGroup): boolean {
+  return Object.values(NOTIFICATION_CATALOG).some(
+    (def) => def.group === group && !def.mandatory,
+  );
+}
+
 export const NOTIFICATION_KINDS = Object.keys(
   NOTIFICATION_CATALOG,
 ) as NotificationKind[];

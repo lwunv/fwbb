@@ -198,6 +198,8 @@ export interface AdminSessionCardProps {
   onToggleExpand?: (e: React.MouseEvent) => void;
   /** Set expanded trực tiếp (grid completed footer buttons). */
   onExpandedChange?: (next: boolean) => void;
+  /** Có mặt → danh sách "chưa vote" có nút soạn tin Zalo (chuỗi rỗng = chỉ chép tin). */
+  zaloGroupUrl?: string;
 }
 
 const statusStyles: Record<
@@ -269,6 +271,7 @@ export function AdminSessionCard({
   expanded = false,
   onToggleExpand,
   onExpandedChange,
+  zaloGroupUrl,
 }: AdminSessionCardProps) {
   const t = useTranslations("sessions");
   const tF = useTranslations("finance");
@@ -433,6 +436,15 @@ export function AdminSessionCard({
         isCompleted: effectiveStatus === "completed",
       }}
       hideCostSummary
+      zaloShare={
+        zaloGroupUrl === undefined
+          ? undefined
+          : {
+              sessionDate: session.date,
+              voteDeadline: session.voteDeadline ?? null,
+              zaloGroupUrl,
+            }
+      }
     />
   );
 

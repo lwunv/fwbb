@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Cog } from "lucide-react";
 import { SectionCard } from "@/components/shared/section-card";
@@ -7,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { useSettingsDraft } from "@/components/settings/settings-draft";
-import { normalizeContactHotline } from "@/lib/settings-registry";
+import { SETTINGS, normalizeContactHotline } from "@/lib/settings-registry";
 import { VN_BANKS } from "@/lib/vn-banks";
 import { AUTO_MATCH_BANK_BIN } from "@/lib/bank-account";
 
@@ -18,6 +19,9 @@ const BANK_OPTIONS = VN_BANKS.filter((b) => b.transferSupported).map((b) => ({
   value: b.bin,
   label: b.shortName,
 }));
+
+const LOCK_HOURS_MIN = 1;
+const LOCK_HOURS_MAX = 72;
 
 export function SectionOperations() {
   const t = useTranslations("adminSettings");
@@ -47,6 +51,51 @@ export function SectionOperations() {
       return;
     }
     set(key, trimmed);
+  }
+
+  // Link Zalo sai KHÔNG vào bản nháp (registry sẽ từ chối lúc Lưu và admin chỉ
+  // thấy lỗi muộn). Giữ chữ đang gõ ở state cục bộ, nháp quay về giá trị server.
+  const [badZaloText, setBadZaloText] = useState<string | null>(null);
+  function changeZalo(raw: string) {
+    const v = raw.trim();
+    if (SETTINGS.zaloGroupUrl.schema.safeParse(v).success) {
+      setBadZaloText(null);
+      set("zaloGroupUrl", v);
+    } else {
+      setBadZaloText(raw);
+      reset("zaloGroupUrl");
+    }
+  }
+
+  // Số giờ: giá trị hợp lệ vào nháp ngay (để bấm Lưu liền không cần rời ô);
+  // chữ dở dang hoặc ngoài khoảng chỉ nằm ở state cục bộ tới lúc rời ô.
+  const [lockHoursText, setLockHoursText] = useState<string | null>(null);
+  function changeLockHours(raw: string) {
+    const n = Number(raw);
+    if (
+      raw.trim() !== "" &&
+      Number.isInteger(n) &&
+      n >= LOCK_HOURS_MIN &&
+      n <= LOCK_HOURS_MAX
+    ) {
+      setLockHoursText(null);
+      set("courtLockHoursBefore", n);
+    } else {
+      setLockHoursText(raw);
+    }
+  }
+  function blurLockHours() {
+    if (lockHoursText === null) return;
+    const n = Number(lockHoursText);
+    if (lockHoursText.trim() === "" || !Number.isFinite(n)) {
+      reset("courtLockHoursBefore");
+    } else {
+      set(
+        "courtLockHoursBefore",
+        Math.min(LOCK_HOURS_MAX, Math.max(LOCK_HOURS_MIN, Math.round(n))),
+      );
+    }
+    setLockHoursText(null);
   }
 
   function blurHotline(raw: string) {
@@ -81,6 +130,68 @@ export function SectionOperations() {
             onCheckedChange={(v) => set("exchangeEnabled", v)}
             aria-label={t("exchangeEnabled")}
           />
+        </div>
+
+        <div className="space-y-3 border-t pt-3">
+          <div className="text-sm font-medium">{t("notificationsTitle")}</div>
+          <div className="flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3">
+            <div>
+              <div className="text-sm font-medium">
+                {t("notificationsEnabled")}
+              </div>
+              <p className="text-muted-foreground text-xs">
+                {t("notificationsEnabledHint")}
+              </p>
+            </div>
+            <Switch
+              checked={get("notificationsEnabled")}
+              onCheckedChange={(v) => set("notificationsEnabled", v)}
+              aria-label={t("notificationsEnabled")}
+            />
+          </div>
+          <label className="block">
+            <span className="text-muted-foreground mb-1 block text-xs font-medium">
+              {t("zaloGroupUrl")}
+            </span>
+            <Input
+              value={badZaloText ?? get("zaloGroupUrl")}
+              type="url"
+              inputMode="url"
+              placeholder="https://zalo.me/g/..."
+              className="min-h-11"
+              aria-label={t("zaloGroupUrl")}
+              aria-invalid={badZaloText !== null}
+              onChange={(e) => changeZalo(e.target.value)}
+            />
+            {badZaloText !== null ? (
+              <span className="text-destructive mt-1 block text-xs">
+                {t("zaloGroupUrlInvalid")}
+              </span>
+            ) : (
+              <span className="text-muted-foreground mt-1 block text-xs">
+                {t("zaloGroupUrlHint")}
+              </span>
+            )}
+          </label>
+          <label className="block">
+            <span className="text-muted-foreground mb-1 block text-xs font-medium">
+              {t("courtLockHoursBefore")}
+            </span>
+            <Input
+              value={lockHoursText ?? String(get("courtLockHoursBefore"))}
+              type="number"
+              inputMode="numeric"
+              min={LOCK_HOURS_MIN}
+              max={LOCK_HOURS_MAX}
+              aria-label={t("courtLockHoursBefore")}
+              className="min-h-11"
+              onChange={(e) => changeLockHours(e.target.value)}
+              onBlur={blurLockHours}
+            />
+            <span className="text-muted-foreground mt-1 block text-xs">
+              {t("courtLockHoursBeforeHint")}
+            </span>
+          </label>
         </div>
 
         <div className="space-y-3 border-t pt-3">

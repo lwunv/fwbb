@@ -71,11 +71,14 @@ export function AdminMobileNav({
   pendingMemberCount = 0,
   pendingVenueCount = 0,
   showBell = false,
+  zaloGroupUrl = "",
 }: {
   appName?: string;
   pendingMemberCount?: number;
   pendingVenueCount?: number;
   showBell?: boolean;
+  /** Link nhóm Zalo cho nút soạn tin trong chuông (setting zaloGroupUrl). */
+  zaloGroupUrl?: string;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -90,7 +93,9 @@ export function AdminMobileNav({
         <h1 className="truncate text-base font-bold">Admin</h1>
       </Link>
       <div className="flex shrink-0 items-center gap-1">
-        {showBell && <NotificationBell scope="admin" />}
+        {showBell && (
+          <NotificationBell scope="admin" zaloGroupUrl={zaloGroupUrl} />
+        )}
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger render={<Button variant="ghost" size="icon" />}>
             <Menu className="h-5 w-5" />

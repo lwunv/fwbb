@@ -20,7 +20,14 @@ import { NotificationPanel } from "./notification-panel";
 import { useUnreadCount, type NotificationScope } from "./use-notifications";
 
 /** Chuông thông báo: chấm đếm chưa đọc + panel (sheet dưới ở mobile, dialog từ `sm:`). */
-export function NotificationBell({ scope }: { scope: NotificationScope }) {
+export function NotificationBell({
+  scope,
+  zaloGroupUrl,
+}: {
+  scope: NotificationScope;
+  /** Link nhóm Zalo (chỉ admin dùng, cho nút soạn tin ở các tin nhắc vote). */
+  zaloGroupUrl?: string;
+}) {
   const t = useTranslations("notifications.bell");
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
@@ -28,7 +35,11 @@ export function NotificationBell({ scope }: { scope: NotificationScope }) {
   const label = unread >= 100 ? "99+" : String(unread);
 
   const panel = (
-    <NotificationPanel scope={scope} onNavigate={() => setOpen(false)} />
+    <NotificationPanel
+      scope={scope}
+      zaloGroupUrl={zaloGroupUrl}
+      onNavigate={() => setOpen(false)}
+    />
   );
 
   return (

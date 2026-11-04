@@ -3,7 +3,11 @@ import { getSessionVotes } from "@/actions/votes";
 import { getActiveCourts } from "@/actions/courts";
 import { getActiveBrands } from "@/actions/shuttlecocks";
 import { getActiveMembers } from "@/actions/members";
-import { getDefaultCourt, getSessionDaysOfWeek } from "@/actions/settings";
+import {
+  getDefaultCourt,
+  getSessionDaysOfWeek,
+  getSettings,
+} from "@/actions/settings";
 import { getSessionExemptions } from "@/actions/sessions";
 import { db } from "@/db";
 import { financialTransactions, sessionDebts } from "@/db/schema";
@@ -32,6 +36,7 @@ export default async function SessionDetailPage({
     sessionDays,
     exemptions,
     adminRow,
+    settings,
   ] = await Promise.all([
     getSession(sessionId),
     getSessionVotes(sessionId),
@@ -48,6 +53,7 @@ export default async function SessionDetailPage({
     // khách-của-admin (Task 14), không chỉ khách qua ô đếm riêng. Trước đây
     // trang này không fetch admin nên luôn truyền null xuống AdminSessionCard.
     db.query.admins.findFirst({ columns: { memberId: true } }),
+    getSettings(),
   ]);
 
   if (!session) notFound();
@@ -101,6 +107,9 @@ export default async function SessionDetailPage({
         exemptMemberIds={exemptions}
         memberBalances={memberBalances}
         adminMemberId={adminMemberId}
+        zaloGroupUrl={
+          settings.notificationsEnabled ? settings.zaloGroupUrl : undefined
+        }
       />
     </div>
   );

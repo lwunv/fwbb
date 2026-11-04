@@ -8,6 +8,8 @@ import { getMemberIdentities, isUsablePassword } from "@/lib/oauth-identity";
 import { ymdInVN } from "@/lib/date-format";
 import { MeClient } from "./me-client";
 import { SkillLevelSection } from "./skill-level-section";
+import { NotificationPrefsSection } from "@/components/notifications/notification-prefs-section";
+import { getSettings } from "@/actions/settings";
 import { SetPasswordSection } from "./set-password-section";
 import { LinkedAccountsSection } from "./linked-accounts-section";
 
@@ -43,6 +45,8 @@ export default async function MePage() {
   // Hiển thị balance nếu còn trong quỹ HOẶC còn số dư đóng băng (member đã khóa
   // nhưng chưa hoàn) — tránh member tưởng mất tiền.
   const fundBalance = isInFund || rawBalance !== 0 ? rawBalance : null;
+  // Cờ tắt thì không có thẻ này: trang /me giữ nguyên như trước khi có thông báo.
+  const notificationsEnabled = (await getSettings()).notificationsEnabled;
 
   return (
     <div className="mx-auto max-w-lg space-y-4">
@@ -62,6 +66,7 @@ export default async function MePage() {
         fundBalance={fundBalance}
       />
       <SkillLevelSection current={member.skillLevel ?? null} />
+      {notificationsEnabled && <NotificationPrefsSection scope="member" />}
       <SetPasswordSection
         hasPassword={!!member.passwordHash}
         hasEmail={!!member.email}

@@ -41,12 +41,14 @@ export default async function AdminLayout({
         pendingMemberCount={pendingMemberCount}
         pendingVenueCount={pendingVenueCount}
         showBell={settings.notificationsEnabled}
+        zaloGroupUrl={settings.zaloGroupUrl}
       />
       <AdminMobileNav
         appName={appName}
         pendingMemberCount={pendingMemberCount}
         pendingVenueCount={pendingVenueCount}
         showBell={settings.notificationsEnabled}
+        zaloGroupUrl={settings.zaloGroupUrl}
       />
       <main className="p-4 pb-24 md:p-6 lg:ml-60">{children}</main>
     </div>

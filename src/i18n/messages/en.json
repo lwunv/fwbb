@@ -54,6 +54,14 @@
     "autoCreateHint": "The app creates voting sessions automatically on the days picked below.",
     "exchangeEnabled": "Turn on exchange",
     "exchangeEnabledHint": "Lets people outside the group sign in with Zalo and browse the court directory. Set the Zalo and Turnstile env vars on Vercel before turning it on.",
+    "notificationsTitle": "Notifications",
+    "notificationsEnabled": "Turn on in-app notifications",
+    "notificationsEnabledHint": "Shows the notification bell to members and admins. When it is off, the app stops creating new notifications.",
+    "zaloGroupUrl": "Zalo group link",
+    "zaloGroupUrlHint": "Paste the group link starting with https://zalo.me/. The draft button opens this group after copying the message.",
+    "zaloGroupUrlInvalid": "The link must start with https://zalo.me/",
+    "courtLockHoursBefore": "Court booking reminder before play (hours)",
+    "courtLockHoursBeforeHint": "From 1 to 72 hours. Admins get a reminder when a session is this many hours away and the court is not locked in yet.",
     "appName": "Group name",
     "bankAccount": "Receiving account",
     "bankName": "Bank",
@@ -1564,6 +1572,19 @@
     "saveFailed": "Could not save. Check your connection and try again."
   },
   "notifications": {
+    "share": {
+      "label": "Draft Zalo message",
+      "copied": "Copied, paste it into the Zalo group",
+      "copyFailed": "Couldn't copy the message. Please try again."
+    },
+    "prefs": {
+      "title": "Notifications",
+      "hint": "Choose which in-app notifications you want to get.",
+      "allOn": "Getting everything",
+      "mutedCount": "{count} turned off",
+      "mandatory": "Important notices are always sent",
+      "loadError": "Couldn't load notification settings. Please try again later."
+    },
     "bell": {
       "title": "Notifications",
       "empty": "No notifications yet",

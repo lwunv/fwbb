@@ -53,6 +53,7 @@ export function SessionDetail({
   exemptMemberIds = [],
   memberBalances = {},
   adminMemberId = null,
+  zaloGroupUrl,
 }: {
   session: Session;
   votes: Vote[];
@@ -76,6 +77,8 @@ export function SessionDetail({
    *  khách-của-admin (Task 14). Trước đây trang này luôn truyền `null` xuống
    *  AdminSessionCard, khiến preview trang chi tiết không phân loại được. */
   adminMemberId?: number | null;
+  /** Có mặt (kể cả rỗng) → hiện nút soạn tin Zalo cạnh danh sách chưa vote. Không truyền khi công tắc thông báo tắt. */
+  zaloGroupUrl?: string;
 }) {
   const [localStatus, setLocalStatus] = useState(session.status);
   // Optimistic mirror của giá/tên sân + danh sách cầu. CourtSelector /
@@ -244,6 +247,7 @@ export function SessionDetail({
         paidDebtIds={new Set()}
         onCancel={() => setShowCancelDialog(true)}
         membersCollapsible={false}
+        zaloGroupUrl={zaloGroupUrl}
       />
 
       {/* Action Button — sticky bottom: only cancel */}

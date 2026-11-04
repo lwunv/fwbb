@@ -54,6 +54,14 @@
     "autoCreateHint": "系统会在下方所选的日期自动创建投票活动。",
     "exchangeEnabled": "开启交流功能",
     "exchangeEnabledHint": "允许群外的人用 Zalo 登录并查看球场名录。开启前请先在 Vercel 设置好 Zalo 和 Turnstile 的环境变量。",
+    "notificationsTitle": "通知",
+    "notificationsEnabled": "开启应用内通知",
+    "notificationsEnabledHint": "向成员和管理员显示通知铃铛。关闭后应用不再生成新通知。",
+    "zaloGroupUrl": "Zalo 群链接",
+    "zaloGroupUrlHint": "粘贴以 https://zalo.me/ 开头的群链接。复制消息后，按钮会打开该群。",
+    "zaloGroupUrlInvalid": "链接必须以 https://zalo.me/ 开头",
+    "courtLockHoursBefore": "开场前提醒订场（小时）",
+    "courtLockHoursBeforeHint": "1 到 72 小时。距离开场还剩这么多小时仍未订场时，管理员会收到提醒。",
     "appName": "群组名称",
     "bankAccount": "收款账户",
     "bankName": "银行",
@@ -1564,6 +1572,19 @@
     "saveFailed": "保存失败。请检查网络连接后重试。"
   },
   "notifications": {
+    "share": {
+      "label": "生成 Zalo 消息",
+      "copied": "已复制，请粘贴到 Zalo 群",
+      "copyFailed": "复制消息失败，请重试。"
+    },
+    "prefs": {
+      "title": "通知",
+      "hint": "选择你想在应用内收到的通知类型。",
+      "allOn": "接收全部",
+      "mutedCount": "已关闭 {count} 项",
+      "mandatory": "重要通知始终会发送",
+      "loadError": "无法加载通知设置，请稍后再试。"
+    },
     "bell": {
       "title": "通知",
       "empty": "暂无通知",

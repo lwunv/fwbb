@@ -67,11 +67,14 @@ export function AdminSidebar({
   pendingMemberCount = 0,
   pendingVenueCount = 0,
   showBell = false,
+  zaloGroupUrl = "",
 }: {
   appName?: string;
   pendingMemberCount?: number;
   pendingVenueCount?: number;
   showBell?: boolean;
+  /** Link nhóm Zalo cho nút soạn tin trong chuông (setting zaloGroupUrl). */
+  zaloGroupUrl?: string;
 }) {
   const pathname = usePathname();
   const t = useTranslations("adminNav");
@@ -86,7 +89,7 @@ export function AdminSidebar({
         <h1 className="text-xl font-bold">Admin</h1>
         {showBell && (
           <span className="ml-auto">
-            <NotificationBell scope="admin" />
+            <NotificationBell scope="admin" zaloGroupUrl={zaloGroupUrl} />
           </span>
         )}
       </div>
