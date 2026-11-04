@@ -3,7 +3,24 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { courts, members, shuttlecockBrands } from "@/db/schema";
 import { getSettings } from "@/actions/settings";
+import { AlertTriangle } from "lucide-react";
+import { InlineNotice } from "@/components/shared/inline-notice";
+import { isSmtpConfigured } from "@/lib/mailer";
+import { getQstashConfig } from "@/lib/notifications/qstash";
+import { getLastEmailFailure } from "@/lib/notifications/outbox";
 import { SettingsClient } from "./settings-client";
+
+/** Giờ VN của lần lỗi mail (server chạy UTC). */
+function formatVNTime(iso: string): string {
+  return new Intl.DateTimeFormat("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    hour: "2-digit",
+    minute: "2-digit",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(iso));
+}
 
 export default async function AdminSettingsPage() {
   const t = await getTranslations("adminSettings");
@@ -26,6 +43,15 @@ export default async function AdminSettingsPage() {
   ]);
   const unsetGenderCount = Number(unsetGenderRows[0]?.n ?? 0);
 
+  // Cảnh báo cấu hình thông báo: chỉ khi công tắc bật (tắt thì không đọc bảng
+  // thông báo nào). Env đọc lúc render, không chốt lúc build.
+  const notificationsOn = settings.notificationsEnabled === true;
+  const qstashMissing = notificationsOn && getQstashConfig() === null;
+  const smtpMissing = notificationsOn && !isSmtpConfigured();
+  const lastEmailFailure = notificationsOn
+    ? await getLastEmailFailure(db)
+    : null;
+
   const settingsCourts = allCourts.map((c) => ({
     id: c.id,
     name: c.name,
@@ -43,6 +69,24 @@ export default async function AdminSettingsPage() {
         <h1 className="font-heading text-2xl font-bold">{t("title")}</h1>
         <p className="text-muted-foreground text-sm">{t("subtitle")}</p>
       </div>
+      {qstashMissing && (
+        <InlineNotice tone="warning" icon={AlertTriangle}>
+          {t("qstashMissing")}
+        </InlineNotice>
+      )}
+      {smtpMissing && (
+        <InlineNotice tone="warning" icon={AlertTriangle}>
+          {t("smtpMissing")}
+        </InlineNotice>
+      )}
+      {lastEmailFailure && (
+        <InlineNotice tone="warning" icon={AlertTriangle}>
+          {t("lastEmailFailure", {
+            at: formatVNTime(lastEmailFailure.at),
+            code: lastEmailFailure.errorCode,
+          })}
+        </InlineNotice>
+      )}
       <SettingsClient
         settings={settings}
         courts={settingsCourts}

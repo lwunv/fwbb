@@ -44,12 +44,19 @@ export type DrainResult = Record<DrainOutcome, number>;
 
 /**
  * Điểm móc khi một delivery được hẹn ở tương lai (thử lại, hoặc dồn vì giờ yên
- * lặng). Hiện KHÔNG làm gì: Task 17 nối `publishJob` (QStash) vào đây để đánh
- * thức outbox đúng phút. Chưa nối thì các mốc này chờ lượt cron hằng ngày.
- * Phải không ném lỗi và không gọi mạng đồng bộ (có thể chạy trong transaction).
+ * lặng): hẹn job `outbox_retry` trên QStash để đánh thức outbox đúng phút.
+ * Có thể chạy trong transaction nên không ghi DB hay gọi mạng ở đây; mọi việc
+ * chạy sau phản hồi (sau commit). Thiếu QStash thì chờ lượt cron hằng ngày.
  */
 export function onDeliveryDeferred(runAt: Date): void {
-  void runAt;
+  runAfterResponse(async () => {
+    // Import lúc chạy: jobs.ts kéo theo capacity → notify → module này.
+    const [{ db }, { scheduleOutboxRetry }] = await Promise.all([
+      import("@/db"),
+      import("./jobs"),
+    ]);
+    await scheduleOutboxRetry(db, runAt);
+  });
 }
 
 /** Hẹn drain các delivery vừa xếp hàng sau khi phản hồi đã gửi (sau commit). */

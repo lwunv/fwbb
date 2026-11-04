@@ -45,6 +45,7 @@ import {
 } from "@/lib/notifications/money-events";
 import { isNotificationsEnabled, notify } from "@/lib/notifications/notify";
 import { scheduleLowStockCheck } from "@/lib/notifications/inventory-events";
+import { scheduleSessionJobsAfterCommit } from "@/lib/notifications/jobs";
 
 export interface FinalizeAttendee {
   memberId: number | null;
@@ -591,6 +592,8 @@ export async function finalizeSession(
 
   // Cầu vừa trừ kho theo buổi: kiểm tồn sau commit (xem scheduleLowStockCheck).
   await scheduleLowStockCheck(db, notificationsOn);
+  // Buổi đã chốt không còn mốc nhắc nào: huỷ các job đang hẹn (sau commit).
+  scheduleSessionJobsAfterCommit(data.sessionId, notificationsOn);
 
   // Non-blocking Messenger notification (only if tx succeeded)
   const totalDebts = breakdown.memberDebts.reduce(

@@ -157,6 +157,13 @@ export interface MailMessage {
   headers?: Record<string, string>;
 }
 
+/** SMTP đủ cấu hình để gửi (đọc env lúc gọi). Trang cài đặt dùng để cảnh báo. */
+export function isSmtpConfigured(): boolean {
+  return Boolean(
+    process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS,
+  );
+}
+
 /**
  * 5xx từ máy chủ mail hoặc EENVELOPE (địa chỉ không hợp lệ) thì thử lại vô ích.
  * Mạng, timeout, 4xx (greylist, quá tải) thì hàng đợi nên thử lại sau.

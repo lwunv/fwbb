@@ -140,7 +140,8 @@ async function highestSentRank(
   return best;
 }
 
-async function courtLockHoursBefore(db: DbOrTx): Promise<number> {
+/** Setting `courtLockHoursBefore` (1 truy vấn). */
+export async function courtLockHoursBefore(db: DbOrTx): Promise<number> {
   const rows = await db
     .select({ key: appSettings.key, value: appSettings.value })
     .from(appSettings)

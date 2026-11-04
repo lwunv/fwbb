@@ -49,6 +49,7 @@ import {
 } from "@/lib/notifications/session-events";
 import { evaluateCapacity } from "@/lib/notifications/capacity";
 import { notifySessionDeletedRefund } from "@/lib/notifications/money-events";
+import { scheduleSessionJobsAfterCommit } from "@/lib/notifications/jobs";
 import {
   sendGroupMessage,
   buildNewSessionMessage,
@@ -190,6 +191,7 @@ export async function getNextSession() {
       await notifySessionOpened(tx, created.id);
       return created;
     });
+    scheduleSessionJobsAfterCommit(newSession.id);
     return db.query.sessions.findFirst({
       where: eq(sessions.id, newSession.id),
       with: { court: true, shuttlecocks: { with: { brand: true } } },
@@ -269,6 +271,7 @@ export async function getAdminUpcomingSession() {
         await notifySessionOpened(tx, created.id);
         return created;
       });
+      scheduleSessionJobsAfterCommit(newSession.id);
       return db.query.sessions.findFirst({
         where: eq(sessions.id, newSession.id),
         with: { court: true, shuttlecocks: { with: { brand: true } } },
@@ -657,6 +660,7 @@ export async function cancelSession(
     return { success: true as const, alreadyCancelled: true };
   }
 
+  scheduleSessionJobsAfterCommit(sessionId);
   revalidatePath("/admin/sessions");
   revalidatePath(`/admin/sessions/${sessionId}`);
   if (passed && passRevenue > 0) {
@@ -788,6 +792,7 @@ export async function reopenSession(sessionId: number) {
     };
   }
 
+  scheduleSessionJobsAfterCommit(sessionId);
   revalidatePath("/admin/sessions");
   revalidatePath(`/admin/sessions/${sessionId}`);
   if (hadPassContribution) {
@@ -970,6 +975,7 @@ export async function unlockSession(
     };
   }
 
+  scheduleSessionJobsAfterCommit(sessionId);
   revalidatePath("/admin/sessions");
   revalidatePath(`/admin/sessions/${sessionId}`);
   revalidatePath("/admin/fund");
@@ -1183,6 +1189,8 @@ export async function deleteSession(sessionId: number) {
     };
   }
 
+  // Buổi đã xoá: không còn mốc nào, mọi job đang hẹn của buổi bị huỷ.
+  scheduleSessionJobsAfterCommit(sessionId);
   revalidatePath("/admin/sessions");
   revalidatePath("/admin/finance");
   revalidatePath("/admin/fund");
@@ -1274,7 +1282,7 @@ export async function createSessionManually(
   // Pre-fill brand mặc định để admin chỉ cần đổi ống nếu cần. Đọc trước tx để
   // trong tx chỉ còn lệnh ghi.
   const defaultBrand = await getDefaultBrand();
-  await db.transaction(async (tx) => {
+  const newSessionId = await db.transaction(async (tx) => {
     const [newSession] = await tx
       .insert(sessions)
       .values({
@@ -1303,7 +1311,9 @@ export async function createSessionManually(
       });
     }
     if (newSession) await notifySessionOpened(tx, newSession.id);
+    return newSession?.id;
   });
+  if (newSessionId !== undefined) scheduleSessionJobsAfterCommit(newSessionId);
   revalidatePath("/admin/sessions");
   revalidatePath("/");
 
@@ -1840,6 +1850,7 @@ export async function setVoteDeadline(
       await notifyVoteReopened(tx, sessionId, token);
     }
   });
+  scheduleSessionJobsAfterCommit(sessionId);
 
   revalidatePath("/");
   revalidatePath(`/vote/${sessionId}`);
@@ -1878,6 +1889,7 @@ export async function lockVoteNow(sessionId: number) {
     .update(sessions)
     .set({ voteDeadline: nowDeadlineVN(), updatedAt: new Date().toISOString() })
     .where(eq(sessions.id, sessionId));
+  scheduleSessionJobsAfterCommit(sessionId);
 
   revalidatePath("/");
   revalidatePath(`/vote/${sessionId}`);
@@ -1924,6 +1936,7 @@ export async function setSessionMaxPlayers(
     // Đổi sức chứa thì bậc ngưỡng tính lại từ đầu cho sức chứa mới.
     await evaluateCapacity(tx, sessionId);
   });
+  scheduleSessionJobsAfterCommit(sessionId);
 
   revalidatePath("/");
   revalidatePath(`/vote/${sessionId}`);
@@ -1992,6 +2005,7 @@ export async function setSessionTime(
       await notifySessionChanged(tx, sessionId, ["time"], token);
     }
   });
+  scheduleSessionJobsAfterCommit(sessionId);
 
   revalidatePath("/");
   revalidatePath(`/vote/${sessionId}`);
@@ -2060,6 +2074,7 @@ export async function extendVoteDeadline(sessionId: number, hours: 2 | 24) {
       await notifyVoteReopened(tx, sessionId, token);
     }
   });
+  scheduleSessionJobsAfterCommit(sessionId);
 
   revalidatePath("/");
   revalidatePath(`/vote/${sessionId}`);
