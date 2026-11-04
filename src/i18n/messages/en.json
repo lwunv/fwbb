@@ -1561,6 +1561,11 @@
     "retry": "Try again",
     "backToList": "All venues",
     "mapUnsupported": "This browser can't display the map. Please use the venue list instead.",
+    "viewSwitch": "View mode",
+    "showList": "List",
+    "showMap": "Map",
+    "searchThisArea": "Search this area",
+    "selectedArea": "Selected area",
     "attribution": "Address coordinates: © OpenStreetMap contributors",
     "saveFailed": "Could not save. Check your connection and try again."
   }

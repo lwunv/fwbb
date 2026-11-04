@@ -1561,6 +1561,11 @@
     "retry": "Thử lại",
     "backToList": "Danh sách sân",
     "mapUnsupported": "Trình duyệt này không hiển thị được bản đồ. Bạn xem danh sách sân thay thế nhé.",
+    "viewSwitch": "Cách xem",
+    "showList": "Danh sách",
+    "showMap": "Bản đồ",
+    "searchThisArea": "Tìm ở khu vực này",
+    "selectedArea": "Khu vực đã chọn",
     "attribution": "Toạ độ địa chỉ: © OpenStreetMap contributors",
     "saveFailed": "Không lưu được. Kiểm tra kết nối mạng rồi thử lại."
   }

@@ -1561,6 +1561,11 @@
     "retry": "重试",
     "backToList": "全部场馆",
     "mapUnsupported": "此浏览器无法显示地图，请改用场馆列表。",
+    "viewSwitch": "查看方式",
+    "showList": "列表",
+    "showMap": "地图",
+    "searchThisArea": "搜索此区域",
+    "selectedArea": "已选区域",
     "attribution": "地址坐标：© OpenStreetMap contributors",
     "saveFailed": "保存失败。请检查网络连接后重试。"
   }
