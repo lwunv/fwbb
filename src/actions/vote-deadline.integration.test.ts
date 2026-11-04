@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
 import { members, sessions } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { formatLocalDeadline, parseVoteDeadline } from "@/lib/vote-deadline";
+import { nowDeadlineVN, parseVoteDeadline } from "@/lib/vote-deadline";
 
 const userMock = vi.hoisted(() => ({
   getUserFromCookie:
@@ -64,14 +64,12 @@ async function seedSession(opts: {
   return s.id;
 }
 
-// Generate local-time ISO strings (YYYY-MM-DDTHH:MM:SS, no Z) — matches the
-// stored format (Vietnam local time convention, see design spec). Using
-// toISOString().slice(0,19) would produce UTC strings which, on non-UTC
-// machines, are parsed back as local time and can appear in the wrong direction.
-const futureIso = () =>
-  formatLocalDeadline(new Date(Date.now() + 60 * 60 * 1000));
-const pastIso = () =>
-  formatLocalDeadline(new Date(Date.now() - 60 * 60 * 1000));
+// Deadline lưu là giờ VN không offset; action đọc nó bằng `parseVoteDeadline`
+// (+07:00). Fixture dựng bằng `nowDeadlineVN` và đọc lại bằng
+// `parseVoteDeadline` để test cho cùng kết quả dù máy chạy ở TZ nào (server
+// Vercel là UTC).
+const futureIso = () => nowDeadlineVN(new Date(Date.now() + 60 * 60 * 1000));
+const pastIso = () => nowDeadlineVN(new Date(Date.now() - 60 * 60 * 1000));
 
 describe("submitVote — vote deadline gate", () => {
   beforeEach(reset);
@@ -176,7 +174,7 @@ describe("extendVoteDeadline — quick buttons", () => {
   it("extends a future deadline by N hours", async () => {
     const sessionId = await seedSession({ voteDeadline: null });
     const baseMs = Date.now() + 30 * 60 * 1000;
-    const baseIso = formatLocalDeadline(new Date(baseMs));
+    const baseIso = nowDeadlineVN(new Date(baseMs));
     await testDb
       .update(sessions)
       .set({ voteDeadline: baseIso })
@@ -189,7 +187,7 @@ describe("extendVoteDeadline — quick buttons", () => {
       where: eq(sessions.id, sessionId),
     });
     const expectedMs = baseMs + 2 * 60 * 60 * 1000;
-    const actualMs = new Date(s!.voteDeadline!).getTime();
+    const actualMs = parseVoteDeadline(s!.voteDeadline!).getTime();
     expect(Math.abs(actualMs - expectedMs)).toBeLessThan(5_000);
   });
 
@@ -202,7 +200,7 @@ describe("extendVoteDeadline — quick buttons", () => {
     const s = await testDb.query.sessions.findFirst({
       where: eq(sessions.id, sessionId),
     });
-    const newMs = new Date(s!.voteDeadline!).getTime();
+    const newMs = parseVoteDeadline(s!.voteDeadline!).getTime();
     expect(newMs).toBeGreaterThan(beforeMs + 2 * 60 * 60 * 1000 - 5_000);
     expect(newMs).toBeLessThan(beforeMs + 2 * 60 * 60 * 1000 + 5_000);
   });
@@ -216,7 +214,7 @@ describe("extendVoteDeadline — quick buttons", () => {
     const s = await testDb.query.sessions.findFirst({
       where: eq(sessions.id, sessionId),
     });
-    const newMs = new Date(s!.voteDeadline!).getTime();
+    const newMs = parseVoteDeadline(s!.voteDeadline!).getTime();
     expect(newMs).toBeGreaterThan(beforeMs + 24 * 60 * 60 * 1000 - 5_000);
     expect(newMs).toBeLessThan(beforeMs + 24 * 60 * 60 * 1000 + 5_000);
   });
