@@ -21,6 +21,14 @@ describe("capacityRank", () => {
     expect(capacityRank(18, 16)).toBe(3);
     expect(capacityRank(19, 16)).toBe(4);
   });
+
+  it("small courts: no one voted is never almost full (0/2=0, 1/2=1, 2/2=2, 0/1=0)", () => {
+    expect(capacityRank(0, 2)).toBe(0);
+    expect(capacityRank(1, 2)).toBe(1);
+    expect(capacityRank(2, 2)).toBe(2);
+    expect(capacityRank(0, 1)).toBe(0);
+    expect(capacityRank(1, 1)).toBe(2);
+  });
 });
 
 describe("courtLockAt", () => {

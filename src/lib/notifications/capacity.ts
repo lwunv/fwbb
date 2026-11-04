@@ -26,13 +26,14 @@ import { sessionStartInstant } from "./time";
  * Bậc sức chứa (spec 4.3): 0 = còn rộng, 1 = sắp đầy (còn 1-2 chỗ), 2 = đầy,
  * từ 3 trở đi mỗi 2 người vượt thêm một bậc (17/16 và 18/16 là 3, 19/16 là 4).
  * Admin chỉ nhận tin khi bậc tăng, nên dao động quanh ngưỡng không gửi lại.
+ * "Sắp đầy" cần ít nhất 1 người: sân 1-2 chỗ chưa ai vote thì vẫn là còn rộng.
  */
 export function capacityRank(headcount: number, maxPlayers: number): number {
   if (headcount > maxPlayers) {
     return 3 + Math.floor((headcount - maxPlayers - 1) / 2);
   }
   if (headcount === maxPlayers) return 2;
-  if (headcount >= maxPlayers - 2) return 1;
+  if (headcount >= 1 && headcount >= maxPlayers - 2) return 1;
   return 0;
 }
 
