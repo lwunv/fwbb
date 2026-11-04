@@ -1,13 +1,16 @@
-import { and, eq, inArray } from "drizzle-orm";
-import { appSettings, notificationPrefs, notifications } from "@/db/schema";
+import { and, inArray } from "drizzle-orm";
+import { notificationPrefs, notifications } from "@/db/schema";
 import type { DbOrTx } from "@/db/tx";
-import { resolveGlobal } from "@/lib/settings-resolve";
 import {
   NOTIFICATION_CATALOG,
   type NotificationKind,
   type NotificationPayloads,
 } from "./catalog";
+import { isNotificationsEnabled } from "./gate";
+import { queueEmailDeliveries } from "./outbox";
 import type { Recipient } from "./recipients";
+
+export { isNotificationsEnabled };
 
 export type EntityType = NonNullable<
   typeof notifications.$inferInsert.entityType
@@ -27,19 +30,6 @@ export type NotifyInput<K extends NotificationKind> = {
    */
   gate?: boolean;
 };
-
-/**
- * Công tắc `notificationsEnabled`: đúng 1 truy vấn `app_settings`. Mọi helper
- * sự kiện gọi hàm này trước mọi truy vấn khác và return ngay khi tắt.
- */
-export async function isNotificationsEnabled(db: DbOrTx): Promise<boolean> {
-  const rows = await db
-    .select({ key: appSettings.key, value: appSettings.value })
-    .from(appSettings)
-    .where(eq(appSettings.key, "notificationsEnabled"))
-    .limit(1);
-  return resolveGlobal(rows).notificationsEnabled === true;
-}
 
 const keyOf = (r: Recipient) => `${r.type === "member" ? "m" : "a"}${r.id}`;
 
@@ -99,7 +89,8 @@ export async function notify<K extends NotificationKind>(
   }
   if (recipients.length === 0) return none;
 
-  const createdAt = (input.now ?? new Date()).toISOString();
+  const now = input.now ?? new Date();
+  const createdAt = now.toISOString();
   const rows = await db
     .insert(notifications)
     .values(
@@ -116,8 +107,18 @@ export async function notify<K extends NotificationKind>(
       })),
     )
     .onConflictDoNothing({ target: notifications.dedupKey })
-    .returning({ id: notifications.id });
+    .returning({
+      id: notifications.id,
+      recipientType: notifications.recipientType,
+      recipientId: notifications.recipientId,
+    });
 
-  // Task 15 xếp hàng email ở đây.
+  // Chỉ dòng vừa chèn thật (dedup trùng thì không gửi lại email).
+  await queueEmailDeliveries(db, {
+    kind: input.kind,
+    payload: input.payload,
+    rows,
+    now,
+  });
   return { inserted: rows.length, ids: rows.map((r) => r.id) };
 }

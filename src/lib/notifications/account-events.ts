@@ -1,5 +1,9 @@
 import { and, eq } from "drizzle-orm";
-import { notificationPrefs, notifications } from "@/db/schema";
+import {
+  notificationDeliveries,
+  notificationPrefs,
+  notifications,
+} from "@/db/schema";
 import type { DbOrTx, Tx } from "@/db/tx";
 import { isNotificationsEnabled, notify } from "./notify";
 import { memberName, superadminRecipients } from "./recipients";
@@ -30,6 +34,9 @@ export function providerLabel(provider: string): string {
  * Không đụng `dedup_key`: UPDATE chỉ đổi recipient_id nên UNIQUE không thể bị
  * vi phạm. Hậu tố `:m{fromId}` ở lại trên dòng đã dời, vô hại vì id nguồn đã
  * bị xoá và mọi khoá cũ vẫn duy nhất.
+ *
+ * Email đang chờ gửi (`notification_deliveries`) cũng dời theo: lúc gửi outbox
+ * kiểm điều kiện theo `recipient_id`, để id đã xoá thì mail bị bỏ oan.
  */
 export async function repointNotifications(
   tx: Tx,
@@ -43,6 +50,15 @@ export async function repointNotifications(
       and(
         eq(notifications.recipientType, "member"),
         eq(notifications.recipientId, fromMemberId),
+      ),
+    );
+  await tx
+    .update(notificationDeliveries)
+    .set({ recipientId: toMemberId })
+    .where(
+      and(
+        eq(notificationDeliveries.recipientType, "member"),
+        eq(notificationDeliveries.recipientId, fromMemberId),
       ),
     );
   await tx

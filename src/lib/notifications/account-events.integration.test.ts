@@ -4,6 +4,7 @@ import {
   admins,
   memberOauthIdentities,
   members,
+  notificationDeliveries,
   notificationPrefs,
   notifications,
   venues,
@@ -56,6 +57,7 @@ const { enableNotificationsForTest } = await import("./test-helpers");
 
 async function reset() {
   for (const t of [
+    "notification_deliveries",
     "notifications",
     "notification_prefs",
     "venues",
@@ -165,6 +167,30 @@ describe("account, signup and venue notifications", () => {
     const rows = await notes("password_changed");
     expect(rows).toHaveLength(1);
     expect(rows[0].recipientId).toBe(target);
+  });
+
+  it("mergeMember moves the source member's pending email deliveries to the target", async () => {
+    const source = await addMember({
+      email: "src@example.test",
+      notifyEmailVerifiedFor: "src@example.test",
+    });
+    const target = await addMember();
+    await notifyMemberAccount(testDb, {
+      kind: "password_changed",
+      memberId: source,
+      dedupBase: `pwd:m${source}`,
+    });
+    const before = await testDb.select().from(notificationDeliveries);
+    expect(before.map((d) => d.recipientId)).toEqual([source]);
+
+    const r = await mergeMember(source, target);
+    expect(r).toHaveProperty("success", true);
+    const after = await testDb.select().from(notificationDeliveries);
+    expect(after).toHaveLength(1);
+    expect(after[0]).toMatchObject({
+      recipientType: "member",
+      recipientId: target,
+    });
   });
 
   it("password signup with group intent notifies superadmins; Zalo exchange signup does not", async () => {
