@@ -219,6 +219,39 @@ describe("reopenSession (integration)", () => {
     }, 0);
     expect(net).toBe(200_000);
   });
+
+  it("cancel → reopen → cancel → reopen reverses BOTH pass contributions (latest unreversed one is picked)", async () => {
+    // Regression: the reopen lookup was findFirst without orderBy, so the
+    // second reopen picked C1 (already reversed), skipped, and left C2
+    // credited to the admin while the session went back to voting.
+    const memberId = await seedMember("Admin");
+    await seedAdmin(memberId);
+    const { getFundBalance } = await import("@/lib/fund-calculator");
+    const startBalance = await getFundBalance(memberId);
+    const sId = await seedSession("confirmed");
+
+    await cancelSession(sId, { passed: true, passRevenue: 100_000 }); // C1
+    expect(await reopenSession(sId)).toEqual({ success: true }); // D1
+    await cancelSession(sId, { passed: true, passRevenue: 200_000 }); // C2
+    expect(await reopenSession(sId)).toEqual({ success: true }); // D2
+
+    const txs = await testDb.query.financialTransactions.findMany({
+      where: eq(financialTransactions.sessionId, sId),
+    });
+    const contribs = txs.filter((t) => t.type === "fund_contribution");
+    expect(contribs.map((c) => c.amount).sort()).toEqual([100_000, 200_000]);
+    for (const c of contribs) {
+      const reversals = txs.filter((t) => t.reversalOfId === c.id);
+      expect(reversals).toHaveLength(1);
+      expect(reversals[0]).toMatchObject({
+        type: "fund_deduction",
+        direction: "out",
+        amount: c.amount,
+        memberId,
+      });
+    }
+    expect(await getFundBalance(memberId)).toEqual(startBalance);
+  });
 });
 
 describe("unlockSession (integration)", () => {

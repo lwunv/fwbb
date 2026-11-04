@@ -680,30 +680,41 @@ export async function reopenSession(sessionId: number) {
   }
 
   // Tìm pass-sân contribution gốc (nếu có) — match theo sessionId + type +
-  // direction để chắc chắn không reverse nhầm transaction khác.
-  const passContribution = await db.query.financialTransactions.findFirst({
+  // direction để chắc chắn không reverse nhầm transaction khác. Mỗi vòng
+  // hủy(pass) → mở lại sinh một contribution mới, nên phải lấy cái MỚI NHẤT
+  // chưa bị đảo. Trước đây findFirst không orderBy nhặt contribution của vòng
+  // đầu (đã đảo), bỏ qua, và để nguyên tiền pass vòng sau trong quỹ admin.
+  const passContributions = await db.query.financialTransactions.findMany({
     where: and(
       eq(financialTransactions.sessionId, sessionId),
       eq(financialTransactions.type, "fund_contribution"),
       eq(financialTransactions.direction, "in"),
       isNull(financialTransactions.reversalOfId),
     ),
+    orderBy: [desc(financialTransactions.id)],
   });
 
-  // Đã có reversal cho contribution này chưa? (idempotency guard)
-  let alreadyReversed = false;
-  if (passContribution) {
-    const existingReversal = await db.query.financialTransactions.findFirst({
-      where: eq(financialTransactions.reversalOfId, passContribution.id),
-      columns: { id: true },
-    });
-    alreadyReversed = !!existingReversal;
+  // Contribution nào đã có reversal thì bỏ qua (idempotency guard).
+  let passContribution: (typeof passContributions)[number] | undefined;
+  const hadPassContribution = passContributions.length > 0;
+  if (hadPassContribution) {
+    const reversed = await db
+      .select({ reversalOfId: financialTransactions.reversalOfId })
+      .from(financialTransactions)
+      .where(
+        inArray(
+          financialTransactions.reversalOfId,
+          passContributions.map((c) => c.id),
+        ),
+      );
+    const reversedIds = new Set(reversed.map((r) => r.reversalOfId));
+    passContribution = passContributions.find((c) => !reversedIds.has(c.id));
   }
 
   const token = new Date().toISOString();
   try {
     await db.transaction(async (tx) => {
-      if (passContribution && !alreadyReversed) {
+      if (passContribution) {
         const r = await recordFinancialTransaction(
           {
             type: "fund_deduction",
@@ -752,7 +763,7 @@ export async function reopenSession(sessionId: number) {
 
   revalidatePath("/admin/sessions");
   revalidatePath(`/admin/sessions/${sessionId}`);
-  if (passContribution) {
+  if (hadPassContribution) {
     revalidatePath("/admin/fund");
     revalidatePath("/admin/finance");
     revalidatePath("/my-fund");
