@@ -1562,5 +1562,193 @@
     "backToList": "Danh sách sân",
     "attribution": "Toạ độ địa chỉ: © OpenStreetMap contributors",
     "saveFailed": "Không lưu được. Kiểm tra kết nối mạng rồi thử lại."
+  },
+  "notifications": {
+    "bell": {
+      "title": "Thông báo",
+      "empty": "Chưa có thông báo nào",
+      "markAll": "Đánh dấu đã đọc hết",
+      "loadMore": "Xem thêm",
+      "error": "Không tải được thông báo. Thử lại sau nhé.",
+      "unreadCount": "{count} chưa đọc"
+    },
+    "noReason": "không ghi lý do",
+    "fields": {
+      "time": "giờ chơi",
+      "court": "sân",
+      "price": "giá sân"
+    },
+    "groups": {
+      "session": "Buổi chơi",
+      "money": "Tiền và quỹ",
+      "account": "Tài khoản",
+      "venue": "Sân mình đề xuất",
+      "admin_session": "Buổi chơi (admin)",
+      "admin_money": "Tiền và sổ quỹ (admin)",
+      "admin_members": "Thành viên và sân (admin)",
+      "admin_inventory": "Kho cầu (admin)"
+    },
+    "kinds": {
+      "session_opened": {
+        "title": "Buổi mới mở vote",
+        "body": "Buổi {sessionDate} lúc {startTime} đã mở vote. Vào chọn đi chơi nhé."
+      },
+      "vote_due_soon": {
+        "title": "Sắp hết hạn vote",
+        "body": "Còn {hoursLeft} giờ nữa là hết hạn vote buổi {sessionDate} lúc {startTime}. Bạn chưa vote."
+      },
+      "vote_reopened": {
+        "title": "Vote được mở lại",
+        "body": "Admin vừa mở lại vote buổi {sessionDate} lúc {startTime}. Bạn chưa vote."
+      },
+      "vote_edited_by_admin": {
+        "title": "Admin sửa vote của bạn",
+        "body": "Admin đã sửa vote của bạn ở buổi {sessionDate} lúc {startTime}. Vào xem lại cho đúng nhé."
+      },
+      "session_changed": {
+        "title": "Buổi chơi có thay đổi",
+        "body": "Buổi {sessionDate} lúc {startTime} vừa đổi: {fields}."
+      },
+      "session_cancelled": {
+        "title": "Buổi chơi bị hủy",
+        "body": "Buổi {sessionDate} lúc {startTime} đã bị hủy."
+      },
+      "session_reopened": {
+        "title": "Buổi chơi được mở lại",
+        "body": "Buổi {sessionDate} lúc {startTime} đã được mở lại sau khi hủy."
+      },
+      "session_almost_full": {
+        "title": "Buổi sắp đầy chỗ",
+        "body": "Buổi {sessionDate} lúc {startTime} chỉ còn ít chỗ. Vote sớm kẻo hết."
+      },
+      "game_day_reminder": {
+        "title": "Nhắc lịch chơi",
+        "body": "{when, select, morning {Hôm nay} other {Sắp tới giờ}} có buổi lúc {startTime} tại {courtName}."
+      },
+      "session_finalized": {
+        "title": "Đã chốt sổ buổi chơi",
+        "body": "Buổi {sessionDate} lúc {startTime} đã chốt. Bạn phải trả {total}. Số dư hiện tại: {balance}."
+      },
+      "session_amount_changed": {
+        "title": "Số tiền buổi chơi đổi",
+        "body": "Buổi {sessionDate} lúc {startTime} được tính lại. Bạn phải trả {total}. Số dư hiện tại: {balance}."
+      },
+      "session_deleted_refund": {
+        "title": "Buổi đã xóa, quỹ được hoàn",
+        "body": "Buổi {sessionDate} lúc {startTime} đã bị xóa. Quỹ của bạn được hoàn {amount}. Số dư hiện tại: {balance}."
+      },
+      "payment_confirmed": {
+        "title": "Đã nhận tiền của bạn",
+        "body": "Admin xác nhận đã nhận {amount}. Số dư hiện tại: {balance}."
+      },
+      "payment_undone": {
+        "title": "Thanh toán bị hoàn tác",
+        "body": "Khoản {amount} đã được hoàn tác, lý do: {reason}. Số dư hiện tại: {balance}."
+      },
+      "transaction_reversed": {
+        "title": "Giao dịch quỹ bị đảo",
+        "body": "Giao dịch {amount} đã được đảo, lý do: {reason}. Số dư hiện tại: {balance}."
+      },
+      "fund_contribution_recorded": {
+        "title": "Đã ghi nạp quỹ",
+        "body": "Quỹ của bạn vừa được ghi nạp {amount}. Số dư hiện tại: {balance}."
+      },
+      "fund_refund_recorded": {
+        "title": "Đã hoàn tiền quỹ",
+        "body": "Bạn vừa được hoàn {amount} từ quỹ. Số dư hiện tại: {balance}."
+      },
+      "debt_reminder": {
+        "title": "Nhắc khoản nợ",
+        "body": "Bạn đang nợ {amount}, tính từ {days} ngày trước. Vào mục Quỹ của tôi để chuyển khoản nhé."
+      },
+      "account_approved": {
+        "title": "Tài khoản đã được duyệt",
+        "body": "Admin đã duyệt tài khoản của bạn. Giờ bạn vote và xem buổi chơi được rồi."
+      },
+      "account_rejected": {
+        "title": "Tài khoản chưa được duyệt",
+        "body": "Admin chưa duyệt tài khoản của bạn. Cần biết thêm thì nhắn admin nhé."
+      },
+      "group_request_declined": {
+        "title": "Yêu cầu vào nhóm bị từ chối",
+        "body": "Admin chưa nhận yêu cầu vào nhóm của bạn."
+      },
+      "account_merged": {
+        "title": "Tài khoản đã được gộp",
+        "body": "Admin đã gộp tài khoản của bạn với một tài khoản khác. Lịch sử và số dư được giữ nguyên."
+      },
+      "password_changed": {
+        "title": "Mật khẩu đã đổi",
+        "body": "Mật khẩu của bạn vừa được đổi. Nếu không phải bạn làm, hãy báo admin ngay."
+      },
+      "login_method_linked": {
+        "title": "Đã liên kết cách đăng nhập",
+        "body": "Tài khoản của bạn vừa liên kết thêm {provider}. Nếu không phải bạn làm, hãy báo admin ngay."
+      },
+      "login_method_unlinked": {
+        "title": "Đã gỡ cách đăng nhập",
+        "body": "Tài khoản của bạn vừa gỡ liên kết {provider}. Nếu không phải bạn làm, hãy báo admin ngay."
+      },
+      "venue_approved": {
+        "title": "Sân bạn đề xuất đã được duyệt",
+        "body": "Sân {venueName} đã được duyệt và hiện trong danh sách."
+      },
+      "venue_hidden": {
+        "title": "Sân bạn đề xuất bị ẩn",
+        "body": "Sân {venueName} đã bị ẩn khỏi danh sách."
+      },
+      "capacity_alert": {
+        "title": "Cảnh báo sức chứa",
+        "body": "Buổi {sessionDate} lúc {startTime} có {headcount}/{maxPlayers} người chơi. Hạn chốt sân: {courtLockAt}."
+      },
+      "low_attendance": {
+        "title": "Buổi ít người",
+        "body": "Buổi {sessionDate} lúc {startTime} mới có {headcount}/{maxPlayers} người. Có thể trả bớt sân hoặc hủy buổi."
+      },
+      "member_dropped_late": {
+        "title": "Có người bỏ chơi sát giờ",
+        "body": "{memberName} vừa bỏ chơi buổi {sessionDate} lúc {startTime}."
+      },
+      "unvoted_before_deadline": {
+        "title": "Còn người chưa vote",
+        "body": "Buổi {sessionDate} lúc {startTime} sắp hết hạn vote. Chưa vote: {names}."
+      },
+      "member_reported_transfer": {
+        "title": "Có người báo đã chuyển tiền",
+        "body": "{memberName} báo đã chuyển {amount}. Kiểm tra tài khoản rồi xác nhận nhé."
+      },
+      "signup_pending": {
+        "title": "Có đăng ký mới chờ duyệt",
+        "body": "{memberName} vừa đăng ký và đang chờ bạn duyệt."
+      },
+      "group_join_request": {
+        "title": "Có người xin vào nhóm",
+        "body": "{memberName} xin vào nhóm và đang chờ bạn duyệt."
+      },
+      "venue_pending": {
+        "title": "Có sân mới chờ duyệt",
+        "body": "{proposerName} đề xuất sân {venueName}. Vào duyệt nhé."
+      },
+      "low_stock": {
+        "title": "Cầu sắp hết",
+        "body": "Cầu {brandName} chỉ còn {stockQua} quả."
+      },
+      "court_rent_unpaid": {
+        "title": "Tiền sân chưa trả đủ",
+        "body": "Tiền sân tháng {month} còn thiếu {amount}."
+      },
+      "reconcile_failed": {
+        "title": "Sổ quỹ báo lỗi",
+        "body": "Kiểm tra sổ quỹ phát hiện {errorCount} lỗi. Vào xem ngay."
+      },
+      "weekly_summary": {
+        "title": "Tóm tắt tuần",
+        "body": "{debtorCount} người đang nợ quá 30 ngày, {upcomingCount} buổi tuần tới, {pendingCount} việc chờ duyệt."
+      },
+      "unknown": {
+        "title": "Thông báo mới",
+        "body": "Bạn có một thông báo mới."
+      }
+    }
   }
 }

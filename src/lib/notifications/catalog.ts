@@ -1,0 +1,186 @@
+/**
+ * Danh mục thông báo: nguồn duy nhất cho "kind nào tồn tại, gửi cho ai, có tắt
+ * được không, có email không, gửi lúc nào" (spec 4.5). Gửi, hiển thị, email và
+ * trang cài đặt đều đọc từ đây, nên thêm kind mới chỉ sửa một chỗ.
+ */
+
+export type NotificationGroup =
+  | "session"
+  | "money"
+  | "account"
+  | "venue"
+  | "admin_session"
+  | "admin_money"
+  | "admin_members"
+  | "admin_inventory";
+
+export const MEMBER_GROUPS = [
+  "session",
+  "money",
+  "account",
+  "venue",
+] as const satisfies readonly NotificationGroup[];
+
+export const ADMIN_GROUPS = [
+  "admin_session",
+  "admin_money",
+  "admin_members",
+  "admin_inventory",
+] as const satisfies readonly NotificationGroup[];
+
+export interface KindDef {
+  audience: "member" | "admin";
+  group: NotificationGroup;
+  /** Bắt buộc: member không tắt được (tiền, tài khoản, đổi lịch). */
+  mandatory: boolean;
+  email: boolean;
+  /** now = gửi ngay; scheduled = job hẹn giờ; digest = gom vào tóm tắt. */
+  level: "now" | "scheduled" | "digest";
+  /** Vượt giờ yên lặng khi buổi chơi diễn ra trong ngày. */
+  quietHoursBypassSameDay: boolean;
+}
+
+/** Trường chung của tin gắn với một buổi: `YYYY-MM-DD` và `HH:MM`. */
+interface SessionWhen {
+  sessionDate: string;
+  startTime: string;
+}
+
+/**
+ * Payload mỗi kind. Chỉ chứa giá trị JSON phẳng (string, number, boolean, null,
+ * string[]). Tiền là số nguyên VND.
+ */
+export interface NotificationPayloads {
+  session_opened: SessionWhen;
+  vote_due_soon: SessionWhen & { hoursLeft: 24 | 2 };
+  vote_reopened: SessionWhen;
+  vote_edited_by_admin: SessionWhen;
+  session_changed: SessionWhen & { fields: ("time" | "court" | "price")[] };
+  session_cancelled: SessionWhen;
+  session_reopened: SessionWhen;
+  session_almost_full: SessionWhen;
+  game_day_reminder: SessionWhen & {
+    when: "morning" | "3h";
+    courtName: string;
+  };
+  session_finalized: SessionWhen & { total: number; balance: number };
+  session_amount_changed: SessionWhen & { total: number; balance: number };
+  session_deleted_refund: SessionWhen & { amount: number; balance: number };
+  payment_confirmed: { amount: number; balance: number };
+  payment_undone: { amount: number; balance: number; reason: string };
+  transaction_reversed: { amount: number; balance: number; reason: string };
+  fund_contribution_recorded: { amount: number; balance: number };
+  fund_refund_recorded: { amount: number; balance: number };
+  debt_reminder: { amount: number; days: number };
+  account_approved: Record<string, never>;
+  account_rejected: Record<string, never>;
+  group_request_declined: Record<string, never>;
+  account_merged: Record<string, never>;
+  password_changed: Record<string, never>;
+  login_method_linked: { provider: string };
+  login_method_unlinked: { provider: string };
+  venue_approved: { venueName: string };
+  venue_hidden: { venueName: string };
+  capacity_alert: SessionWhen & {
+    rank: number;
+    headcount: number;
+    maxPlayers: number;
+    courtLockAt: string;
+  };
+  low_attendance: SessionWhen & { headcount: number; maxPlayers: number };
+  member_dropped_late: SessionWhen & { memberName: string };
+  unvoted_before_deadline: SessionWhen & { names: string[] };
+  member_reported_transfer: { memberName: string; amount: number };
+  signup_pending: { memberName: string };
+  group_join_request: { memberName: string };
+  venue_pending: { venueName: string; proposerName: string };
+  low_stock: { brandName: string; stockQua: number };
+  court_rent_unpaid: { month: string; amount: number };
+  reconcile_failed: { errorCount: number };
+  weekly_summary: {
+    debtorCount: number;
+    upcomingCount: number;
+    pendingCount: number;
+  };
+}
+
+export type NotificationKind = keyof NotificationPayloads;
+
+function def(
+  audience: KindDef["audience"],
+  group: NotificationGroup,
+  mandatory: boolean,
+  email: boolean,
+  level: KindDef["level"],
+  bypass = false,
+): KindDef {
+  return {
+    audience,
+    group,
+    mandatory,
+    email,
+    level,
+    quietHoursBypassSameDay: bypass,
+  };
+}
+
+export const NOTIFICATION_CATALOG: Record<NotificationKind, KindDef> = {
+  // Member, buổi chơi
+  session_opened: def("member", "session", false, false, "now"),
+  vote_due_soon: def("member", "session", false, true, "scheduled"),
+  vote_reopened: def("member", "session", false, false, "now"),
+  vote_edited_by_admin: def("member", "session", true, false, "now"),
+  session_changed: def("member", "session", true, true, "now", true),
+  session_cancelled: def("member", "session", true, true, "now", true),
+  session_reopened: def("member", "session", true, false, "now"),
+  session_almost_full: def("member", "session", false, false, "now"),
+  game_day_reminder: def("member", "session", false, false, "scheduled"),
+  // Member, tiền
+  session_finalized: def("member", "money", true, true, "now"),
+  session_amount_changed: def("member", "money", true, true, "now"),
+  session_deleted_refund: def("member", "money", true, true, "now"),
+  payment_confirmed: def("member", "money", true, true, "now"),
+  payment_undone: def("member", "money", true, true, "now"),
+  transaction_reversed: def("member", "money", true, true, "now"),
+  fund_contribution_recorded: def("member", "money", true, true, "now"),
+  fund_refund_recorded: def("member", "money", true, true, "now"),
+  debt_reminder: def("member", "money", true, true, "scheduled"),
+  // Member, tài khoản
+  account_approved: def("member", "account", true, true, "now"),
+  account_rejected: def("member", "account", true, true, "now"),
+  group_request_declined: def("member", "account", true, true, "now"),
+  account_merged: def("member", "account", true, true, "now"),
+  password_changed: def("member", "account", true, true, "now"),
+  login_method_linked: def("member", "account", true, true, "now"),
+  login_method_unlinked: def("member", "account", true, true, "now"),
+  // Member, sân mình đề xuất
+  venue_approved: def("member", "venue", false, true, "digest"),
+  venue_hidden: def("member", "venue", false, true, "digest"),
+  // Admin
+  capacity_alert: def("admin", "admin_session", true, true, "now"),
+  low_attendance: def("admin", "admin_session", true, true, "scheduled"),
+  member_dropped_late: def("admin", "admin_session", false, false, "now"),
+  unvoted_before_deadline: def(
+    "admin",
+    "admin_session",
+    false,
+    false,
+    "scheduled",
+  ),
+  member_reported_transfer: def("admin", "admin_money", false, false, "now"),
+  signup_pending: def("admin", "admin_members", false, false, "now"),
+  group_join_request: def("admin", "admin_members", false, false, "now"),
+  venue_pending: def("admin", "admin_members", true, true, "now"),
+  low_stock: def("admin", "admin_inventory", false, false, "now"),
+  court_rent_unpaid: def("admin", "admin_money", false, true, "scheduled"),
+  reconcile_failed: def("admin", "admin_money", true, true, "now"),
+  weekly_summary: def("admin", "admin_session", false, true, "scheduled"),
+};
+
+export const NOTIFICATION_KINDS = Object.keys(
+  NOTIFICATION_CATALOG,
+) as NotificationKind[];
+
+export function isNotificationKind(value: string): value is NotificationKind {
+  return Object.hasOwn(NOTIFICATION_CATALOG, value);
+}

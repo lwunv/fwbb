@@ -1562,5 +1562,193 @@
     "backToList": "全部场馆",
     "attribution": "地址坐标：© OpenStreetMap contributors",
     "saveFailed": "保存失败。请检查网络连接后重试。"
+  },
+  "notifications": {
+    "bell": {
+      "title": "通知",
+      "empty": "暂无通知",
+      "markAll": "全部标为已读",
+      "loadMore": "加载更多",
+      "error": "无法加载通知，请稍后再试。",
+      "unreadCount": "{count} 条未读"
+    },
+    "noReason": "未填写原因",
+    "fields": {
+      "time": "时间",
+      "court": "场地",
+      "price": "场地价格"
+    },
+    "groups": {
+      "session": "活动场次",
+      "money": "费用和基金",
+      "account": "账号",
+      "venue": "你推荐的场地",
+      "admin_session": "活动场次（管理员）",
+      "admin_money": "费用和账本（管理员）",
+      "admin_members": "成员和场地（管理员）",
+      "admin_inventory": "羽毛球库存（管理员）"
+    },
+    "kinds": {
+      "session_opened": {
+        "title": "新场次开放投票",
+        "body": "{sessionDate} {startTime} 的场次已开放投票，快来选择吧。"
+      },
+      "vote_due_soon": {
+        "title": "投票即将截止",
+        "body": "{sessionDate} {startTime} 场次的投票还有 {hoursLeft} 小时截止，你还没有投票。"
+      },
+      "vote_reopened": {
+        "title": "投票已重新开放",
+        "body": "管理员重新开放了 {sessionDate} {startTime} 场次的投票，你还没有投票。"
+      },
+      "vote_edited_by_admin": {
+        "title": "管理员修改了你的投票",
+        "body": "管理员修改了你在 {sessionDate} {startTime} 场次的投票，请确认是否正确。"
+      },
+      "session_changed": {
+        "title": "场次有变动",
+        "body": "{sessionDate} {startTime} 的场次已更改：{fields}。"
+      },
+      "session_cancelled": {
+        "title": "场次已取消",
+        "body": "{sessionDate} {startTime} 的场次已取消。"
+      },
+      "session_reopened": {
+        "title": "场次已恢复",
+        "body": "{sessionDate} {startTime} 的场次已恢复。"
+      },
+      "session_almost_full": {
+        "title": "场次快满了",
+        "body": "{sessionDate} {startTime} 的场次只剩少量名额，请尽快投票。"
+      },
+      "game_day_reminder": {
+        "title": "活动提醒",
+        "body": "{when, select, morning {今天} other {即将开始}}：{startTime} 在 {courtName} 有场次。"
+      },
+      "session_finalized": {
+        "title": "场次已结算",
+        "body": "{sessionDate} {startTime} 的场次已结算，你需支付 {total}。当前余额：{balance}。"
+      },
+      "session_amount_changed": {
+        "title": "场次金额有变化",
+        "body": "{sessionDate} {startTime} 的场次已重新计算，你需支付 {total}。当前余额：{balance}。"
+      },
+      "session_deleted_refund": {
+        "title": "场次已删除，基金已退回",
+        "body": "{sessionDate} {startTime} 的场次已删除，{amount} 已退回你的基金。当前余额：{balance}。"
+      },
+      "payment_confirmed": {
+        "title": "已收到你的付款",
+        "body": "管理员确认已收到 {amount}。当前余额：{balance}。"
+      },
+      "payment_undone": {
+        "title": "付款已撤销",
+        "body": "{amount} 的付款已撤销，原因：{reason}。当前余额：{balance}。"
+      },
+      "transaction_reversed": {
+        "title": "基金交易已冲销",
+        "body": "{amount} 的交易已冲销，原因：{reason}。当前余额：{balance}。"
+      },
+      "fund_contribution_recorded": {
+        "title": "已记录基金充值",
+        "body": "你的基金已充值 {amount}。当前余额：{balance}。"
+      },
+      "fund_refund_recorded": {
+        "title": "已记录基金退款",
+        "body": "你已从基金退回 {amount}。当前余额：{balance}。"
+      },
+      "debt_reminder": {
+        "title": "欠款提醒",
+        "body": "你欠 {amount}，已有 {days} 天。请到“我的基金”转账。"
+      },
+      "account_approved": {
+        "title": "账号已通过审核",
+        "body": "管理员已通过你的账号，现在可以投票和查看场次了。"
+      },
+      "account_rejected": {
+        "title": "账号未通过审核",
+        "body": "管理员未通过你的账号。需要了解详情请联系管理员。"
+      },
+      "group_request_declined": {
+        "title": "入群申请被拒绝",
+        "body": "管理员没有接受你的入群申请。"
+      },
+      "account_merged": {
+        "title": "账号已合并",
+        "body": "管理员已将你的账号与另一个账号合并，历史记录和余额不变。"
+      },
+      "password_changed": {
+        "title": "密码已修改",
+        "body": "你的密码刚刚被修改。如果不是你本人操作，请立即告知管理员。"
+      },
+      "login_method_linked": {
+        "title": "已绑定登录方式",
+        "body": "你的账号刚绑定了 {provider}。如果不是你本人操作，请立即告知管理员。"
+      },
+      "login_method_unlinked": {
+        "title": "已解绑登录方式",
+        "body": "你的账号刚解绑了 {provider}。如果不是你本人操作，请立即告知管理员。"
+      },
+      "venue_approved": {
+        "title": "你推荐的场地已通过",
+        "body": "场地 {venueName} 已通过审核并显示在列表中。"
+      },
+      "venue_hidden": {
+        "title": "你推荐的场地已被隐藏",
+        "body": "场地 {venueName} 已从列表中隐藏。"
+      },
+      "capacity_alert": {
+        "title": "人数提醒",
+        "body": "{sessionDate} {startTime} 的场次已有 {headcount}/{maxPlayers} 人。订场截止：{courtLockAt}。"
+      },
+      "low_attendance": {
+        "title": "人数偏少",
+        "body": "{sessionDate} {startTime} 的场次只有 {headcount}/{maxPlayers} 人，可以考虑退掉部分场地或取消。"
+      },
+      "member_dropped_late": {
+        "title": "有人临时退出",
+        "body": "{memberName} 退出了 {sessionDate} {startTime} 的场次。"
+      },
+      "unvoted_before_deadline": {
+        "title": "还有人没投票",
+        "body": "{sessionDate} {startTime} 场次的投票即将截止。未投票：{names}。"
+      },
+      "member_reported_transfer": {
+        "title": "有人报告已转账",
+        "body": "{memberName} 称已转账 {amount}，请核对账户后确认。"
+      },
+      "signup_pending": {
+        "title": "有新注册待审核",
+        "body": "{memberName} 刚注册，正在等你审核。"
+      },
+      "group_join_request": {
+        "title": "有人申请入群",
+        "body": "{memberName} 申请加入群组，正在等你审核。"
+      },
+      "venue_pending": {
+        "title": "有新场地待审核",
+        "body": "{proposerName} 推荐了场地 {venueName}，请审核。"
+      },
+      "low_stock": {
+        "title": "羽毛球快用完了",
+        "body": "{brandName} 羽毛球只剩 {stockQua} 个。"
+      },
+      "court_rent_unpaid": {
+        "title": "场地费未付清",
+        "body": "{month} 的场地费还差 {amount}。"
+      },
+      "reconcile_failed": {
+        "title": "账本检查出错",
+        "body": "账本检查发现 {errorCount} 处错误，请立即查看。"
+      },
+      "weekly_summary": {
+        "title": "每周汇总",
+        "body": "{debtorCount} 人欠款超过 30 天，下周有 {upcomingCount} 场，{pendingCount} 项待审核。"
+      },
+      "unknown": {
+        "title": "新通知",
+        "body": "你有一条新通知。"
+      }
+    }
   }
 }

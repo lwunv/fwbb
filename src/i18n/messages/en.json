@@ -1562,5 +1562,193 @@
     "backToList": "All venues",
     "attribution": "Address coordinates: © OpenStreetMap contributors",
     "saveFailed": "Could not save. Check your connection and try again."
+  },
+  "notifications": {
+    "bell": {
+      "title": "Notifications",
+      "empty": "No notifications yet",
+      "markAll": "Mark all as read",
+      "loadMore": "Load more",
+      "error": "Could not load notifications. Please try again later.",
+      "unreadCount": "{count} unread"
+    },
+    "noReason": "no reason given",
+    "fields": {
+      "time": "time",
+      "court": "court",
+      "price": "court price"
+    },
+    "groups": {
+      "session": "Sessions",
+      "money": "Money and fund",
+      "account": "Account",
+      "venue": "Venues you suggested",
+      "admin_session": "Sessions (admin)",
+      "admin_money": "Money and ledger (admin)",
+      "admin_members": "Members and venues (admin)",
+      "admin_inventory": "Shuttlecock stock (admin)"
+    },
+    "kinds": {
+      "session_opened": {
+        "title": "New session open for voting",
+        "body": "The session on {sessionDate} at {startTime} is open for voting. Cast your vote."
+      },
+      "vote_due_soon": {
+        "title": "Voting closes soon",
+        "body": "Voting for the session on {sessionDate} at {startTime} closes in {hoursLeft} hours. You have not voted yet."
+      },
+      "vote_reopened": {
+        "title": "Voting reopened",
+        "body": "The admin reopened voting for the session on {sessionDate} at {startTime}. You have not voted yet."
+      },
+      "vote_edited_by_admin": {
+        "title": "Admin edited your vote",
+        "body": "The admin edited your vote for the session on {sessionDate} at {startTime}. Please check it is right."
+      },
+      "session_changed": {
+        "title": "Session updated",
+        "body": "The session on {sessionDate} at {startTime} changed: {fields}."
+      },
+      "session_cancelled": {
+        "title": "Session cancelled",
+        "body": "The session on {sessionDate} at {startTime} was cancelled."
+      },
+      "session_reopened": {
+        "title": "Session reopened",
+        "body": "The session on {sessionDate} at {startTime} is back on."
+      },
+      "session_almost_full": {
+        "title": "Session almost full",
+        "body": "Only a few spots are left for the session on {sessionDate} at {startTime}. Vote soon."
+      },
+      "game_day_reminder": {
+        "title": "Game day reminder",
+        "body": "{when, select, morning {Today} other {Starting soon}}: session at {startTime}, {courtName}."
+      },
+      "session_finalized": {
+        "title": "Session finalized",
+        "body": "The session on {sessionDate} at {startTime} is finalized. You owe {total}. Your balance is now {balance}."
+      },
+      "session_amount_changed": {
+        "title": "Session amount changed",
+        "body": "The session on {sessionDate} at {startTime} was recalculated. You owe {total}. Your balance is now {balance}."
+      },
+      "session_deleted_refund": {
+        "title": "Session deleted, fund refunded",
+        "body": "The session on {sessionDate} at {startTime} was deleted. {amount} went back to your fund. Your balance is now {balance}."
+      },
+      "payment_confirmed": {
+        "title": "Payment received",
+        "body": "The admin confirmed they received {amount}. Your balance is now {balance}."
+      },
+      "payment_undone": {
+        "title": "Payment undone",
+        "body": "A payment of {amount} was undone, reason: {reason}. Your balance is now {balance}."
+      },
+      "transaction_reversed": {
+        "title": "Fund transaction reversed",
+        "body": "A transaction of {amount} was reversed, reason: {reason}. Your balance is now {balance}."
+      },
+      "fund_contribution_recorded": {
+        "title": "Fund top-up recorded",
+        "body": "A top-up of {amount} was added to your fund. Your balance is now {balance}."
+      },
+      "fund_refund_recorded": {
+        "title": "Fund refund recorded",
+        "body": "You were refunded {amount} from the fund. Your balance is now {balance}."
+      },
+      "debt_reminder": {
+        "title": "Debt reminder",
+        "body": "You owe {amount}, outstanding for {days} days. Open My fund to pay."
+      },
+      "account_approved": {
+        "title": "Account approved",
+        "body": "The admin approved your account. You can now vote and see sessions."
+      },
+      "account_rejected": {
+        "title": "Account not approved",
+        "body": "The admin did not approve your account. Message the admin if you need to know more."
+      },
+      "group_request_declined": {
+        "title": "Join request declined",
+        "body": "The admin did not accept your request to join the group."
+      },
+      "account_merged": {
+        "title": "Account merged",
+        "body": "The admin merged your account with another one. Your history and balance are unchanged."
+      },
+      "password_changed": {
+        "title": "Password changed",
+        "body": "Your password was just changed. If this was not you, tell the admin right away."
+      },
+      "login_method_linked": {
+        "title": "Login method linked",
+        "body": "{provider} was just linked to your account. If this was not you, tell the admin right away."
+      },
+      "login_method_unlinked": {
+        "title": "Login method removed",
+        "body": "{provider} was just unlinked from your account. If this was not you, tell the admin right away."
+      },
+      "venue_approved": {
+        "title": "Your venue was approved",
+        "body": "The venue {venueName} was approved and is now listed."
+      },
+      "venue_hidden": {
+        "title": "Your venue was hidden",
+        "body": "The venue {venueName} was hidden from the list."
+      },
+      "capacity_alert": {
+        "title": "Capacity alert",
+        "body": "The session on {sessionDate} at {startTime} has {headcount}/{maxPlayers} players. Court lock deadline: {courtLockAt}."
+      },
+      "low_attendance": {
+        "title": "Low attendance",
+        "body": "The session on {sessionDate} at {startTime} has only {headcount}/{maxPlayers} players. You could release a court or cancel."
+      },
+      "member_dropped_late": {
+        "title": "Late dropout",
+        "body": "{memberName} dropped out of the session on {sessionDate} at {startTime}."
+      },
+      "unvoted_before_deadline": {
+        "title": "Some members have not voted",
+        "body": "Voting for the session on {sessionDate} at {startTime} closes soon. Not voted: {names}."
+      },
+      "member_reported_transfer": {
+        "title": "Transfer reported",
+        "body": "{memberName} says they transferred {amount}. Check the account, then confirm."
+      },
+      "signup_pending": {
+        "title": "New sign-up to approve",
+        "body": "{memberName} signed up and is waiting for your approval."
+      },
+      "group_join_request": {
+        "title": "Request to join the group",
+        "body": "{memberName} asked to join the group and is waiting for your approval."
+      },
+      "venue_pending": {
+        "title": "New venue to approve",
+        "body": "{proposerName} suggested the venue {venueName}. Please review it."
+      },
+      "low_stock": {
+        "title": "Shuttlecocks running low",
+        "body": "Only {stockQua} shuttlecocks of {brandName} left."
+      },
+      "court_rent_unpaid": {
+        "title": "Court rent not fully paid",
+        "body": "Court rent for {month} is still short by {amount}."
+      },
+      "reconcile_failed": {
+        "title": "Ledger check failed",
+        "body": "The ledger check found {errorCount} errors. Please look now."
+      },
+      "weekly_summary": {
+        "title": "Weekly summary",
+        "body": "{debtorCount} members owe for over 30 days, {upcomingCount} sessions next week, {pendingCount} items waiting for approval."
+      },
+      "unknown": {
+        "title": "New notification",
+        "body": "You have a new notification."
+      }
+    }
   }
 }
