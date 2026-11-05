@@ -154,6 +154,9 @@ export async function registerForExchange(
           (existing.status === "rejected" || existing.status === "no_show")
         )
           return { error: t("cannotRegister") };
+        // Huỷ muộn là khoản tính phí: cho đăng ký lại rồi huỷ thường sẽ xoá nó.
+        if (existing?.status === "late_cancelled")
+          return { error: t("lateCancelledNoRejoin") };
 
         if (heads > 1 && !ev.allowPlusOnes)
           return { error: t("cannotRegister") };

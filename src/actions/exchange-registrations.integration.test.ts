@@ -254,6 +254,69 @@ describe("registerForExchange", () => {
     });
   });
 
+  it("late_cancelled member cannot re-register, row unchanged", async () => {
+    const ev = await mkEvent({ autoApprove: true });
+    const a = await newMember();
+    await addReg(ev.id, a.id, "late_cancelled", 1, 0);
+    asMember(a);
+    expect(await registerForExchange(input(ev.publicCode))).toEqual({
+      error: "lateCancelledNoRejoin",
+    });
+    const rows = await regOf(ev.id, a.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe("late_cancelled");
+  });
+
+  it("stale event status: marked full with room ends full after the last seat, inverse ends open", async () => {
+    const statusOf = async (id: number) =>
+      (
+        await testDb
+          .select()
+          .from(exchangeEvents)
+          .where(eq(exchangeEvents.id, id))
+      )[0].status;
+    // Stored "full" but 2 free: one newcomer leaves 1 free, so it must be open.
+    const room = await mkEvent({
+      autoApprove: true,
+      slotsTotal: 2,
+      status: "full",
+    });
+    const a = await newMember();
+    const b = await newMember();
+    asMember(a);
+    await registerForExchange(input(room.publicCode));
+    expect(await statusOf(room.id)).toBe("open");
+    // Second newcomer takes the last seat: computed full equals the stale
+    // pre-settle value, yet the DB must end full.
+    asMember(b);
+    await registerForExchange(input(room.publicCode));
+    expect(await statusOf(room.id)).toBe("full");
+    // One free slot, stored "full": the last person fills it, ends full.
+    const one = await mkEvent({
+      autoApprove: true,
+      slotsTotal: 2,
+      status: "full",
+    });
+    const c = await newMember();
+    const d = await newMember();
+    await addReg(one.id, c.id, "approved", 1, 0);
+    asMember(d);
+    await registerForExchange(input(one.publicCode));
+    expect(await statusOf(one.id)).toBe("full");
+    // Inverse: stored "open" but actually full; a newcomer is waitlisted, ends full.
+    const inv = await mkEvent({
+      autoApprove: true,
+      slotsTotal: 1,
+      status: "open",
+    });
+    const e = await newMember();
+    const g = await newMember();
+    await addReg(inv.id, e.id, "approved", 1, 0);
+    asMember(g);
+    await registerForExchange(input(inv.publicCode));
+    expect(await statusOf(inv.id)).toBe("full");
+  });
+
   it("host cannot register; blocked member gets the generic error", async () => {
     const ev = await mkEvent({ autoApprove: true });
     asMember(host);

@@ -1011,6 +1011,7 @@
       "eventClosed": "This game is no longer open.",
       "deadlinePassed": "The deadline for this has passed.",
       "cannotRegister": "You cannot register for this game.",
+      "lateCancelledNoRejoin": "You cancelled this game late, so you cannot register again. Contact the host if you still want to join.",
       "newAccountLimit": "New accounts can wait on at most {max} games at once. Check in at a game to lift this limit.",
       "invalidInput": "Some details are not valid. Please check the fields.",
       "venueUnavailable": "This venue is not approved or is no longer listed.",

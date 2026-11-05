@@ -1011,6 +1011,7 @@
       "eventClosed": "这场交流赛已不再开放。",
       "deadlinePassed": "此操作已过截止时间。",
       "cannotRegister": "你无法报名这场交流赛。",
+      "lateCancelledNoRejoin": "你已逾期取消这场交流赛,因此无法再次报名。如仍想参加,请联系主办人。",
       "newAccountLimit": "新账号最多同时等待 {max} 场。在一场比赛中签到后即可解除此限制。",
       "invalidInput": "部分信息无效，请检查各项内容。",
       "venueUnavailable": "该场馆尚未通过审核或已不再显示。",

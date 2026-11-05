@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { exchangeEvents, exchangeRegistrations, members } from "@/db/schema";
 import type { Tx } from "@/db/tx";
 import { notifyRegistrationDecision } from "@/lib/notifications/exchange-events";
@@ -20,7 +20,11 @@ async function loadRegs(tx: Tx, eventId: number) {
     .where(eq(exchangeRegistrations.eventId, eventId));
 }
 
-/** Đặt `open`/`full` theo số slot còn lại; chỉ ghi khi đổi. */
+/**
+ * Đặt `open`/`full` theo số slot còn lại. Đọc lại trạng thái hiện tại trong
+ * transaction thay vì tin bản đọc trước đó (caller có thể đã đổi nó), và chỉ
+ * ghi khi buổi còn `open`/`full` và giá trị thực sự đổi.
+ */
 export async function syncEventStatus(
   tx: Tx,
   ev: EventRow,
@@ -28,11 +32,16 @@ export async function syncEventStatus(
 ): Promise<"open" | "full"> {
   const state = slotState(ev, await loadRegs(tx, ev.id), now);
   const status = state.full ? "full" : "open";
-  if (status !== ev.status)
-    await tx
-      .update(exchangeEvents)
-      .set({ status, updatedAt: now.toISOString() })
-      .where(eq(exchangeEvents.id, ev.id));
+  await tx
+    .update(exchangeEvents)
+    .set({ status, updatedAt: now.toISOString() })
+    .where(
+      and(
+        eq(exchangeEvents.id, ev.id),
+        inArray(exchangeEvents.status, ["open", "full"]),
+        ne(exchangeEvents.status, status),
+      ),
+    );
   return status;
 }
 

@@ -1011,6 +1011,7 @@
       "eventClosed": "Buổi giao lưu này không còn mở.",
       "deadlinePassed": "Đã quá hạn cho thao tác này.",
       "cannotRegister": "Bạn không thể đăng ký buổi này.",
+      "lateCancelledNoRejoin": "Bạn đã huỷ muộn buổi này nên không đăng ký lại được. Hãy liên hệ host nếu muốn tham gia.",
       "newAccountLimit": "Tài khoản mới chỉ được chờ tối đa {max} buổi cùng lúc. Hãy check-in một buổi để bỏ giới hạn này.",
       "invalidInput": "Thông tin chưa hợp lệ. Bạn kiểm tra lại các ô nhé.",
       "venueUnavailable": "Sân này chưa được duyệt hoặc không còn hiển thị.",
