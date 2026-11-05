@@ -1011,7 +1011,14 @@
       "eventClosed": "这场交流赛已不再开放。",
       "deadlinePassed": "此操作已过截止时间。",
       "cannotRegister": "你无法报名这场交流赛。",
-      "newAccountLimit": "新账号最多同时等待 {max} 场。在一场比赛中签到后即可解除此限制。"
+      "newAccountLimit": "新账号最多同时等待 {max} 场。在一场比赛中签到后即可解除此限制。",
+      "invalidInput": "部分信息无效，请检查各项内容。",
+      "venueUnavailable": "该场馆尚未通过审核或已不再显示。",
+      "depositTooHigh": "订金不能高于每人最低应付费用。",
+      "startTooSoon": "活动必须在至少 30 分钟后开始。",
+      "startTooFar": "活动最多只能提前 60 天创建。",
+      "startInvalid": "开始日期或时间无效。",
+      "saveFailed": "暂时无法保存活动，请重试。"
     }
   },
   "exchangeLogin": {

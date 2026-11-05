@@ -1011,7 +1011,14 @@
       "eventClosed": "This game is no longer open.",
       "deadlinePassed": "The deadline for this has passed.",
       "cannotRegister": "You cannot register for this game.",
-      "newAccountLimit": "New accounts can wait on at most {max} games at once. Check in at a game to lift this limit."
+      "newAccountLimit": "New accounts can wait on at most {max} games at once. Check in at a game to lift this limit.",
+      "invalidInput": "Some details are not valid. Please check the fields.",
+      "venueUnavailable": "This venue is not approved or is no longer listed.",
+      "depositTooHigh": "The deposit cannot be higher than the lowest fee a person would pay.",
+      "startTooSoon": "The event must start at least 30 minutes from now.",
+      "startTooFar": "An event can be opened at most 60 days ahead.",
+      "startInvalid": "The start date or time is not valid.",
+      "saveFailed": "We could not save the event. Please try again."
     }
   },
   "exchangeLogin": {

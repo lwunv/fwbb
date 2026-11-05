@@ -1011,7 +1011,14 @@
       "eventClosed": "Buổi giao lưu này không còn mở.",
       "deadlinePassed": "Đã quá hạn cho thao tác này.",
       "cannotRegister": "Bạn không thể đăng ký buổi này.",
-      "newAccountLimit": "Tài khoản mới chỉ được chờ tối đa {max} buổi cùng lúc. Hãy check-in một buổi để bỏ giới hạn này."
+      "newAccountLimit": "Tài khoản mới chỉ được chờ tối đa {max} buổi cùng lúc. Hãy check-in một buổi để bỏ giới hạn này.",
+      "invalidInput": "Thông tin chưa hợp lệ. Bạn kiểm tra lại các ô nhé.",
+      "venueUnavailable": "Sân này chưa được duyệt hoặc không còn hiển thị.",
+      "depositTooHigh": "Tiền cọc không được cao hơn mức phí thấp nhất mỗi người phải trả.",
+      "startTooSoon": "Buổi phải bắt đầu sau ít nhất 30 phút nữa.",
+      "startTooFar": "Buổi chỉ được mở trước tối đa 60 ngày.",
+      "startInvalid": "Ngày giờ bắt đầu không hợp lệ.",
+      "saveFailed": "Chưa lưu được buổi giao lưu. Vui lòng thử lại."
     }
   },
   "exchangeLogin": {

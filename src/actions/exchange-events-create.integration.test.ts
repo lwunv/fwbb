@@ -1,0 +1,287 @@
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { createTestDb } from "@/db/test-db";
+import { venues, exchangeEvents, members } from "@/db/schema";
+import { eq } from "drizzle-orm";
+
+const mocks = vi.hoisted(() => ({
+  flag: vi.fn(),
+  auth: vi.fn(),
+  bot: vi.fn(),
+  updateTag: vi.fn(),
+}));
+vi.mock("@/lib/exchange-flag", () => ({ isExchangeEnabled: mocks.flag }));
+vi.mock("@/lib/member-auth", () => ({ requireApprovedMember: mocks.auth }));
+vi.mock("next/cache", () => ({
+  updateTag: mocks.updateTag,
+  revalidateTag: vi.fn(),
+  revalidatePath: vi.fn(),
+  unstable_cache: (fn: unknown) => fn,
+}));
+vi.mock("@/lib/exchange/guards", async (orig) => ({
+  ...(await orig<typeof import("@/lib/exchange/guards")>()),
+  checkBotAndRate: mocks.bot,
+}));
+
+const { db: testDb } = await createTestDb();
+vi.mock("@/db", () => ({ db: testDb }));
+
+const { createExchangeEvent, updateExchangeEvent, getMyLastPayout } =
+  await import("./exchange-events");
+
+const [approvedVenue] = await testDb
+  .insert(venues)
+  .values({ name: "A", lat: 10, lng: 106, status: "approved" })
+  .returning();
+const [pendingVenue] = await testDb
+  .insert(venues)
+  .values({ name: "P", lat: 10, lng: 106, status: "pending" })
+  .returning();
+const [host] = await testDb
+  .insert(members)
+  .values({ name: "Host", approvalStatus: "approved" })
+  .returning();
+const [other] = await testDb
+  .insert(members)
+  .values({ name: "Other", approvalStatus: "approved" })
+  .returning();
+
+function asMember(m: typeof host | null) {
+  mocks.auth.mockResolvedValue(
+    m
+      ? { user: { memberId: m.id, externalId: "x" }, member: m }
+      : { error: "no" },
+  );
+}
+
+function form(over: Record<string, unknown> = {}) {
+  // 40 days out keeps startAt inside the 30 min .. 60 day window.
+  const d = new Date(Date.now() + 40 * 86_400_000);
+  return {
+    venueId: approvedVenue.id,
+    date: d.toISOString().slice(0, 10),
+    startTime: "20:30",
+    endTime: "22:30",
+    title: "Giao lưu tối thứ sáu",
+    description: "",
+    slotsTotal: 12,
+    femaleReservedSlots: 0,
+    reserveRelease: "never",
+    hostHeads: 1,
+    shuttleType: "",
+    feeMode: "fixed",
+    feeAmountMale: 50000,
+    depositAmount: 0,
+    hostContact: "0912345678",
+    zaloGroupLink: "",
+    turnstileToken: "tok",
+    idempotencyKey: crypto.randomUUID(),
+    ...over,
+  };
+}
+
+async function eventCount() {
+  return (await testDb.select().from(exchangeEvents)).length;
+}
+
+beforeEach(async () => {
+  await testDb.delete(exchangeEvents);
+  mocks.flag.mockReset().mockResolvedValue(true);
+  mocks.bot.mockReset().mockResolvedValue({ ok: true });
+  mocks.auth.mockReset();
+  mocks.updateTag.mockClear();
+  asMember(host);
+});
+
+describe("createExchangeEvent", () => {
+  it("create: stores the event, nulls unused fee fields, busts the cache", async () => {
+    const r = await createExchangeEvent(form());
+    expect(r).toMatchObject({ success: true });
+    const [row] = await testDb.select().from(exchangeEvents);
+    expect(row.hostMemberId).toBe(host.id);
+    expect(row.publicCode).toMatch(/^[abcdefghjkmnpqrstuvwxyz23456789]{10}$/);
+    expect(row.feeAmountMale).toBe(50000);
+    expect(row.feeAmountFemale).toBeNull();
+    expect(row.estimatedTotalCost).toBeNull();
+    expect(row.startAt.endsWith("Z")).toBe(true);
+    expect(mocks.updateTag).toHaveBeenCalledWith("exchange");
+    expect(mocks.bot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "exchange_open",
+        rateKey: `exchange-open:${host.id}`,
+      }),
+    );
+  });
+
+  it("create: pending exchange account rejected, nothing written", async () => {
+    asMember(null);
+    const r = await createExchangeEvent(form());
+    expect(r).toHaveProperty("error");
+    expect(mocks.bot).not.toHaveBeenCalled();
+    expect(await eventCount()).toBe(0);
+  });
+
+  it("create: pending venue rejected", async () => {
+    const r = await createExchangeEvent(form({ venueId: pendingVenue.id }));
+    expect(r).toEqual({ error: "venueUnavailable" });
+    expect(await eventCount()).toBe(0);
+  });
+
+  it("create: invalid input rejected before Turnstile", async () => {
+    const r = await createExchangeEvent(form({ title: "ab" }));
+    expect(r).toEqual({ error: "invalidInput" });
+    expect(mocks.bot).not.toHaveBeenCalled();
+  });
+
+  it("create: deposit above the estimate rejected", async () => {
+    const r = await createExchangeEvent(form({ depositAmount: 50001 }));
+    expect(r).toEqual({ error: "depositTooHigh" });
+    expect(await eventCount()).toBe(0);
+    const fine = await createExchangeEvent(form({ depositAmount: 50000 }));
+    expect(fine).toMatchObject({ success: true });
+  });
+
+  it("create: deposit is capped by the lower of male and female estimates", async () => {
+    const r = await createExchangeEvent(
+      form({
+        feeMode: "fixed_gender",
+        feeAmountMale: 60000,
+        feeAmountFemale: 30000,
+        depositAmount: 40000,
+      }),
+    );
+    expect(r).toEqual({ error: "depositTooHigh" });
+  });
+
+  it("create: same idempotencyKey twice → one row, same code", async () => {
+    const f = form();
+    const a = await createExchangeEvent(f);
+    const b = await createExchangeEvent(f);
+    expect(a).toMatchObject({ success: true });
+    expect(b).toEqual(a);
+    expect(await eventCount()).toBe(1);
+  });
+
+  it("create: flag off errors before any DB read", async () => {
+    mocks.flag.mockResolvedValue(false);
+    const r = await createExchangeEvent(form());
+    expect(r).toEqual({ error: "notFound" });
+    expect(mocks.auth).not.toHaveBeenCalled();
+    expect(mocks.bot).not.toHaveBeenCalled();
+    expect(await eventCount()).toBe(0);
+  });
+
+  it("create: a start under 30 minutes away is rejected", async () => {
+    const r = await createExchangeEvent(
+      form({
+        date: new Date().toISOString().slice(0, 10),
+        startTime: "00:00",
+        endTime: "00:01",
+      }),
+    );
+    expect(r).toHaveProperty("error");
+    expect(await eventCount()).toBe(0);
+  });
+
+  it("create: a client-sent host id is ignored", async () => {
+    await createExchangeEvent({ ...form(), hostMemberId: other.id });
+    const [row] = await testDb.select().from(exchangeEvents);
+    expect(row.hostMemberId).toBe(host.id);
+  });
+});
+
+describe("updateExchangeEvent", () => {
+  async function open() {
+    const r = await createExchangeEvent(form());
+    if (!("success" in r)) throw new Error("setup");
+    const [row] = await testDb.select().from(exchangeEvents);
+    return row;
+  }
+
+  it("update: host edits title and contact", async () => {
+    const ev = await open();
+    const r = await updateExchangeEvent({
+      eventId: ev.id,
+      title: "Tên mới cho buổi",
+      hostContact: "https://zalo.me/0900000000",
+    });
+    expect(r).toEqual({ success: true });
+    const [row] = await testDb
+      .select()
+      .from(exchangeEvents)
+      .where(eq(exchangeEvents.id, ev.id));
+    expect(row.title).toBe("Tên mới cho buổi");
+    expect(row.hostContact).toBe("https://zalo.me/0900000000");
+  });
+
+  it("update: another member cannot edit; extra fields like startAt are ignored", async () => {
+    const ev = await open();
+    asMember(other);
+    const denied = await updateExchangeEvent({
+      eventId: ev.id,
+      title: "Tên khác hẳn",
+    });
+    expect(denied).toHaveProperty("error");
+
+    asMember(host);
+    const r = await updateExchangeEvent({
+      eventId: ev.id,
+      title: "Tên mới cho buổi",
+      startAt: "2030-01-01T00:00:00.000Z",
+      feeAmountMale: 1,
+      slotsTotal: 99,
+    } as never);
+    expect(r).toEqual({ success: true });
+    const [row] = await testDb
+      .select()
+      .from(exchangeEvents)
+      .where(eq(exchangeEvents.id, ev.id));
+    expect(row.startAt).toBe(ev.startAt);
+    expect(row.feeAmountMale).toBe(50000);
+    expect(row.slotsTotal).toBe(12);
+    expect(row.title).toBe("Tên mới cho buổi");
+  });
+
+  it("update: rejected once the event is locked", async () => {
+    const ev = await open();
+    await testDb
+      .update(exchangeEvents)
+      .set({ status: "locked" })
+      .where(eq(exchangeEvents.id, ev.id));
+    const r = await updateExchangeEvent({
+      eventId: ev.id,
+      title: "Tên mới cho buổi",
+    });
+    expect(r).toEqual({ error: "eventClosed" });
+  });
+
+  it("update: payout is all three or none", async () => {
+    const ev = await open();
+    const bad = await updateExchangeEvent({
+      eventId: ev.id,
+      payout: { bankBin: "970436", accountNo: "12", accountName: "A" },
+    });
+    expect(bad).toEqual({ error: "invalidInput" });
+    const good = await updateExchangeEvent({
+      eventId: ev.id,
+      payout: {
+        bankBin: "970436",
+        accountNo: "0123456789",
+        accountName: "NGUYEN VAN A",
+      },
+    });
+    expect(good).toEqual({ success: true });
+    expect(await getMyLastPayout()).toEqual({
+      bankBin: "970436",
+      accountNo: "0123456789",
+      accountName: "NGUYEN VAN A",
+    });
+  });
+
+  it("update: flag off errors first", async () => {
+    mocks.flag.mockResolvedValue(false);
+    expect(
+      await updateExchangeEvent({ eventId: 1, title: "Tên mới cho buổi" }),
+    ).toEqual({ error: "notFound" });
+    expect(mocks.auth).not.toHaveBeenCalled();
+  });
+});
