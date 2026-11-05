@@ -88,7 +88,17 @@ export function promoteFirstFit(
 ): number[] {
   const queue = regs
     .filter((r) => r.status === "waitlist")
-    .sort((a, b) => (a.waitlistPos ?? 0) - (b.waitlistPos ?? 0));
+    .sort((a, b) => {
+      // Vị trí null xếp CUỐI; so sánh tường minh để tránh Infinity - Infinity = NaN.
+      const ap = a.waitlistPos;
+      const bp = b.waitlistPos;
+      if (ap !== bp) {
+        if (ap === null) return 1;
+        if (bp === null) return -1;
+        return ap - bp;
+      }
+      return a.id - b.id;
+    });
   const working: SlotReg[] = regs.map((r) => ({ ...r }));
   const promoted: number[] = [];
   for (const q of queue) {

@@ -155,6 +155,20 @@ describe("promoteFirstFit", () => {
     ];
     expect(promoteFirstFit(ev({ slotsTotal: 2 }), regs, NOW)).toEqual([21, 22]);
   });
+
+  it("sorts a null position last and breaks ties by id", () => {
+    const regs = [
+      reg({ id: 5, status: "waitlist", waitlistPos: null }),
+      reg({ id: 3, status: "waitlist", waitlistPos: 2 }),
+      reg({ id: 4, status: "waitlist", waitlistPos: 1 }),
+    ];
+    expect(promoteFirstFit(ev({ slotsTotal: 1 }), regs, NOW)).toEqual([4]);
+    const tie = [
+      reg({ id: 9, status: "waitlist", waitlistPos: 1 }),
+      reg({ id: 7, status: "waitlist", waitlistPos: 1 }),
+    ];
+    expect(promoteFirstFit(ev({ slotsTotal: 1 }), tie, NOW)).toEqual([7]);
+  });
 });
 
 describe("nextWaitlistPos", () => {
