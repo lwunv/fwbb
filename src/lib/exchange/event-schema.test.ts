@@ -103,12 +103,29 @@ describe("schema", () => {
     expect(ok({ ...base, hostContact: "https://zalo.me/0912345678" })).toBe(
       true,
     );
+    expect(ok({ ...base, hostContact: "123" })).toBe(false);
     expect(ok({ ...base, zaloGroupLink: "https://evil.example/g/x" })).toBe(
       false,
     );
     expect(ok({ ...base, zaloGroupLink: "https://zalo.me/g/abcdef" })).toBe(
       true,
     );
+  });
+});
+
+describe("host contact and date (R15, R17)", () => {
+  it("hostContact may be empty or omitted", () => {
+    expect(ok({ ...base, hostContact: "" })).toBe(true);
+    expect(ok({ ...base, hostContact: "   " })).toBe(true);
+    const { hostContact: _omit, ...rest } = base;
+    void _omit;
+    expect(ok(rest)).toBe(true);
+  });
+
+  it("rejects impossible dates, accepts real leap day", () => {
+    expect(ok({ ...base, date: "2026-02-31" })).toBe(false);
+    expect(ok({ ...base, date: "2026-13-01" })).toBe(false);
+    expect(ok({ ...base, date: "2028-02-29" })).toBe(true);
   });
 });
 

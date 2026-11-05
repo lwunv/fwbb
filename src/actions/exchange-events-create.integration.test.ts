@@ -93,6 +93,13 @@ beforeEach(async () => {
 });
 
 describe("createExchangeEvent", () => {
+  it("create: an empty host contact is stored as null", async () => {
+    const r = await createExchangeEvent(form({ hostContact: "" }));
+    expect(r).toMatchObject({ success: true });
+    const [row] = await testDb.select().from(exchangeEvents);
+    expect(row.hostContact).toBeNull();
+  });
+
   it("create: stores the event, nulls unused fee fields, busts the cache", async () => {
     const r = await createExchangeEvent(form());
     expect(r).toMatchObject({ success: true });
@@ -211,6 +218,17 @@ describe("updateExchangeEvent", () => {
       .where(eq(exchangeEvents.id, ev.id));
     expect(row.title).toBe("Tên mới cho buổi");
     expect(row.hostContact).toBe("https://zalo.me/0900000000");
+  });
+
+  it("update: an empty contact clears it to null", async () => {
+    const ev = await open();
+    const r = await updateExchangeEvent({ eventId: ev.id, hostContact: "" });
+    expect(r).toEqual({ success: true });
+    const [row] = await testDb
+      .select()
+      .from(exchangeEvents)
+      .where(eq(exchangeEvents.id, ev.id));
+    expect(row.hostContact).toBeNull();
   });
 
   it("update: another member cannot edit; extra fields like startAt are ignored", async () => {

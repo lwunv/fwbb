@@ -114,7 +114,10 @@ function fillValid() {
   type("Tiêu đề", "Giao lưu tối thứ ba");
   money("Phí mỗi người", 50000);
   openMore();
-  type("Liên hệ (số điện thoại hoặc link zalo.me)", "0912345678");
+  type(
+    "Liên hệ (không bắt buộc): số điện thoại hoặc link zalo.me",
+    "0912345678",
+  );
 }
 
 function submitButton() {
@@ -255,6 +258,79 @@ describe("EventForm: gửi form", () => {
     expect(input.venueId).toBe(7);
     expect(input.feeMode).toBe("fixed");
     expect(input.feeAmountMale).toBe(50000);
+  });
+
+  it("fixed female fee shows the estimate and submits feeAmountFemale with no percent", async () => {
+    actions.createExchangeEvent.mockResolvedValueOnce({
+      success: true,
+      data: { code: "fem001" },
+    });
+    renderForm();
+    fillValid();
+    chooseMode("Chia đều, nữ được giảm");
+    money("Tổng tiền dự kiến (sân, cầu)", 600000);
+    fireEvent.change(screen.getByLabelText("Số người dự kiến"), {
+      target: { value: "5" },
+    });
+    fireEvent.click(
+      screen.getByRole("radio", { name: "Số tiền cố định cho nữ" }),
+    );
+    money("Phí cố định cho nữ", 50000);
+
+    const est = formatVND(
+      exchangeFeeEstimate({
+        feeMode: "split_female_discount",
+        feeAmountMale: null,
+        feeAmountFemale: 50000,
+        feeFemalePercent: null,
+        estimatedTotalCost: 600000,
+        minHeads: 5,
+        hostHeads: 1,
+      }).male,
+    );
+    expect(screen.getByTestId("fee-preview").textContent).toContain(
+      `Khoảng ${est}/người khi có 5 người nam`,
+    );
+
+    give("tok-1");
+    fireEvent.click(submitButton());
+    await waitFor(() => expect(actions.createExchangeEvent).toHaveBeenCalled());
+    const sent = actions.createExchangeEvent.mock.calls[0][0];
+    expect(sent.feeMode).toBe("split_female_discount");
+    expect(sent.feeAmountFemale).toBe(50000);
+    expect(sent.feeFemalePercent).toBeUndefined();
+  });
+
+  it("percent female discount sends the percent and no fixed amount", async () => {
+    actions.createExchangeEvent.mockResolvedValueOnce({
+      success: true,
+      data: { code: "fem002" },
+    });
+    renderForm();
+    fillValid();
+    chooseMode("Chia đều, nữ được giảm");
+    money("Tổng tiền dự kiến (sân, cầu)", 600000);
+    give("tok-1");
+    fireEvent.click(submitButton());
+    await waitFor(() => expect(actions.createExchangeEvent).toHaveBeenCalled());
+    const sent = actions.createExchangeEvent.mock.calls[0][0];
+    expect(sent.feeFemalePercent).toBe(50);
+    expect(sent.feeAmountFemale).toBeUndefined();
+  });
+
+  it("submits without a host contact", async () => {
+    actions.createExchangeEvent.mockResolvedValueOnce({
+      success: true,
+      data: { code: "nc0001" },
+    });
+    renderForm();
+    fillValid();
+    type("Liên hệ (không bắt buộc): số điện thoại hoặc link zalo.me", "");
+    give("tok-1");
+    fireEvent.click(submitButton());
+    await waitFor(() =>
+      expect(router.push).toHaveBeenCalledWith("/giao-luu/nc0001"),
+    );
   });
 
   it("does not send without a Turnstile token", () => {

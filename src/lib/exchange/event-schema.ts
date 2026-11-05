@@ -29,11 +29,18 @@ const ACCOUNT_NO_RE = /^\d{6,20}$/;
 const ACCOUNT_NAME_RE = /^[A-Z0-9 ]{1,50}$/;
 const BANK_BINS: ReadonlySet<string> = new Set(VN_BANKS.map((b) => b.bin));
 
+/** Tuỳ chọn (R15): rỗng = host không để liên hệ; có giá trị thì vẫn phải đúng dạng. */
 export const hostContactSchema = z
   .string()
   .trim()
   .max(100)
-  .refine((v) => PHONE_RE.test(v) || ZALO_LINK_RE.test(v));
+  .refine((v) => v === "" || PHONE_RE.test(v) || ZALO_LINK_RE.test(v));
+
+/** Ngày có thật (R17): `Date.parse` bù ngày tràn (2026-02-31 thành 03-03), nên dựng lại rồi so. */
+function isRealDate(v: string): boolean {
+  const d = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+}
 
 /** Rỗng nghĩa là không có link nhóm. */
 export const zaloGroupLinkSchema = z
@@ -54,10 +61,7 @@ export type ReserveRelease = (typeof RESERVE_RELEASES)[number];
 
 const common = z.object({
   venueId: z.number().int().positive(),
-  date: z
-    .string()
-    .regex(DATE_RE)
-    .refine((v) => !Number.isNaN(Date.parse(`${v}T00:00:00Z`))),
+  date: z.string().regex(DATE_RE).refine(isRealDate),
   startTime: z.string().regex(TIME_RE),
   endTime: z.string().regex(TIME_RE),
   title: z.string().trim().min(5).max(80),
@@ -78,7 +82,7 @@ const common = z.object({
   payoutBankBin: z.string().optional(),
   payoutAccountNo: z.string().optional(),
   payoutAccountName: z.string().optional(),
-  hostContact: hostContactSchema,
+  hostContact: hostContactSchema.default(""),
   zaloGroupLink: zaloGroupLinkSchema.default(""),
   turnstileToken: z.string().min(1).max(4096),
   idempotencyKey: z.string().uuid(),

@@ -171,7 +171,7 @@ export async function createExchangeEvent(
             payoutBankBin: payout?.bankBin ?? null,
             payoutAccountNo: payout?.accountNo ?? null,
             payoutAccountName: payout?.accountName ?? null,
-            hostContact: f.hostContact,
+            hostContact: f.hostContact || null,
             zaloGroupLink: f.zaloGroupLink || null,
             status: "open",
             createdAt: nowIso,
@@ -238,7 +238,7 @@ export async function updateExchangeEvent(input: unknown): Promise<Result> {
   if (p.description !== undefined)
     patch.description = p.description.trim() || null;
   if (p.shuttleType !== undefined) patch.shuttleType = p.shuttleType || null;
-  if (p.hostContact !== undefined) patch.hostContact = p.hostContact;
+  if (p.hostContact !== undefined) patch.hostContact = p.hostContact || null;
   if (p.zaloGroupLink !== undefined)
     patch.zaloGroupLink = p.zaloGroupLink || null;
   if (p.payout !== undefined) {

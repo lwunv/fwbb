@@ -173,6 +173,8 @@ export function EventForm({ initialPayout }: { initialPayout: Payout | null }) {
   const [pending, setPending] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [resetKey, setResetKey] = useState(0);
+  // R16: nữ được giảm theo % HOẶC số tiền cố định; chỉ gửi một trong hai.
+  const [femaleKind, setFemaleKind] = useState<"percent" | "fixed">("percent");
 
   const form = useForm<FormValues, unknown, EventFormOutput>({
     resolver: zodResolver(eventFormSchema) as unknown as Resolver<
@@ -248,9 +250,14 @@ export function EventForm({ initialPayout }: { initialPayout: Payout | null }) {
     feeMode,
     feeAmountMale: v.feeAmountMale ?? 0,
     feeAmountFemale:
-      feeMode === "fixed_gender" ? (v.feeAmountFemale ?? 0) : null,
+      feeMode === "fixed_gender" ||
+      (feeMode === "split_female_discount" && femaleKind === "fixed")
+        ? (v.feeAmountFemale ?? 0)
+        : null,
     feeFemalePercent:
-      feeMode === "split_female_discount" ? (v.feeFemalePercent ?? 0) : null,
+      feeMode === "split_female_discount" && femaleKind === "percent"
+        ? (v.feeFemalePercent ?? 0)
+        : null,
     estimatedTotalCost: v.estimatedTotalCost ?? 0,
     minHeads: v.minHeads ?? 0,
     hostHeads: v.hostHeads ?? 0,
@@ -263,7 +270,9 @@ export function EventForm({ initialPayout }: { initialPayout: Payout | null }) {
     try {
       const payload =
         values.feeMode === "split_female_discount"
-          ? { ...values, feeAmountFemale: undefined }
+          ? femaleKind === "fixed"
+            ? { ...values, feeFemalePercent: undefined }
+            : { ...values, feeAmountFemale: undefined }
           : values;
       const res = await createExchangeEvent({
         ...payload,
@@ -487,26 +496,69 @@ export function EventForm({ initialPayout }: { initialPayout: Payout | null }) {
               />
             </Field>
             {feeMode === "split_female_discount" && (
-              <Field
-                label={t("femalePercent")}
-                error={msg(errors.feeFemalePercent)}
+              <div
+                role="radiogroup"
+                aria-label={t("modeSplitFemale")}
+                className="grid grid-cols-2 gap-2"
               >
-                <Controller
-                  control={control}
-                  name="feeFemalePercent"
-                  render={({ field }) => (
-                    <NumberStepper
-                      value={field.value}
-                      onChange={field.onChange}
-                      min={0}
-                      max={100}
-                      step={5}
-                      inputAriaLabel={t("femalePercent")}
-                    />
-                  )}
+                {(["percent", "fixed"] as const).map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    role="radio"
+                    aria-checked={femaleKind === k}
+                    onClick={() => setFemaleKind(k)}
+                    className={cn(
+                      "min-h-11 rounded-xl border px-3 py-2 text-base font-medium transition-colors",
+                      femaleKind === k
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background hover:bg-accent",
+                    )}
+                  >
+                    {t(
+                      k === "percent" ? "femaleKindPercent" : "femaleKindFixed",
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+            {feeMode === "split_female_discount" && femaleKind === "fixed" && (
+              <Field
+                label={t("amountFemaleFixed")}
+                error={msg(errors.feeAmountFemale)}
+              >
+                <MoneyInput
+                  aria-label={t("amountFemaleFixed")}
+                  suffix="₫"
+                  value={v.feeAmountFemale ?? 0}
+                  onCommit={(n) =>
+                    setValue("feeAmountFemale", Math.min(n, MAX_FEE_PER_HEAD))
+                  }
                 />
               </Field>
             )}
+            {feeMode === "split_female_discount" &&
+              femaleKind === "percent" && (
+                <Field
+                  label={t("femalePercent")}
+                  error={msg(errors.feeFemalePercent)}
+                >
+                  <Controller
+                    control={control}
+                    name="feeFemalePercent"
+                    render={({ field }) => (
+                      <NumberStepper
+                        value={field.value}
+                        onChange={field.onChange}
+                        min={0}
+                        max={100}
+                        step={5}
+                        inputAriaLabel={t("femalePercent")}
+                      />
+                    )}
+                  />
+                </Field>
+              )}
           </div>
         )}
       </Card>
