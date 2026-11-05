@@ -1029,7 +1029,8 @@
       "cannotMarkPaid": "Chỉ đánh dấu đã trả được khi buổi đã chốt phí và người này có phí.",
       "checkInClosed": "Chưa đến hoặc đã quá thời gian điểm danh.",
       "cannotFinish": "Chỉ kết thúc được buổi đã chốt phí và đã bắt đầu.",
-      "cannotNoShow": "Chưa thể đánh dấu vắng mặt lúc này."
+      "cannotNoShow": "Chưa thể đánh dấu vắng mặt lúc này.",
+      "cannotReport": "Bạn không thể báo cáo mục này."
     }
   },
   "exchangeLogin": {

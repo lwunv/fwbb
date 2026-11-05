@@ -1029,7 +1029,8 @@
       "cannotMarkPaid": "You can only mark paid once fees are locked and this person has a fee.",
       "checkInClosed": "Check-in isn't open for this event right now.",
       "cannotFinish": "You can only finish an event that is locked and has started.",
-      "cannotNoShow": "You can't mark this person as a no-show right now."
+      "cannotNoShow": "You can't mark this person as a no-show right now.",
+      "cannotReport": "You cannot report this."
     }
   },
   "exchangeLogin": {

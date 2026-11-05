@@ -1029,7 +1029,8 @@
       "cannotMarkPaid": "只有费用锁定后且此人有费用时才能标记已付。",
       "checkInClosed": "当前不在签到时间内。",
       "cannotFinish": "只有已锁定且已开始的活动才能结束。",
-      "cannotNoShow": "目前无法将此人标记为缺席。"
+      "cannotNoShow": "目前无法将此人标记为缺席。",
+      "cannotReport": "你无法举报此内容。"
     }
   },
   "exchangeLogin": {
