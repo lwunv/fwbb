@@ -76,3 +76,26 @@ describe("VenueCard", () => {
     expect(screen.getByText("Điều hoà")).toBeTruthy();
   });
 });
+
+describe("VenueCard upcoming exchanges", () => {
+  function renderWithCount(count?: number) {
+    return render(
+      <NextIntlClientProvider locale="vi" messages={viMessages}>
+        <VenueCard venue={base} locale="vi" upcomingExchangeCount={count} />
+      </NextIntlClientProvider>,
+    );
+  }
+
+  it("shows the upcoming exchange count when positive", () => {
+    renderWithCount(2);
+    expect(screen.getByText("2 giao lưu sắp tới")).toBeTruthy();
+  });
+
+  it("renders nothing extra when the count is undefined or zero", () => {
+    renderWithCount(undefined);
+    expect(screen.queryByText(/giao lưu sắp tới/)).toBeNull();
+    cleanup();
+    renderWithCount(0);
+    expect(screen.queryByText(/giao lưu sắp tới/)).toBeNull();
+  });
+});

@@ -13,9 +13,12 @@ import { Card, CardContent } from "@/components/ui/card";
 export function VenueCard({
   venue,
   locale,
+  upcomingExchangeCount,
 }: {
   venue: PublicVenue & { distanceM?: number };
   locale: "vi" | "en" | "zh";
+  /** Chỉ truyền khi cờ giao lưu bật; undefined hoặc 0 thì không hiện gì thêm. */
+  upcomingExchangeCount?: number;
 }) {
   const t = useTranslations("venues");
   return (
@@ -63,6 +66,15 @@ export function VenueCard({
             </span>
           )}
         </div>
+
+        {upcomingExchangeCount !== undefined && upcomingExchangeCount > 0 && (
+          <Link
+            href={`/san/${venue.id}`}
+            className="bg-primary/15 text-primary inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-medium"
+          >
+            {t("upcomingExchangeCount", { count: upcomingExchangeCount })}
+          </Link>
+        )}
 
         {venue.amenities.length > 0 && (
           <ul className="flex flex-wrap gap-1.5">

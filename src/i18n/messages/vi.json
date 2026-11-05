@@ -1873,6 +1873,10 @@
   },
   "venues": {
     "nav": "Danh bạ sân",
+    "upcomingExchangeCount": "{count} giao lưu sắp tới",
+    "filterHasExchange": "Đang có giao lưu",
+    "upcomingExchangesTitle": "Giao lưu sắp tới",
+    "upcomingExchangesEmpty": "Chưa có buổi giao lưu nào sắp tới ở sân này.",
     "name": "Tên sân",
     "mapLink": "Link Google Maps",
     "mapLinkHint": "Mở Google Maps, chọn sân, bấm Chia sẻ rồi Sao chép liên kết và dán vào đây.",

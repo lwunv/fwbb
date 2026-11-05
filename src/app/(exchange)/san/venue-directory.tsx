@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   parseAsArrayOf,
+  parseAsBoolean,
   parseAsNumberLiteral,
   parseAsStringLiteral,
   useQueryState,
@@ -30,7 +31,14 @@ const VIEWS = ["list", "map"] as const;
 /** Kéo bản đồ quá 30% bán kính thì mới đáng mời tìm lại ở khu vực mới. */
 const SEARCH_HERE_RATIO = 0.3;
 
-export function VenueDirectory({ canSuggest }: { canSuggest: boolean }) {
+export function VenueDirectory({
+  canSuggest,
+  exchangeEnabled = false,
+}: {
+  canSuggest: boolean;
+  /** Cờ giao lưu, do server component đọc một lần; tắt thì không có truy vấn thêm. */
+  exchangeEnabled?: boolean;
+}) {
   const t = useTranslations("venues");
   const locale = useLocale() as "vi" | "en" | "zh";
   const [radius, setRadiusQuery] = useQueryState(
@@ -40,6 +48,10 @@ export function VenueDirectory({ canSuggest }: { canSuggest: boolean }) {
   const [amenities, setAmenities] = useQueryState(
     "a",
     parseAsArrayOf(parseAsStringLiteral(VENUE_AMENITIES)).withDefault([]),
+  );
+  const [hasExchange, setHasExchange] = useQueryState(
+    "gl",
+    parseAsBoolean.withDefault(false),
   );
   const [view, setView] = useQueryState(
     "view",
@@ -91,10 +103,32 @@ export function VenueDirectory({ canSuggest }: { canSuggest: boolean }) {
     placeholderData: keepPreviousData,
   });
 
+  const venueIds = useMemo(
+    () => (query.data ?? []).map((v) => v.id),
+    [query.data],
+  );
+  // Số buổi theo sân đi qua một lời gọi riêng, không đụng listVenuesNear.
+  const counts = useQuery({
+    queryKey: ["venue-exchange-counts", venueIds],
+    queryFn: async () => {
+      // Nạp muộn: cờ tắt thì không kéo action giao lưu vào đường chạy của /san.
+      const { countUpcomingByVenue } = await import("@/actions/exchange-read");
+      return new Map(await countUpcomingByVenue(venueIds));
+    },
+    staleTime: 60_000,
+    enabled: exchangeEnabled && venueIds.length > 0,
+  });
+  const countMap = exchangeEnabled ? counts.data : undefined;
+  const filterOn = exchangeEnabled && hasExchange;
+  const filterPending = filterOn && counts.isPending && venueIds.length > 0;
+
   const nextRadius = RADII.find((r) => r > radius);
   const isMap = view === "map" && !mapUnsupported;
   const showMap = isMap && loc.status === "ok" && center !== null;
-  const venues = query.data ?? [];
+  const allVenues = query.data ?? [];
+  const venues = filterOn
+    ? allVenues.filter((v) => (countMap?.get(v.id) ?? 0) > 0)
+    : allVenues;
   const selectedVenue = venues.find((v) => v.id === selectedId) ?? null;
   const showSearchHere =
     showMap &&
@@ -138,6 +172,12 @@ export function VenueDirectory({ canSuggest }: { canSuggest: boolean }) {
     </div>
   );
   const isEmpty = query.isSuccess && query.data.length === 0;
+  const filteredEmpty =
+    query.isSuccess &&
+    query.data.length > 0 &&
+    filterOn &&
+    !filterPending &&
+    venues.length === 0;
   // Ở chế độ bản đồ, bản đồ cao 60dvh đẩy khối lỗi/rỗng dưới nó ra ngoài
   // màn hình, nên hai trạng thái này hiện đè lên bản đồ.
   const mapNotice = query.isError ? errorNotice : isEmpty ? emptyNotice : null;
@@ -245,6 +285,24 @@ export function VenueDirectory({ canSuggest }: { canSuggest: boolean }) {
         </div>
       </section>
 
+      {exchangeEnabled && (
+        <div className="flex">
+          <button
+            type="button"
+            aria-pressed={hasExchange}
+            onClick={() => setHasExchange(hasExchange ? null : true)}
+            className={cn(
+              "min-h-11 rounded-full border px-4 text-sm font-medium transition-colors",
+              hasExchange
+                ? "bg-primary/15 border-primary text-primary"
+                : "bg-card/80 hover:bg-accent",
+            )}
+          >
+            {t("filterHasExchange")}
+          </button>
+        </div>
+      )}
+
       {loc.status === "ok" && loc.label && (
         <div className="flex items-center justify-between gap-2 text-sm">
           <span className="text-muted-foreground truncate">
@@ -332,10 +390,21 @@ export function VenueDirectory({ canSuggest }: { canSuggest: boolean }) {
         />
       )}
 
-      {query.isSuccess && query.data.length > 0 && !isMap && (
+      {!isMap && filterPending && query.isSuccess && <ListSkeleton />}
+
+      {!isMap && filteredEmpty && (
+        <EmptyState
+          icon={MapPinned}
+          title={t("emptyTitle", { km: radius })}
+          description={t("emptyDescription")}
+          action={emptyActions}
+        />
+      )}
+
+      {query.isSuccess && venues.length > 0 && !isMap && (
         <ul className="grid gap-3 sm:grid-cols-2">
           <AnimatePresence initial={false}>
-            {query.data.map((v) => (
+            {venues.map((v) => (
               <motion.li
                 key={v.id}
                 layout
@@ -343,7 +412,11 @@ export function VenueDirectory({ canSuggest }: { canSuggest: boolean }) {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
               >
-                <VenueCard venue={v} locale={locale} />
+                <VenueCard
+                  venue={v}
+                  locale={locale}
+                  upcomingExchangeCount={countMap?.get(v.id)}
+                />
               </motion.li>
             ))}
           </AnimatePresence>

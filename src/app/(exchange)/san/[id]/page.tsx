@@ -3,6 +3,9 @@ import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 import { ChevronLeft, Navigation } from "lucide-react";
 import { getPublicVenue } from "@/actions/venues";
+import { listUpcomingAtVenue } from "@/actions/exchange-read";
+import { isExchangeEnabled } from "@/lib/exchange-flag";
+import { ExchangeCard } from "@/components/exchange/exchange-card";
 import { directionsUrl } from "@/lib/maps-link";
 import { VenueCard } from "@/components/venues/venue-card";
 import { VenueMiniMap } from "@/components/venues/venue-mini-map";
@@ -15,10 +18,14 @@ export default async function VenueDetailPage({
   const { id } = await params;
   const venue = await getPublicVenue(Number(id));
   if (!venue) notFound();
-  const [t, locale] = await Promise.all([
+  const [t, locale, exchangeEnabled] = await Promise.all([
     getTranslations("venues"),
     getLocale(),
+    isExchangeEnabled(),
   ]);
+  const exchanges = exchangeEnabled
+    ? await listUpcomingAtVenue(venue.id)
+    : null;
 
   return (
     <div className="space-y-4 pb-24">
@@ -31,6 +38,20 @@ export default async function VenueDetailPage({
       </Link>
       <VenueCard venue={venue} locale={locale as "vi" | "en" | "zh"} />
       <VenueMiniMap venue={venue} />
+      {exchanges && (
+        <section className="space-y-3" aria-label={t("upcomingExchangesTitle")}>
+          <h2 className="text-lg font-semibold">
+            {t("upcomingExchangesTitle")}
+          </h2>
+          {exchanges.length === 0 ? (
+            <p className="text-muted-foreground text-base">
+              {t("upcomingExchangesEmpty")}
+            </p>
+          ) : (
+            exchanges.map((e) => <ExchangeCard key={e.code} event={e} />)
+          )}
+        </section>
+      )}
       {venue.photoLink && (
         <a
           href={venue.photoLink}
