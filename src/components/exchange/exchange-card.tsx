@@ -33,7 +33,7 @@ function whenLabel(startAt: string, endAt: string, locale: string): string {
 
 // Avatar mặc định chọn theo memberId; payload công khai không có id của host
 // nên lấy một số ổn định từ tên để cùng một host luôn ra cùng một avatar.
-function nameSeed(name: string): number {
+export function nameSeed(name: string): number {
   let h = 0;
   for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return h;
