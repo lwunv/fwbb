@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   parseAsArrayOf,
   parseAsNumberLiteral,
@@ -11,7 +11,6 @@ import {
   useQueryState,
 } from "nuqs";
 import { AnimatePresence, motion } from "framer-motion";
-import { toast } from "sonner";
 import { LocateFixed, MapPinned, Plus } from "lucide-react";
 import { listVenuesNear } from "@/actions/venues";
 import type { LatLng } from "@/lib/geo";
@@ -49,6 +48,8 @@ export function VenueDirectory({ canSuggest }: { canSuggest: boolean }) {
   const [searchCenter, setSearchCenter] = useState<LatLng | null>(null);
   const [mapCenter, setMapCenter] = useState<LatLng | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  // Máy không dựng được bản đồ: khoá nút "Bản đồ" thay vì báo toast lặp lại.
+  const [mapUnsupported, setMapUnsupported] = useState(false);
   const loc = useUserLocation();
   const { request } = loc;
 
@@ -80,10 +81,12 @@ export function VenueDirectory({ canSuggest }: { canSuggest: boolean }) {
     },
     enabled: loc.status === "ok" && center !== null,
     staleTime: 60_000,
+    // Giữ ghim cũ trong lúc tải lại khi đổi khu vực/bán kính, khỏi nháy trống.
+    placeholderData: keepPreviousData,
   });
 
   const nextRadius = RADII.find((r) => r > radius);
-  const isMap = view === "map";
+  const isMap = view === "map" && !mapUnsupported;
   const showMap = isMap && loc.status === "ok" && center !== null;
   const venues = query.data ?? [];
   const selectedVenue = venues.find((v) => v.id === selectedId) ?? null;
@@ -91,6 +94,47 @@ export function VenueDirectory({ canSuggest }: { canSuggest: boolean }) {
     showMap &&
     mapCenter !== null &&
     movedBeyond(mapCenter, center, radius * SEARCH_HERE_RATIO);
+
+  const errorNotice = (
+    <div className="flex flex-col items-center gap-3 text-center">
+      <p className="text-base font-medium">{t("loadError")}</p>
+      <Button className="min-h-11" onClick={() => query.refetch()}>
+        {t("retry")}
+      </Button>
+    </div>
+  );
+  const emptyActions = (
+    <div className="flex flex-wrap justify-center gap-2">
+      {nextRadius && (
+        <Button className="min-h-11" onClick={() => setRadius(nextRadius)}>
+          {t("expandRadius")}
+        </Button>
+      )}
+      {canSuggest && (
+        <Link
+          href="/san/de-xuat"
+          className="bg-card inline-flex min-h-11 items-center rounded-lg border px-4 text-sm font-medium"
+        >
+          {t("suggestVenue")}
+        </Link>
+      )}
+    </div>
+  );
+  const emptyNotice = (
+    <div className="flex flex-col items-center gap-3 text-center">
+      <div className="space-y-1">
+        <p className="text-base font-medium">
+          {t("emptyTitle", { km: radius })}
+        </p>
+        <p className="text-muted-foreground text-sm">{t("emptyDescription")}</p>
+      </div>
+      {emptyActions}
+    </div>
+  );
+  const isEmpty = query.isSuccess && query.data.length === 0;
+  // Ở chế độ bản đồ, bản đồ cao 60dvh đẩy khối lỗi/rỗng dưới nó ra ngoài
+  // màn hình, nên hai trạng thái này hiện đè lên bản đồ.
+  const mapNotice = query.isError ? errorNotice : isEmpty ? emptyNotice : null;
 
   function changeView(next: (typeof VIEWS)[number]) {
     // Bản đồ dựng lại từ đầu khi mở lại: bỏ vị trí kéo cũ và ghim đang chọn.
@@ -100,8 +144,8 @@ export function VenueDirectory({ canSuggest }: { canSuggest: boolean }) {
   }
 
   function handleMapUnsupported() {
+    setMapUnsupported(true);
     changeView("list");
-    toast.error(t("mapUnsupported"));
   }
 
   return (
@@ -116,23 +160,33 @@ export function VenueDirectory({ canSuggest }: { canSuggest: boolean }) {
         aria-label={t("viewSwitch")}
         className="bg-muted grid grid-cols-2 gap-1 rounded-xl p-1"
       >
-        {VIEWS.map((v) => (
-          <button
-            key={v}
-            type="button"
-            aria-pressed={view === v}
-            onClick={() => changeView(v)}
-            className={cn(
-              "min-h-11 rounded-lg text-base font-medium transition-colors",
-              view === v
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground",
-            )}
-          >
-            {t(v === "list" ? "showList" : "showMap")}
-          </button>
-        ))}
+        {VIEWS.map((v) => {
+          const disabled = v === "map" && mapUnsupported;
+          return (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={view === v}
+              disabled={disabled}
+              aria-disabled={disabled}
+              onClick={() => changeView(v)}
+              className={cn(
+                "min-h-11 rounded-lg text-base font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+                view === v
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground",
+              )}
+            >
+              {t(v === "list" ? "showList" : "showMap")}
+            </button>
+          );
+        })}
       </div>
+      {mapUnsupported && (
+        <p className="text-muted-foreground text-sm" role="status">
+          {t("mapUnsupported")}
+        </p>
+      )}
 
       <section className="space-y-3" aria-label={t("radius")}>
         <div className="flex flex-wrap items-center gap-2">
@@ -230,6 +284,8 @@ export function VenueDirectory({ canSuggest }: { canSuggest: boolean }) {
           selectedId={selectedId}
           locale={locale}
           showSearchHere={showSearchHere}
+          loading={query.isFetching}
+          notice={mapNotice}
           onSelect={setSelectedId}
           onMoveEnd={setMapCenter}
           onSearchHere={() => {
@@ -240,13 +296,16 @@ export function VenueDirectory({ canSuggest }: { canSuggest: boolean }) {
         />
       )}
 
-      {(loc.status === "asking" ||
-        loc.status === "idle" ||
-        (loc.status === "ok" && query.isPending && !showMap)) && (
-        <ListSkeleton />
+      {isMap && (loc.status === "asking" || loc.status === "idle") && (
+        <Skeleton className="h-[60dvh] w-full rounded-2xl" />
       )}
 
-      {query.isError && (
+      {!isMap &&
+        (loc.status === "asking" ||
+          loc.status === "idle" ||
+          (loc.status === "ok" && query.isPending)) && <ListSkeleton />}
+
+      {!isMap && query.isError && (
         <EmptyState
           icon={MapPinned}
           title={t("loadError")}
@@ -258,31 +317,12 @@ export function VenueDirectory({ canSuggest }: { canSuggest: boolean }) {
         />
       )}
 
-      {query.isSuccess && query.data.length === 0 && (
+      {!isMap && isEmpty && (
         <EmptyState
           icon={MapPinned}
           title={t("emptyTitle", { km: radius })}
           description={t("emptyDescription")}
-          action={
-            <div className="flex flex-wrap justify-center gap-2">
-              {nextRadius && (
-                <Button
-                  className="min-h-11"
-                  onClick={() => setRadius(nextRadius)}
-                >
-                  {t("expandRadius")}
-                </Button>
-              )}
-              {canSuggest && (
-                <Link
-                  href="/san/de-xuat"
-                  className="bg-card inline-flex min-h-11 items-center rounded-lg border px-4 text-sm font-medium"
-                >
-                  {t("suggestVenue")}
-                </Link>
-              )}
-            </div>
-          }
+          action={emptyActions}
         />
       )}
 

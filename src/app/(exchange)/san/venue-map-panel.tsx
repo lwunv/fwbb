@@ -1,8 +1,9 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { AnimatePresence, motion } from "framer-motion";
-import { Search } from "lucide-react";
+import { Loader2, MapPin, Search } from "lucide-react";
 import type { LatLng } from "@/lib/geo";
 import type { PublicVenue } from "@/lib/public-venue";
 import type { MapPoint } from "@/lib/map/map-points";
@@ -28,6 +29,10 @@ type Props = {
   selectedId: number | null;
   locale: "vi" | "en" | "zh";
   showSearchHere: boolean;
+  /** Đang tải lại sân (đổi khu vực/bán kính): ghim cũ vẫn hiện. */
+  loading?: boolean;
+  /** Lỗi tải hoặc không có sân: hiện đè lên bản đồ để không bị đẩy ra ngoài màn hình. */
+  notice?: ReactNode;
   onSelect: (id: number | null) => void;
   onMoveEnd: (center: LatLng) => void;
   onSearchHere: () => void;
@@ -48,6 +53,8 @@ export function VenueMapPanel({
   selectedId,
   locale,
   showSearchHere,
+  loading = false,
+  notice = null,
   onSelect,
   onMoveEnd,
   onSearchHere,
@@ -85,12 +92,52 @@ export function VenueMapPanel({
               {t("searchThisArea")}
             </motion.button>
           )}
+          {loading && (
+            <motion.div
+              key="loading"
+              role="status"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="bg-card/80 absolute top-3 left-1/2 z-10 inline-flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-full border px-5 text-base font-medium shadow-lg backdrop-blur"
+            >
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              {t("loadingVenues")}
+            </motion.div>
+          )}
         </AnimatePresence>
+        {notice && (
+          <div className="bg-card/90 absolute inset-x-3 bottom-3 z-10 rounded-2xl border p-4 shadow-lg backdrop-blur">
+            {notice}
+          </div>
+        )}
       </div>
 
-      {!isMobile && selectedVenue && (
+      {!isMobile && (
         <aside className="hidden sm:block">
-          <VenueCard venue={selectedVenue} locale={locale} />
+          <AnimatePresence mode="wait" initial={false}>
+            {selectedVenue ? (
+              <motion.div
+                key={selectedVenue.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+              >
+                <VenueCard venue={selectedVenue} locale={locale} />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="hint"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="bg-card/80 text-muted-foreground flex flex-col items-center gap-2 rounded-xl border border-dashed p-6 text-center backdrop-blur"
+              >
+                <MapPin className="size-8" aria-hidden />
+                <p className="text-base">{t("pinHint")}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </aside>
       )}
 

@@ -13,20 +13,20 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import viMessages from "@/i18n/messages/vi.json";
 import type { MapViewProps } from "@/components/map/map-view";
 
-const { listVenuesNear, toastError, mobile, mapProps } = vi.hoisted(() => ({
+const { listVenuesNear, mobile, mapProps, locState } = vi.hoisted(() => ({
   listVenuesNear: vi.fn(),
-  toastError: vi.fn(),
+  locState: { status: "ok" as "ok" | "asking" },
   mobile: { value: true },
   mapProps: { last: null as null | { cooperativeGestures?: boolean } },
 }));
 
 vi.mock("@/actions/venues", () => ({ listVenuesNear }));
-vi.mock("sonner", () => ({ toast: { error: toastError } }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 vi.mock("@/lib/use-is-mobile", () => ({ useIsMobile: () => mobile.value }));
 vi.mock("@/components/venues/use-user-location", () => ({
   useUserLocation: () => ({
-    status: "ok",
-    position: { lat: 21.0, lng: 105.8 },
+    status: locState.status,
+    position: locState.status === "ok" ? { lat: 21.0, lng: 105.8 } : null,
     label: "Hà Nội",
     request: () => {},
     setManual: () => {},
@@ -96,6 +96,7 @@ function renderDir(search = "") {
 
 beforeEach(() => {
   mobile.value = true;
+  locState.status = "ok";
   listVenuesNear.mockResolvedValue({
     venues: [venue(1, "Sân Một"), venue(2, "Sân Hai")],
   });
@@ -196,6 +197,60 @@ describe("VenueDirectory map mode", () => {
     fireEvent.click(await screen.findByRole("button", { name: "no-webgl" }));
     await screen.findByText("Sân Một");
     expect(screen.queryByTestId("map")).toBeNull();
-    expect(toastError).toHaveBeenCalledWith(viMessages.venues.mapUnsupported);
+    // Khoá nút thay vì báo toast lặp lại.
+    const toggle = screen.getByRole("button", { name: "Bản đồ" });
+    expect(toggle.hasAttribute("disabled")).toBe(true);
+    expect(toggle.getAttribute("aria-disabled")).toBe("true");
+    expect(screen.getByText(viMessages.venues.mapUnsupported)).toBeTruthy();
+  });
+
+  it("keeps the pins and shows a loading pill while a new area loads", async () => {
+    renderDir("?view=map");
+    await screen.findByRole("button", { name: "pin-1" });
+    let resolve!: (v: unknown) => void;
+    listVenuesNear.mockReturnValueOnce(new Promise((r) => (resolve = r)));
+    fireEvent.click(screen.getByRole("button", { name: "10 km" }));
+    expect(await screen.findByText("Đang tải sân...")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "pin-1" })).toBeTruthy();
+    resolve({ venues: [venue(1, "Sân Một")] });
+    await waitFor(() =>
+      expect(screen.queryByText("Đang tải sân...")).toBeNull(),
+    );
+  });
+
+  it("while locating in map mode shows a map-sized skeleton, not the list skeleton", () => {
+    locState.status = "asking";
+    const { container } = renderDir("?view=map");
+    expect(container.querySelector('[class~="h-[60dvh]"]')).not.toBeNull();
+    expect(container.querySelector("ul")).toBeNull();
+  });
+
+  it("map mode shows the load error with a retry button on top of the map", async () => {
+    listVenuesNear.mockResolvedValue({ error: "boom" });
+    renderDir("?view=map");
+    const retry = await screen.findByRole("button", { name: "Thử lại" });
+    expect(screen.getByTestId("map").parentElement?.contains(retry)).toBe(true);
+  });
+
+  it("map mode shows the empty state with expand radius on top of the map", async () => {
+    listVenuesNear.mockResolvedValue({ venues: [] });
+    renderDir("?view=map");
+    const expand = await screen.findByRole("button", {
+      name: viMessages.venues.expandRadius,
+    });
+    expect(screen.getByTestId("map").parentElement?.contains(expand)).toBe(
+      true,
+    );
+  });
+
+  it("desktop aside shows a hint until a pin is selected", async () => {
+    mobile.value = false;
+    renderDir("?view=map");
+    expect(await screen.findByText("Bấm một ghim để xem sân")).toBeTruthy();
+    fireEvent.click(await screen.findByRole("button", { name: "pin-1" }));
+    await screen.findByText("Sân Một", { selector: "a" });
+    await waitFor(() =>
+      expect(screen.queryByText("Bấm một ghim để xem sân")).toBeNull(),
+    );
   });
 });

@@ -1577,6 +1577,8 @@
     "mapGestureMac": "按住 ⌘ 并滚动来缩放地图",
     "mapGestureMobile": "用两根手指移动地图",
     "mapAttributionToggle": "显示或隐藏地图来源",
-    "mapFeedback": "地图反馈"
+    "mapFeedback": "地图反馈",
+    "loadingVenues": "正在加载场馆...",
+    "pinHint": "点按图钉查看场馆"
   }
 }

@@ -1577,6 +1577,8 @@
     "mapGestureMac": "Use ⌘ + scroll to zoom the map",
     "mapGestureMobile": "Use two fingers to move the map",
     "mapAttributionToggle": "Toggle attribution",
-    "mapFeedback": "Map feedback"
+    "mapFeedback": "Map feedback",
+    "loadingVenues": "Loading venues...",
+    "pinHint": "Tap a pin to see the venue"
   }
 }

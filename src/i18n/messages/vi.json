@@ -1577,6 +1577,8 @@
     "mapGestureMac": "Dùng ⌘ + cuộn để thu phóng bản đồ",
     "mapGestureMobile": "Dùng hai ngón tay để di chuyển bản đồ",
     "mapAttributionToggle": "Bật/tắt nguồn bản đồ",
-    "mapFeedback": "Góp ý về bản đồ"
+    "mapFeedback": "Góp ý về bản đồ",
+    "loadingVenues": "Đang tải sân...",
+    "pinHint": "Bấm một ghim để xem sân"
   }
 }
