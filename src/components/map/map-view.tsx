@@ -23,6 +23,7 @@ import {
   VN_ISLANDS_LAYER_ID,
 } from "@/lib/map/sovereignty";
 import { cssColor } from "@/lib/map/style-helpers";
+import { hasWebGL2 } from "@/lib/map/webgl";
 import { cn } from "@/lib/utils";
 
 export type MapViewProps = {
@@ -62,16 +63,6 @@ const RADIUS_FILL_LAYER = "app-radius-fill";
 const RADIUS_LINE_LAYER = "app-radius-line";
 
 const EMPTY: FeatureCollection = { type: "FeatureCollection", features: [] };
-
-/** maplibre-gl v6 chỉ chạy trên WebGL2. */
-function hasWebGL2(): boolean {
-  if (typeof document === "undefined") return true;
-  try {
-    return document.createElement("canvas").getContext("webgl2") !== null;
-  } catch {
-    return false;
-  }
-}
 
 type Translate = (key: string) => string;
 

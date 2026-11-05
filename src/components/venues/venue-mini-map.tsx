@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { Navigation } from "lucide-react";
 import { LazyMapView } from "@/components/map/lazy-map-view";
 import { venuesToPoints } from "@/lib/map/map-points";
+import { hasWebGL2 } from "@/lib/map/webgl";
 import { directionsUrl } from "@/lib/maps-link";
 import type { PublicVenue } from "@/lib/public-venue";
 
@@ -18,11 +20,14 @@ export function VenueMiniMap({
   venue: Pick<PublicVenue, "id" | "name" | "lat" | "lng">;
 }) {
   const t = useTranslations("venues");
-  const [unsupported, setUnsupported] = useState(false);
+  // Kiểm ngay lúc render đầu để máy không có WebGL không thấy khung xương
+  // rồi biến mất. Lazy init chỉ chạy ở client, còn server luôn coi là hỗ trợ.
+  const [unsupported, setUnsupported] = useState(() => !hasWebGL2());
   if (unsupported) return null;
 
   return (
-    <div className="relative">
+    // Ô attribution của maplibre phải nổi trên lớp link để còn chạm được.
+    <div className="relative [&_.maplibregl-ctrl-bottom-right]:z-20">
       <LazyMapView
         points={venuesToPoints([venue])}
         center={{ lat: venue.lat, lng: venue.lng }}
@@ -38,7 +43,16 @@ export function VenueMiniMap({
         rel="noopener noreferrer"
         aria-label={t("directionsTo", { name: venue.name })}
         className="focus-visible:outline-ring absolute inset-0 z-10 rounded-xl focus-visible:outline-2"
-      />
+      >
+        {/* Chỉ để nhìn: cả khung là link nên nút này không cần nhận chạm riêng. */}
+        <span
+          aria-hidden
+          className="bg-card/80 absolute bottom-2 left-2 inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-sm font-medium backdrop-blur"
+        >
+          <Navigation className="size-4" />
+          {t("directions")}
+        </span>
+      </a>
     </div>
   );
 }

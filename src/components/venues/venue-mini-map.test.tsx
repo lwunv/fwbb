@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { render, screen, cleanup, act } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import viMessages from "@/i18n/messages/vi.json";
@@ -18,8 +18,15 @@ vi.mock("@/components/map/lazy-map-view", () => ({
 
 import { VenueMiniMap } from "./venue-mini-map";
 
+function mockWebGL(available: boolean) {
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation((() =>
+    available ? ({} as WebGL2RenderingContext) : null) as never);
+}
+
+beforeEach(() => mockWebGL(true));
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   captured.props = null;
 });
 
@@ -56,5 +63,29 @@ describe("VenueMiniMap", () => {
     act(() => captured.props?.onUnsupported?.());
     expect(container.firstChild).toBeNull();
     expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("without WebGL2 renders nothing on the very first render, no skeleton", () => {
+    mockWebGL(false);
+    const { container } = renderMini();
+    expect(container.firstChild).toBeNull();
+    expect(captured.props).toBeNull();
+  });
+
+  it("shows a visible directions pill inside the link", () => {
+    renderMini();
+    const link = screen.getByRole("link", {
+      name: "Chỉ đường tới Sân Cầu Giấy",
+    });
+    expect(link.textContent).toContain("Chỉ đường");
+    expect(link.querySelector("svg")).not.toBeNull();
+  });
+
+  it("keeps the attribution control above the overlay link", () => {
+    const { container } = renderMini();
+    const wrapper = container.firstElementChild as HTMLElement;
+    expect(wrapper.className).toContain(
+      "[&_.maplibregl-ctrl-bottom-right]:z-20",
+    );
   });
 });
