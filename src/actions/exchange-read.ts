@@ -193,7 +193,7 @@ function payoutFor(
   if (!priv) return null;
   const s = depositSettlement(reg, ev.depositAmount);
   const owesFee =
-    ev.status === "locked" &&
+    (ev.status === "locked" || ev.status === "done") &&
     reg.feeAmount !== null &&
     reg.feeAmount > 0 &&
     !reg.paid &&

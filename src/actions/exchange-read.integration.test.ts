@@ -202,6 +202,22 @@ describe("getExchangeEvent", () => {
     expect(d?.viewer.hostContact).toBeNull();
   });
 
+  it("payout stays visible on a done event while the member still owes, and goes away once paid", async () => {
+    const e = await seedEvent({ status: "done", depositAmount: 20_000 });
+    await seedReg(e.id, alice.id, { feeAmount: 50_000, depositPaid: true });
+    asViewer(alice);
+    const owing = await getExchangeEvent(e.publicCode);
+    expect(owing?.viewer.payout?.accountNo).toBe("111222333");
+    expect(owing?.viewer.myRegistration?.remaining).toBe(30_000);
+
+    await testDb
+      .update(exchangeRegistrations)
+      .set({ paid: true })
+      .where(eq(exchangeRegistrations.eventId, e.id));
+    const paid = await getExchangeEvent(e.publicCode);
+    expect(paid?.viewer.payout).toBeNull();
+  });
+
   it("hidden event null for a stranger, visible to its host", async () => {
     const e = await seedEvent({ hiddenAt: NOW });
     expect(await getExchangeEvent(e.publicCode)).toBeNull();
