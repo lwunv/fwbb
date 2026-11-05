@@ -349,7 +349,12 @@ export function MapView({
 
   return (
     <div className={box}>
-      <div ref={containerRef} className="absolute inset-0" />
+      {/* maplibre gắn `.maplibregl-map { position: relative }` lên chính
+          container; ở bản build production rule đó thắng `absolute` nên khung
+          cao 0. Lớp ngoài lo định vị, container chỉ lấp đầy nó. */}
+      <div className="absolute inset-0">
+        <div ref={containerRef} className="h-full w-full" />
+      </div>
     </div>
   );
 }

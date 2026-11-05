@@ -92,6 +92,12 @@ test("switching to map shows a marker per seeded venue at 390px", async ({
     page.getByRole("button", { name: new RegExp(`^${PREFIX}`) }),
   ).toHaveCount(2);
 
+  // Khung bản đồ phải có chiều cao thật. Bản build production từng để
+  // `.maplibregl-map { position: relative }` thắng `absolute inset-0` nên khung
+  // cao 0: ghim vẫn "visible" nhưng bị cắt và không bấm được.
+  const box = await page.locator(".maplibregl-map").boundingBox();
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(200);
+
   // Không tràn ngang ở 390px.
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - window.innerWidth,
