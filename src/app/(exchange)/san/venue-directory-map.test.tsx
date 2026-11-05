@@ -241,6 +241,8 @@ describe("VenueDirectory map mode", () => {
     expect(screen.getByTestId("map").parentElement?.contains(expand)).toBe(
       true,
     );
+    // Chừa chỗ cho nút nguồn bản đồ ở góc dưới phải (luôn phải chạm được).
+    expect(expand.closest(".absolute")?.className).toContain("bottom-16");
   });
 
   it("desktop aside shows a hint until a pin is selected", async () => {

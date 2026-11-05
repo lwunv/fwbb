@@ -106,8 +106,9 @@ export function VenueMapPanel({
             </motion.div>
           )}
         </AnimatePresence>
+        {/* bottom-16 chừa chỗ cho ô attribution (bắt buộc nhìn thấy, 44px). */}
         {notice && (
-          <div className="bg-card/90 absolute inset-x-3 bottom-3 z-10 rounded-2xl border p-4 shadow-lg backdrop-blur">
+          <div className="bg-card/90 absolute inset-x-3 bottom-16 z-10 rounded-2xl border p-4 shadow-lg backdrop-blur">
             {notice}
           </div>
         )}
