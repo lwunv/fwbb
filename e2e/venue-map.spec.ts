@@ -61,6 +61,11 @@ async function openDirectory(
   });
   const page: Page = await ctx.newPage();
   const mapRequests: string[] = [];
+  // Lỗi của maplibre (worker, style) chỉ lộ qua console: MapView log
+  // "[Map] style_error ..." cho mọi sự kiện 'error' của map.
+  const consoleMessages: string[] = [];
+  page.on("console", (m) => consoleMessages.push(m.text()));
+  page.on("pageerror", (e) => consoleMessages.push(e.message));
   await page.route("**/tiles.openfreemap.org/**", async (route) => {
     mapRequests.push(route.request().url());
     await route.fulfill({
@@ -69,7 +74,7 @@ async function openDirectory(
     });
   });
   await page.goto(path);
-  return { ctx, page, mapRequests };
+  return { ctx, page, mapRequests, consoleMessages };
 }
 
 test("switching to map shows a marker per seeded venue at 390px", async ({
@@ -120,6 +125,31 @@ test("tapping a marker opens the venue card sheet with a details link", async ({
   await expect(details).toHaveAttribute("href", /^\/san\/\d+$/);
   await details.click();
   await expect(page).toHaveURL(/\/san\/\d+$/);
+  await ctx.close();
+});
+
+test("the map worker loads from the same origin without map errors", async ({
+  browser,
+}) => {
+  const { ctx, page, consoleMessages } = await openDirectory(browser, "/san");
+  // Turbopack làm import.meta.url của maplibre không phải http(s), nên nó
+  // từng tạo worker bằng chính URL trang và báo "Worker failed to load".
+  const worker = page.waitForEvent("worker", {
+    predicate: (w) => /maplibre-gl-worker[^/]*\.mjs/.test(w.url()),
+    timeout: 20_000,
+  });
+  await page.goto("/san?view=map");
+  const w = await worker;
+  expect(new URL(w.url()).origin).toBe(new URL(page.url()).origin);
+  await expect(page.getByRole("button", { name: NEAR })).toBeVisible({
+    timeout: 20_000,
+  });
+  // Cho worker nạp style rỗng xong rồi mới soát lỗi.
+  await page.waitForTimeout(2000);
+  const mapErrors = consoleMessages.filter(
+    (m) => /Worker failed/i.test(m) || m.includes("[Map] style_error"),
+  );
+  expect(mapErrors).toEqual([]);
   await ctx.close();
 });
 

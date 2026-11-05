@@ -101,6 +101,7 @@ vi.mock("maplibre-gl", () => ({
   MapLibreMap: FakeMap,
   Map: FakeMap,
   Marker: FakeMarker,
+  setWorkerUrl: vi.fn(),
 }));
 
 import { MapView } from "./map-view";

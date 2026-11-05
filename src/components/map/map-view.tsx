@@ -4,7 +4,12 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { MapPinOff } from "lucide-react";
-import { MapLibreMap, Marker, type GeoJSONSource } from "maplibre-gl";
+import {
+  MapLibreMap,
+  Marker,
+  setWorkerUrl,
+  type GeoJSONSource,
+} from "maplibre-gl";
 import type { FeatureCollection } from "geojson";
 import type { LatLng } from "@/lib/geo";
 import {
@@ -34,6 +39,15 @@ export type MapViewProps = {
   className?: string;
   onUnsupported?: () => void;
 };
+
+// maplibre tự suy URL worker từ import.meta.url của nó, nhưng dưới Turbopack
+// giá trị đó không phải http(s) nên nó tạo worker bằng chính URL trang ("Worker
+// failed to load", nền bản đồ trống). Mẫu `new URL(..., import.meta.url)` để
+// bundler phát file worker thành asset cùng origin, khớp đúng bản đã cài.
+// Đặt một lần khi module nạp, trước khi tạo bất kỳ map nào.
+setWorkerUrl(
+  new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url).href,
+);
 
 const DEFAULT_RADIUS_KM = 5;
 
