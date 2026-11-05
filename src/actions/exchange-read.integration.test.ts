@@ -218,6 +218,52 @@ describe("getExchangeEvent", () => {
     expect(paid?.viewer.payout).toBeNull();
   });
 
+  it("a paid member who owes the difference after a relock up sees payout and the same remaining as the notice", async () => {
+    // Fee 120K, deposit 30K, paid 100K: 20K still to pay, nothing to refund.
+    const e = await seedEvent({ status: "locked", depositAmount: 30_000 });
+    await seedReg(e.id, alice.id, {
+      feeAmount: 120_000,
+      depositPaid: true,
+      paid: true,
+      paidAmount: 100_000,
+    });
+    asViewer(alice);
+    const r = await getExchangeEvent(e.publicCode);
+    expect(r?.viewer.myRegistration).toMatchObject({
+      remaining: 20_000,
+      refundDue: 0,
+    });
+    expect(r?.viewer.payout?.accountNo).toBe("111222333");
+  });
+
+  it("a paid member relocked down sees refundDue 20K and no payout", async () => {
+    const e = await seedEvent({ status: "locked", depositAmount: 30_000 });
+    await seedReg(e.id, alice.id, {
+      feeAmount: 80_000,
+      depositPaid: true,
+      paid: true,
+      paidAmount: 100_000,
+    });
+    asViewer(alice);
+    const r = await getExchangeEvent(e.publicCode);
+    expect(r?.viewer.myRegistration).toMatchObject({
+      remaining: 0,
+      refundDue: 20_000,
+    });
+    expect(r?.viewer.payout).toBeNull();
+  });
+
+  it("a cancelled event shows the deposit as refundDue, not the stored fee as owed", async () => {
+    const e = await seedEvent({ status: "cancelled", depositAmount: 20_000 });
+    await seedReg(e.id, alice.id, { feeAmount: 50_000, depositPaid: true });
+    asViewer(alice);
+    const r = await getExchangeEvent(e.publicCode);
+    expect(r?.viewer.myRegistration).toMatchObject({
+      remaining: 0,
+      refundDue: 20_000,
+    });
+  });
+
   it("hidden event null for a stranger, visible to its host", async () => {
     const e = await seedEvent({ hiddenAt: NOW });
     expect(await getExchangeEvent(e.publicCode)).toBeNull();

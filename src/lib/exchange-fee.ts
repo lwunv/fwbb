@@ -202,7 +202,9 @@ export function depositSettlement(
  * Đối trừ đủ cho một đăng ký: nếu host đã đánh dấu đã trả thì `paidAmount` là
  * số tiền thật đã nhận (đã gồm cọc), nên nó thay cho tiền cọc. Chốt lại phí
  * thấp hơn hoặc bỏ người đó (feeAmount null) thì phần dư hiện ở `refundDue`.
- * Vẫn dùng `depositSettlement`, không có công thức thứ hai.
+ * Nguồn DUY NHẤT cho số còn phải trả / được hoàn của một đăng ký: thông báo,
+ * màn host, màn thành viên và QR đều đi qua đây. `eventStatus = "cancelled"`
+ * coi phí là null. Vẫn dùng `depositSettlement`, không có công thức thứ hai.
  */
 export function registrationSettlement(
   r: {
@@ -212,11 +214,18 @@ export function registrationSettlement(
     paidAmount: number | null;
   },
   depositAmount: number,
+  eventStatus?: string,
 ): { remaining: number; refundDue: number } {
-  if (r.paid && r.paidAmount !== null)
+  // Buổi đã huỷ: không còn phí, mọi khoản đã nhận đều phải hoàn.
+  const feeAmount = eventStatus === "cancelled" ? null : r.feeAmount;
+  // `paid` mà thiếu `paidAmount` (dữ liệu cũ): coi như đã trả đúng phí chốt.
+  if (r.paid)
     return depositSettlement(
-      { depositPaid: true, feeAmount: r.feeAmount },
-      r.paidAmount,
+      { depositPaid: true, feeAmount },
+      r.paidAmount ?? money(r.feeAmount),
     );
-  return depositSettlement(r, depositAmount);
+  return depositSettlement(
+    { depositPaid: r.depositPaid, feeAmount },
+    depositAmount,
+  );
 }

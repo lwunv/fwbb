@@ -177,6 +177,45 @@ describe("toPublicExchangeEvent", () => {
   });
 });
 
+describe("locked split price after a cancel", () => {
+  it("keeps the rate the stored fees were charged at (300K, 3 heads + host = 75K)", () => {
+    const stored = (id: number, status: string) => ({
+      id,
+      status,
+      maleCount: 1,
+      femaleCount: 0,
+      waitlistPos: null,
+      feeWaived: false,
+      feeAmount: 75_000,
+    });
+    // One of the three charged members cancelled while locked.
+    const out = toPublicExchangeEvent({
+      event: {
+        ...event,
+        status: "locked",
+        feeMode: "split_equal",
+        feeAmountMale: null,
+        estimatedTotalCost: 300_000,
+        minHeads: 3,
+        hostHeads: 1,
+      } as never,
+      venue: venue as never,
+      host,
+      regs: [
+        stored(1, "approved"),
+        stored(2, "approved"),
+        stored(3, "cancelled"),
+      ],
+      attendeeAvatars: [],
+      now,
+    });
+    expect(out.fee).toMatchObject({
+      kind: "locked",
+      rates: { male: 75_000, female: 75_000 },
+    });
+  });
+});
+
 describe("vnTimeOfDay", () => {
   it("buckets by Vietnam time regardless of the server timezone", () => {
     expect(vnTimeOfDay("2099-06-01T04:59:00.000Z")).toBe("morning"); // 11:59

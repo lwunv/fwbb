@@ -46,10 +46,8 @@ export async function cancelEventCore(
         id: r.id,
         memberId: r.memberId,
         status: r.status,
-        refundDue: registrationSettlement(
-          { ...r, feeAmount: null },
-          event.depositAmount,
-        ).refundDue,
+        refundDue: registrationSettlement(r, event.depositAmount, "cancelled")
+          .refundDue,
       })),
       now,
     },

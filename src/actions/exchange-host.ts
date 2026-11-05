@@ -463,6 +463,8 @@ export async function lockExchangeFees(
           id: r.id,
           memberId: r.memberId,
           depositPaid: r.depositPaid,
+          paid: r.paid,
+          paidAmount: r.paidAmount,
         };
         if (amount !== null) {
           if (lockCount === 1 || r.feeAmount !== amount)
@@ -525,6 +527,8 @@ export async function setRegistrationPaid(input: unknown): Promise<Result> {
       return { error: t("cannotMarkPaid") };
     const reg = await readReg(h, f.registrationId);
     if (!reg || reg.feeAmount === null) return { error: t("cannotMarkPaid") };
+    // Bấm lại khi đã trả là no-op: ghi đè paidAmount bằng phí mới sẽ xoá khoản hoàn.
+    if (f.paid && reg.paid) return { success: true };
     await tx
       .update(exchangeRegistrations)
       .set(
@@ -758,6 +762,7 @@ export async function getManageView(code: string): Promise<ManageView | null> {
     const { remaining, refundDue } = registrationSettlement(
       r.reg,
       ev.depositAmount,
+      ev.status,
     );
     const level = (r.skillLevel ?? null) as SkillLevel | null;
     return {
@@ -808,6 +813,7 @@ export async function getManageView(code: string): Promise<ManageView | null> {
         femaleCount: r.femaleCount,
         waitlistPos: r.waitlistPos,
         feeWaived: r.feeWaived,
+        feeAmount: r.feeAmount,
       })),
       attendeeAvatars: [],
       now,

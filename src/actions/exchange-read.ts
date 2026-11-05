@@ -13,7 +13,7 @@ import {
 } from "@/db/schema";
 import { getExchangeViewer } from "@/lib/member-auth";
 import { boundingBox, haversineMeters, snapToGrid } from "@/lib/geo";
-import { depositSettlement } from "@/lib/exchange-fee";
+import { registrationSettlement } from "@/lib/exchange-fee";
 import { SKILL_LEVELS, type SkillLevel } from "@/lib/skill-level";
 import { sessionStartInstant } from "@/lib/notifications/time";
 import {
@@ -107,6 +107,7 @@ const getPublicEventCached = unstable_cache(
         femaleCount: exchangeRegistrations.femaleCount,
         waitlistPos: exchangeRegistrations.waitlistPos,
         feeWaived: exchangeRegistrations.feeWaived,
+        feeAmount: exchangeRegistrations.feeAmount,
       })
       .from(exchangeRegistrations)
       .where(eq(exchangeRegistrations.eventId, row.event.id));
@@ -191,12 +192,11 @@ function payoutFor(
   priv: PayoutCols | undefined,
 ): ViewerExtras["payout"] {
   if (!priv) return null;
-  const s = depositSettlement(reg, ev.depositAmount);
+  const s = registrationSettlement(reg, ev.depositAmount, ev.status);
   const owesFee =
     (ev.status === "locked" || ev.status === "done") &&
     reg.feeAmount !== null &&
     reg.feeAmount > 0 &&
-    !reg.paid &&
     s.remaining > 0;
   const owesDeposit =
     reg.status === "pending" && ev.depositAmount > 0 && !reg.depositPaid;
@@ -272,7 +272,11 @@ export async function getExchangeEvent(
   };
 
   if (reg) {
-    const s = depositSettlement(reg, pub.event.depositAmount);
+    const s = registrationSettlement(
+      reg,
+      pub.event.depositAmount,
+      pub.event.status,
+    );
     extras.myRegistration = {
       id: reg.id,
       status: reg.status,

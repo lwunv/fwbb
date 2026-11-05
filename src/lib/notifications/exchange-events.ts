@@ -1,6 +1,6 @@
 import "server-only";
 import type { Tx } from "@/db/tx";
-import { depositSettlement } from "@/lib/exchange-fee";
+import { registrationSettlement } from "@/lib/exchange-fee";
 import { notify } from "./notify";
 import { superadminRecipients, type Recipient } from "./recipients";
 
@@ -165,7 +165,13 @@ export async function notifyFeesLocked(
       depositAmount: number;
     };
     changes: {
-      reg: { id: number; memberId: number; depositPaid: boolean };
+      reg: {
+        id: number;
+        memberId: number;
+        depositPaid: boolean;
+        paid?: boolean;
+        paidAmount?: number | null;
+      };
       amount: number;
       previousAmount: number | null;
     }[];
@@ -182,8 +188,13 @@ export async function notifyFeesLocked(
     if (!first && c.previousAmount === c.amount) continue;
     const deposit = c.reg.depositPaid ? event.depositAmount : 0;
     // Công thức đối trừ cọc chỉ có một nơi (exchange-fee.ts).
-    const { remaining, refundDue } = depositSettlement(
-      { depositPaid: c.reg.depositPaid, feeAmount: c.amount },
+    const { remaining, refundDue } = registrationSettlement(
+      {
+        depositPaid: c.reg.depositPaid,
+        feeAmount: c.amount,
+        paid: c.reg.paid ?? false,
+        paidAmount: c.reg.paidAmount ?? null,
+      },
       event.depositAmount,
     );
     const fee = {
@@ -233,7 +244,13 @@ export async function notifyEventCancelled(
   if (!gate) return;
   const { event, now } = input;
   for (const reg of input.regs) {
-    if (!NOTIFIED_ON_CANCEL.has(reg.status)) continue;
+    // Người đã bị từ chối được báo hoàn lúc từ chối; còn lại ai còn tiền phải
+    // hoàn (vắng, huỷ muộn...) cũng phải được báo.
+    if (
+      !NOTIFIED_ON_CANCEL.has(reg.status) &&
+      !(reg.refundDue > 0 && reg.status !== "rejected")
+    )
+      continue;
     await notify(tx, {
       kind: "exchange_event_cancelled",
       recipients: [member(reg.memberId)],

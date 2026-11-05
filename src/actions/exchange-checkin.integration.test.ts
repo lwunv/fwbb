@@ -31,6 +31,7 @@ vi.mock("@/db", () => ({ db: testDb }));
 
 const {
   lockExchangeFees,
+  getManageView,
   setRegistrationPaid,
   setCheckedIn,
   markNoShow,
@@ -326,6 +327,69 @@ describe("check-in, no-show, finish, cancel", () => {
     const sent = await notes("exchange_event_cancelled");
     expect(sent).toHaveLength(1);
     // paidAmount = fee = 50000 was received in full, so 50000 is due back.
+    expect((sent[0].payload as { refundDue: number }).refundDue).toBe(50000);
+  });
+});
+
+describe("cancel agreement across screens", () => {
+  it("host view and notice agree after cancel, unpaid and paid", async () => {
+    const ev = await mkEvent({ depositAmount: 20000 }); // fixed 50K
+    const unpaid = await addReg(
+      ev.id,
+      (await newMember()).id,
+      "approved",
+      1,
+      0,
+      {
+        depositPaid: true,
+      },
+    );
+    const paid = await addReg(ev.id, (await newMember()).id, "approved", 1, 0, {
+      depositPaid: true,
+    });
+    await lockExchangeFees({
+      eventId: ev.id,
+      waivedRegistrationIds: [],
+      confirmAboveEstimate: false,
+    });
+    await setRegistrationPaid({ registrationId: paid.id, paid: true });
+    await cancelExchangeEvent({ eventId: ev.id });
+    const view = await getManageView(ev.publicCode);
+    const sent = await notes("exchange_event_cancelled");
+    for (const [r, due] of [
+      [unpaid, 20000],
+      [paid, 50000],
+    ] as const) {
+      const row = view!.regs.find((x) => x.id === r.id)!;
+      expect([row.remaining, row.refundDue]).toEqual([0, due]);
+      const n = sent.find((x) => x.recipientId === r.memberId)!;
+      expect((n.payload as { refundDue: number }).refundDue).toBe(due);
+    }
+  });
+
+  it("a late_cancelled member who paid 50K gets one cancel notice with refundDue 50K", async () => {
+    const ev = await mkEvent();
+    const l = await addReg(
+      ev.id,
+      (await newMember()).id,
+      "late_cancelled",
+      1,
+      0,
+      {
+        feeAmount: 50000,
+        paid: true,
+        paidAmount: 50000,
+      },
+    );
+    await testDb
+      .update(exchangeEvents)
+      .set({ status: "locked", lockCount: 1 })
+      .where(eq(exchangeEvents.id, ev.id));
+    await cancelExchangeEvent({ eventId: ev.id });
+    const sent = (await notes("exchange_event_cancelled")).filter(
+      (n) => n.recipientId === l.memberId,
+    );
+    expect(sent).toHaveLength(1);
     expect((sent[0].payload as { refundDue: number }).refundDue).toBe(50000);
   });
 });

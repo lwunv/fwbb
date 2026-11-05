@@ -130,6 +130,8 @@ export type RegLike = {
   femaleCount: number;
   waitlistPos: number | null;
   feeWaived: boolean;
+  /** Phí đã chốt; có mặt thì giá khi khoá tính theo nó, không theo trạng thái hiện tại. */
+  feeAmount?: number | null;
 };
 
 type FeeEvent = ExchangeFeeConfig & { status: string };
@@ -165,7 +167,14 @@ export function buildFeeDisplay(
       cfg,
       regs.map((r) => ({
         id: r.id,
-        status: r.status,
+        // Đã chốt: tính theo người bị tính ở lần chốt gần nhất (feeAmount đã
+        // lưu), không theo trạng thái hiện tại, để huỷ sau chốt không đổi giá.
+        status:
+          r.feeAmount === undefined
+            ? r.status
+            : r.feeAmount !== null
+              ? "approved"
+              : "cancelled",
         maleCount: r.maleCount,
         femaleCount: r.femaleCount,
         waived: r.feeWaived,

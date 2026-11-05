@@ -411,3 +411,98 @@ describe("lock fees", () => {
     ]);
   });
 });
+
+describe("paid-aware amounts", () => {
+  // Fixed 50000 per head; the host re-prices by changing the head count.
+  async function paidFull(opts: { deposit?: number; male?: number } = {}) {
+    const ev = await mkEvent({ depositAmount: opts.deposit ?? 30000 });
+    const a = await addReg(
+      ev.id,
+      (await newMember()).id,
+      "approved",
+      opts.male ?? 2,
+      0,
+      {
+        depositPaid: true,
+      },
+    );
+    expect(await lock(ev.id)).toMatchObject({ success: true });
+    await setRegistrationPaid({ registrationId: a.id, paid: true });
+    await unlockExchangeFees({ eventId: ev.id });
+    await testDb.delete(notifications);
+    return { ev, a };
+  }
+  const changedPayload = async () =>
+    (await notes("exchange_fee_changed"))[0].payload as {
+      remaining: number;
+      refundDue: number;
+    };
+  const reprice = (eventId: number, amount: number) =>
+    testDb
+      .update(exchangeEvents)
+      .set({ feeAmountMale: amount })
+      .where(eq(exchangeEvents.id, eventId));
+
+  it("relock down: fee 100K to 80K, paid 100K, deposit 30K gives remaining 0 and refundDue 20K", async () => {
+    const { ev } = await paidFull(); // 2 heads x 50K = 100K
+    await reprice(ev.id, 40000); // 2 x 40K = 80K
+    await lock(ev.id);
+    expect(await changedPayload()).toMatchObject({
+      remaining: 0,
+      refundDue: 20000,
+    });
+  });
+
+  it("relock up: fee 100K to 120K, paid 100K gives remaining 20K and refundDue 0", async () => {
+    const { ev, a } = await paidFull();
+    await reprice(ev.id, 60000); // 2 x 60K = 120K
+    await lock(ev.id);
+    expect(await changedPayload()).toMatchObject({
+      remaining: 20000,
+      refundDue: 0,
+    });
+    // The member screen and payout agree with the notice.
+    expect((await reg(a.id)).paidAmount).toBe(100000);
+  });
+
+  it("dropped paid member: refundDue is paidAmount (75K)", async () => {
+    const { ev, rs } = await (async () => {
+      const ev = await mkEvent(SPLIT);
+      const rs = [];
+      for (let i = 0; i < 3; i++)
+        rs.push(await addReg(ev.id, (await newMember()).id, "approved"));
+      await lock(ev.id);
+      return { ev, rs };
+    })();
+    await setRegistrationPaid({ registrationId: rs[0].id, paid: true });
+    await unlockExchangeFees({ eventId: ev.id });
+    await testDb
+      .update(exchangeRegistrations)
+      .set({ status: "cancelled" })
+      .where(eq(exchangeRegistrations.id, rs[0].id));
+    await testDb.delete(notifications);
+    await lock(ev.id, [], true);
+    const gone = (await notes("exchange_fee_changed")).find(
+      (n) => n.recipientId === rs[0].memberId,
+    )!;
+    expect(gone.payload).toMatchObject({
+      amount: 0,
+      remaining: 0,
+      refundDue: 75000,
+    });
+  });
+
+  it("tapping paid again after a relock down keeps paidAmount 100K and refundDue 20K", async () => {
+    const { ev, a } = await paidFull();
+    await reprice(ev.id, 40000);
+    await lock(ev.id);
+    expect(
+      await setRegistrationPaid({ registrationId: a.id, paid: true }),
+    ).toMatchObject({ success: true });
+    expect((await reg(a.id)).paidAmount).toBe(100000);
+    const row = (await getManageView(ev.publicCode))!.regs.find(
+      (r) => r.id === a.id,
+    )!;
+    expect([row.remaining, row.refundDue]).toEqual([0, 20000]);
+  });
+});
