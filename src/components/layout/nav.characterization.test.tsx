@@ -105,3 +105,28 @@ describe("navigation links", () => {
     expect(navLinks()).toEqual(ADMIN_LINKS);
   });
 });
+
+describe("admin nav exchange entry", () => {
+  const withExchange = [
+    ...ADMIN_LINKS.slice(0, 5),
+    ["/admin/giao-luu", "Giao lưu"],
+    ...ADMIN_LINKS.slice(5),
+  ];
+
+  it("admin nav shows Giao lưu only when the flag is on", async () => {
+    const side = renderVi(<AdminSidebar showExchange />);
+    expect(navLinks()).toEqual(withExchange);
+    side.unmount();
+    cleanup();
+
+    const off = renderVi(<AdminSidebar showExchange={false} />);
+    expect(navLinks()).toEqual(ADMIN_LINKS);
+    off.unmount();
+    cleanup();
+
+    renderVi(<AdminMobileNav showExchange />);
+    fireEvent.click(screen.getAllByRole("button")[0]);
+    await screen.findByRole("navigation");
+    expect(navLinks()).toEqual(withExchange);
+  });
+});

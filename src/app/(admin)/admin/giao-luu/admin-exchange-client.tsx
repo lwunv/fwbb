@@ -1,0 +1,427 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "framer-motion";
+import { CheckCheck, Eye, EyeOff, Flag, Handshake, X } from "lucide-react";
+import {
+  adminCancelExchange,
+  adminListExchanges,
+  adminListReports,
+  adminResolveReport,
+  adminSetExchangeHidden,
+  type AdminExchangeFilter,
+  type AdminExchangeRow,
+  type AdminReportRow,
+} from "@/actions/exchange-admin";
+import { REPORT_STATUSES, type ReportStatus } from "@/lib/exchange/constants";
+import { fireAction } from "@/lib/optimistic-action";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/shared/empty-state";
+import { TabSegment } from "@/components/shared/tab-segment";
+
+type Tab = "events" | "reports";
+const FILTERS: AdminExchangeFilter[] = ["upcoming", "hidden", "all"];
+const VN_TZ = "Asia/Ho_Chi_Minh";
+const LIVE = ["open", "full", "locked"];
+
+function formatWhen(iso: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
+    timeZone: VN_TZ,
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(iso));
+}
+
+function matchesFilter(r: AdminExchangeRow, f: AdminExchangeFilter) {
+  if (f === "hidden") return r.hiddenAt !== null;
+  if (f === "upcoming") return r.hiddenAt === null && LIVE.includes(r.status);
+  return true;
+}
+
+export function AdminExchangeClient({
+  initialEvents,
+  initialReports,
+}: {
+  initialEvents: AdminExchangeRow[];
+  initialReports: AdminReportRow[];
+}) {
+  const t = useTranslations("exchange.admin");
+  const [tab, setTab] = useState<Tab>("events");
+  const [filter, setFilter] = useState<AdminExchangeFilter>("upcoming");
+  const [reportStatus, setReportStatus] = useState<ReportStatus>("open");
+  const qc = useQueryClient();
+
+  // Overlay optimistic: thẻ đổi ngay khi bấm, rollback nếu action lỗi.
+  const [eventPatch, setEventPatch] = useState<
+    Record<number, Partial<AdminExchangeRow>>
+  >({});
+  const [reportPatch, setReportPatch] = useState<Record<number, ReportStatus>>(
+    {},
+  );
+  const [confirmCancelId, setConfirmCancelId] = useState<number | null>(null);
+
+  // staleTime 60s, không tự làm mới theo giờ (quota Turso).
+  const events = useQuery({
+    queryKey: ["admin-exchange-events", filter],
+    queryFn: async () => {
+      const r = await adminListExchanges(filter);
+      if ("error" in r) throw new Error(r.error);
+      return r.data;
+    },
+    initialData: filter === "upcoming" ? initialEvents : undefined,
+    staleTime: 60_000,
+  });
+  const reports = useQuery({
+    queryKey: ["admin-exchange-reports", reportStatus],
+    queryFn: async () => {
+      const r = await adminListReports(reportStatus);
+      if ("error" in r) throw new Error(r.error);
+      return r.data;
+    },
+    initialData: reportStatus === "open" ? initialReports : undefined,
+    staleTime: 60_000,
+  });
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["admin-exchange-events"] });
+    qc.invalidateQueries({ queryKey: ["admin-exchange-reports"] });
+  };
+
+  function patchEvent(id: number, patch: Partial<AdminExchangeRow>) {
+    const prev = eventPatch[id];
+    setEventPatch((m) => ({ ...m, [id]: { ...m[id], ...patch } }));
+    return () =>
+      setEventPatch((m) => {
+        const n = { ...m };
+        if (prev === undefined) delete n[id];
+        else n[id] = prev;
+        return n;
+      });
+  }
+
+  function setHidden(row: AdminExchangeRow, hidden: boolean) {
+    const rollback = patchEvent(row.id, {
+      hiddenAt: hidden ? new Date().toISOString() : null,
+    });
+    fireAction(
+      () => adminSetExchangeHidden({ eventId: row.id, hidden }),
+      rollback,
+      {
+        successMsg: hidden ? t("hiddenToast") : t("shownToast"),
+        onSuccess: invalidate,
+      },
+    );
+  }
+
+  function cancelEvent(row: AdminExchangeRow) {
+    setConfirmCancelId(null);
+    const rollback = patchEvent(row.id, { status: "cancelled" });
+    // Huỷ không idempotent ở phía người dùng (lần hai báo lỗi), nên không retry.
+    fireAction(() => adminCancelExchange({ eventId: row.id }), rollback, {
+      retry: false,
+      successMsg: t("cancelledToast"),
+      onSuccess: invalidate,
+    });
+  }
+
+  function resolve(row: AdminReportRow, status: "resolved" | "dismissed") {
+    const prev = reportPatch[row.id];
+    setReportPatch((m) => ({ ...m, [row.id]: status }));
+    fireAction(
+      () => adminResolveReport({ reportId: row.id, status }),
+      () =>
+        setReportPatch((m) => {
+          const n = { ...m };
+          if (prev === undefined) delete n[row.id];
+          else n[row.id] = prev;
+          return n;
+        }),
+      {
+        successMsg:
+          status === "resolved" ? t("resolvedToast") : t("dismissedToast"),
+        onSuccess: invalidate,
+      },
+    );
+  }
+
+  const eventRows = (events.data ?? [])
+    .map((r) => ({ ...r, ...eventPatch[r.id] }))
+    .filter((r) => matchesFilter(r, filter));
+  const reportRows = (reports.data ?? []).filter(
+    (r) => (reportPatch[r.id] ?? r.status) === reportStatus,
+  );
+
+  const filterLabel: Record<AdminExchangeFilter, string> = {
+    upcoming: t("filterUpcoming"),
+    hidden: t("filterHidden"),
+    all: t("filterAll"),
+  };
+  const reportLabel: Record<ReportStatus, string> = {
+    open: t("reportOpen"),
+    resolved: t("reportResolved"),
+    dismissed: t("reportDismissed"),
+  };
+
+  return (
+    <div className="mx-auto w-full max-w-3xl space-y-4">
+      <h2 className="text-xl font-bold">{t("title")}</h2>
+      <TabSegment
+        variant="rounded"
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: "events", label: t("tabEvents"), icon: Handshake },
+          { value: "reports", label: t("tabReports"), icon: Flag },
+        ]}
+      />
+
+      {tab === "events" ? (
+        <>
+          <TabSegment
+            value={filter}
+            onChange={setFilter}
+            options={FILTERS.map((f) => ({ value: f, label: filterLabel[f] }))}
+          />
+          {events.isPending ? (
+            <ListSkeleton />
+          ) : eventRows.length === 0 ? (
+            <EmptyState icon={Handshake} title={t("emptyEvents")} />
+          ) : (
+            <div className="grid gap-3">
+              <AnimatePresence initial={false}>
+                {eventRows.map((r) => (
+                  <EventCard
+                    key={r.id}
+                    row={r}
+                    confirming={confirmCancelId === r.id}
+                    onHide={(h) => setHidden(r, h)}
+                    onAskCancel={() => setConfirmCancelId(r.id)}
+                    onCancelNo={() => setConfirmCancelId(null)}
+                    onCancelYes={() => cancelEvent(r)}
+                  />
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <TabSegment
+            value={reportStatus}
+            onChange={setReportStatus}
+            options={REPORT_STATUSES.map((s) => ({
+              value: s,
+              label: reportLabel[s],
+            }))}
+          />
+          {reports.isPending ? (
+            <ListSkeleton />
+          ) : reportRows.length === 0 ? (
+            <EmptyState icon={Flag} title={t("emptyReports")} />
+          ) : (
+            <div className="grid gap-3">
+              <AnimatePresence initial={false}>
+                {reportRows.map((r) => (
+                  <ReportCard
+                    key={r.id}
+                    row={r}
+                    onResolve={(s) => resolve(r, s)}
+                  />
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function ListSkeleton() {
+  return (
+    <div className="grid gap-3">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <Skeleton key={i} className="h-36 w-full rounded-xl" />
+      ))}
+    </div>
+  );
+}
+
+function EventCard({
+  row,
+  confirming,
+  onHide,
+  onAskCancel,
+  onCancelNo,
+  onCancelYes,
+}: {
+  row: AdminExchangeRow;
+  confirming: boolean;
+  onHide: (hidden: boolean) => void;
+  onAskCancel: () => void;
+  onCancelNo: () => void;
+  onCancelYes: () => void;
+}) {
+  const t = useTranslations("exchange.admin");
+  const tStatus = useTranslations("exchange.event");
+  const locale = useLocale();
+  const statusLabel = {
+    open: tStatus("statusOpen"),
+    full: tStatus("statusFull"),
+    locked: tStatus("statusLocked"),
+    done: tStatus("statusDone"),
+    cancelled: tStatus("statusCancelled"),
+  }[row.status as "open" | "full" | "locked" | "done" | "cancelled"];
+  const cancellable = LIVE.includes(row.status);
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      className="border-border bg-card/80 space-y-3 rounded-xl border p-4 backdrop-blur"
+    >
+      <div className="space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={`/giao-luu/${row.publicCode}`}
+            className="min-w-0 truncate text-base font-semibold hover:underline"
+          >
+            {row.title}
+          </Link>
+          <span className="bg-muted rounded-full px-2 py-0.5 text-sm">
+            {statusLabel}
+          </span>
+          {row.hiddenAt && (
+            <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-sm text-amber-700 dark:text-amber-300">
+              {tStatus("hiddenBadge")}
+            </span>
+          )}
+        </div>
+        <p className="text-muted-foreground text-sm">
+          {formatWhen(row.startAt, locale)}
+        </p>
+        <p className="text-muted-foreground text-sm">
+          {t("host")}: {row.hostName} · {t("venue")}: {row.venueName}
+        </p>
+        <p className="text-muted-foreground text-sm">
+          {t("slots", { held: row.holdingHeads, total: row.slotsTotal })}
+        </p>
+      </div>
+      {confirming ? (
+        <div className="space-y-2">
+          <p className="text-sm">{t("cancelConfirm")}</p>
+          <div className="flex gap-2">
+            <Button
+              variant="destructive"
+              className="min-h-11 flex-1"
+              onClick={onCancelYes}
+            >
+              {t("cancelYes")}
+            </Button>
+            <Button
+              variant="outline"
+              className="min-h-11 flex-1"
+              onClick={onCancelNo}
+            >
+              {t("cancelNo")}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            className="min-h-11"
+            onClick={() => onHide(row.hiddenAt === null)}
+          >
+            {row.hiddenAt ? (
+              <Eye className="mr-1.5 h-4 w-4" />
+            ) : (
+              <EyeOff className="mr-1.5 h-4 w-4" />
+            )}
+            {row.hiddenAt ? t("unhide") : t("hide")}
+          </Button>
+          {cancellable && (
+            <Button
+              variant="outline"
+              className={cn("text-destructive min-h-11")}
+              onClick={onAskCancel}
+            >
+              <X className="mr-1.5 h-4 w-4" />
+              {t("cancelEvent")}
+            </Button>
+          )}
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+function ReportCard({
+  row,
+  onResolve,
+}: {
+  row: AdminReportRow;
+  onResolve: (status: "resolved" | "dismissed") => void;
+}) {
+  const t = useTranslations("exchange.admin");
+  const tReason = useTranslations("notifications.reportReasons");
+  const locale = useLocale();
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      className="border-border bg-card/80 space-y-3 rounded-xl border p-4 backdrop-blur"
+    >
+      <div className="space-y-1">
+        <p className="text-base font-semibold">{tReason(row.reason)}</p>
+        <p className="text-sm">
+          {row.targetType === "event" ? t("targetEvent") : t("targetMember")}
+          {": "}
+          {row.eventCode ? (
+            <Link
+              href={`/giao-luu/${row.eventCode}`}
+              className="underline underline-offset-2"
+            >
+              {row.targetName}
+            </Link>
+          ) : (
+            row.targetName
+          )}
+        </p>
+        <p className="text-muted-foreground text-sm">
+          {t("reporter")}: {row.reporterName} ·{" "}
+          {formatWhen(row.createdAt, locale)}
+        </p>
+        <p className="text-muted-foreground text-sm break-words">
+          {row.note ?? t("noNote")}
+        </p>
+      </div>
+      {row.status === "open" && (
+        <div className="flex flex-wrap gap-2">
+          <Button className="min-h-11" onClick={() => onResolve("resolved")}>
+            <CheckCheck className="mr-1.5 h-4 w-4" />
+            {t("resolve")}
+          </Button>
+          <Button
+            variant="outline"
+            className="min-h-11"
+            onClick={() => onResolve("dismissed")}
+          >
+            {t("dismiss")}
+          </Button>
+        </div>
+      )}
+    </motion.div>
+  );
+}

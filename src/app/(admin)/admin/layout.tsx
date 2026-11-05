@@ -40,6 +40,7 @@ export default async function AdminLayout({
         appName={appName}
         pendingMemberCount={pendingMemberCount}
         pendingVenueCount={pendingVenueCount}
+        showExchange={settings.exchangeEnabled}
         showBell={settings.notificationsEnabled}
         zaloGroupUrl={settings.zaloGroupUrl}
       />
@@ -47,6 +48,7 @@ export default async function AdminLayout({
         appName={appName}
         pendingMemberCount={pendingMemberCount}
         pendingVenueCount={pendingVenueCount}
+        showExchange={settings.exchangeEnabled}
         showBell={settings.notificationsEnabled}
         zaloGroupUrl={settings.zaloGroupUrl}
       />

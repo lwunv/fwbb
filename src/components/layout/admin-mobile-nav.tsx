@@ -20,6 +20,7 @@ import {
   Receipt,
   UserCog,
   Settings2,
+  Handshake,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -39,6 +40,11 @@ const navItems = [
   { href: "/admin/members", labelKey: "members" as const, icon: Users },
   { href: "/admin/courts", labelKey: "courts" as const, icon: MapPin },
   { href: "/admin/venues", labelKey: "venues" as const, icon: MapPinned },
+  {
+    href: "/admin/giao-luu",
+    labelKey: "exchange" as const,
+    icon: Handshake,
+  },
   {
     href: "/admin/shuttlecocks",
     labelKey: "shuttlecocks" as const,
@@ -70,12 +76,15 @@ export function AdminMobileNav({
   appName = "FWBB",
   pendingMemberCount = 0,
   pendingVenueCount = 0,
+  showExchange = false,
   showBell = false,
   zaloGroupUrl = "",
 }: {
   appName?: string;
   pendingMemberCount?: number;
   pendingVenueCount?: number;
+  /** Cờ giao lưu, layout admin đọc 1 lần; tắt thì menu y như cũ. */
+  showExchange?: boolean;
   showBell?: boolean;
   /** Link nhóm Zalo cho nút soạn tin trong chuông (setting zaloGroupUrl). */
   zaloGroupUrl?: string;
@@ -117,44 +126,47 @@ export function AdminMobileNav({
               <h2 className="text-lg font-bold">Admin</h2>
             </div>
             <nav className="flex-1 space-y-1 px-3 py-4">
-              {navItems.map((item) => {
-                const isActive =
-                  item.href === "/admin/fund"
-                    ? pathname === "/admin/fund"
-                    : pathname.startsWith(item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setOpen(false)}
-                    className={cn(
-                      "flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                      isActive
-                        ? "bg-primary text-primary-foreground"
-                        : "hover:bg-accent",
-                    )}
-                  >
-                    <NavPendingIcon Icon={item.icon} className="h-4 w-4" />
-                    <span className="flex-1">{t(item.labelKey)}</span>
-                    {item.labelKey === "members" && pendingMemberCount > 0 && (
-                      <span
-                        className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] leading-none font-bold text-white"
-                        title={t("pendingMembersTitle")}
-                      >
-                        {pendingMemberCount}
-                      </span>
-                    )}
-                    {item.labelKey === "venues" && pendingVenueCount > 0 && (
-                      <span
-                        className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] leading-none font-bold text-white"
-                        title={t("pendingVenuesTitle")}
-                      >
-                        {pendingVenueCount}
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
+              {navItems
+                .filter((item) => showExchange || item.labelKey !== "exchange")
+                .map((item) => {
+                  const isActive =
+                    item.href === "/admin/fund"
+                      ? pathname === "/admin/fund"
+                      : pathname.startsWith(item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setOpen(false)}
+                      className={cn(
+                        "flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                        isActive
+                          ? "bg-primary text-primary-foreground"
+                          : "hover:bg-accent",
+                      )}
+                    >
+                      <NavPendingIcon Icon={item.icon} className="h-4 w-4" />
+                      <span className="flex-1">{t(item.labelKey)}</span>
+                      {item.labelKey === "members" &&
+                        pendingMemberCount > 0 && (
+                          <span
+                            className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] leading-none font-bold text-white"
+                            title={t("pendingMembersTitle")}
+                          >
+                            {pendingMemberCount}
+                          </span>
+                        )}
+                      {item.labelKey === "venues" && pendingVenueCount > 0 && (
+                        <span
+                          className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] leading-none font-bold text-white"
+                          title={t("pendingVenuesTitle")}
+                        >
+                          {pendingVenueCount}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
             </nav>
             {pendingMemberCount > 0 && (
               <div className="border-t bg-amber-50 px-4 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">

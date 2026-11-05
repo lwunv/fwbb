@@ -31,7 +31,8 @@
     "pendingVenuesBanner": "Có {count} sân chờ duyệt",
     "account": "Tài khoản",
     "settings": "Cài đặt",
-    "venues": "Danh bạ sân"
+    "venues": "Danh bạ sân",
+    "exchange": "Giao lưu"
   },
   "adminSettings": {
     "title": "Cài đặt",
@@ -1377,6 +1378,41 @@
       "paidLine": "Đã trả đủ",
       "meLinkTitle": "Giao lưu của tôi",
       "meLinkBody": "Xem buổi đã đăng ký, buổi bạn mở và người đã chặn."
+    },
+    "admin": {
+      "title": "Giao lưu",
+      "tabEvents": "Buổi",
+      "tabReports": "Báo cáo",
+      "filterUpcoming": "Sắp diễn ra",
+      "filterHidden": "Đã ẩn",
+      "filterAll": "Tất cả",
+      "reportOpen": "Đang chờ",
+      "reportResolved": "Đã xử lý",
+      "reportDismissed": "Đã bỏ qua",
+      "hide": "Ẩn buổi",
+      "unhide": "Hiện lại",
+      "cancelEvent": "Huỷ buổi",
+      "cancelConfirm": "Huỷ buổi này? Người đã đăng ký sẽ nhận thông báo và không hoàn tác được.",
+      "cancelYes": "Huỷ buổi",
+      "cancelNo": "Giữ lại",
+      "hiddenToast": "Đã ẩn buổi",
+      "shownToast": "Đã hiện lại buổi",
+      "cancelledToast": "Đã huỷ buổi",
+      "resolve": "Đã xử lý",
+      "dismiss": "Bỏ qua",
+      "resolvedToast": "Đã đánh dấu đã xử lý",
+      "dismissedToast": "Đã bỏ qua báo cáo",
+      "emptyEvents": "Chưa có buổi nào ở mục này.",
+      "emptyReports": "Không có báo cáo nào ở mục này.",
+      "host": "Host",
+      "venue": "Sân",
+      "slots": "Đã giữ {held}/{total} chỗ",
+      "reporter": "Người báo",
+      "targetEvent": "Buổi",
+      "targetMember": "Thành viên",
+      "viewEvent": "Xem buổi",
+      "noNote": "Không có ghi chú",
+      "loadError": "Không tải được danh sách."
     }
   },
   "exchangeLogin": {

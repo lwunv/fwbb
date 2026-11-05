@@ -31,7 +31,8 @@
     "pendingVenuesBanner": "{count} venues awaiting review",
     "account": "Account",
     "settings": "Settings",
-    "venues": "Venues"
+    "venues": "Venues",
+    "exchange": "Exchange"
   },
   "adminSettings": {
     "title": "Settings",
@@ -1377,6 +1378,41 @@
       "paidLine": "Paid in full",
       "meLinkTitle": "My exchanges",
       "meLinkBody": "See the events you joined, the ones you host and who you blocked."
+    },
+    "admin": {
+      "title": "Exchange events",
+      "tabEvents": "Events",
+      "tabReports": "Reports",
+      "filterUpcoming": "Upcoming",
+      "filterHidden": "Hidden",
+      "filterAll": "All",
+      "reportOpen": "Open",
+      "reportResolved": "Resolved",
+      "reportDismissed": "Dismissed",
+      "hide": "Hide event",
+      "unhide": "Show again",
+      "cancelEvent": "Cancel event",
+      "cancelConfirm": "Cancel this event? Registered people will be notified and this cannot be undone.",
+      "cancelYes": "Cancel event",
+      "cancelNo": "Keep it",
+      "hiddenToast": "Event hidden",
+      "shownToast": "Event visible again",
+      "cancelledToast": "Event cancelled",
+      "resolve": "Resolve",
+      "dismiss": "Dismiss",
+      "resolvedToast": "Report resolved",
+      "dismissedToast": "Report dismissed",
+      "emptyEvents": "No events in this list yet.",
+      "emptyReports": "No reports in this list.",
+      "host": "Host",
+      "venue": "Venue",
+      "slots": "{held}/{total} spots held",
+      "reporter": "Reported by",
+      "targetEvent": "Event",
+      "targetMember": "Member",
+      "viewEvent": "View event",
+      "noNote": "No note",
+      "loadError": "Could not load the list."
     }
   },
   "exchangeLogin": {
