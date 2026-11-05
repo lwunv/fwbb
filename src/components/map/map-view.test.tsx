@@ -29,6 +29,8 @@ const { maps, FakeMap, FakeMarker } = vi.hoisted(() => {
     setLayoutProperty = vi.fn();
     setPaintProperty = vi.fn();
     moveLayer = vi.fn();
+    getFilter = vi.fn();
+    cooperativeGestures = { enable: vi.fn(), disable: vi.fn() };
     constructor(options: Record<string, unknown>) {
       this.options = options;
       maps.push(this);
@@ -274,6 +276,50 @@ describe("MapView", () => {
     expect(maps[0].options.cooperativeGestures).toBeFalsy();
     renderMap({ cooperativeGestures: true });
     expect(maps[1].options.cooperativeGestures).toBe(true);
+  });
+
+  it("applies a cooperativeGestures change after the map was created", () => {
+    const { rerenderWith } = renderMap({ cooperativeGestures: false });
+    const cg = maps[0].cooperativeGestures;
+    rerenderWith({ cooperativeGestures: true });
+    expect(cg.enable).toHaveBeenCalledTimes(1);
+    expect(maps).toHaveLength(1);
+    rerenderWith({ cooperativeGestures: false });
+    expect(cg.disable).toHaveBeenCalled();
+    expect(cg.enable).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the tiles-failed notice when the style never loads within 10s", () => {
+    vi.useFakeTimers();
+    try {
+      renderMap();
+      act(() => {
+        vi.advanceTimersByTime(9_000);
+      });
+      expect(screen.queryByRole("status")).toBeNull();
+      act(() => {
+        vi.advanceTimersByTime(1_500);
+      });
+      expect(screen.getByRole("status").textContent).toContain(
+        viMessages.venues.mapTilesFailed,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not show the timeout notice once the style has loaded", () => {
+    vi.useFakeTimers();
+    try {
+      renderMap();
+      act(() => maps[0].fire("style.load"));
+      act(() => {
+        vi.advanceTimersByTime(20_000);
+      });
+      expect(screen.queryByRole("status")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("gives maplibre translated strings for gesture hints and attribution", () => {

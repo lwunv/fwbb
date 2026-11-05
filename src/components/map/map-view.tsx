@@ -57,6 +57,7 @@ setWorkerUrl(
 );
 
 const DEFAULT_RADIUS_KM = 5;
+const STYLE_TIMEOUT_MS = 10_000;
 
 const RADIUS_SOURCE = "app-radius";
 const RADIUS_FILL_LAYER = "app-radius-fill";
@@ -221,6 +222,15 @@ export function MapView({
     if (unsupported) latest.current.onUnsupported?.();
   }, [unsupported]);
 
+  // `cooperativeGestures` chỉ được đọc lúc tạo map. Cha (useIsMobile) có thể
+  // đổi giá trị ngay sau khi map đã tạo, nên áp lại ở đây.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (cooperativeGestures) map.cooperativeGestures.enable();
+    else map.cooperativeGestures.disable();
+  }, [cooperativeGestures, unsupported]);
+
   useEffect(() => {
     const container = containerRef.current;
     if (unsupported || !container) return;
@@ -254,8 +264,14 @@ export function MapView({
     map.on("error", () => {
       if (!styleLoaded) setStyleFailed(true);
     });
+    // Trình duyệt nhúng hạn chế có thể treo request thay vì báo lỗi: không có
+    // sự kiện nào, bản đồ xám mãi. Quá hạn thì báo như lỗi style.
+    const styleTimer = setTimeout(() => {
+      if (!styleLoaded) setStyleFailed(true);
+    }, STYLE_TIMEOUT_MS);
     map.on("style.load", () => {
       styleLoaded = true;
+      clearTimeout(styleTimer);
       setStyleFailed(false);
       const s = latest.current;
       applyVietnamSovereignty(map, s.locale);
@@ -274,6 +290,7 @@ export function MapView({
     });
 
     return () => {
+      clearTimeout(styleTimer);
       for (const entry of markers.values()) entry.marker.remove();
       markers.clear();
       userMarkerRef.current?.remove();

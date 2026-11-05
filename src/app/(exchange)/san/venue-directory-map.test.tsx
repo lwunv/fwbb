@@ -22,7 +22,19 @@ const { listVenuesNear, mobile, mapProps, locState } = vi.hoisted(() => ({
 
 vi.mock("@/actions/venues", () => ({ listVenuesNear }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
-vi.mock("@/lib/use-is-mobile", () => ({ useIsMobile: () => mobile.value }));
+// Như hook thật: render đầu luôn false, rồi effect mới đặt giá trị đúng.
+vi.mock("@/lib/use-is-mobile", async () => {
+  const { useEffect, useState } = await import("react");
+  return {
+    useIsMobile: () => {
+      const [v, setV] = useState(false);
+      useEffect(() => {
+        setV(mobile.value);
+      }, []);
+      return v;
+    },
+  };
+});
 vi.mock("@/components/venues/use-user-location", () => ({
   useUserLocation: () => ({
     status: locState.status,
