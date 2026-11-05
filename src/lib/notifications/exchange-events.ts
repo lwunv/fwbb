@@ -1,5 +1,6 @@
 import "server-only";
 import type { Tx } from "@/db/tx";
+import { depositSettlement } from "@/lib/exchange-fee";
 import { notify } from "./notify";
 import { superadminRecipients, type Recipient } from "./recipients";
 
@@ -180,13 +181,18 @@ export async function notifyFeesLocked(
   for (const c of input.changes) {
     if (!first && c.previousAmount === c.amount) continue;
     const deposit = c.reg.depositPaid ? event.depositAmount : 0;
+    // Công thức đối trừ cọc chỉ có một nơi (exchange-fee.ts).
+    const { remaining, refundDue } = depositSettlement(
+      { depositPaid: c.reg.depositPaid, feeAmount: c.amount },
+      event.depositAmount,
+    );
     const fee = {
       ...base(event),
       startAt: event.startAt,
       amount: c.amount,
       deposit,
-      remaining: Math.max(0, c.amount - deposit),
-      refundDue: Math.max(0, deposit - c.amount),
+      remaining,
+      refundDue,
       aboveEstimate: input.aboveEstimate ?? false,
     };
     const common = {

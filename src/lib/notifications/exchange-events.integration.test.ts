@@ -209,6 +209,33 @@ describe("exchange-events", () => {
     });
   });
 
+  it("notifyFeesLocked: a fee below the paid deposit gives remaining 0 and the refund", async () => {
+    await testDb.transaction((tx) =>
+      ex.notifyFeesLocked(
+        tx,
+        {
+          event: { ...event, lockCount: 1 },
+          changes: [
+            {
+              reg: { id: 1, memberId: 21, depositPaid: true },
+              amount: 20000,
+              previousAmount: null,
+            },
+          ],
+          now: NOW,
+        },
+        true,
+      ),
+    );
+    const [row] = await rows("exchange_fee_locked");
+    expect(row.payload).toMatchObject({
+      amount: 20000,
+      deposit: 50000,
+      remaining: 0,
+      refundDue: 30000,
+    });
+  });
+
   it("notifyFeesLocked twice with the same lockCount inserts nothing new", async () => {
     const input = {
       event: { ...event, lockCount: 1 },
