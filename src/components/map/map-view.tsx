@@ -14,6 +14,7 @@ import type { FeatureCollection } from "geojson";
 import type { LatLng } from "@/lib/geo";
 import {
   MAP_STYLE_URL,
+  pointKey,
   radiusCircle,
   zoomForRadiusKm,
   type MapPoint,
@@ -33,7 +34,13 @@ export type MapViewProps = {
   /** Zoom lúc tạo map; bỏ trống thì suy ra từ `radiusKm`. */
   zoom?: number;
   userPosition?: LatLng | null;
+  /** Chỉ chọn được ghim `kind: "venue"` có id này (đường cũ của /san). */
   selectedId?: number | null;
+  /**
+   * Chọn theo `pointKey`. Có prop này (kể cả null) thì nó thắng `selectedId`,
+   * vì id sân và id buổi/ghim giao lưu có thể trùng nhau.
+   */
+  selectedKey?: string | null;
   onPointClick?: (p: MapPoint) => void;
   /** Chỉ gọi khi NGƯỜI DÙNG kéo/zoom, không gọi khi code đổi tâm. */
   onMoveEnd?: (center: LatLng) => void;
@@ -95,10 +102,17 @@ function createPin(onClick: () => void): HTMLButtonElement {
   const el = document.createElement("button");
   el.type = "button";
   el.className =
-    "group flex size-11 cursor-pointer items-end justify-center rounded-full pb-0.5 focus-visible:outline-2 focus-visible:outline-ring data-[selected=true]:z-10";
+    "group relative flex size-11 cursor-pointer items-end justify-center rounded-full pb-0.5 focus-visible:outline-2 focus-visible:outline-ring data-[selected=true]:z-10";
   // maplibre ghi `transform` của chính phần tử marker mỗi khung hình để bám
   // toạ độ, nên hiệu ứng phóng to nằm ở span con, không ở nút.
   el.innerHTML = `<span class="origin-bottom transition-[scale] duration-200 group-data-[selected=true]:scale-125">${PIN_SVG}</span>`;
+  const badge = document.createElement("span");
+  badge.dataset.role = "count";
+  badge.hidden = true;
+  badge.setAttribute("aria-hidden", "true");
+  badge.className =
+    "bg-background text-foreground border-primary pointer-events-none absolute top-0 right-0 flex size-5 items-center justify-center rounded-full border text-sm leading-none font-bold";
+  el.appendChild(badge);
   el.addEventListener("click", (e) => {
     // Không để cú bấm ghim lọt xuống bản đồ.
     e.stopPropagation();
@@ -171,6 +185,7 @@ export function MapView({
   zoom,
   userPosition = null,
   selectedId = null,
+  selectedKey,
   onPointClick,
   onMoveEnd,
   interactive = true,
@@ -179,6 +194,7 @@ export function MapView({
   onUnsupported,
 }: MapViewProps) {
   const t = useTranslations("venues");
+  const tx = useTranslations("exchange.search");
   const locale = useLocale();
   // Component chỉ chạy phía client (LazyMapView tắt SSR) nên kiểm ngay lúc
   // render đầu, không chớp khung bản đồ trắng trước khi hiện thông báo.
@@ -186,7 +202,7 @@ export function MapView({
   const [styleFailed, setStyleFailed] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
-  const markersRef = useRef(new Map<number, PinEntry>());
+  const markersRef = useRef(new Map<string, PinEntry>());
   const userMarkerRef = useRef<Marker | null>(null);
   const lastViewRef = useRef({ lat: center.lat, lng: center.lng, radiusKm });
 
@@ -312,7 +328,7 @@ export function MapView({
     const map = mapRef.current;
     if (!map) return;
     const markers = markersRef.current;
-    const keep = new Set(points.map((p) => p.id));
+    const keep = new Set(points.map(pointKey));
     for (const [id, entry] of markers) {
       if (!keep.has(id)) {
         entry.marker.remove();
@@ -320,22 +336,38 @@ export function MapView({
       }
     }
     for (const p of points) {
-      let entry = markers.get(p.id);
+      const key = pointKey(p);
+      let entry = markers.get(key);
       if (!entry) {
         const el = createPin(() => {
-          const current = markers.get(p.id)?.point;
+          const current = markers.get(key)?.point;
           if (current) latest.current.onPointClick?.(current);
         });
         const marker = new Marker({ element: el, anchor: "bottom" })
           .setLngLat([p.lng, p.lat])
           .addTo(map);
         entry = { point: p, el, marker };
-        markers.set(p.id, entry);
+        markers.set(key, entry);
       }
       entry.point = p;
       entry.marker.setLngLat([p.lng, p.lat]);
-      entry.el.setAttribute("aria-label", p.label);
-      entry.el.dataset.selected = String(p.id === selectedId);
+      const count = p.kind === "exchange" ? p.count : 1;
+      entry.el.setAttribute(
+        "aria-label",
+        p.kind === "exchange" && count > 1
+          ? tx("pinLabel", { label: p.label, count })
+          : p.label,
+      );
+      const badge = entry.el.querySelector<HTMLElement>("[data-role=count]");
+      if (badge) {
+        badge.hidden = count <= 1;
+        badge.textContent = count > 1 ? String(count) : "";
+      }
+      const selected =
+        selectedKey !== undefined
+          ? key === selectedKey
+          : p.kind === "venue" && p.id === selectedId;
+      entry.el.dataset.selected = String(selected);
       // Bản đồ không tương tác (bản đồ nhỏ): ghim chỉ để nhìn. Bỏ khỏi thứ
       // tự Tab/trình đọc màn hình và nhường cú chạm cho lớp phủ của màn cha.
       entry.el.tabIndex = interactive ? 0 : -1;
@@ -343,7 +375,7 @@ export function MapView({
       if (interactive) entry.el.removeAttribute("aria-hidden");
       else entry.el.setAttribute("aria-hidden", "true");
     }
-  }, [points, selectedId, unsupported, interactive]);
+  }, [points, selectedId, selectedKey, unsupported, interactive, tx]);
 
   // Màn cha đổi tâm/bán kính (vd "Tìm ở khu vực này", đổi bán kính).
   useEffect(() => {

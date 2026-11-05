@@ -1,18 +1,51 @@
 import { haversineMeters, type LatLng } from "@/lib/geo";
 import type { PublicVenue } from "@/lib/public-venue";
+import type { ExchangeCard } from "@/lib/exchange/public-event";
 import type { Feature, Polygon } from "geojson";
 
 /** Style nền OpenFreeMap (không cần API key). */
 export const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
 
-/** Điểm ghim trên bản đồ. G2b sẽ thêm `kind: "exchange"`. */
-export type MapPoint = {
-  kind: "venue";
-  id: number;
-  lat: number;
-  lng: number;
-  label: string;
-};
+/**
+ * Điểm ghim trên bản đồ. Ghim giao lưu đứng theo SÂN (`id` là venueId), `count`
+ * là số buổi tại sân đó. Id của hai loại có thể trùng nhau, nên khoá định danh
+ * luôn là `pointKey`, không phải `id`.
+ */
+export type MapPoint =
+  | { kind: "venue"; id: number; lat: number; lng: number; label: string }
+  | {
+      kind: "exchange";
+      id: number;
+      lat: number;
+      lng: number;
+      label: string;
+      count: number;
+    };
+
+export function pointKey(p: MapPoint): string {
+  return `${p.kind}:${p.id}`;
+}
+
+/** Gom các buổi theo sân: một ghim mỗi sân, kèm số buổi. */
+export function exchangesToPoints(
+  events: Pick<ExchangeCard, "venue">[],
+): MapPoint[] {
+  const byVenue = new Map<number, MapPoint & { kind: "exchange" }>();
+  for (const e of events) {
+    const hit = byVenue.get(e.venue.id);
+    if (hit) hit.count += 1;
+    else
+      byVenue.set(e.venue.id, {
+        kind: "exchange",
+        id: e.venue.id,
+        lat: e.venue.lat,
+        lng: e.venue.lng,
+        label: e.venue.name,
+        count: 1,
+      });
+  }
+  return [...byVenue.values()];
+}
 
 export function venuesToPoints(
   venues: Pick<PublicVenue, "id" | "lat" | "lng" | "name">[],

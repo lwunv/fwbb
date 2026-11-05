@@ -387,3 +387,60 @@ describe("MapView", () => {
     expect(inner.querySelector("svg")).not.toBeNull();
   });
 });
+
+describe("MapView exchange points", () => {
+  const mixed: MapPoint[] = [
+    { kind: "venue", id: 1, lat: 21.03, lng: 105.85, label: "Sân Một" },
+    {
+      kind: "exchange",
+      id: 1,
+      lat: 21.03,
+      lng: 105.85,
+      label: "Sân Một",
+      count: 1,
+    },
+  ];
+
+  it("map-view: venue and exchange points with the same id both render", () => {
+    renderMap({ points: mixed });
+    expect(screen.getAllByRole("button")).toHaveLength(2);
+  });
+
+  it("selecting an exchange pin does not highlight the venue pin with the same id", () => {
+    renderMap({ points: mixed, selectedKey: "exchange:1" });
+    const [venuePin, exchangePin] = screen.getAllByRole("button");
+    expect(venuePin.getAttribute("data-selected")).toBe("false");
+    expect(exchangePin.getAttribute("data-selected")).toBe("true");
+  });
+
+  it("selectedId without selectedKey only highlights venue pins", () => {
+    renderMap({ points: mixed, selectedId: 1 });
+    const [venuePin, exchangePin] = screen.getAllByRole("button");
+    expect(venuePin.getAttribute("data-selected")).toBe("true");
+    expect(exchangePin.getAttribute("data-selected")).toBe("false");
+  });
+
+  it("exchange pin with count 3 shows 3 and an aria-label with the count", () => {
+    renderMap({
+      points: [
+        {
+          kind: "exchange",
+          id: 5,
+          lat: 21.03,
+          lng: 105.85,
+          label: "Sân Năm",
+          count: 3,
+        },
+      ],
+    });
+    const pin = screen.getByRole("button");
+    expect(pin.textContent).toContain("3");
+    expect(pin.getAttribute("aria-label")).toContain("Sân Năm");
+    expect(pin.getAttribute("aria-label")).toContain("3");
+  });
+
+  it("exchange pin with count 1 shows no number", () => {
+    renderMap({ points: [mixed[1]] });
+    expect(screen.getByRole("button").textContent).toBe("");
+  });
+});

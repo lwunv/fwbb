@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { haversineMeters } from "@/lib/geo";
 import {
   MAP_STYLE_URL,
+  exchangesToPoints,
   movedBeyond,
+  pointKey,
   radiusCircle,
   venuesToPoints,
   zoomForRadiusKm,
@@ -62,4 +64,42 @@ describe("movedBeyond", () => {
 
 it("exposes the OpenFreeMap style url", () => {
   expect(MAP_STYLE_URL).toBe("https://tiles.openfreemap.org/styles/liberty");
+});
+
+describe("exchangesToPoints", () => {
+  const ev = (venueId: number, name: string) => ({
+    venue: {
+      id: venueId,
+      name,
+      lat: 21 + venueId / 100,
+      lng: 105.8,
+      areaLabel: null,
+    },
+  });
+
+  it("groups by venue with a count", () => {
+    const pts = exchangesToPoints([
+      ev(1, "A"),
+      ev(2, "B"),
+      ev(1, "A"),
+      ev(1, "A"),
+    ]);
+    expect(pts).toHaveLength(2);
+    expect(pts[0]).toEqual({
+      kind: "exchange",
+      id: 1,
+      lat: 21.01,
+      lng: 105.8,
+      label: "A",
+      count: 3,
+    });
+    expect(pts[1]).toMatchObject({ kind: "exchange", id: 2, count: 1 });
+  });
+
+  it("pointKey separates kinds with the same id", () => {
+    const [x] = exchangesToPoints([ev(7, "A")]);
+    const [v] = venuesToPoints([{ id: 7, lat: 1, lng: 2, name: "A" }]);
+    expect(pointKey(x)).toBe("exchange:7");
+    expect(pointKey(v)).toBe("venue:7");
+  });
 });
