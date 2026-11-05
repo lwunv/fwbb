@@ -100,7 +100,7 @@ export function ExchangeCard({ event }: { event: ExchangeCardData }) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          <p className="text-primary flex items-center gap-1.5 text-sm font-medium">
+          <p className="text-primary flex items-center gap-1.5 text-base font-medium">
             <CalendarClock className="h-4 w-4 shrink-0" aria-hidden />
             {whenLabel(event.startAt, event.endAt, locale)}
           </p>
@@ -108,7 +108,7 @@ export function ExchangeCard({ event }: { event: ExchangeCardData }) {
             {event.title}
           </h3>
         </div>
-        <span className="bg-primary/15 text-primary shrink-0 rounded-full px-3 py-1 text-sm font-semibold">
+        <span className="bg-primary/15 text-primary shrink-0 rounded-full px-3 py-1 text-base font-semibold">
           {feeText}
         </span>
       </div>

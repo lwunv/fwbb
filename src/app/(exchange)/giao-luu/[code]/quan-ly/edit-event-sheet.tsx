@@ -98,6 +98,16 @@ export function EditEventSheet({
       open={open}
       onOpenChange={onOpenChange}
       title={t("editTitle")}
+      footer={
+        <button
+          type="button"
+          disabled={!slotsValid}
+          onClick={save}
+          className="bg-primary text-primary-foreground min-h-12 w-full rounded-xl text-base font-semibold disabled:opacity-50"
+        >
+          {t("editSave")}
+        </button>
+      }
     >
       <label className={field}>
         <span className="text-base font-medium">{t("editSlots")}</span>
@@ -173,14 +183,6 @@ export function EditEventSheet({
           />
         </label>
       </fieldset>
-      <button
-        type="button"
-        disabled={!slotsValid}
-        onClick={save}
-        className="bg-primary text-primary-foreground min-h-12 w-full rounded-xl text-base font-semibold disabled:opacity-50"
-      >
-        {t("editSave")}
-      </button>
     </ResponsiveSheet>
   );
 }

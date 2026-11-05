@@ -21,6 +21,7 @@ import { fireAction } from "@/lib/optimistic-action";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ConfirmSheet } from "@/components/exchange/confirm-sheet";
 import { EmptyState } from "@/components/shared/empty-state";
 import { TabSegment } from "@/components/shared/tab-segment";
 
@@ -156,6 +157,11 @@ export function AdminExchangeClient({
     (r) => (reportPatch[r.id] ?? r.status) === reportStatus,
   );
 
+  const confirmRow =
+    confirmCancelId === null
+      ? undefined
+      : eventRows.find((r) => r.id === confirmCancelId);
+
   const filterLabel: Record<AdminExchangeFilter, string> = {
     upcoming: t("filterUpcoming"),
     hidden: t("filterHidden"),
@@ -198,11 +204,8 @@ export function AdminExchangeClient({
                   <EventCard
                     key={r.id}
                     row={r}
-                    confirming={confirmCancelId === r.id}
                     onHide={(h) => setHidden(r, h)}
                     onAskCancel={() => setConfirmCancelId(r.id)}
-                    onCancelNo={() => setConfirmCancelId(null)}
-                    onCancelYes={() => cancelEvent(r)}
                   />
                 ))}
               </AnimatePresence>
@@ -238,6 +241,20 @@ export function AdminExchangeClient({
           )}
         </>
       )}
+
+      <ConfirmSheet
+        open={confirmRow !== undefined}
+        onOpenChange={(o) => {
+          if (!o) setConfirmCancelId(null);
+        }}
+        title={confirmRow?.title ?? t("cancelEvent")}
+        description={t("cancelConfirm")}
+        confirmLabel={t("cancelYes")}
+        cancelLabel={t("cancelNo")}
+        onConfirm={() => {
+          if (confirmRow) cancelEvent(confirmRow);
+        }}
+      />
     </div>
   );
 }
@@ -254,18 +271,12 @@ function ListSkeleton() {
 
 function EventCard({
   row,
-  confirming,
   onHide,
   onAskCancel,
-  onCancelNo,
-  onCancelYes,
 }: {
   row: AdminExchangeRow;
-  confirming: boolean;
   onHide: (hidden: boolean) => void;
   onAskCancel: () => void;
-  onCancelNo: () => void;
-  onCancelYes: () => void;
 }) {
   const t = useTranslations("exchange.admin");
   const tStatus = useTranslations("exchange.event");
@@ -314,52 +325,30 @@ function EventCard({
           {t("slots", { held: row.holdingHeads, total: row.slotsTotal })}
         </p>
       </div>
-      {confirming ? (
-        <div className="space-y-2">
-          <p className="text-sm">{t("cancelConfirm")}</p>
-          <div className="flex gap-2">
-            <Button
-              variant="destructive"
-              className="min-h-11 flex-1"
-              onClick={onCancelYes}
-            >
-              {t("cancelYes")}
-            </Button>
-            <Button
-              variant="outline"
-              className="min-h-11 flex-1"
-              onClick={onCancelNo}
-            >
-              {t("cancelNo")}
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          className="min-h-11"
+          onClick={() => onHide(row.hiddenAt === null)}
+        >
+          {row.hiddenAt ? (
+            <Eye className="mr-1.5 h-4 w-4" />
+          ) : (
+            <EyeOff className="mr-1.5 h-4 w-4" />
+          )}
+          {row.hiddenAt ? t("unhide") : t("hide")}
+        </Button>
+        {cancellable && (
           <Button
             variant="outline"
-            className="min-h-11"
-            onClick={() => onHide(row.hiddenAt === null)}
+            className={cn("text-destructive min-h-11")}
+            onClick={onAskCancel}
           >
-            {row.hiddenAt ? (
-              <Eye className="mr-1.5 h-4 w-4" />
-            ) : (
-              <EyeOff className="mr-1.5 h-4 w-4" />
-            )}
-            {row.hiddenAt ? t("unhide") : t("hide")}
+            <X className="mr-1.5 h-4 w-4" />
+            {t("cancelEvent")}
           </Button>
-          {cancellable && (
-            <Button
-              variant="outline"
-              className={cn("text-destructive min-h-11")}
-              onClick={onAskCancel}
-            >
-              <X className="mr-1.5 h-4 w-4" />
-              {t("cancelEvent")}
-            </Button>
-          )}
-        </div>
-      )}
+        )}
+      </div>
     </motion.div>
   );
 }

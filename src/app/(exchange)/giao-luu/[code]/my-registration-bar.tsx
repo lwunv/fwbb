@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { cancelMyRegistration } from "@/actions/exchange-registrations";
 import type { ViewerExtras } from "@/actions/exchange-read";
-import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { ConfirmSheet } from "@/components/exchange/confirm-sheet";
 import type { PublicExchangeEvent } from "@/lib/exchange/public-event";
 import { fireAction } from "@/lib/optimistic-action";
 
@@ -134,7 +134,7 @@ export function MyRegistrationBar({
   return (
     <>
       <div className={shell}>{body}</div>
-      <ConfirmDialog
+      <ConfirmSheet
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         title={t("cancelConfirmTitle")}

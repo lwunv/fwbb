@@ -98,6 +98,18 @@ export function LockFeeSheet({
       open={open}
       onOpenChange={onOpenChange}
       title={t("lockTitle")}
+      footer={
+        !confirm && (
+          <button
+            type="button"
+            disabled={sending || hasPending || rows.length === 0}
+            onClick={() => submit(false)}
+            className="bg-primary text-primary-foreground min-h-12 w-full rounded-xl text-base font-semibold disabled:opacity-50"
+          >
+            {t("lockSubmit")}
+          </button>
+        )
+      }
     >
       <p className="text-muted-foreground text-base">{t("lockHint")}</p>
 
@@ -183,17 +195,6 @@ export function LockFeeSheet({
             </button>
           </div>
         </div>
-      )}
-
-      {!confirm && (
-        <button
-          type="button"
-          disabled={sending || hasPending || rows.length === 0}
-          onClick={() => submit(false)}
-          className="bg-primary text-primary-foreground min-h-12 w-full rounded-xl text-base font-semibold disabled:opacity-50"
-        >
-          {t("lockSubmit")}
-        </button>
       )}
     </ResponsiveSheet>
   );

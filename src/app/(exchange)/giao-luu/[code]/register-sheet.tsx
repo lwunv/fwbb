@@ -126,6 +126,16 @@ export function RegisterSheet({
       open={open}
       onOpenChange={onOpenChange}
       title={t("registerTitle")}
+      footer={
+        <button
+          type="button"
+          onClick={submit}
+          disabled={sending || !token}
+          className="bg-primary text-primary-foreground min-h-12 w-full rounded-xl text-base font-semibold disabled:opacity-50"
+        >
+          {sending ? t("sending") : token ? t("submit") : t("captchaWaiting")}
+        </button>
+      }
     >
       <fieldset className="space-y-2">
         <legend className="text-base font-medium">{t("you")}</legend>
@@ -208,15 +218,6 @@ export function RegisterSheet({
         onToken={setToken}
         resetKey={resetKey}
       />
-
-      <button
-        type="button"
-        onClick={submit}
-        disabled={sending || !token}
-        className="bg-primary text-primary-foreground min-h-12 w-full rounded-xl text-base font-semibold disabled:opacity-50"
-      >
-        {sending ? t("sending") : token ? t("submit") : t("captchaWaiting")}
-      </button>
     </ResponsiveSheet>
   );
 }

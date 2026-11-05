@@ -312,7 +312,7 @@ export function EventPost({
             </span>
             <Link
               href={`/san/${event.venue.id}`}
-              className={cn(chip, "hover:bg-accent")}
+              className={cn(chip, "hover:bg-accent min-h-11")}
             >
               <MapPin className="h-4 w-4 shrink-0" aria-hidden />
               {event.venue.name}

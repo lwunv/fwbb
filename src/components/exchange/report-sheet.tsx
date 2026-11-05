@@ -82,6 +82,20 @@ export function ReportSheet({
       open={open}
       onOpenChange={onOpenChange}
       title={t("reportTitle")}
+      footer={
+        <button
+          type="button"
+          onClick={submit}
+          disabled={sending || !token}
+          className="bg-primary text-primary-foreground min-h-12 w-full rounded-xl text-base font-semibold disabled:opacity-50"
+        >
+          {sending
+            ? t("sending")
+            : token
+              ? t("reportSubmit")
+              : t("captchaWaiting")}
+        </button>
+      }
     >
       {registrationId === undefined && (
         <fieldset className="space-y-2">
@@ -137,19 +151,6 @@ export function ReportSheet({
         onToken={setToken}
         resetKey={resetKey}
       />
-
-      <button
-        type="button"
-        onClick={submit}
-        disabled={sending || !token}
-        className="bg-primary text-primary-foreground min-h-12 w-full rounded-xl text-base font-semibold disabled:opacity-50"
-      >
-        {sending
-          ? t("sending")
-          : token
-            ? t("reportSubmit")
-            : t("captchaWaiting")}
-      </button>
     </ResponsiveSheet>
   );
 }
