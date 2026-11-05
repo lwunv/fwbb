@@ -56,6 +56,15 @@ const groupNavItems = [
   { href: "/me", labelKey: "me" as const, icon: User, tour: "nav-me" },
 ];
 
+// Chỉ chèn khi cờ giao lưu bật (prop do server đọc 1 lần); cờ tắt thì danh
+// sách y như trước G2.
+const groupExchangeItem = {
+  href: "/giao-luu",
+  labelKey: "exchange" as const,
+  icon: Handshake,
+  tour: "nav-exchange",
+};
+
 // Tài khoản giao lưu chưa vào nhóm: chỉ thấy các trang không chứa dữ liệu nhóm.
 const exchangeNavItems = [
   {
@@ -69,6 +78,13 @@ const exchangeNavItems = [
     labelKey: "venues" as const,
     icon: MapPinned,
     tour: "nav-venues",
+  },
+  // Spec 4.6b: tài khoản giao lưu cần lối vào "Giao lưu của tôi".
+  {
+    href: "/giao-luu/cua-toi",
+    labelKey: "me" as const,
+    icon: User,
+    tour: "nav-me",
   },
 ];
 
@@ -103,9 +119,12 @@ function clearTourPendingFlag() {
  */
 export function NavDrawer({
   navItems = "group",
+  exchangeEnabled = false,
 }: {
   /** "exchange": chỉ Giao lưu + Sân, không có nút Hướng dẫn (tour là của nhóm). */
   navItems?: "group" | "exchange";
+  /** Cờ giao lưu bật: menu nhóm có thêm mục "Giao lưu". */
+  exchangeEnabled?: boolean;
 } = {}) {
   const [open, setOpen] = useState(false);
   // Tour đang điều khiển ngăn kéo: tắt modal + chặn bấm-ra-ngoài-để-đóng, vì
@@ -121,7 +140,15 @@ export function NavDrawer({
   const { run, hasSeen } = useProductTour();
   const isHome = pathname === "/";
   const withTour = navItems === "group";
-  const items = withTour ? groupNavItems : exchangeNavItems;
+  const items = withTour
+    ? exchangeEnabled
+      ? [
+          ...groupNavItems.slice(0, -1),
+          groupExchangeItem,
+          ...groupNavItems.slice(-1),
+        ]
+      : groupNavItems
+    : exchangeNavItems;
 
   useEffect(() => {
     const onTour = (e: Event) => {
@@ -189,10 +216,14 @@ export function NavDrawer({
           </SheetHeader>
           <nav className="space-y-1 px-3 pb-4">
             {items.map((item) => {
+              // "/giao-luu" là tiền tố của "/giao-luu/cua-toi": chỉ sáng một mục.
               const isActive =
                 item.href === "/"
                   ? pathname === "/" || pathname.startsWith("/vote")
-                  : pathname.startsWith(item.href);
+                  : item.href === "/giao-luu"
+                    ? pathname.startsWith(item.href) &&
+                      !pathname.startsWith("/giao-luu/cua-toi")
+                    : pathname.startsWith(item.href);
               return (
                 <Link
                   key={item.href}

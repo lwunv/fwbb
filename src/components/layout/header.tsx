@@ -21,6 +21,7 @@ export function Header({
   homeHref = "/",
   navItems = "group",
   showBell = false,
+  exchangeEnabled = false,
 }: {
   appName?: string;
   /** Hiện nút "Đăng nhập" — dùng ở shell khách chưa đăng nhập (trang chủ public). */
@@ -39,6 +40,8 @@ export function Header({
   navItems?: "group" | "exchange";
   /** Chuông thông báo của member (công tắc notificationsEnabled đang bật). */
   showBell?: boolean;
+  /** Cờ giao lưu bật: ngăn kéo nhóm có thêm mục "Giao lưu". */
+  exchangeEnabled?: boolean;
 }) {
   const t = useTranslations("publicLayout");
   const pathname = usePathname();
@@ -51,7 +54,9 @@ export function Header({
     <header className="bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40 border-b backdrop-blur">
       <div className="flex h-14 items-center justify-between gap-2 px-4">
         <div className="flex min-w-0 items-center gap-1">
-          {showMenu && <NavDrawer navItems={navItems} />}
+          {showMenu && (
+            <NavDrawer navItems={navItems} exchangeEnabled={exchangeEnabled} />
+          )}
           <Link href={homeHref} className="flex min-w-0 items-center">
             {/* Logo monogram FWB (nền trong suốt), asset riêng cho header; các
                 chỗ khác (login, nav, sidebar) dùng badge tròn /fwbb.svg. Không

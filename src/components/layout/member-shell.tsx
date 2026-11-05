@@ -167,10 +167,17 @@ export async function MemberShell({
 
   // Chỉ cờ bật/tắt, KHÔNG đếm chưa đọc ở server: trang chủ có AutoRefresh 30s
   // làm render lại layout, đếm ở đây sẽ thành truy vấn định kỳ.
-  const showBell = (await getSettings()).notificationsEnabled;
+  // `getSettings` dedup trong request nên đọc cờ giao lưu ở đây không thêm truy vấn.
+  const settings = await getSettings();
+  const showBell = settings.notificationsEnabled;
   return (
     <div className="flex min-h-screen flex-col">
-      <Header appName={appName} showMenu {...bellProps(showBell)} />
+      <Header
+        appName={appName}
+        showMenu
+        {...bellProps(showBell)}
+        {...(settings.exchangeEnabled ? { exchangeEnabled: true } : {})}
+      />
       <main className="flex-1 px-4 py-4 pb-6">{children}</main>
     </div>
   );

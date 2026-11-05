@@ -86,6 +86,8 @@ describe("navigation links", () => {
     expect(navLinks()).toEqual([
       ["/giao-luu", "Giao lưu"],
       ["/san", "Sân"],
+      // Ruling R18 (spec 4.6b): tài khoản giao lưu có thêm "Cá nhân".
+      ["/giao-luu/cua-toi", "Cá nhân"],
     ]);
     exchange.unmount();
     cleanup();

@@ -10,6 +10,7 @@ import { MeClient } from "./me-client";
 import { SkillLevelSection } from "./skill-level-section";
 import { NotificationPrefsSection } from "@/components/notifications/notification-prefs-section";
 import { getSettings } from "@/actions/settings";
+import { MeExchangeLink } from "./me-exchange-link";
 import { SetPasswordSection } from "./set-password-section";
 import { LinkedAccountsSection } from "./linked-accounts-section";
 
@@ -46,7 +47,10 @@ export default async function MePage() {
   // nhưng chưa hoàn) — tránh member tưởng mất tiền.
   const fundBalance = isInFund || rawBalance !== 0 ? rawBalance : null;
   // Cờ tắt thì không có thẻ này: trang /me giữ nguyên như trước khi có thông báo.
-  const notificationsEnabled = (await getSettings()).notificationsEnabled;
+  const settings = await getSettings();
+  const notificationsEnabled = settings.notificationsEnabled;
+  // Cờ giao lưu đọc một lần ở đây rồi truyền xuống; tắt thì /me y như trước.
+  const exchangeEnabled = settings.exchangeEnabled;
 
   return (
     <div className="mx-auto max-w-lg space-y-4">
@@ -66,7 +70,13 @@ export default async function MePage() {
         fundBalance={fundBalance}
       />
       <SkillLevelSection current={member.skillLevel ?? null} />
-      {notificationsEnabled && <NotificationPrefsSection scope="member" />}
+      <MeExchangeLink enabled={exchangeEnabled} />
+      {notificationsEnabled && (
+        <NotificationPrefsSection
+          scope="member"
+          {...(exchangeEnabled ? { exchangeEnabled: true } : {})}
+        />
+      )}
       <SetPasswordSection
         hasPassword={!!member.passwordHash}
         hasEmail={!!member.email}

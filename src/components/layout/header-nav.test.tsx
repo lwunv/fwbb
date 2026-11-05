@@ -107,7 +107,8 @@ describe("NavDrawer", () => {
     const hrefs = screen
       .getAllByRole("link")
       .map((a) => a.getAttribute("href"));
-    expect(hrefs).toEqual(["/giao-luu", "/san"]);
+    // Ruling R18 (spec 4.6b): tài khoản giao lưu có thêm "Cá nhân".
+    expect(hrefs).toEqual(["/giao-luu", "/san", "/giao-luu/cua-toi"]);
     expect(screen.getByText(viMessages.nav.exchange)).not.toBeNull();
     expect(screen.queryByText(viMessages.tour.open)).toBeNull();
   });
