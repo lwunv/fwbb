@@ -9,6 +9,7 @@ import type { ViewerExtras } from "@/actions/exchange-read";
 import { ResponsiveSheet } from "@/components/exchange/responsive-sheet";
 import { TurnstileWidget } from "@/components/security/turnstile-widget";
 import { NumberStepper } from "@/components/ui/number-stepper";
+import { registrationFee } from "@/lib/exchange-fee";
 import { MAX_COMPANIONS, TS_REGISTER } from "@/lib/exchange/constants";
 import type { PublicExchangeEvent } from "@/lib/exchange/public-event";
 import type { Gender } from "@/lib/gender";
@@ -63,7 +64,10 @@ export function RegisterSheet({
   const female =
     (self === "female" ? 1 : 0) + (showCompanions ? extraFemale : 0);
   const rates = displayRates(event.fee);
-  const estimate = male * rates.male + female * rates.female;
+  const estimate = registrationFee(rates, {
+    maleCount: male,
+    femaleCount: female,
+  });
 
   function submit() {
     if (sending || !token) return;

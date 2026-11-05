@@ -17,6 +17,8 @@ import {
 } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import viMessages from "@/i18n/messages/vi.json";
+import { registrationFee } from "@/lib/exchange-fee";
+import { formatVND } from "@/lib/utils";
 import { makeEvent, makeViewer } from "./fixtures";
 
 const widget = vi.hoisted(
@@ -138,5 +140,26 @@ describe("RegisterSheet", () => {
       }),
     );
     expect(widget.resetKey).toBe(before + 1);
+  });
+
+  it("estimate uses the shared registrationFee helper", () => {
+    renderSheet(
+      makeViewer({ role: "member" }),
+      makeEvent({ fee: { kind: "fixed", male: 80000, female: 50000 } }),
+    );
+    // Bạn là nam (1) cộng 1 nữ đi cùng.
+    fireEvent.click(screen.getAllByRole("button", { name: "Tăng 1" })[1]);
+    const expected = registrationFee(
+      { male: 80000, female: 50000 },
+      { maleCount: 1, femaleCount: 1 },
+    );
+    const norm = (x: string) => x.replace(/\s/g, " ");
+    expect(
+      screen.getByText(
+        (_, el) =>
+          el?.children.length === 0 &&
+          norm(el.textContent ?? "") === norm(formatVND(expected)),
+      ),
+    ).toBeTruthy();
   });
 });
