@@ -39,6 +39,19 @@ export const VN_ISLAND_LABELS = [
   },
 ] as const;
 
+/**
+ * Tên biển do app đặt (G3-R6): nhãn nền của OpenFreeMap ghi "South China Sea
+ * 南海", người dùng ở Việt Nam gọi là Biển Đông. Tiếng Trung dùng "Biển Đông"
+ * vì 东海 là một vùng biển khác. Không bao giờ hiện tên cũ.
+ */
+export const EAST_SEA_LABEL = {
+  lat: 12.5,
+  lng: 113.5,
+  name: { vi: "Biển Đông", en: "East Sea", zh: "Biển Đông" },
+} as const;
+
+export const EAST_SEA_LAYER_ID = "vn-east-sea";
+
 /** Hình chữ nhật khép kín [tây, nam, đông, bắc] dạng vòng GeoJSON. */
 function box(west: number, south: number, east: number, north: number) {
   const ring: Position[] = [
@@ -65,6 +78,36 @@ const PLACE_SOURCE_LAYERS = new Set(["place", "water_name"]);
 const OUTSIDE_VN_ISLANDS: ExpressionSpecification = [
   "!",
   ["within", VN_ISLAND_AREAS],
+];
+/**
+ * Nhãn biển nền của OpenMapTiles nằm ở lớp `water_name`; tên có thể ở nhiều
+ * thuộc tính tuỳ ngôn ngữ nên kiểm cả chuỗi. Chỉ áp cho `water_name` để chữ
+ * "南海" của địa danh trên đất liền (vd quận Nam Hải) không bị ảnh hưởng.
+ */
+const SEA_NAME_PROPS = [
+  "name",
+  "name_en",
+  "name:en",
+  "name:latin",
+  "name:nonlatin",
+  "name:zh",
+  "name_zh",
+] as const;
+const FOREIGN_SEA_NAMES = ["South China Sea", "南海"] as const;
+const NOT_FOREIGN_SEA_NAME: ExpressionSpecification = [
+  "!",
+  [
+    "any",
+    ...FOREIGN_SEA_NAMES.flatMap((needle) =>
+      SEA_NAME_PROPS.map(
+        (prop): ExpressionSpecification => [
+          "in",
+          needle,
+          ["to-string", ["coalesce", ["get", prop], ""]],
+        ],
+      ),
+    ),
+  ],
 ];
 const NOT_DISPUTED: ExpressionSpecification = ["!=", ["get", "disputed"], 1];
 const NOT_MARITIME: ExpressionSpecification = ["!=", ["get", "maritime"], 1];
@@ -171,7 +214,13 @@ function patchBaseLayer(
   const sourceLayer =
     "source-layer" in layer ? layer["source-layer"] : undefined;
   if (layer.type === "symbol") {
-    addConditions(map, layer, [OUTSIDE_VN_ISLANDS]);
+    addConditions(
+      map,
+      layer,
+      sourceLayer === "water_name"
+        ? [OUTSIDE_VN_ISLANDS, NOT_FOREIGN_SEA_NAME]
+        : [OUTSIDE_VN_ISLANDS],
+    );
     if (
       toLocale(locale) === "vi" &&
       sourceLayer !== undefined &&
@@ -221,6 +270,53 @@ function addIslandLabels(
   });
 }
 
+function addEastSeaLabel(
+  map: SovereigntyMap,
+  baseLayers: LayerSpecification[],
+  locale: string,
+) {
+  const el = map.getContainer();
+  const textColor = cssColor(el, "--muted-foreground");
+  const haloColor = cssColor(el, "--background");
+  map.addSource(EAST_SEA_LAYER_ID, {
+    type: "geojson",
+    data: {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { label: EAST_SEA_LABEL.name[toLocale(locale)] },
+          geometry: {
+            type: "Point",
+            coordinates: [EAST_SEA_LABEL.lng, EAST_SEA_LABEL.lat],
+          },
+        },
+      ],
+    } satisfies FeatureCollection<Point>,
+  });
+  map.addLayer({
+    id: EAST_SEA_LAYER_ID,
+    type: "symbol",
+    source: EAST_SEA_LAYER_ID,
+    minzoom: 3,
+    layout: {
+      "text-field": ["get", "label"],
+      "text-font": styleFont(baseLayers, "Italic"),
+      "text-size": 15,
+      "text-letter-spacing": 0.15,
+      "text-max-width": 8,
+      "text-allow-overlap": true,
+      "text-ignore-placement": true,
+    },
+    paint: {
+      ...(textColor ? { "text-color": textColor } : {}),
+      ...(haloColor
+        ? { "text-halo-color": haloColor, "text-halo-width": 1.5 }
+        : {}),
+    },
+  });
+}
+
 /**
  * Áp chủ quyền lên style vừa nạp xong: nhãn "Quần đảo Hoàng Sa/Trường Sa
  * (Việt Nam)" trên cùng, che nhãn nền trong hai vùng, ẩn đường biên tranh
@@ -240,6 +336,7 @@ export function applyVietnamSovereignty(
     // layer cuối cùng nên nằm trên mọi layer nền.
     try {
       addIslandLabels(map, baseLayers, locale);
+      addEastSeaLabel(map, baseLayers, locale);
     } catch {
       failed = true;
     }

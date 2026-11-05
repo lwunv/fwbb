@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   applyVietnamSovereignty,
+  EAST_SEA_LABEL,
+  EAST_SEA_LAYER_ID,
   VN_ISLAND_AREAS,
   VN_ISLAND_LABELS,
   VN_ISLANDS_LAYER_ID,
@@ -209,7 +211,8 @@ describe("applyVietnamSovereignty", () => {
     const m = fakeMap();
     applyVietnamSovereignty(asMap(m), "vi");
     applyVietnamSovereignty(asMap(m), "vi");
-    expect(m.addSource).toHaveBeenCalledTimes(1);
+    // Một nguồn cho nhãn quần đảo, một cho nhãn Biển Đông; lần 2 không thêm nữa.
+    expect(m.addSource).toHaveBeenCalledTimes(2);
   });
 
   it("logs only a code and does not throw when the map fails", () => {
@@ -223,5 +226,82 @@ describe("applyVietnamSovereignty", () => {
     });
     expect(() => applyVietnamSovereignty(asMap(m), "vi")).not.toThrow();
     expect(warn).toHaveBeenCalledWith("[Map] sovereignty_error");
+  });
+
+  describe("East Sea naming (G3-R6)", () => {
+    const seaLayers = [
+      {
+        id: "water_name_point_label",
+        type: "symbol",
+        source: "openmaptiles",
+        "source-layer": "water_name",
+        filter: [
+          "match",
+          ["geometry-type"],
+          ["MultiPoint", "Point"],
+          true,
+          false,
+        ],
+        layout: {
+          "text-field": ["get", "name_en"],
+          "text-font": ["Noto Sans Italic"],
+        },
+      },
+      {
+        id: "label_city",
+        type: "symbol",
+        source: "openmaptiles",
+        "source-layer": "place",
+        layout: {
+          "text-field": ["get", "name"],
+          "text-font": ["Noto Sans Italic"],
+        },
+      },
+    ];
+
+    function seaLabel(locale: string): string {
+      const m = fakeMap(seaLayers);
+      applyVietnamSovereignty(asMap(m), locale);
+      const src = m.addSource.mock.calls.find(
+        (c) => c[0] === EAST_SEA_LAYER_ID,
+      );
+      const data = (
+        src?.[1] as { data: { features: { properties: { label: string } }[] } }
+      ).data;
+      return data.features[0].properties.label;
+    }
+
+    it("names the sea Biển Đông / East Sea / Biển Đông and never South China Sea", () => {
+      expect(seaLabel("vi")).toBe("Biển Đông");
+      expect(seaLabel("en")).toBe("East Sea");
+      expect(seaLabel("zh")).toBe("Biển Đông");
+      for (const name of Object.values(EAST_SEA_LABEL.name)) {
+        expect(name).not.toMatch(/South China Sea|南海/);
+      }
+    });
+
+    it("adds the sea label layer from zoom 3 near 12.5N 113.5E, outside the island areas", () => {
+      const m = fakeMap(seaLayers);
+      applyVietnamSovereignty(asMap(m), "en");
+      const layer = m.addLayer.mock.calls.find(
+        (c) => (c[0] as { id: string }).id === EAST_SEA_LAYER_ID,
+      )?.[0] as unknown as { type: string; minzoom: number };
+      expect(layer.type).toBe("symbol");
+      expect(layer.minzoom).toBe(3);
+      expect(EAST_SEA_LABEL.lat).toBe(12.5);
+      expect(EAST_SEA_LABEL.lng).toBe(113.5);
+    });
+
+    it("hides the base sea label whose name says South China Sea or 南海, only on water_name layers", () => {
+      const m = fakeMap(seaLayers);
+      applyVietnamSovereignty(asMap(m), "en");
+      const water = filterOf(m, "water_name_point_label");
+      expect(water).toContain("South China Sea");
+      expect(water).toContain("南海");
+      // Giữ filter cũ của layer.
+      expect(water).toContain('"geometry-type"');
+      // Địa danh trên đất liền không bị lọc theo tên biển.
+      expect(filterOf(m, "label_city")).not.toContain("South China Sea");
+    });
   });
 });
