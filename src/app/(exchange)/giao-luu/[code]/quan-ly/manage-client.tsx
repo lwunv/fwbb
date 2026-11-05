@@ -26,6 +26,7 @@ import { ResponsiveSheet } from "@/components/exchange/responsive-sheet";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { TabSegment } from "@/components/shared/tab-segment";
 import {
+  CHARGEABLE_STATUSES,
   CHECKIN_CLOSE_AFTER_DAYS,
   CHECKIN_OPEN_BEFORE_MIN,
   type ExchangeEventStatus,
@@ -308,7 +309,7 @@ export function ManageClient({ view }: { view: ManageView }) {
     regs.some(
       (r) =>
         r.feeAmount !== null &&
-        (r.status === "cancelled" || r.status === "late_cancelled"),
+        !(CHARGEABLE_STATUSES as readonly string[]).includes(r.status),
     );
   const filled = regs
     .filter((r) => r.status === "pending" || r.status === "approved")

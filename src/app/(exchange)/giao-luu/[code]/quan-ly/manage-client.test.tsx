@@ -245,6 +245,23 @@ describe("ManageClient", () => {
     expect(host.unlockExchangeFees).toHaveBeenCalledWith({ eventId: 7 });
   });
 
+  it("relock banner fires for cancelled and rejected but not late_cancelled", () => {
+    const banner = (status: string) => {
+      renderManage(
+        makeView({
+          event: makeEvent({ status: "locked" }),
+          regs: [makeReg({ id: 1, status, feeAmount: 80000 })],
+        }),
+      );
+      const shown = screen.queryByText("Cần mở khoá và chốt lại") !== null;
+      cleanup();
+      return shown;
+    };
+    expect(banner("cancelled")).toBe(true);
+    expect(banner("rejected")).toBe(true);
+    expect(banner("late_cancelled")).toBe(false);
+  });
+
   it("reserve-opened banner runs settleWaitlist", async () => {
     host.settleWaitlist.mockResolvedValue({
       success: true,
