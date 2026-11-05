@@ -1572,6 +1572,11 @@
     "pickOnMap": "Pick on map",
     "pickerTitle": "Pick the venue location",
     "pickerHint": "Drag the map until the pin sits on the venue.",
-    "useThisLocation": "Use this location"
+    "useThisLocation": "Use this location",
+    "mapGestureWindows": "Use Ctrl + scroll to zoom the map",
+    "mapGestureMac": "Use ⌘ + scroll to zoom the map",
+    "mapGestureMobile": "Use two fingers to move the map",
+    "mapAttributionToggle": "Toggle attribution",
+    "mapFeedback": "Map feedback"
   }
 }

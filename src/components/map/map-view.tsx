@@ -36,6 +36,12 @@ export type MapViewProps = {
   onMoveEnd?: (center: LatLng) => void;
   /** `false`: tắt mọi thao tác kéo/zoom (bản đồ nhỏ không cướp cuộn trang). */
   interactive?: boolean;
+  /**
+   * Điện thoại: một ngón cuộn trang, hai ngón mới kéo bản đồ. Chỉ bật cho
+   * bản đồ chiếm gần cả màn hình (danh bạ sân); bản đồ chọn vị trí và bản đồ
+   * nhỏ không cần.
+   */
+  cooperativeGestures?: boolean;
   className?: string;
   onUnsupported?: () => void;
 };
@@ -65,6 +71,18 @@ function hasWebGL2(): boolean {
   } catch {
     return false;
   }
+}
+
+type Translate = (key: string) => string;
+
+function mapUiStrings(t: Translate): Record<string, string> {
+  return {
+    "CooperativeGesturesHandler.WindowsHelpText": t("mapGestureWindows"),
+    "CooperativeGesturesHandler.MacHelpText": t("mapGestureMac"),
+    "CooperativeGesturesHandler.MobileHelpText": t("mapGestureMobile"),
+    "AttributionControl.ToggleAttribution": t("mapAttributionToggle"),
+    "AttributionControl.MapFeedback": t("mapFeedback"),
+  };
 }
 
 function radiusData(center: LatLng, km: number | undefined): FeatureCollection {
@@ -159,6 +177,7 @@ export function MapView({
   onPointClick,
   onMoveEnd,
   interactive = true,
+  cooperativeGestures = false,
   className,
   onUnsupported,
 }: MapViewProps) {
@@ -181,7 +200,9 @@ export function MapView({
     radiusKm,
     selectedId,
     interactive,
+    cooperativeGestures,
     locale,
+    t,
     onPointClick,
     onMoveEnd,
     onUnsupported,
@@ -193,7 +214,9 @@ export function MapView({
       radiusKm,
       selectedId,
       interactive,
+      cooperativeGestures,
       locale,
+      t,
       onPointClick,
       onMoveEnd,
       onUnsupported,
@@ -216,6 +239,9 @@ export function MapView({
         center: [init.center.lng, init.center.lat],
         zoom: zoomForRadiusKm(init.radiusKm ?? DEFAULT_RADIUS_KM),
         interactive: init.interactive,
+        cooperativeGestures: init.cooperativeGestures,
+        // Chuỗi giao diện mặc định của maplibre là tiếng Anh.
+        locale: mapUiStrings(init.t),
         attributionControl: { compact: true },
       });
     } catch {

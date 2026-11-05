@@ -13,10 +13,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import viMessages from "@/i18n/messages/vi.json";
 import type { MapViewProps } from "@/components/map/map-view";
 
-const { listVenuesNear, toastError, mobile } = vi.hoisted(() => ({
+const { listVenuesNear, toastError, mobile, mapProps } = vi.hoisted(() => ({
   listVenuesNear: vi.fn(),
   toastError: vi.fn(),
   mobile: { value: true },
+  mapProps: { last: null as null | { cooperativeGestures?: boolean } },
 }));
 
 vi.mock("@/actions/venues", () => ({ listVenuesNear }));
@@ -35,7 +36,13 @@ vi.mock("@/components/venues/use-user-location", () => ({
 // Bản đồ thật cần WebGL: thay bằng stub có nút giả lập thao tác.
 vi.mock("@/components/map/lazy-map-view", () => ({
   LazyMapView: (p: MapViewProps) => (
-    <div data-testid="map" data-center={`${p.center.lat},${p.center.lng}`}>
+    <div
+      data-testid="map"
+      ref={() => {
+        mapProps.last = p;
+      }}
+      data-center={`${p.center.lat},${p.center.lng}`}
+    >
       {p.points.map((pt) => (
         <button key={pt.id} onClick={() => p.onPointClick?.(pt)}>
           pin-{pt.id}
@@ -154,6 +161,17 @@ describe("VenueDirectory map mode", () => {
     fireEvent.click(screen.getByRole("button", { name: /vị trí của tôi/i }));
     await waitFor(() => expect(listVenuesNear).toHaveBeenCalledTimes(4));
     expect(listVenuesNear.mock.calls[3][0]).toMatchObject({ lat: 21.0 });
+  });
+
+  it("mobile map uses cooperative gestures, desktop map does not", async () => {
+    renderDir("?view=map");
+    await screen.findByTestId("map");
+    expect(mapProps.last?.cooperativeGestures).toBe(true);
+    cleanup();
+    mobile.value = false;
+    renderDir("?view=map");
+    await screen.findByTestId("map");
+    expect(mapProps.last?.cooperativeGestures).toBe(false);
   });
 
   it("tapping a pin on mobile opens a bottom sheet with that venue card", async () => {

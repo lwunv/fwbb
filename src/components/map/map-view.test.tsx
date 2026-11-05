@@ -265,6 +265,33 @@ describe("MapView", () => {
     expect(maps[0].options.interactive).toBe(false);
   });
 
+  it("cooperativeGestures is off by default and passes through when set", () => {
+    renderMap();
+    expect(maps[0].options.cooperativeGestures).toBeFalsy();
+    renderMap({ cooperativeGestures: true });
+    expect(maps[1].options.cooperativeGestures).toBe(true);
+  });
+
+  it("gives maplibre translated strings for gesture hints and attribution", () => {
+    renderMap({ cooperativeGestures: true });
+    const loc = maps[0].options.locale as Record<string, string>;
+    expect(loc["CooperativeGesturesHandler.MobileHelpText"]).toBe(
+      viMessages.venues.mapGestureMobile,
+    );
+    expect(loc["CooperativeGesturesHandler.WindowsHelpText"]).toBe(
+      viMessages.venues.mapGestureWindows,
+    );
+    expect(loc["CooperativeGesturesHandler.MacHelpText"]).toBe(
+      viMessages.venues.mapGestureMac,
+    );
+    expect(loc["AttributionControl.ToggleAttribution"]).toBe(
+      viMessages.venues.mapAttributionToggle,
+    );
+    expect(loc["AttributionControl.MapFeedback"]).toBe(
+      viMessages.venues.mapFeedback,
+    );
+  });
+
   it("a style or tile error is logged with a code and does not throw", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     renderMap();

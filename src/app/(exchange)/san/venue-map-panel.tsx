@@ -67,6 +67,7 @@ export function VenueMapPanel({
           selectedId={selectedId}
           onPointClick={(p) => onSelect(p.id)}
           onMoveEnd={onMoveEnd}
+          cooperativeGestures={isMobile}
           onUnsupported={onUnsupported}
         />
         <AnimatePresence>

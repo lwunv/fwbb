@@ -1572,6 +1572,11 @@
     "pickOnMap": "Chọn trên bản đồ",
     "pickerTitle": "Chọn vị trí sân",
     "pickerHint": "Kéo bản đồ cho ghim nằm đúng chỗ sân.",
-    "useThisLocation": "Dùng vị trí này"
+    "useThisLocation": "Dùng vị trí này",
+    "mapGestureWindows": "Dùng Ctrl + cuộn để thu phóng bản đồ",
+    "mapGestureMac": "Dùng ⌘ + cuộn để thu phóng bản đồ",
+    "mapGestureMobile": "Dùng hai ngón tay để di chuyển bản đồ",
+    "mapAttributionToggle": "Bật/tắt nguồn bản đồ",
+    "mapFeedback": "Góp ý về bản đồ"
   }
 }

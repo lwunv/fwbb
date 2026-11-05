@@ -1572,6 +1572,11 @@
     "pickOnMap": "在地图上选择",
     "pickerTitle": "选择场馆位置",
     "pickerHint": "拖动地图，让图钉对准场馆。",
-    "useThisLocation": "使用此位置"
+    "useThisLocation": "使用此位置",
+    "mapGestureWindows": "按住 Ctrl 并滚动来缩放地图",
+    "mapGestureMac": "按住 ⌘ 并滚动来缩放地图",
+    "mapGestureMobile": "用两根手指移动地图",
+    "mapAttributionToggle": "显示或隐藏地图来源",
+    "mapFeedback": "地图反馈"
   }
 }
