@@ -709,3 +709,23 @@ body.fwbb-tour-moving .driver-popover.fwbb-tour {
 .driver-popover.fwbb-tour .driver-popover-arrow {
   display: none;
 }
+
+/* Nút "i" nguồn bản đồ của maplibre mặc định 24px, nhỏ hơn mức chạm tối thiểu
+   44px. Phóng to nút và chừa chỗ tương ứng cho khung compact quanh nó. */
+.maplibregl-map .maplibregl-ctrl-attrib-button {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  border-radius: 1.375rem;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.maplibregl-map .maplibregl-ctrl-attrib.maplibregl-compact {
+  min-height: 2.5rem;
+  padding-right: 2.75rem;
+  border-radius: 1.375rem;
+}
+.maplibregl-map .maplibregl-ctrl-attrib.maplibregl-compact-show {
+  padding-left: 3rem;
+  padding-right: 0.75rem;
+  border-radius: 1.375rem;
+}

@@ -5,6 +5,7 @@ import { ChevronLeft, Navigation } from "lucide-react";
 import { getPublicVenue } from "@/actions/venues";
 import { directionsUrl } from "@/lib/maps-link";
 import { VenueCard } from "@/components/venues/venue-card";
+import { VenueMiniMap } from "@/components/venues/venue-mini-map";
 
 export default async function VenueDetailPage({
   params,
@@ -29,6 +30,7 @@ export default async function VenueDetailPage({
         {t("backToList")}
       </Link>
       <VenueCard venue={venue} locale={locale as "vi" | "en" | "zh"} />
+      <VenueMiniMap venue={venue} />
       {venue.photoLink && (
         <a
           href={venue.photoLink}
