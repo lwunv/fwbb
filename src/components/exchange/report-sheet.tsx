@@ -21,10 +21,13 @@ export function ReportSheet({
   open,
   onOpenChange,
   code,
+  registrationId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   code: string;
+  /** Host báo cáo một người đăng ký: bỏ lựa chọn buổi/host, gửi theo đăng ký. */
+  registrationId?: number;
 }) {
   const t = useTranslations("exchange.event");
   const tReason = useTranslations("notifications.reportReasons");
@@ -42,7 +45,10 @@ export function ReportSheet({
     fireAction(
       () =>
         reportAbuse({
-          target: { type: target, code },
+          target:
+            registrationId !== undefined
+              ? { type: "registration", registrationId }
+              : { type: target, code },
           reason,
           note: note.trim() || undefined,
           turnstileToken,
@@ -77,23 +83,25 @@ export function ReportSheet({
       onOpenChange={onOpenChange}
       title={t("reportTitle")}
     >
-      <fieldset className="space-y-2">
-        <legend className="text-base font-medium">{t("reportTarget")}</legend>
-        <div className="flex gap-2" role="radiogroup">
-          {(["event", "host"] as const).map((v) => (
-            <label key={v} className={radio(target === v)}>
-              <input
-                type="radio"
-                name="report-target"
-                className="sr-only"
-                checked={target === v}
-                onChange={() => setTarget(v)}
-              />
-              {t(v === "event" ? "targetEvent" : "targetHost")}
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      {registrationId === undefined && (
+        <fieldset className="space-y-2">
+          <legend className="text-base font-medium">{t("reportTarget")}</legend>
+          <div className="flex gap-2" role="radiogroup">
+            {(["event", "host"] as const).map((v) => (
+              <label key={v} className={radio(target === v)}>
+                <input
+                  type="radio"
+                  name="report-target"
+                  className="sr-only"
+                  checked={target === v}
+                  onChange={() => setTarget(v)}
+                />
+                {t(v === "event" ? "targetEvent" : "targetHost")}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
 
       <fieldset className="space-y-2">
         <legend className="text-base font-medium">{t("reportReason")}</legend>

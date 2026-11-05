@@ -668,7 +668,13 @@ export type ManageReg = {
 };
 
 export type ManageView = {
+  eventId: number;
   event: PublicExchangeEvent;
+  /** Cấu hình phí để xem trước chốt phí bằng `computeLockedFees` (cùng hàm với server). */
+  feeConfig: ExchangeFeeConfig;
+  /** Của chính host, chỉ để điền sẵn form sửa buổi. */
+  hostContact: string;
+  zaloGroupLink: string;
   regs: ManageReg[];
   blocks: { id: number; name: string }[];
   /** True only when the event has a female reserve and its release time has passed. */
@@ -798,6 +804,10 @@ export async function getManageView(code: string): Promise<ManageView | null> {
   });
 
   return {
+    eventId: ev.id,
+    feeConfig: feeConfig(ev),
+    hostContact: ev.hostContact ?? "",
+    zaloGroupLink: ev.zaloGroupLink ?? "",
     event: toPublicExchangeEvent({
       event: ev,
       venue: row.venue,
