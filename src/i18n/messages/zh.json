@@ -1873,6 +1873,7 @@
   },
   "venues": {
     "nav": "场馆目录",
+    "exchangeFilterUnavailable": "无法加载交流活动数量，筛选暂不可用。",
     "upcomingExchangeCount": "{count} 场即将举行的交流",
     "filterHasExchange": "有交流活动",
     "upcomingExchangesTitle": "即将举行的交流",

@@ -34,10 +34,13 @@ const SEARCH_HERE_RATIO = 0.3;
 export function VenueDirectory({
   canSuggest,
   exchangeEnabled = false,
+  loadExchangeCounts,
 }: {
   canSuggest: boolean;
   /** Cờ giao lưu, do server component đọc một lần; tắt thì không có truy vấn thêm. */
   exchangeEnabled?: boolean;
+  /** Server action đếm buổi theo sân, do page truyền xuống khi cờ bật; thiếu thì không có truy vấn. */
+  loadExchangeCounts?: (ids: number[]) => Promise<[number, number][]>;
 }) {
   const t = useTranslations("venues");
   const locale = useLocale() as "vi" | "en" | "zh";
@@ -110,16 +113,16 @@ export function VenueDirectory({
   // Số buổi theo sân đi qua một lời gọi riêng, không đụng listVenuesNear.
   const counts = useQuery({
     queryKey: ["venue-exchange-counts", venueIds],
-    queryFn: async () => {
-      // Nạp muộn: cờ tắt thì không kéo action giao lưu vào đường chạy của /san.
-      const { countUpcomingByVenue } = await import("@/actions/exchange-read");
-      return new Map(await countUpcomingByVenue(venueIds));
-    },
+    queryFn: async () => new Map(await loadExchangeCounts!(venueIds)),
     staleTime: 60_000,
-    enabled: exchangeEnabled && venueIds.length > 0,
+    enabled: exchangeEnabled && !!loadExchangeCounts && venueIds.length > 0,
+    // Giữ số cũ trong lúc tải lại khi đổi khu vực, khỏi nháy mất nhãn.
+    placeholderData: keepPreviousData,
   });
   const countMap = exchangeEnabled ? counts.data : undefined;
-  const filterOn = exchangeEnabled && hasExchange;
+  const countsFailed = counts.isError;
+  // Đếm lỗi thì bỏ lọc, hiện danh sách đầy đủ thay vì báo "không có sân".
+  const filterOn = exchangeEnabled && hasExchange && !countsFailed;
   const filterPending = filterOn && counts.isPending && venueIds.length > 0;
 
   const nextRadius = RADII.find((r) => r > radius);
@@ -284,6 +287,24 @@ export function VenueDirectory({
           })}
         </div>
       </section>
+
+      {exchangeEnabled && countsFailed && hasExchange && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-2 text-sm"
+        >
+          <span className="text-muted-foreground">
+            {t("exchangeFilterUnavailable")}
+          </span>
+          <button
+            type="button"
+            onClick={() => counts.refetch()}
+            className="text-primary min-h-11 shrink-0 font-medium"
+          >
+            {t("retry")}
+          </button>
+        </div>
+      )}
 
       {exchangeEnabled && (
         <div className="flex">

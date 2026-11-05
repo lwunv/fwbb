@@ -103,10 +103,11 @@ function renderDir(exchangeEnabled: boolean) {
       }
     >
       <NextIntlClientProvider locale="vi" messages={viMessages}>
-        <NuqsTestingAdapter>
+        <NuqsTestingAdapter hasMemory>
           <VenueDirectory
             canSuggest={false}
             exchangeEnabled={exchangeEnabled}
+            loadExchangeCounts={countUpcomingByVenue}
           />
         </NuqsTestingAdapter>
       </NextIntlClientProvider>
@@ -146,6 +147,46 @@ describe("venue directory exchange counts", () => {
     fireEvent.click(screen.getByRole("button", { name: "Đang có giao lưu" }));
     await waitFor(() => expect(screen.queryByText("Sân Hai")).toBeNull());
     expect(screen.getByText("Sân Một")).toBeTruthy();
+  });
+});
+
+describe("venue directory exchange counts resilience", () => {
+  it("counts error: keeps the unfiltered list, shows a status notice and retries", async () => {
+    countUpcomingByVenue.mockRejectedValue(new Error("boom"));
+    renderDir(true);
+    await screen.findByText("Sân Hai");
+    fireEvent.click(screen.getByRole("button", { name: "Đang có giao lưu" }));
+    const notice = await screen.findByRole("status");
+    expect(notice.textContent).toContain(
+      viMessages.venues.exchangeFilterUnavailable,
+    );
+    expect(screen.getByText("Sân Một")).toBeTruthy();
+    expect(screen.getByText("Sân Hai")).toBeTruthy();
+    expect(screen.queryByText(/Chưa có sân nào/)).toBeNull();
+    countUpcomingByVenue.mockResolvedValue([[1, 3]]);
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    await waitFor(() => expect(screen.queryByText("Sân Hai")).toBeNull());
+    expect(screen.getByText("Sân Một")).toBeTruthy();
+  });
+
+  it("changing the venue list keeps the previous counts visible until the new ones arrive", async () => {
+    renderDir(true);
+    await screen.findByText("3 giao lưu sắp tới");
+    let resolveNext!: (v: [number, number][]) => void;
+    countUpcomingByVenue.mockReturnValue(
+      new Promise((r) => {
+        resolveNext = r;
+      }),
+    );
+    listVenuesNear.mockResolvedValue({
+      venues: [venue(1, "Sân Một"), venue(2, "Sân Hai"), venue(3, "Sân Ba")],
+    });
+    fireEvent.click(screen.getByRole("button", { name: "10 km" }));
+    await screen.findByText("Sân Ba");
+    await waitFor(() => expect(countUpcomingByVenue).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("3 giao lưu sắp tới")).toBeTruthy();
+    resolveNext([[1, 4]]);
+    await screen.findByText("4 giao lưu sắp tới");
   });
 });
 

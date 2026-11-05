@@ -1873,6 +1873,7 @@
   },
   "venues": {
     "nav": "Danh bạ sân",
+    "exchangeFilterUnavailable": "Không tải được số buổi giao lưu, bộ lọc tạm thời không dùng được.",
     "upcomingExchangeCount": "{count} giao lưu sắp tới",
     "filterHasExchange": "Đang có giao lưu",
     "upcomingExchangesTitle": "Giao lưu sắp tới",

@@ -1873,6 +1873,7 @@
   },
   "venues": {
     "nav": "Venue directory",
+    "exchangeFilterUnavailable": "Could not load exchange counts, so the filter is unavailable for now.",
     "upcomingExchangeCount": "{count} upcoming exchanges",
     "filterHasExchange": "Has exchanges",
     "upcomingExchangesTitle": "Upcoming exchanges",
