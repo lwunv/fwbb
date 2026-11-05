@@ -78,7 +78,7 @@ export function RegistrationRow({
   const h = handlers;
   const money = (n: number) => formatVND(n);
   const hasDeposit = ctx.depositAmount > 0;
-  const received = reg.paid ? (reg.paidAmount ?? 0) : null;
+  const received = reg.paid ? reg.received : null;
   const hasFee = reg.feeAmount !== null;
   const showMoney = hasFee || reg.depositPaid || reg.paid || reg.refundDue > 0;
 

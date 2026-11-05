@@ -197,17 +197,14 @@ export async function registerForExchange(
 
         let regId: number;
         if (existing) {
-          // Dùng lại dòng đã huỷ. Giữ nguyên dấu vết cọc: tiền cọc host đang
-          // giữ không được mất theo một lần đăng ký lại.
+          // Dùng lại dòng đã huỷ. Giữ nguyên dấu vết tiền (cọc và đã trả, R23):
+          // tiền host đang giữ không được mất theo một lần đăng ký lại.
           await tx
             .update(exchangeRegistrations)
             .set({
               ...fields,
               feeAmount: null,
               feeWaived: false,
-              paid: false,
-              paidAmount: null,
-              paidAt: null,
               checkedIn: false,
               checkedInAt: null,
             })

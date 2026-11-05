@@ -16,7 +16,11 @@ import {
 } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import viMessages from "@/i18n/messages/vi.json";
-import { computeLockedFees, type ExchangeFeeConfig } from "@/lib/exchange-fee";
+import {
+  computeLockedFees,
+  registrationSettlement,
+  type ExchangeFeeConfig,
+} from "@/lib/exchange-fee";
 import { formatVND } from "@/lib/utils";
 import { makeEvent } from "../fixtures";
 import type { ManageReg, ManageView } from "@/actions/exchange-host";
@@ -68,7 +72,7 @@ const feeConfig: ExchangeFeeConfig = {
 };
 
 function makeReg(over: Partial<ManageReg> = {}): ManageReg {
-  return {
+  const row: Omit<ManageReg, "received"> = {
     id: 1,
     status: "approved",
     name: "Lan Anh",
@@ -93,6 +97,11 @@ function makeReg(over: Partial<ManageReg> = {}): ManageReg {
     checkedIn: false,
     createdAt: "2030-01-02T00:00:00.000Z",
     ...over,
+  };
+  // The server fills `received` from registrationSettlement; mirror that here.
+  return {
+    ...row,
+    received: over.received ?? registrationSettlement(row, 0).received,
   };
 }
 
@@ -228,6 +237,36 @@ describe("ManageClient", () => {
     expect(hasText(`Cần hoàn ${formatVND(20000)}`)).toBe(true);
     expect(hasText(`Chênh lệch: cần thu thêm ${formatVND(20000)}`)).toBe(true);
     expect(hasText(`Chênh lệch: cần hoàn ${formatVND(20000)}`)).toBe(true);
+  });
+
+  it("totals and the paid line read each row's received from the server, not a local formula", () => {
+    renderManage(
+      makeView({
+        event: makeEvent({ status: "locked", depositAmount: 30000 }),
+        regs: [
+          // Legacy paid row without paidAmount: the helper falls back to the fee.
+          makeReg({
+            id: 1,
+            name: "Trả cũ",
+            feeAmount: 80000,
+            paid: true,
+            paidAmount: null,
+            received: 80000,
+          }),
+          makeReg({
+            id: 2,
+            name: "Đã cọc",
+            feeAmount: 80000,
+            depositPaid: true,
+            remaining: 50000,
+            received: 30000,
+          }),
+        ],
+      }),
+    );
+    // Đã thu = 80K + 30K.
+    expect(hasText(formatVND(110000))).toBe(true);
+    expect(hasText(`Đã trả ${formatVND(80000)}`)).toBe(true);
   });
 
   it("cancelled-after-lock banner asks to unlock and relock", () => {

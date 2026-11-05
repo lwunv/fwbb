@@ -293,13 +293,12 @@ export function ManageClient({ view }: { view: ManageView }) {
     let outstanding = 0;
     let refund = 0;
     for (const r of regs) {
-      if (r.paid) collected += r.paidAmount ?? 0;
-      else if (r.depositPaid) collected += event.depositAmount;
+      collected += r.received;
       outstanding += r.remaining;
       refund += r.refundDue;
     }
     return { collected, outstanding, refund };
-  }, [regs, event.depositAmount]);
+  }, [regs]);
 
   const visible = regs.filter((r) => (TAB_OF[r.status] ?? "cancelled") === tab);
   const showReserve =

@@ -8,10 +8,56 @@ import {
 } from "@/db/schema";
 import type { DbOrTx, Tx } from "@/db/tx";
 
+type RegMoney = {
+  depositPaid: boolean;
+  depositPaidAt: string | null;
+  paid: boolean;
+  paidAmount: number | null;
+  paidAt: string | null;
+};
+
+/** Mốc sớm nhất trong hai (ISO UTC so được bằng chuỗi), bỏ qua null. */
+function earliest(a: string | null, b: string | null): string | null {
+  if (!a) return b;
+  if (!b) return a;
+  return a <= b ? a : b;
+}
+
+/**
+ * Gộp tiền của hai đăng ký cùng một buổi (R24). Tiền host đã nhận từ cả hai
+ * tài khoản phải còn trên dòng giữ lại, nếu không người đó mất quyền được hoàn.
+ */
+function mergeRegMoney(target: RegMoney, source: RegMoney): RegMoney {
+  const paidAmount =
+    target.paid && source.paid
+      ? (target.paidAmount ?? 0) + (source.paidAmount ?? 0)
+      : target.paid
+        ? target.paidAmount
+        : source.paid
+          ? source.paidAmount
+          : target.paidAmount;
+  return {
+    depositPaid: target.depositPaid || source.depositPaid,
+    depositPaidAt: earliest(target.depositPaidAt, source.depositPaidAt),
+    paid: target.paid || source.paid,
+    paidAmount,
+    paidAt: earliest(target.paidAt, source.paidAt),
+  };
+}
+
+const moneyCols = {
+  depositPaid: exchangeRegistrations.depositPaid,
+  depositPaidAt: exchangeRegistrations.depositPaidAt,
+  paid: exchangeRegistrations.paid,
+  paidAmount: exchangeRegistrations.paidAmount,
+  paidAt: exchangeRegistrations.paidAt,
+};
+
 /**
  * Dời mọi dòng giao lưu của member nguồn sang member đích khi gộp tài khoản.
- * Gọi trong tx của merge, TRƯỚC khi xoá nguồn (FK bật thật). Không đụng tiền:
- * chỉ 4 bảng giao lưu, không ghi sổ quỹ hay công nợ.
+ * Gọi trong tx của merge, TRƯỚC khi xoá nguồn (FK bật thật). Không đụng sổ
+ * quỹ hay công nợ: chỉ 4 bảng giao lưu. Tiền giao lưu (cọc, đã trả) đi theo
+ * dòng đăng ký và được cộng sang dòng giữ lại khi trùng.
  *
  * Mọi trường hợp trùng khoá unique đều giữ dòng của đích, xoá dòng của nguồn.
  */
@@ -20,11 +66,36 @@ export async function repointExchangeRows(
   sourceId: number,
   targetId: number,
 ): Promise<void> {
+  const now = new Date().toISOString();
+
   // Buổi do nguồn làm host.
-  await tx
+  const sourceHosted = await tx
     .update(exchangeEvents)
     .set({ hostMemberId: targetId })
-    .where(eq(exchangeEvents.hostMemberId, sourceId));
+    .where(eq(exchangeEvents.hostMemberId, sourceId))
+    .returning({ id: exchangeEvents.id });
+
+  // Host không tự đăng ký buổi của mình: đích đã đăng ký buổi nguồn làm host
+  // thì giữ dòng làm lịch sử nhưng huỷ (ngược với trường hợp bên dưới).
+  if (sourceHosted.length > 0) {
+    await tx
+      .update(exchangeRegistrations)
+      .set({
+        status: "cancelled",
+        cancelledAt: now,
+        updatedAt: now,
+        waitlistPos: null,
+      })
+      .where(
+        and(
+          eq(exchangeRegistrations.memberId, targetId),
+          inArray(
+            exchangeRegistrations.eventId,
+            sourceHosted.map((e) => e.id),
+          ),
+        ),
+      );
+  }
 
   // Đăng ký của nguồn.
   const sourceRegs = await tx
@@ -32,6 +103,7 @@ export async function repointExchangeRows(
       id: exchangeRegistrations.id,
       eventId: exchangeRegistrations.eventId,
       status: exchangeRegistrations.status,
+      ...moneyCols,
     })
     .from(exchangeRegistrations)
     .where(eq(exchangeRegistrations.memberId, sourceId));
@@ -39,7 +111,11 @@ export async function repointExchangeRows(
   if (sourceRegs.length > 0) {
     const eventIds = sourceRegs.map((r) => r.eventId);
     const targetRegs = await tx
-      .select({ eventId: exchangeRegistrations.eventId })
+      .select({
+        id: exchangeRegistrations.id,
+        eventId: exchangeRegistrations.eventId,
+        ...moneyCols,
+      })
       .from(exchangeRegistrations)
       .where(
         and(
@@ -47,7 +123,7 @@ export async function repointExchangeRows(
           inArray(exchangeRegistrations.eventId, eventIds),
         ),
       );
-    const targetRegEvents = new Set(targetRegs.map((r) => r.eventId));
+    const targetRegByEvent = new Map(targetRegs.map((r) => [r.eventId, r]));
     const events = await tx
       .select({
         id: exchangeEvents.id,
@@ -59,10 +135,15 @@ export async function repointExchangeRows(
     const targetHostedEvents = new Set(
       events.filter((e) => e.hostMemberId === targetId).map((e) => e.id),
     );
-    const now = new Date().toISOString();
-
     for (const reg of sourceRegs) {
-      if (targetRegEvents.has(reg.eventId)) {
+      const kept = targetRegByEvent.get(reg.eventId);
+      if (kept) {
+        // Chuyển tiền sang dòng giữ lại TRƯỚC khi xoá dòng nguồn.
+        const merged = mergeRegMoney(kept, reg);
+        await tx
+          .update(exchangeRegistrations)
+          .set({ ...merged, updatedAt: now })
+          .where(eq(exchangeRegistrations.id, kept.id));
         await tx
           .delete(exchangeRegistrations)
           .where(eq(exchangeRegistrations.id, reg.id));

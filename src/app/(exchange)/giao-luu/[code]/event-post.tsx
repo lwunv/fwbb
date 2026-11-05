@@ -219,14 +219,6 @@ export function EventPost({
         </p>
       );
     }
-    if (my.paid) {
-      return (
-        <p className="text-primary flex items-center gap-2 text-base font-semibold">
-          <Check className="h-5 w-5" aria-hidden />
-          {t("paidLine")}
-        </p>
-      );
-    }
     if (my.status === "pending" && event.depositAmount > 0 && !my.depositPaid) {
       return (
         <div className="space-y-3">
@@ -245,6 +237,16 @@ export function EventPost({
           </p>
           {qr(my.remaining)}
         </div>
+      );
+    }
+    // Chỉ "Đã trả" khi không còn thiếu: trả đủ phí cũ rồi phí chốt lại tăng
+    // thì vẫn phải hiện QR cho phần chênh ở trên.
+    if (my.paid) {
+      return (
+        <p className="text-primary flex items-center gap-2 text-base font-semibold">
+          <Check className="h-5 w-5" aria-hidden />
+          {t("paidLine")}
+        </p>
       );
     }
     return null;

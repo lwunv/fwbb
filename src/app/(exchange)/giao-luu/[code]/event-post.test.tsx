@@ -123,6 +123,41 @@ describe("EventPost", () => {
     ).toBeTruthy();
   });
 
+  it("paid less than a raised fee still shows the pay block for the remaining, not the paid line", () => {
+    renderPost({
+      viewer: makeViewer({
+        role: "member",
+        myRegistration: makeReg({ paid: true, remaining: 20000 }),
+        payout: {
+          bankBin: "970416",
+          accountNo: "123456789",
+          accountName: "NGUYEN VAN A",
+        },
+      }),
+    });
+    expect(screen.queryByText("Đã thanh toán")).toBeNull();
+    const qr = screen.getByRole("img", { name: "Mã QR chuyển khoản" });
+    expect(qr.getAttribute("src")).toBe(
+      getVietQRUrl({
+        bankBin: "970416",
+        accountNo: "123456789",
+        accountName: "NGUYEN VAN A",
+        amount: 20000,
+        memo: "GL ABCD1234 12",
+      }),
+    );
+  });
+
+  it("paid with nothing remaining shows the paid line", () => {
+    renderPost({
+      viewer: makeViewer({
+        role: "member",
+        myRegistration: makeReg({ paid: true, remaining: 0 }),
+      }),
+    });
+    expect(screen.getByText("Đã thanh toán")).toBeTruthy();
+  });
+
   it("no payout account falls back to paying the host directly", () => {
     renderPost({
       viewer: makeViewer({

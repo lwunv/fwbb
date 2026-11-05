@@ -212,10 +212,11 @@ export async function decideRegistration(input: unknown): Promise<Result> {
         updatedAt: nowIso,
       })
       .where(eq(exchangeRegistrations.id, reg.id));
-    // Chưa chốt phí (feeAmount null): cọc đã nhận phải hoàn đủ.
+    // Bị từ chối không còn bị tính phí (R22): mọi khoản đã nhận phải hoàn đủ.
     const { refundDue } = registrationSettlement(
-      { ...reg, feeAmount: null },
+      { ...reg, status: "rejected" },
       ev.depositAmount,
+      ev.status,
     );
     await notifyRegistrationDecision(
       tx,
@@ -444,7 +445,14 @@ export async function lockExchangeFees(
       const lockCount = ev.lockCount + 1;
       const amountOf = new Map(fees.map((x) => [x.id, x.amount]));
       const changes: {
-        reg: { id: number; memberId: number; depositPaid: boolean };
+        reg: {
+          id: number;
+          memberId: number;
+          status: string;
+          depositPaid: boolean;
+          paid: boolean;
+          paidAmount: number | null;
+        };
         amount: number;
         previousAmount: number | null;
       }[] = [];
@@ -462,6 +470,7 @@ export async function lockExchangeFees(
         const reg = {
           id: r.id,
           memberId: r.memberId,
+          status: r.status,
           depositPaid: r.depositPaid,
           paid: r.paid,
           paidAmount: r.paidAmount,
@@ -663,6 +672,8 @@ export type ManageReg = {
   paidAmount: number | null;
   refundDue: number;
   remaining: number;
+  /** Số host đang giữ, từ `registrationSettlement` (không tự cộng ở client). */
+  received: number;
   checkedIn: boolean;
   createdAt: string;
 };
@@ -765,7 +776,7 @@ export async function getManageView(code: string): Promise<ManageView | null> {
 
   const now = new Date();
   const regs: ManageReg[] = regRows.map((r) => {
-    const { remaining, refundDue } = registrationSettlement(
+    const { remaining, refundDue, received } = registrationSettlement(
       r.reg,
       ev.depositAmount,
       ev.status,
@@ -798,6 +809,7 @@ export async function getManageView(code: string): Promise<ManageView | null> {
       paidAmount: r.reg.paidAmount,
       refundDue,
       remaining,
+      received,
       checkedIn: r.reg.checkedIn,
       createdAt: r.reg.createdAt,
     };

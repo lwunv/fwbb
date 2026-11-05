@@ -253,6 +253,106 @@ describe("exchange rows through merge and delete", () => {
     expect(reg?.cancelledAt).toBeTruthy();
   });
 
+  it("merge conflict carries the source's exchange money onto the kept target row (R24)", async () => {
+    const source = await mk("Nguon");
+    const target = await mk("Dich");
+    const host = await mk("Host");
+    const setMoney = (
+      id: number,
+      v: Partial<typeof exchangeRegistrations.$inferInsert>,
+    ) =>
+      testDb
+        .update(exchangeRegistrations)
+        .set(v)
+        .where(eq(exchangeRegistrations.id, id));
+
+    // Both paid: amounts add up, earliest timestamps win.
+    const both = await mkEvent(host, "GGG");
+    const s1 = await mkReg(both, source, "approved");
+    const t1 = await mkReg(both, target, "approved");
+    await setMoney(s1, {
+      depositPaid: true,
+      depositPaidAt: "2026-11-01T00:00:00.000Z",
+      paid: true,
+      paidAmount: 50_000,
+      paidAt: "2026-11-03T00:00:00.000Z",
+    });
+    await setMoney(t1, {
+      paid: true,
+      paidAmount: 30_000,
+      paidAt: "2026-11-02T00:00:00.000Z",
+    });
+
+    // Only the source paid a deposit: the target row inherits it.
+    const depOnly = await mkEvent(host, "HHH");
+    const s2 = await mkReg(depOnly, source, "pending");
+    const t2 = await mkReg(depOnly, target, "pending");
+    await setMoney(s2, {
+      depositPaid: true,
+      depositPaidAt: "2026-11-04T00:00:00.000Z",
+    });
+
+    // Only the source paid in full.
+    const srcPaid = await mkEvent(host, "III");
+    const s3 = await mkReg(srcPaid, source, "approved");
+    const t3 = await mkReg(srcPaid, target, "approved");
+    await setMoney(s3, {
+      paid: true,
+      paidAmount: 80_000,
+      paidAt: "2026-11-04T00:00:00.000Z",
+    });
+
+    expect(await mergeMember(source, target)).toEqual({ success: true });
+
+    const row = async (id: number) =>
+      (
+        await testDb
+          .select()
+          .from(exchangeRegistrations)
+          .where(eq(exchangeRegistrations.id, id))
+      )[0];
+    for (const id of [s1, s2, s3]) expect(await row(id)).toBeUndefined();
+    expect(await row(t1)).toMatchObject({
+      memberId: target,
+      depositPaid: true,
+      depositPaidAt: "2026-11-01T00:00:00.000Z",
+      paid: true,
+      paidAmount: 80_000,
+      paidAt: "2026-11-02T00:00:00.000Z",
+    });
+    expect(await row(t2)).toMatchObject({
+      depositPaid: true,
+      depositPaidAt: "2026-11-04T00:00:00.000Z",
+      paid: false,
+      paidAmount: null,
+    });
+    expect(await row(t3)).toMatchObject({
+      paid: true,
+      paidAmount: 80_000,
+      paidAt: "2026-11-04T00:00:00.000Z",
+    });
+  });
+
+  it("merge cancels the target's registration to an event the source hosted", async () => {
+    const source = await mk("Nguon");
+    const target = await mk("Dich");
+    const ev = await mkEvent(source, "JJJ");
+    const regId = await mkReg(ev, target, "approved");
+
+    expect(await mergeMember(source, target)).toEqual({ success: true });
+
+    const reg = await testDb.query.exchangeRegistrations.findFirst({
+      where: eq(exchangeRegistrations.id, regId),
+    });
+    const event = await testDb.query.exchangeEvents.findFirst({
+      where: eq(exchangeEvents.id, ev),
+    });
+    expect(event?.hostMemberId).toBe(target);
+    expect(reg?.memberId).toBe(target);
+    expect(reg?.status).toBe("cancelled");
+    expect(reg?.cancelledAt).toBeTruthy();
+  });
+
   it("approve-as-merge of a pending exchange account with a registration succeeds", async () => {
     const target = await mk("Dich");
     const pending = await mk("Cho duyet", {

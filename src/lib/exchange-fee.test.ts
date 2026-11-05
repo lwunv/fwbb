@@ -5,6 +5,7 @@ import {
   depositSettlement,
   exchangeFeeEstimate,
   registrationFee,
+  registrationSettlement,
   type ExchangeFeeConfig,
 } from "./exchange-fee";
 import {
@@ -301,6 +302,82 @@ describe("depositSettlement", () => {
     expect(run(true, 80_000)).toEqual({ remaining: 30_000, refundDue: 0 });
     // Deposit never paid: full fee remains, nothing to refund.
     expect(run(false, 80_000)).toEqual({ remaining: 80_000, refundDue: 0 });
+  });
+});
+
+describe("registrationSettlement", () => {
+  const reg = (o: {
+    status: string;
+    depositPaid?: boolean;
+    feeAmount?: number | null;
+    paid?: boolean;
+    paidAmount?: number | null;
+  }) => ({
+    depositPaid: false,
+    feeAmount: null,
+    paid: false,
+    paidAmount: null,
+    ...o,
+  });
+
+  it("a non-chargeable status counts as no fee: cancelled or rejected after lock owe nothing and get back what they paid (R22)", () => {
+    // Locked at 80K, deposit 30K paid, then a plain cancel: nothing owed, deposit back.
+    expect(
+      registrationSettlement(
+        reg({ status: "cancelled", depositPaid: true, feeAmount: 80_000 }),
+        30_000,
+        "locked",
+      ),
+    ).toMatchObject({ remaining: 0, refundDue: 30_000, received: 30_000 });
+    // Paid 80K in full, then rejected after a reopen: the full 80K comes back.
+    expect(
+      registrationSettlement(
+        reg({
+          status: "rejected",
+          depositPaid: true,
+          feeAmount: 80_000,
+          paid: true,
+          paidAmount: 80_000,
+        }),
+        30_000,
+        "open",
+      ),
+    ).toMatchObject({ remaining: 0, refundDue: 80_000, received: 80_000 });
+    // Same row while approved still owes 50K over the deposit.
+    expect(
+      registrationSettlement(
+        reg({ status: "approved", depositPaid: true, feeAmount: 80_000 }),
+        30_000,
+        "locked",
+      ),
+    ).toMatchObject({ remaining: 50_000, refundDue: 0, received: 30_000 });
+    // Chargeable non-attendance keeps the fee.
+    for (const status of ["no_show", "late_cancelled"])
+      expect(
+        registrationSettlement(reg({ status, feeAmount: 80_000 }), 0, "locked"),
+      ).toMatchObject({ remaining: 80_000, refundDue: 0, received: 0 });
+  });
+
+  it("received is what the host holds: paidAmount when paid, else the deposit when paid, else 0", () => {
+    const r = (o: Parameters<typeof reg>[0]) =>
+      registrationSettlement(reg(o), 30_000, "locked").received;
+    expect(r({ status: "approved", feeAmount: 80_000 })).toBe(0);
+    expect(
+      r({ status: "approved", depositPaid: true, feeAmount: 80_000 }),
+    ).toBe(30_000);
+    expect(
+      r({
+        status: "approved",
+        depositPaid: true,
+        feeAmount: 80_000,
+        paid: true,
+        paidAmount: 75_000,
+      }),
+    ).toBe(75_000);
+    // Legacy paid row without paidAmount falls back to the locked fee.
+    expect(r({ status: "approved", feeAmount: 80_000, paid: true })).toBe(
+      80_000,
+    );
   });
 });
 

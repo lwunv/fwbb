@@ -202,12 +202,17 @@ export function depositSettlement(
  * Đối trừ đủ cho một đăng ký: nếu host đã đánh dấu đã trả thì `paidAmount` là
  * số tiền thật đã nhận (đã gồm cọc), nên nó thay cho tiền cọc. Chốt lại phí
  * thấp hơn hoặc bỏ người đó (feeAmount null) thì phần dư hiện ở `refundDue`.
- * Nguồn DUY NHẤT cho số còn phải trả / được hoàn của một đăng ký: thông báo,
- * màn host, màn thành viên và QR đều đi qua đây. `eventStatus = "cancelled"`
- * coi phí là null. Vẫn dùng `depositSettlement`, không có công thức thứ hai.
+ * Nguồn DUY NHẤT cho số còn phải trả / được hoàn / host đang giữ của một đăng
+ * ký: thông báo, màn host, màn thành viên và QR đều đi qua đây. Phí coi là null
+ * khi buổi đã huỷ (`eventStatus = "cancelled"`) hoặc đăng ký không còn ở trạng
+ * thái bị tính (`r.status` ngoài `CHARGEABLE_STATUSES`, vd huỷ thường hay bị từ
+ * chối sau khi chốt): `feeAmount` cũ vẫn nằm trên dòng làm mốc chốt lại nhưng
+ * người đó không còn nợ, chỉ được hoàn. Vẫn dùng `depositSettlement`, không có
+ * công thức thứ hai.
  */
 export function registrationSettlement(
   r: {
+    status: string;
     depositPaid: boolean;
     feeAmount: number | null;
     paid: boolean;
@@ -215,17 +220,19 @@ export function registrationSettlement(
   },
   depositAmount: number,
   eventStatus?: string,
-): { remaining: number; refundDue: number } {
-  // Buổi đã huỷ: không còn phí, mọi khoản đã nhận đều phải hoàn.
-  const feeAmount = eventStatus === "cancelled" ? null : r.feeAmount;
+): { remaining: number; refundDue: number; received: number } {
+  const feeAmount =
+    eventStatus === "cancelled" || !CHARGEABLE.has(r.status)
+      ? null
+      : r.feeAmount;
   // `paid` mà thiếu `paidAmount` (dữ liệu cũ): coi như đã trả đúng phí chốt.
-  if (r.paid)
-    return depositSettlement(
-      { depositPaid: true, feeAmount },
-      r.paidAmount ?? money(r.feeAmount),
-    );
-  return depositSettlement(
-    { depositPaid: r.depositPaid, feeAmount },
-    depositAmount,
-  );
+  const received = r.paid
+    ? money(r.paidAmount ?? money(r.feeAmount))
+    : r.depositPaid
+      ? money(depositAmount)
+      : 0;
+  return {
+    ...depositSettlement({ depositPaid: received > 0, feeAmount }, received),
+    received,
+  };
 }

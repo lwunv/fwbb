@@ -153,8 +153,8 @@ export async function notifyRegistrationCancelled(
  * Báo phí sau khi host chốt. `event.lockCount` là số lần chốt SAU lần này.
  * Lần đầu (1): mọi người bị tính phí nhận `exchange_fee_locked`. Chốt lại: chỉ
  * người đổi số tiền nhận `exchange_fee_changed` (`amount: 0` nếu không còn bị
- * tính). Cọc của từng người = `depositAmount` nếu `reg.depositPaid`, còn lại 0;
- * `remaining`/`refundDue` suy ra từ đó. `aboveEstimate` do caller tính theo cả buổi.
+ * tính). `deposit`, `remaining`, `refundDue` đều lấy từ `registrationSettlement`
+ * (`deposit` = số host đang giữ). `aboveEstimate` do caller tính theo cả buổi.
  */
 export async function notifyFeesLocked(
   tx: Tx,
@@ -168,6 +168,8 @@ export async function notifyFeesLocked(
       reg: {
         id: number;
         memberId: number;
+        /** Thiếu thì `amount` đã phản ánh việc có bị tính hay không. */
+        status?: string;
         depositPaid: boolean;
         paid?: boolean;
         paidAmount?: number | null;
@@ -186,10 +188,15 @@ export async function notifyFeesLocked(
   const dedupBase = `xfee:e${event.id}:n${event.lockCount}`;
   for (const c of input.changes) {
     if (!first && c.previousAmount === c.amount) continue;
-    const deposit = c.reg.depositPaid ? event.depositAmount : 0;
-    // Công thức đối trừ cọc chỉ có một nơi (exchange-fee.ts).
-    const { remaining, refundDue } = registrationSettlement(
+    // Công thức đối trừ cọc chỉ có một nơi (exchange-fee.ts). `deposit` là số
+    // host đang giữ (`received`), cùng nguồn với màn host.
+    const {
+      remaining,
+      refundDue,
+      received: deposit,
+    } = registrationSettlement(
       {
+        status: c.reg.status ?? "approved",
         depositPaid: c.reg.depositPaid,
         feeAmount: c.amount,
         paid: c.reg.paid ?? false,
