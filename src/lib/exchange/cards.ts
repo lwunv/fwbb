@@ -125,7 +125,7 @@ export async function attachGroups(rows: CandidateRow[]): Promise<Candidate[]> {
 export function toCard(
   c: Candidate,
   now: Date,
-  distanceM: number,
+  distanceM: number | null,
 ): ExchangeCard {
   const regs: RegLike[] = c.groups.map((g, i) => ({
     id: i,

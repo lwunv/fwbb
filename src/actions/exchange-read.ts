@@ -488,7 +488,7 @@ export async function listExchangesNear(q: {
   }
   cards.sort(
     (a, b) =>
-      a.distanceM - b.distanceM ||
+      (a.distanceM ?? 0) - (b.distanceM ?? 0) ||
       new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
   );
   return { events: cards.slice(0, LIST_LIMIT) };
@@ -529,7 +529,7 @@ export async function listUpcomingAtVenue(
   const rows = await getUpcomingAtVenueCached(venueId);
   return rows
     .filter((c) => new Date(c.startAt).getTime() >= now.getTime())
-    .map((c) => toCard(c, now, 0));
+    .map((c) => toCard(c, now, null));
 }
 
 const getCountsCached = unstable_cache(

@@ -135,6 +135,8 @@ describe("getMyExchanges", () => {
     ]);
     const first = r.registrations[0];
     expect(first.myStatus).toBe("approved");
+    // Không có vị trí người xem nên không có khoảng cách (không hiện "0,0 km").
+    expect(first.distanceM).toBeNull();
     expect(first.feeAmount).toBe(60_000);
     expect(first.paid).toBe(true);
     // Đã trả 80K cho phí chốt 60K: host phải hoàn 20K, không còn thiếu.

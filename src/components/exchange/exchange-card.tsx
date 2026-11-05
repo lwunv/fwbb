@@ -84,10 +84,14 @@ export function ExchangeCard({ event }: { event: ExchangeCardData }) {
   const filled = Math.max(0, slotsTotal - counts.freeTotal);
   const full = counts.freeTotal <= 0;
   const pct = slotsTotal > 0 ? Math.min(100, (filled / slotsTotal) * 100) : 0;
-  const km = (event.distanceM / 1000).toLocaleString(locale, {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  });
+  // Không biết vị trí người xem (Giao lưu của tôi, trang sân) thì ẩn nhãn, đừng hiện "0,0 km".
+  const km =
+    event.distanceM === null
+      ? null
+      : (event.distanceM / 1000).toLocaleString(locale, {
+          minimumFractionDigits: 1,
+          maximumFractionDigits: 1,
+        });
 
   return (
     <Link
@@ -112,7 +116,9 @@ export function ExchangeCard({ event }: { event: ExchangeCardData }) {
       <p className="text-muted-foreground flex items-center gap-1.5 text-base">
         <MapPin className="h-4 w-4 shrink-0" aria-hidden />
         <span className="min-w-0 truncate">{event.venue.name}</span>
-        <span className="shrink-0">{t("distance", { km })}</span>
+        {km !== null && (
+          <span className="shrink-0">{t("distance", { km })}</span>
+        )}
       </p>
 
       <div className="flex flex-wrap items-center gap-2">

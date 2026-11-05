@@ -119,7 +119,8 @@ export type ExchangeCard = Pick<
     areaLabel: string | null;
   };
   host: { name: string; avatarUrl: string | null; avatarKey: string | null };
-  distanceM: number;
+  /** Mét từ vị trí người xem; `null` khi không biết vị trí (không hiện khoảng cách). */
+  distanceM: number | null;
 };
 
 /** Đủ để đếm slot và tính phí; nhóm theo trạng thái cũng dùng được (1 dòng = 1 nhóm). */

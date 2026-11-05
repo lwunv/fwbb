@@ -98,7 +98,7 @@ export async function getMyExchanges(): Promise<
   const registrations = regRows.map((row, i): MyRegistration => {
     const s = registrationSettlement(row.reg, row.depositAmount, row.status);
     return {
-      ...toCard(regCandidates[i], now, 0),
+      ...toCard(regCandidates[i], now, null),
       myStatus: row.reg.status,
       feeAmount: row.reg.feeAmount ?? null,
       paid: row.reg.paid,
@@ -110,7 +110,7 @@ export async function getMyExchanges(): Promise<
 
   return {
     registrations,
-    hosting: hostCandidates.map((c) => toCard(c, now, 0)),
+    hosting: hostCandidates.map((c) => toCard(c, now, null)),
     blocks: blockRows,
   };
 }
