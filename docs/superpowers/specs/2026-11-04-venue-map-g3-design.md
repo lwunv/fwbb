@@ -40,10 +40,17 @@ Trang `/san` (G1, đã lên prod) chỉ có danh sách sân xếp theo khoảng 
 
 - Thư viện: `maplibre-gl` (ghim đúng phiên bản đã phát hành ≥ 2 tuần), dùng trực tiếp qua một component client nạp bằng `next/dynamic` `ssr: false`. Không thêm `react-map-gl` (một lớp phụ thuộc nữa không cần cho vài ghim).
 - Nền bản đồ: OpenFreeMap (`https://tiles.openfreemap.org/styles/liberty`), miễn phí, không key. Ghi công OSM/OpenFreeMap hiển thị đúng yêu cầu giấy phép. Theme tối: dùng style tối nếu OpenFreeMap có, không thì giữ liberty (người xây quyết sau khi xem thực tế).
-- Ghim: phần tử HTML (marker) theo màu theme qua CSS variables, vùng chạm ≥ 44px; nhiều sân trùng chỗ thì gom cụm bằng `cluster` của nguồn GeoJSON maplibre nếu > 30 điểm, không thì ghim thường.
+- Ghim: phần tử HTML (marker) theo màu theme qua CSS variables, vùng chạm ≥ 44px; luôn là ghim HTML, không gom cụm (xem G3-R2).
 - `next.config.ts` hiện chưa có CSP, nên tải tile từ openfreemap không bị chặn. Permissions-Policy geolocation đã là `(self)` từ G1.
 - Mobile-first: bản đồ cao `60dvh` trên mobile, bottom sheet framer-motion; từ `sm:` bản đồ + panel thẻ sân. Skeleton đúng kích thước khi đang tải thư viện.
 - Chuỗi vi/en/zh trong namespace `venues`.
+
+## Quyết định bổ sung trong lúc xây
+
+- G3-R2: không gom cụm. Luôn dùng ghim HTML (tối đa 50 sân theo giới hạn server), để ghim vẫn hiện và bấm được bằng bàn phím khi nền bản đồ không tải được.
+- G3-R4: chỉ bản đồ danh bạ trên mobile bật cooperative gestures (một ngón cuộn trang, hai ngón kéo bản đồ). Bản đồ chọn vị trí và bản đồ nhỏ không bật.
+- G3-R5: không ghi console. Lỗi style hoặc tile hiện thành thông báo trên bản đồ, ghim vẫn hiện.
+- G3-R6: tên biển là Biển Đông (vi), East Sea (en), Biển Đông (zh). Không bao giờ hiện South China Sea hay 南海.
 
 ## Nhánh và thứ tự merge
 
