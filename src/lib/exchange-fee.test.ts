@@ -165,6 +165,23 @@ describe("exchangeFeeEstimate", () => {
     expect(computeExchangeFees(c, { male: 3, female: 0 }).male).toBe(150_000);
   });
 
+  it("split_female_discount fixed female estimate: fixed amount capped at the equal share", () => {
+    const c = cfg({
+      feeMode: "split_female_discount",
+      estimatedTotalCost: 600_000,
+      minHeads: 5,
+      hostHeads: 1,
+      feeAmountFemale: 50_000,
+    });
+    // 600K / (5 men + host) = 100K for men; women pay their fixed 50K.
+    expect(exchangeFeeEstimate(c)).toEqual({ male: 100_000, female: 50_000 });
+    // 150K is above the 100K equal share, so women are capped at 100K.
+    expect(exchangeFeeEstimate({ ...c, feeAmountFemale: 150_000 })).toEqual({
+      male: 100_000,
+      female: 100_000,
+    });
+  });
+
   it("fixed modes estimate to the fixed numbers themselves", () => {
     expect(
       exchangeFeeEstimate(cfg({ feeMode: "fixed", feeAmountMale: 80_000 })),

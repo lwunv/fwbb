@@ -113,10 +113,24 @@ export function computeExchangeFees(
  * cao hơn (quyết định 32).
  */
 export function exchangeFeeEstimate(cfg: ExchangeFeeConfig): HeadRates {
-  return computeExchangeFees(cfg, {
+  const est = computeExchangeFees(cfg, {
     male: headCount(cfg.minHeads),
     female: 0,
   });
+  // Estimate runs with 0 women, and the engine drops a 0-head group into the
+  // shared equal pool, which would ignore a fixed female amount. Apply the
+  // same rule here: fixed, capped at the equal share (mirrors splitRates).
+  if (
+    cfg.feeMode === "split_female_discount" &&
+    (cfg.feeFemalePercent === null || cfg.feeFemalePercent === undefined) &&
+    cfg.feeAmountFemale !== null
+  ) {
+    return {
+      male: est.male,
+      female: Math.min(money(cfg.feeAmountFemale), est.male),
+    };
+  }
+  return est;
 }
 
 export function registrationFee(
