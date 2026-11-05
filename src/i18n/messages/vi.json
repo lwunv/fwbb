@@ -1360,6 +1360,7 @@
     "refFund": "{count} dòng quỹ",
     "refLedger": "{count} giao dịch",
     "refAdminLink": "liên kết admin",
+    "refExchange": "{count} buổi giao lưu",
     "invalidPassRevenue": "Số tiền pass sân không hợp lệ",
     "cannotCancelCompleted": "Không thể hủy buổi đã hoàn thành",
     "onlyCancelledCanReopen": "Chỉ buổi đã hủy mới mở lại được",
@@ -1580,7 +1581,7 @@
     "searchThisArea": "Tìm ở khu vực này",
     "selectedArea": "Khu vực đã chọn",
     "attribution": "Toạ độ địa chỉ: © OpenStreetMap contributors",
-    "saveFailed": "Không lưu được. Kiểm tra kết nối mạng rồi thử lại.",
+    "saveFailed": "Không lưu được. Kiểm tra kết nối mạng rồi thử lại.",
     "pickOnMap": "Chọn trên bản đồ",
     "pickerTitle": "Chọn vị trí sân",
     "pickerHint": "Kéo bản đồ cho ghim nằm đúng chỗ sân.",

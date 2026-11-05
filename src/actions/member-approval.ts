@@ -18,6 +18,7 @@ import {
   notifyMemberAccount,
   repointNotifications,
 } from "@/lib/notifications/account-events";
+import { repointExchangeRows } from "@/lib/exchange/member-rows";
 
 /** Helper: normalize Vietnamese name for fuzzy matching (lowercase + strip
  *  diacritics + collapse whitespace). Đủ cho UX gợi ý, không phải search engine. */
@@ -514,6 +515,7 @@ export async function approveAndMergeMember(
     // gate khỏi vote, nên hard delete OK.
     // Tin đã gửi cho tài khoản chờ duyệt chuyển sang target trước khi xoá nó.
     await repointNotifications(tx, pendingMemberId, targetMemberId);
+    await repointExchangeRows(tx, pendingMemberId, targetMemberId);
     await tx.delete(members).where(eq(members.id, pendingMemberId));
 
     await notifyMemberAccount(tx, {

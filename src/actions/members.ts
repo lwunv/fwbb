@@ -46,6 +46,10 @@ import {
   repointNotifications,
 } from "@/lib/notifications/account-events";
 import {
+  countExchangeRefs,
+  repointExchangeRows,
+} from "@/lib/exchange/member-rows";
+import {
   generateResetToken,
   inviteTokenExpiryIso,
 } from "@/lib/password-reset-token";
@@ -744,6 +748,8 @@ export async function deleteMember(id: number) {
     .from(admins)
     .where(eq(admins.memberId, id));
 
+  const exchangeCount = await countExchangeRefs(db, id);
+
   const refs: string[] = [];
   if (Number(voteCount) > 0)
     refs.push(t("refVote", { count: Number(voteCount) }));
@@ -754,6 +760,7 @@ export async function deleteMember(id: number) {
   if (Number(ledgerCount) > 0)
     refs.push(t("refLedger", { count: Number(ledgerCount) }));
   if (Number(adminCount) > 0) refs.push(t("refAdminLink"));
+  if (exchangeCount > 0) refs.push(t("refExchange", { count: exchangeCount }));
 
   if (refs.length > 0) {
     return {
@@ -1204,6 +1211,9 @@ export async function mergeMember(sourceId: number, targetId: number) {
 
     // 6c. Tin thông báo của source chuyển sang target.
     await repointNotifications(tx, sourceId, targetId);
+
+    // 6d. Dòng giao lưu (buổi host, đăng ký, chặn, báo cáo) sang target.
+    await repointExchangeRows(tx, sourceId, targetId);
 
     // 7. Xóa member nguồn.
     await tx.delete(members).where(eq(members.id, sourceId));

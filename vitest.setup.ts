@@ -17,6 +17,9 @@
 
 import { vi } from "vitest";
 
+// `server-only` do Next cấp lúc build, không có trong node_modules.
+vi.mock("server-only", () => ({}));
+
 if (
   !process.env.USER_COOKIE_SECRET ||
   process.env.USER_COOKIE_SECRET.length < 16

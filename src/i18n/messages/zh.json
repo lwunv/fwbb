@@ -1360,6 +1360,7 @@
     "refFund": "{count} 行基金",
     "refLedger": "{count} 个交易",
     "refAdminLink": "管理员关联",
+    "refExchange": "{count} 条交流记录",
     "invalidPassRevenue": "转租场地收入金额无效",
     "cannotCancelCompleted": "无法取消已完成的活动",
     "onlyCancelledCanReopen": "只有已取消的活动才能重新开启",
@@ -1580,7 +1581,7 @@
     "searchThisArea": "搜索此区域",
     "selectedArea": "已选区域",
     "attribution": "地址坐标：© OpenStreetMap contributors",
-    "saveFailed": "保存失败。请检查网络连接后重试。",
+    "saveFailed": "保存失败。请检查网络连接后重试。",
     "pickOnMap": "在地图上选择",
     "pickerTitle": "选择场馆位置",
     "pickerHint": "拖动地图，让图钉对准场馆。",
