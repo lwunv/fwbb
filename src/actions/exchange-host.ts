@@ -368,6 +368,7 @@ export type ManageView = {
   event: PublicExchangeEvent;
   regs: ManageReg[];
   blocks: { id: number; name: string }[];
+  /** True only when the event has a female reserve and its release time has passed. */
   reserveOpened: boolean;
 };
 
@@ -512,8 +513,8 @@ export async function getManageView(code: string): Promise<ManageView | null> {
     regs,
     blocks: blockRows,
     reserveOpened:
-      ev.femaleReservedSlots === 0 ||
-      (ev.reserveReleaseAt !== null &&
-        new Date(ev.reserveReleaseAt).getTime() <= now.getTime()),
+      ev.femaleReservedSlots > 0 &&
+      ev.reserveReleaseAt !== null &&
+      new Date(ev.reserveReleaseAt).getTime() <= now.getTime(),
   };
 }

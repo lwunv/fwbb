@@ -460,4 +460,77 @@ describe("host actions", () => {
     expect(await testDb.select().from(hostBlocks)).toHaveLength(1);
     expect((await reg(r.id)).status).toBe("approved");
   });
+  it("reserveOpened is false without a reserve and true only after it is released", async () => {
+    const none = await mkEvent();
+    expect((await getManageView(none.publicCode))!.reserveOpened).toBe(false);
+    const noneReleased = await mkEvent({ reserveReleaseAt: iso(-3_600_000) });
+    expect((await getManageView(noneReleased.publicCode))!.reserveOpened).toBe(
+      false,
+    );
+    const pending = await mkEvent({
+      femaleReservedSlots: 1,
+      reserveReleaseAt: iso(DAY),
+    });
+    expect((await getManageView(pending.publicCode))!.reserveOpened).toBe(
+      false,
+    );
+    const open = await mkEvent({
+      femaleReservedSlots: 1,
+      reserveReleaseAt: iso(-3_600_000),
+    });
+    expect((await getManageView(open.publicCode))!.reserveOpened).toBe(true);
+  });
+
+  it("ignores an actor or hostMemberId field in the input", async () => {
+    const ev = await mkEvent({ slotsTotal: 2 });
+    const m = await newMember();
+    const r = await addReg(ev.id, m.id, "pending");
+    const other = await newMember();
+    as(other);
+    const spoof = { actor: host.id, hostMemberId: host.id, memberId: host.id };
+    expect(
+      await decideRegistration({
+        registrationId: r.id,
+        decision: "reject",
+        ...spoof,
+      }),
+    ).toHaveProperty("error");
+    expect(
+      await increaseSlots({ eventId: ev.id, slotsTotal: 5, ...spoof }),
+    ).toHaveProperty("error");
+    expect((await reg(r.id)).status).toBe("pending");
+    expect((await evOf(ev.id)).slotsTotal).toBe(2);
+    expect(mocks.updateTag).not.toHaveBeenCalled();
+  });
+
+  it("a host cannot act on a registration of another host's event", async () => {
+    const mine = await mkEvent({ depositAmount: 20000 });
+    const theirs = await mkEvent({
+      hostMemberId: host2.id,
+      depositAmount: 20000,
+    });
+    const m = await newMember();
+    const r = await addReg(theirs.id, m.id, "pending");
+    as(host);
+    expect(
+      await decideRegistration({ registrationId: r.id, decision: "reject" }),
+    ).toHaveProperty("error");
+    expect(
+      await setDepositReceived({ registrationId: r.id, received: true }),
+    ).toHaveProperty("error");
+    expect(await blockRegistrant({ registrationId: r.id })).toHaveProperty(
+      "error",
+    );
+    expect(
+      await increaseSlots({ eventId: theirs.id, slotsTotal: 9 }),
+    ).toHaveProperty("error");
+    const row = await reg(r.id);
+    expect(row.status).toBe("pending");
+    expect(row.depositPaid).toBe(false);
+    expect((await evOf(theirs.id)).slotsTotal).toBe(4);
+    expect(await testDb.select().from(hostBlocks)).toHaveLength(0);
+    expect(await testDb.select().from(notifications)).toHaveLength(0);
+    expect(mocks.updateTag).not.toHaveBeenCalled();
+    void mine;
+  });
 });
