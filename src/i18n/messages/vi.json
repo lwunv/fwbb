@@ -1001,7 +1001,18 @@
     "joinGroup": "Xin vào nhóm",
     "joinGroupSent": "Đã gửi, chờ admin duyệt",
     "logout": "Đăng xuất",
-    "loggedOut": "Đã đăng xuất"
+    "loggedOut": "Đã đăng xuất",
+    "errors": {
+      "notFound": "Trang này không tồn tại.",
+      "notAllowed": "Bạn không có quyền thực hiện thao tác này.",
+      "captcha": "Kiểm tra bảo mật không đạt. Vui lòng thử lại.",
+      "rateLimited": "Bạn thao tác quá nhiều lần. Thử lại sau {seconds} giây.",
+      "config": "Hệ thống chưa được cấu hình đúng. Vui lòng thử lại sau.",
+      "eventClosed": "Buổi giao lưu này không còn mở.",
+      "deadlinePassed": "Đã quá hạn cho thao tác này.",
+      "cannotRegister": "Bạn không thể đăng ký buổi này.",
+      "newAccountLimit": "Tài khoản mới chỉ được chờ tối đa {max} buổi cùng lúc. Hãy check-in một buổi để bỏ giới hạn này."
+    }
   },
   "exchangeLogin": {
     "title": "Đăng nhập để giao lưu",

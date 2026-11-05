@@ -1001,7 +1001,18 @@
     "joinGroup": "Request to join the group",
     "joinGroupSent": "Sent, waiting for admin approval",
     "logout": "Log out",
-    "loggedOut": "Logged out"
+    "loggedOut": "Logged out",
+    "errors": {
+      "notFound": "This page is not available.",
+      "notAllowed": "You are not allowed to do this.",
+      "captcha": "Security check failed. Please try again.",
+      "rateLimited": "Too many attempts. Try again in {seconds} seconds.",
+      "config": "The system is not set up correctly. Please try again later.",
+      "eventClosed": "This game is no longer open.",
+      "deadlinePassed": "The deadline for this has passed.",
+      "cannotRegister": "You cannot register for this game.",
+      "newAccountLimit": "New accounts can wait on at most {max} games at once. Check in at a game to lift this limit."
+    }
   },
   "exchangeLogin": {
     "title": "Log in to join in",

@@ -1001,7 +1001,18 @@
     "joinGroup": "申请加入群组",
     "joinGroupSent": "已提交，等待管理员审核",
     "logout": "退出登录",
-    "loggedOut": "已退出登录"
+    "loggedOut": "已退出登录",
+    "errors": {
+      "notFound": "此页面不存在。",
+      "notAllowed": "你没有权限执行此操作。",
+      "captcha": "安全验证未通过，请重试。",
+      "rateLimited": "操作过于频繁，请 {seconds} 秒后再试。",
+      "config": "系统配置不正确，请稍后再试。",
+      "eventClosed": "这场交流赛已不再开放。",
+      "deadlinePassed": "此操作已过截止时间。",
+      "cannotRegister": "你无法报名这场交流赛。",
+      "newAccountLimit": "新账号最多同时等待 {max} 场。在一场比赛中签到后即可解除此限制。"
+    }
   },
   "exchangeLogin": {
     "title": "登录后参加交流",
