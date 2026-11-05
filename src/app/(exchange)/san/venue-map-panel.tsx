@@ -78,7 +78,7 @@ export function VenueMapPanel({
           onUnsupported={onUnsupported}
         />
         <AnimatePresence>
-          {showSearchHere && (
+          {showSearchHere && !loading && (
             <motion.button
               key="search-here"
               type="button"
@@ -99,7 +99,7 @@ export function VenueMapPanel({
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
-              className="bg-card/80 absolute top-3 left-1/2 z-10 inline-flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-full border px-5 text-base font-medium shadow-lg backdrop-blur"
+              className="bg-card/80 pointer-events-none absolute top-3 left-1/2 z-10 inline-flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-full border px-5 text-base font-medium shadow-lg backdrop-blur"
             >
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
               {t("loadingVenues")}

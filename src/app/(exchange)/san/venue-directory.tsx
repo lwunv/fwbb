@@ -33,7 +33,7 @@ const SEARCH_HERE_RATIO = 0.3;
 export function VenueDirectory({ canSuggest }: { canSuggest: boolean }) {
   const t = useTranslations("venues");
   const locale = useLocale() as "vi" | "en" | "zh";
-  const [radius, setRadius] = useQueryState(
+  const [radius, setRadiusQuery] = useQueryState(
     "r",
     parseAsNumberLiteral(RADII).withDefault(5),
   );
@@ -47,6 +47,12 @@ export function VenueDirectory({ canSuggest }: { canSuggest: boolean }) {
   );
   const [searchCenter, setSearchCenter] = useState<LatLng | null>(null);
   const [mapCenter, setMapCenter] = useState<LatLng | null>(null);
+  // Đổi bán kính làm bản đồ về lại tâm tìm kiếm; vị trí kéo cũ không còn đúng
+  // với vùng đang thấy nên "Tìm ở khu vực này" phải ẩn.
+  const setRadius = (r: (typeof RADII)[number]) => {
+    setMapCenter(null);
+    return setRadiusQuery(r);
+  };
   const [selectedId, setSelectedId] = useState<number | null>(null);
   // Máy không dựng được bản đồ: khoá nút "Bản đồ" thay vì báo toast lặp lại.
   const [mapUnsupported, setMapUnsupported] = useState(false);

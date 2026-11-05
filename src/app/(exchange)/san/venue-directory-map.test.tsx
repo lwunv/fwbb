@@ -176,6 +176,19 @@ describe("VenueDirectory map mode", () => {
     expect(listVenuesNear.mock.calls[3][0]).toMatchObject({ lat: 21.0 });
   });
 
+  it("changing the radius clears a stale search-this-area button", async () => {
+    renderDir("?view=map");
+    await screen.findByTestId("map");
+    fireEvent.click(screen.getByRole("button", { name: "move-far" }));
+    await screen.findByRole("button", { name: "Tìm ở khu vực này" });
+    fireEvent.click(screen.getByRole("button", { name: "10 km" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Tìm ở khu vực này" }),
+      ).toBeNull(),
+    );
+  });
+
   it("mobile map uses cooperative gestures, desktop map does not", async () => {
     renderDir("?view=map");
     await screen.findByTestId("map");

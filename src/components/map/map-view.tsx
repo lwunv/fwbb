@@ -30,6 +30,8 @@ export type MapViewProps = {
   points: MapPoint[];
   center: LatLng;
   radiusKm?: number;
+  /** Zoom lúc tạo map; bỏ trống thì suy ra từ `radiusKm`. */
+  zoom?: number;
   userPosition?: LatLng | null;
   selectedId?: number | null;
   onPointClick?: (p: MapPoint) => void;
@@ -166,6 +168,7 @@ export function MapView({
   points,
   center,
   radiusKm,
+  zoom,
   userPosition = null,
   selectedId = null,
   onPointClick,
@@ -193,6 +196,7 @@ export function MapView({
     points,
     center,
     radiusKm,
+    zoom,
     selectedId,
     interactive,
     cooperativeGestures,
@@ -207,6 +211,7 @@ export function MapView({
       points,
       center,
       radiusKm,
+      zoom,
       selectedId,
       interactive,
       cooperativeGestures,
@@ -241,7 +246,7 @@ export function MapView({
         container,
         style: MAP_STYLE_URL,
         center: [init.center.lng, init.center.lat],
-        zoom: zoomForRadiusKm(init.radiusKm ?? DEFAULT_RADIUS_KM),
+        zoom: init.zoom ?? zoomForRadiusKm(init.radiusKm ?? DEFAULT_RADIUS_KM),
         interactive: init.interactive,
         cooperativeGestures: init.cooperativeGestures,
         // Chuỗi giao diện mặc định của maplibre là tiếng Anh.
@@ -413,7 +418,7 @@ export function MapView({
       {styleFailed && (
         <div
           role="status"
-          className="bg-card/80 pointer-events-none absolute inset-x-3 top-3 z-10 flex items-center gap-2 rounded-xl border p-3 text-sm backdrop-blur"
+          className="bg-card/80 pointer-events-none absolute inset-x-3 top-16 z-10 flex items-center gap-2 rounded-xl border p-3 text-sm backdrop-blur"
         >
           <MapPinOff
             className="text-muted-foreground size-5 shrink-0"

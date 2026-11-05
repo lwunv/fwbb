@@ -278,6 +278,19 @@ describe("MapView", () => {
     expect(maps[1].options.cooperativeGestures).toBe(true);
   });
 
+  it("uses the zoom prop at creation, else the zoom for the radius", () => {
+    renderMap({ zoom: 16 });
+    expect(maps[0].options.zoom).toBe(16);
+    renderMap({ radiusKm: 5 });
+    expect(maps[1].options.zoom).toBe(12);
+  });
+
+  it("puts the tiles notice below the top pills", () => {
+    renderMap();
+    act(() => maps[0].fire("error", { error: new Error("x") }));
+    expect(screen.getByRole("status").className).toContain("top-16");
+  });
+
   it("applies a cooperativeGestures change after the map was created", () => {
     const { rerenderWith } = renderMap({ cooperativeGestures: false });
     const cg = maps[0].cooperativeGestures;

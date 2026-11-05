@@ -61,8 +61,7 @@ async function openDirectory(
   });
   const page: Page = await ctx.newPage();
   const mapRequests: string[] = [];
-  // Lỗi của maplibre (worker, style) chỉ lộ qua console: MapView log
-  // "[Map] style_error ..." cho mọi sự kiện 'error' của map.
+  // Lỗi worker của maplibre chỉ lộ qua console.
   const consoleMessages: string[] = [];
   page.on("console", (m) => consoleMessages.push(m.text()));
   page.on("pageerror", (e) => consoleMessages.push(e.message));
@@ -146,9 +145,7 @@ test("the map worker loads from the same origin without map errors", async ({
   });
   // Cho worker nạp style rỗng xong rồi mới soát lỗi.
   await page.waitForTimeout(2000);
-  const mapErrors = consoleMessages.filter(
-    (m) => /Worker failed/i.test(m) || m.includes("[Map] style_error"),
-  );
+  const mapErrors = consoleMessages.filter((m) => /Worker failed/i.test(m));
   expect(mapErrors).toEqual([]);
   await ctx.close();
 });

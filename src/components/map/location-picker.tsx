@@ -33,6 +33,8 @@ type LocationPickerProps = {
   onPick: (p: LatLng) => void;
 };
 
+const PICKER_PRECISE_ZOOM = 16;
+
 /**
  * Chọn vị trí sân trên bản đồ: ghim cố định giữa khung, người dùng kéo bản
  * đồ, "Dùng vị trí này" trả về tâm hiện tại. Bottom sheet trên mobile, hộp
@@ -99,6 +101,9 @@ function PickerBody({
           <LazyMapView
             center={start}
             points={[]}
+            // Có toạ độ sẵn thì người dùng đang chỉnh vị trí chính xác: mở sát
+            // mặt đường. Chưa có thì giữ zoom mặc định để tìm khu vực.
+            zoom={initial ? PICKER_PRECISE_ZOOM : undefined}
             onMoveEnd={setCenter}
             onUnsupported={() => setUnsupported(true)}
             className="h-[50dvh] sm:h-96"

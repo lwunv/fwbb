@@ -83,11 +83,19 @@ describe("VenueForm map picker", () => {
     expect(captured.props?.center).toEqual({ lat: 21.03, lng: 105.85 });
   });
 
+  it("zooms in to street level when the form already has coordinates", async () => {
+    renderForm({ name: "Sân B", lat: 21.03, lng: 105.85 });
+    fireEvent.click(screen.getByRole("button", { name: "Chọn trên bản đồ" }));
+    await screen.findByTestId("lazy-map");
+    expect(captured.props?.zoom).toBe(16);
+  });
+
   it("with no coordinates the map starts at Hanoi", async () => {
     renderForm();
     fireEvent.click(screen.getByRole("button", { name: "Chọn trên bản đồ" }));
     await screen.findByTestId("lazy-map");
     expect(captured.props?.center).toEqual({ lat: 21.0285, lng: 105.8542 });
+    expect(captured.props?.zoom).toBeUndefined();
   });
 
   it("cancel leaves the form unchanged", async () => {
