@@ -1019,7 +1019,10 @@
       "startTooSoon": "Buổi phải bắt đầu sau ít nhất 30 phút nữa.",
       "startTooFar": "Buổi chỉ được mở trước tối đa 60 ngày.",
       "startInvalid": "Ngày giờ bắt đầu không hợp lệ.",
-      "saveFailed": "Chưa lưu được buổi giao lưu. Vui lòng thử lại."
+      "saveFailed": "Chưa lưu được buổi giao lưu. Vui lòng thử lại.",
+      "depositRequired": "Cần xác nhận đã nhận cọc trước khi duyệt.",
+      "cannotDecide": "Đăng ký này không còn xử lý được ở trạng thái hiện tại.",
+      "invalidSlots": "Số slot mới phải lớn hơn số hiện tại và không vượt quá mức tối đa."
     }
   },
   "exchangeLogin": {

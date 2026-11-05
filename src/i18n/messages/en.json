@@ -1019,7 +1019,10 @@
       "startTooSoon": "The event must start at least 30 minutes from now.",
       "startTooFar": "An event can be opened at most 60 days ahead.",
       "startInvalid": "The start date or time is not valid.",
-      "saveFailed": "We could not save the event. Please try again."
+      "saveFailed": "We could not save the event. Please try again.",
+      "depositRequired": "Confirm the deposit was received before approving.",
+      "cannotDecide": "This registration can't be changed in its current state.",
+      "invalidSlots": "The new slot count must be higher than the current one and within the maximum."
     }
   },
   "exchangeLogin": {
