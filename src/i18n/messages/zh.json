@@ -1022,7 +1022,14 @@
       "saveFailed": "暂时无法保存活动，请重试。",
       "depositRequired": "批准前请先确认已收到定金。",
       "cannotDecide": "该报名在当前状态下无法处理。",
-      "invalidSlots": "新的名额必须大于当前名额且不超过上限。"
+      "invalidSlots": "新的名额必须大于当前名额且不超过上限。",
+      "lockHasPending": "还有待处理的报名，请先处理完再锁定费用。",
+      "cannotLock": "该活动当前状态下无法锁定费用。",
+      "cannotUnlock": "该活动无法重新开放。",
+      "cannotMarkPaid": "只有费用锁定后且此人有费用时才能标记已付。",
+      "checkInClosed": "当前不在签到时间内。",
+      "cannotFinish": "只有已锁定且已开始的活动才能结束。",
+      "cannotNoShow": "目前无法将此人标记为缺席。"
     }
   },
   "exchangeLogin": {

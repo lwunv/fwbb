@@ -197,3 +197,26 @@ export function depositSettlement(
     refundDue: Math.max(0, paidDeposit - fee),
   };
 }
+
+/**
+ * Đối trừ đủ cho một đăng ký: nếu host đã đánh dấu đã trả thì `paidAmount` là
+ * số tiền thật đã nhận (đã gồm cọc), nên nó thay cho tiền cọc. Chốt lại phí
+ * thấp hơn hoặc bỏ người đó (feeAmount null) thì phần dư hiện ở `refundDue`.
+ * Vẫn dùng `depositSettlement`, không có công thức thứ hai.
+ */
+export function registrationSettlement(
+  r: {
+    depositPaid: boolean;
+    feeAmount: number | null;
+    paid: boolean;
+    paidAmount: number | null;
+  },
+  depositAmount: number,
+): { remaining: number; refundDue: number } {
+  if (r.paid && r.paidAmount !== null)
+    return depositSettlement(
+      { depositPaid: true, feeAmount: r.feeAmount },
+      r.paidAmount,
+    );
+  return depositSettlement(r, depositAmount);
+}

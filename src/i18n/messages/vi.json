@@ -1022,7 +1022,14 @@
       "saveFailed": "Chưa lưu được buổi giao lưu. Vui lòng thử lại.",
       "depositRequired": "Cần xác nhận đã nhận cọc trước khi duyệt.",
       "cannotDecide": "Đăng ký này không còn xử lý được ở trạng thái hiện tại.",
-      "invalidSlots": "Số slot mới phải lớn hơn số hiện tại và không vượt quá mức tối đa."
+      "invalidSlots": "Số slot mới phải lớn hơn số hiện tại và không vượt quá mức tối đa.",
+      "lockHasPending": "Còn người chờ duyệt, bạn xử lý hết rồi mới chốt phí được.",
+      "cannotLock": "Buổi này không chốt phí được ở trạng thái hiện tại.",
+      "cannotUnlock": "Buổi này không mở lại được.",
+      "cannotMarkPaid": "Chỉ đánh dấu đã trả được khi buổi đã chốt phí và người này có phí.",
+      "checkInClosed": "Chưa đến hoặc đã quá thời gian điểm danh.",
+      "cannotFinish": "Chỉ kết thúc được buổi đã chốt phí và đã bắt đầu.",
+      "cannotNoShow": "Chưa thể đánh dấu vắng mặt lúc này."
     }
   },
   "exchangeLogin": {

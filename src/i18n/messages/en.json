@@ -1022,7 +1022,14 @@
       "saveFailed": "We could not save the event. Please try again.",
       "depositRequired": "Confirm the deposit was received before approving.",
       "cannotDecide": "This registration can't be changed in its current state.",
-      "invalidSlots": "The new slot count must be higher than the current one and within the maximum."
+      "invalidSlots": "The new slot count must be higher than the current one and within the maximum.",
+      "lockHasPending": "Some registrations are still pending. Decide on them before locking fees.",
+      "cannotLock": "Fees can't be locked in this event's current state.",
+      "cannotUnlock": "This event can't be reopened.",
+      "cannotMarkPaid": "You can only mark paid once fees are locked and this person has a fee.",
+      "checkInClosed": "Check-in isn't open for this event right now.",
+      "cannotFinish": "You can only finish an event that is locked and has started.",
+      "cannotNoShow": "You can't mark this person as a no-show right now."
     }
   },
   "exchangeLogin": {
