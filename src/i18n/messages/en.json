@@ -1645,7 +1645,8 @@
       "admin_session": "Sessions (admin)",
       "admin_money": "Money and ledger (admin)",
       "admin_members": "Members and venues (admin)",
-      "admin_inventory": "Shuttlecock stock (admin)"
+      "admin_inventory": "Shuttlecock stock (admin)",
+      "exchange": "Exchange events"
     },
     "kinds": {
       "session_opened": {
@@ -1808,6 +1809,50 @@
       "unknown": {
         "title": "New notification",
         "body": "You have a new notification."
+      },
+      "exchange_registration_received": {
+        "title": "New registration",
+        "body": "{heads, plural, one {# person has} other {# people have}} registered for {eventTitle}. {needsApproval, select, true {You need to approve it.} other {It was accepted automatically.}}"
+      },
+      "exchange_registration_cancelled": {
+        "title": "Registration cancelled",
+        "body": "{heads, plural, one {# person} other {# people}} cancelled for {eventTitle}. {late, select, true {They cancelled after the cancel deadline.} other {They cancelled before the cancel deadline.}}"
+      },
+      "exchange_cancelled_after_lock": {
+        "title": "Cancelled after fees were locked",
+        "body": "{heads, plural, one {# person} other {# people}} cancelled for {eventTitle} after you locked the fees. {late, select, true {They cancelled after the cancel deadline, so please review the fees.} other {They cancelled before the cancel deadline, so please review the fees.}}"
+      },
+      "exchange_registration_approved": {
+        "title": "Registration approved",
+        "body": "You are approved for {eventTitle} on {startAt}."
+      },
+      "exchange_registration_rejected": {
+        "title": "Registration declined",
+        "body": "Your registration for {eventTitle} on {startAt} was declined. {hasRefund, select, true {Your deposit of {refundDue} will be refunded.} other {}}"
+      },
+      "exchange_waitlist_promoted": {
+        "title": "A spot opened up",
+        "body": "A spot opened up for {eventTitle} on {startAt}. {status, select, approved {Your registration is approved.} other {Your registration is waiting for the host to approve.}}"
+      },
+      "exchange_fee_locked": {
+        "title": "Exchange event fee locked",
+        "body": "Your fee for {eventTitle} on {startAt} is {amount}. {settle, select, pay {You still owe {remaining}.{hasDeposit, select, true { This already counts your deposit of {deposit}.} other {}}} refund {You will get {refundDue} back from your deposit of {deposit}.} other {Your deposit covers it, so you owe nothing more.}}{aboveEstimate, select, true { The fee is higher than the original estimate.} other {}}"
+      },
+      "exchange_fee_changed": {
+        "title": "Exchange event fee changed",
+        "body": "The host locked the fees again for {eventTitle} on {startAt}. {charged, select, true {Your fee changed from {previousAmount} to {amount}. {settle, select, pay {You still owe {remaining}.} refund {You will get {refundDue} back.} other {You owe nothing more.}}} other {You are no longer charged (it was {previousAmount} before).{settle, select, refund { You will get {refundDue} back.} other {}}}}"
+      },
+      "exchange_event_cancelled": {
+        "title": "Exchange event cancelled",
+        "body": "{eventTitle} on {startAt} was cancelled. {hasRefund, select, true {Your deposit of {refundDue} will be refunded.} other {}}"
+      },
+      "exchange_event_hidden": {
+        "title": "Exchange event hidden",
+        "body": "Your event {eventTitle} was hidden from the public list by an admin."
+      },
+      "exchange_reported": {
+        "title": "New report",
+        "body": "Someone reported {targetType} for this reason: {reason}."
       }
     },
     "unsubscribe": {
@@ -1821,6 +1866,19 @@
       "invalidTitle": "Invalid link",
       "invalidBody": "This unsubscribe link is missing its code. You can turn off notification emails in your profile.",
       "openProfile": "Open your profile"
+    },
+    "reportTargets": {
+      "member": "a member",
+      "event": "an exchange event",
+      "other": "an item"
+    },
+    "reportReasons": {
+      "spam": "spam",
+      "fake_account": "fake account",
+      "abusive": "abusive language",
+      "wrong_info": "wrong information",
+      "no_show": "registered but did not show up",
+      "other": "other reason"
     }
   }
 }

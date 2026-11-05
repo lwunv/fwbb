@@ -24,8 +24,9 @@ describe("catalog", () => {
   });
 
   it("mandatory kinds match spec", () => {
+    // Kind giao lưu có bảng riêng ở test bên dưới; danh sách này giữ nguyên.
     const mandatory = NOTIFICATION_KINDS.filter(
-      (k) => NOTIFICATION_CATALOG[k].mandatory,
+      (k) => !k.startsWith("exchange_") && NOTIFICATION_CATALOG[k].mandatory,
     ).sort();
     expect(mandatory).toEqual(
       [
@@ -59,8 +60,126 @@ describe("catalog", () => {
 
   it("only the same-day schedule changes bypass quiet hours", () => {
     const bypass = NOTIFICATION_KINDS.filter(
-      (k) => NOTIFICATION_CATALOG[k].quietHoursBypassSameDay,
+      (k) =>
+        !k.startsWith("exchange_") &&
+        NOTIFICATION_CATALOG[k].quietHoursBypassSameDay,
     ).sort();
     expect(bypass).toEqual(["session_cancelled", "session_changed"]);
+  });
+
+  it("catalog: every exchange kind has vi/en/zh title and body", () => {
+    const exchange = NOTIFICATION_KINDS.filter((k) =>
+      k.startsWith("exchange_"),
+    );
+    expect(exchange).toHaveLength(11);
+    for (const bundle of [vi, en, zh]) {
+      const kinds = (bundle as unknown as Bundle).notifications.kinds;
+      for (const kind of exchange) {
+        expect(kinds[kind]?.title, `${kind}.title`).toBeTruthy();
+        expect(kinds[kind]?.body, `${kind}.body`).toBeTruthy();
+      }
+    }
+  });
+
+  it("exchange kinds follow the declared mandatory/email/level/audience table", () => {
+    const row = (k: (typeof NOTIFICATION_KINDS)[number]) => {
+      const d = NOTIFICATION_CATALOG[k];
+      return [
+        d.audience,
+        d.group,
+        d.mandatory,
+        d.email,
+        d.level,
+        d.quietHoursBypassSameDay,
+      ];
+    };
+    expect(row("exchange_registration_received")).toEqual([
+      "member",
+      "exchange",
+      false,
+      false,
+      "now",
+      false,
+    ]);
+    expect(row("exchange_registration_cancelled")).toEqual([
+      "member",
+      "exchange",
+      false,
+      false,
+      "now",
+      false,
+    ]);
+    expect(row("exchange_cancelled_after_lock")).toEqual([
+      "member",
+      "exchange",
+      true,
+      false,
+      "now",
+      false,
+    ]);
+    expect(row("exchange_registration_approved")).toEqual([
+      "member",
+      "exchange",
+      true,
+      true,
+      "now",
+      false,
+    ]);
+    expect(row("exchange_registration_rejected")).toEqual([
+      "member",
+      "exchange",
+      true,
+      false,
+      "now",
+      false,
+    ]);
+    expect(row("exchange_waitlist_promoted")).toEqual([
+      "member",
+      "exchange",
+      true,
+      true,
+      "now",
+      false,
+    ]);
+    expect(row("exchange_fee_locked")).toEqual([
+      "member",
+      "exchange",
+      true,
+      true,
+      "now",
+      false,
+    ]);
+    expect(row("exchange_fee_changed")).toEqual([
+      "member",
+      "exchange",
+      true,
+      true,
+      "now",
+      false,
+    ]);
+    expect(row("exchange_event_cancelled")).toEqual([
+      "member",
+      "exchange",
+      true,
+      true,
+      "now",
+      true,
+    ]);
+    expect(row("exchange_event_hidden")).toEqual([
+      "member",
+      "exchange",
+      true,
+      false,
+      "now",
+      false,
+    ]);
+    expect(row("exchange_reported")).toEqual([
+      "admin",
+      "admin_members",
+      false,
+      false,
+      "now",
+      false,
+    ]);
   });
 });

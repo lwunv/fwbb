@@ -1645,7 +1645,8 @@
       "admin_session": "Buổi chơi (admin)",
       "admin_money": "Tiền và sổ quỹ (admin)",
       "admin_members": "Thành viên và sân (admin)",
-      "admin_inventory": "Kho cầu (admin)"
+      "admin_inventory": "Kho cầu (admin)",
+      "exchange": "Giao lưu"
     },
     "kinds": {
       "session_opened": {
@@ -1808,6 +1809,50 @@
       "unknown": {
         "title": "Thông báo mới",
         "body": "Bạn có một thông báo mới."
+      },
+      "exchange_registration_received": {
+        "title": "Có đăng ký mới",
+        "body": "Buổi {eventTitle} có thêm {heads} người đăng ký. {needsApproval, select, true {Bạn cần duyệt đăng ký này.} other {Đăng ký đã được nhận tự động.}}"
+      },
+      "exchange_registration_cancelled": {
+        "title": "Có người hủy đăng ký",
+        "body": "Buổi {eventTitle}: {heads} người vừa hủy đăng ký. {late, select, true {Họ hủy sau hạn hủy.} other {Họ hủy trước hạn hủy.}}"
+      },
+      "exchange_cancelled_after_lock": {
+        "title": "Hủy đăng ký sau khi chốt phí",
+        "body": "Buổi {eventTitle} đã chốt phí nhưng {heads} người vừa hủy. {late, select, true {Họ hủy sau hạn hủy, bạn cần xem lại phí.} other {Họ hủy trước hạn hủy, bạn cần xem lại phí.}}"
+      },
+      "exchange_registration_approved": {
+        "title": "Đăng ký được duyệt",
+        "body": "Bạn đã được duyệt tham gia buổi {eventTitle} lúc {startAt}."
+      },
+      "exchange_registration_rejected": {
+        "title": "Đăng ký không được duyệt",
+        "body": "Đăng ký buổi {eventTitle} lúc {startAt} không được duyệt. {hasRefund, select, true {Bạn được hoàn cọc {refundDue}.} other {}}"
+      },
+      "exchange_waitlist_promoted": {
+        "title": "Bạn có chỗ rồi",
+        "body": "Có chỗ trống ở buổi {eventTitle} lúc {startAt}. {status, select, approved {Đăng ký của bạn đã được duyệt.} other {Đăng ký của bạn đang chờ host duyệt.}}"
+      },
+      "exchange_fee_locked": {
+        "title": "Đã chốt phí buổi giao lưu",
+        "body": "Phí buổi {eventTitle} lúc {startAt} của bạn là {amount}. {settle, select, pay {Bạn còn phải trả {remaining}.{hasDeposit, select, true { Khoản này đã trừ cọc {deposit}.} other {}}} refund {Bạn được hoàn {refundDue} từ khoản cọc {deposit}.} other {Khoản cọc đã đủ, bạn không phải trả thêm.}}{aboveEstimate, select, true { Phí cao hơn mức dự kiến ban đầu.} other {}}"
+      },
+      "exchange_fee_changed": {
+        "title": "Phí buổi giao lưu đã đổi",
+        "body": "Host chốt lại phí buổi {eventTitle} lúc {startAt}. {charged, select, true {Phí của bạn đổi từ {previousAmount} thành {amount}. {settle, select, pay {Bạn còn phải trả {remaining}.} refund {Bạn được hoàn {refundDue}.} other {Bạn không phải trả thêm.}}} other {Bạn không còn bị tính phí (trước đó là {previousAmount}).{settle, select, refund { Bạn được hoàn {refundDue}.} other {}}}}"
+      },
+      "exchange_event_cancelled": {
+        "title": "Buổi giao lưu bị hủy",
+        "body": "Buổi {eventTitle} lúc {startAt} đã bị hủy. {hasRefund, select, true {Bạn được hoàn cọc {refundDue}.} other {}}"
+      },
+      "exchange_event_hidden": {
+        "title": "Buổi giao lưu bị ẩn",
+        "body": "Buổi {eventTitle} của bạn đã bị admin ẩn khỏi danh sách công khai."
+      },
+      "exchange_reported": {
+        "title": "Có báo cáo mới",
+        "body": "Có người báo cáo {targetType} với lý do: {reason}."
       }
     },
     "unsubscribe": {
@@ -1821,6 +1866,19 @@
       "invalidTitle": "Link không hợp lệ",
       "invalidBody": "Link huỷ nhận này bị thiếu mã. Bạn có thể tắt email thông báo trong trang cá nhân.",
       "openProfile": "Mở trang cá nhân"
+    },
+    "reportTargets": {
+      "member": "một thành viên",
+      "event": "một buổi giao lưu",
+      "other": "một nội dung"
+    },
+    "reportReasons": {
+      "spam": "spam",
+      "fake_account": "tài khoản giả",
+      "abusive": "lời lẽ xúc phạm",
+      "wrong_info": "thông tin sai",
+      "no_show": "đăng ký rồi không đến",
+      "other": "lý do khác"
     }
   }
 }

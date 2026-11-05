@@ -34,6 +34,10 @@ const MONEY_KEYS = new Set([
   "guestPlayAmount",
   "guestDineAmount",
   "guestToFund",
+  "deposit",
+  "remaining",
+  "refundDue",
+  "previousAmount",
 ]);
 const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?Z$/;
 const VN_OFFSET_MS = 7 * 3_600_000;
@@ -108,6 +112,33 @@ export function renderNotification(
     values.direction = amount < 0 ? "out" : "in";
     values.amount = formatVND(Math.abs(amount));
   }
+  if (
+    item.kind === "exchange_fee_locked" ||
+    item.kind === "exchange_fee_changed"
+  ) {
+    // Một câu theo tình huống thay vì in cả 4 số: người đọc chỉ cần biết phải
+    // trả thêm, được hoàn, hay cọc vừa đủ.
+    const num = (k: string) => Number(item.payload?.[k] ?? 0);
+    values.settle =
+      num("remaining") > 0 ? "pay" : num("refundDue") > 0 ? "refund" : "even";
+    values.hasDeposit = String(num("deposit") > 0);
+    values.charged = String(num("amount") > 0);
+  }
+  if (
+    item.kind === "exchange_registration_rejected" ||
+    item.kind === "exchange_event_cancelled"
+  ) {
+    values.hasRefund = String(Number(item.payload?.refundDue ?? 0) > 0);
+  }
+  if (item.kind === "exchange_reported") {
+    // Mã thô (spam, event...) phải dịch; mã lạ thì rơi về "other"/"unknown".
+    const known = (group: string, code: unknown) =>
+      typeof code === "string" && /^[a-z_]+$/.test(code)
+        ? t(`${group}.${code}`)
+        : t(`${group}.other`);
+    values.targetType = known("reportTargets", item.payload?.targetType);
+    values.reason = known("reportReasons", item.payload?.reason);
+  }
   const body = t(`kinds.${item.kind}.body`, values);
   return {
     title: t(`kinds.${item.kind}.title`, values),
@@ -144,6 +175,14 @@ function withDebtorList(
   return `${body} ${t("kinds.weekly_summary.debtors", { list, more })}`;
 }
 
+/** Tin gửi host: trỏ tới trang quản lý buổi. */
+const EXCHANGE_HOST_KINDS = new Set<NotificationKind>([
+  "exchange_registration_received",
+  "exchange_registration_cancelled",
+  "exchange_cancelled_after_lock",
+  "exchange_event_hidden",
+]);
+
 /**
  * Đích của tin, dựng lúc hiển thị (không lưu URL để đổi route không làm hỏng
  * tin cũ). Thiếu entityId thì rơi về trang danh sách tương ứng.
@@ -157,6 +196,16 @@ export function notificationHref(
   }
   const { group } = NOTIFICATION_CATALOG[item.kind];
   const id = item.entityId;
+  if (scope === "admin" && item.kind === "exchange_reported") {
+    return "/admin/giao-luu";
+  }
+  if (scope === "member" && group === "exchange") {
+    const code = item.payload?.eventCode;
+    if (typeof code !== "string" || !code) return "/giao-luu";
+    return EXCHANGE_HOST_KINDS.has(item.kind)
+      ? `/giao-luu/${code}/quan-ly`
+      : `/giao-luu/${code}`;
+  }
   if (scope === "member") {
     switch (group) {
       case "session":

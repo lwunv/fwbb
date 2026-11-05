@@ -323,3 +323,124 @@ describe("href", () => {
     );
   });
 });
+
+describe("render exchange kinds", () => {
+  const NB = " ";
+  const base = {
+    eventCode: "ab12",
+    eventTitle: "Giao lưu Thứ 7",
+    startAt: "2026-11-14T12:00:00.000Z",
+  };
+
+  it("render: fee_locked formats amount, deposit, remaining and refundDue as VND", () => {
+    const pay = renderNotification(
+      translator("vi"),
+      view("exchange_fee_locked", {
+        ...base,
+        amount: 120000,
+        deposit: 50000,
+        remaining: 70000,
+        refundDue: 0,
+        aboveEstimate: false,
+      }),
+      "vi",
+    ).body;
+    expect(pay).toContain(`120.000${NB}₫`);
+    expect(pay).toContain(`50.000${NB}₫`);
+    expect(pay).toContain(`70.000${NB}₫`);
+    const refund = renderNotification(
+      translator("vi"),
+      view("exchange_fee_locked", {
+        ...base,
+        amount: 30000,
+        deposit: 50000,
+        remaining: 0,
+        refundDue: 20000,
+        aboveEstimate: false,
+      }),
+      "vi",
+    ).body;
+    expect(refund).toContain(`20.000${NB}₫`);
+    expect(refund).not.toContain("NaN");
+  });
+
+  it("render: booleans pick the right sentence, never true/false", () => {
+    for (const locale of ["vi", "en", "zh"] as const) {
+      const t = translator(locale);
+      const run = (kind: string, payload: Record<string, unknown>) => {
+        const { title, body } = renderNotification(
+          t,
+          view(kind, { ...base, heads: 2, ...payload }),
+          locale,
+        );
+        return `${title} ${body}`;
+      };
+      const a = run("exchange_registration_cancelled", { late: true });
+      const b = run("exchange_registration_cancelled", { late: false });
+      expect(a).not.toBe(b);
+      const c = run("exchange_registration_received", { needsApproval: true });
+      const d = run("exchange_registration_received", { needsApproval: false });
+      expect(c).not.toBe(d);
+      const e = run("exchange_cancelled_after_lock", { late: true });
+      const f = run("exchange_cancelled_after_lock", { late: false });
+      expect(e).not.toBe(f);
+      const fee = (aboveEstimate: boolean) =>
+        run("exchange_fee_locked", {
+          amount: 1000,
+          deposit: 0,
+          remaining: 1000,
+          refundDue: 0,
+          aboveEstimate,
+        });
+      expect(fee(true)).not.toBe(fee(false));
+      const p1 = run("exchange_waitlist_promoted", { status: "pending" });
+      const p2 = run("exchange_waitlist_promoted", { status: "approved" });
+      expect(p1).not.toBe(p2);
+      for (const text of [a, b, c, d, e, f, fee(true), fee(false), p1, p2]) {
+        expect(text).not.toMatch(/\btrue\b|\bfalse\b/);
+      }
+    }
+  });
+
+  it("render: fee_changed says so when the person is no longer charged", () => {
+    const t = translator("vi");
+    const out = renderNotification(
+      t,
+      view("exchange_fee_changed", {
+        ...base,
+        amount: 0,
+        previousAmount: 90000,
+        deposit: 0,
+        remaining: 0,
+        refundDue: 0,
+        aboveEstimate: false,
+      }),
+      "vi",
+    );
+    expect(out.body).toContain(`90.000${NB}₫`);
+    expect(out.body).toMatch(/không còn/i);
+  });
+
+  it("render: report reason is translated, not a raw code", () => {
+    for (const locale of ["vi", "en", "zh"] as const) {
+      const out = renderNotification(
+        translator(locale),
+        view("exchange_reported", {
+          targetType: "event",
+          reason: "fake_account",
+        }),
+        locale,
+      );
+      expect(out.body).not.toContain("fake_account");
+    }
+    const viOut = renderNotification(
+      translator("vi"),
+      view("exchange_reported", {
+        targetType: "event",
+        reason: "fake_account",
+      }),
+      "vi",
+    );
+    expect(viOut.body).not.toContain("event");
+  });
+});

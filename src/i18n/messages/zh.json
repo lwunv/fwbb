@@ -1645,7 +1645,8 @@
       "admin_session": "活动场次（管理员）",
       "admin_money": "费用和账本（管理员）",
       "admin_members": "成员和场地（管理员）",
-      "admin_inventory": "羽毛球库存（管理员）"
+      "admin_inventory": "羽毛球库存（管理员）",
+      "exchange": "交流活动"
     },
     "kinds": {
       "session_opened": {
@@ -1808,6 +1809,50 @@
       "unknown": {
         "title": "新通知",
         "body": "你有一条新通知。"
+      },
+      "exchange_registration_received": {
+        "title": "收到新报名",
+        "body": "{eventTitle} 新增 {heads} 人报名。{needsApproval, select, true {需要你审核。} other {已自动接受。}}"
+      },
+      "exchange_registration_cancelled": {
+        "title": "有人取消报名",
+        "body": "{eventTitle} 有 {heads} 人取消了报名。{late, select, true {取消时间已超过取消截止时间。} other {取消时间在取消截止之前。}}"
+      },
+      "exchange_cancelled_after_lock": {
+        "title": "锁定费用后有人取消",
+        "body": "{eventTitle} 已锁定费用，但有 {heads} 人取消了报名。{late, select, true {取消时间已超过取消截止时间，请重新确认费用。} other {取消时间在取消截止之前，请重新确认费用。}}"
+      },
+      "exchange_registration_approved": {
+        "title": "报名已通过",
+        "body": "你已通过 {eventTitle}（{startAt}）的报名。"
+      },
+      "exchange_registration_rejected": {
+        "title": "报名未通过",
+        "body": "你对 {eventTitle}（{startAt}）的报名未通过。{hasRefund, select, true {押金 {refundDue} 将退还给你。} other {}}"
+      },
+      "exchange_waitlist_promoted": {
+        "title": "有空位了",
+        "body": "{eventTitle}（{startAt}）有了空位。{status, select, approved {你的报名已通过。} other {你的报名正在等待主办人审核。}}"
+      },
+      "exchange_fee_locked": {
+        "title": "交流活动费用已锁定",
+        "body": "你在 {eventTitle}（{startAt}）的费用为 {amount}。{settle, select, pay {你还需支付 {remaining}。{hasDeposit, select, true {已扣除押金 {deposit}。} other {}}} refund {你将从押金 {deposit} 中退回 {refundDue}。} other {押金已足够，无需再付。}}{aboveEstimate, select, true {费用高于最初的预估。} other {}}"
+      },
+      "exchange_fee_changed": {
+        "title": "交流活动费用已变更",
+        "body": "主办人重新锁定了 {eventTitle}（{startAt}）的费用。{charged, select, true {你的费用从 {previousAmount} 变为 {amount}。{settle, select, pay {你还需支付 {remaining}。} refund {你将退回 {refundDue}。} other {无需再付。}}} other {你不再需要付费（之前为 {previousAmount}）。{settle, select, refund {你将退回 {refundDue}。} other {}}}}"
+      },
+      "exchange_event_cancelled": {
+        "title": "交流活动已取消",
+        "body": "{eventTitle}（{startAt}）已取消。{hasRefund, select, true {押金 {refundDue} 将退还给你。} other {}}"
+      },
+      "exchange_event_hidden": {
+        "title": "交流活动已被隐藏",
+        "body": "你的活动 {eventTitle} 已被管理员从公开列表中隐藏。"
+      },
+      "exchange_reported": {
+        "title": "收到新举报",
+        "body": "有人举报了{targetType}，原因：{reason}。"
       }
     },
     "unsubscribe": {
@@ -1821,6 +1866,19 @@
       "invalidTitle": "链接无效",
       "invalidBody": "这个退订链接缺少代码。你可以在个人页面关闭通知邮件。",
       "openProfile": "打开个人页面"
+    },
+    "reportTargets": {
+      "member": "一位成员",
+      "event": "一场交流活动",
+      "other": "一项内容"
+    },
+    "reportReasons": {
+      "spam": "垃圾信息",
+      "fake_account": "虚假账号",
+      "abusive": "言语侮辱",
+      "wrong_info": "信息有误",
+      "no_show": "报名后未到场",
+      "other": "其他原因"
     }
   }
 }

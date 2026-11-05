@@ -48,8 +48,11 @@ const prefsKey = (scope: NotificationScope) =>
  */
 export function NotificationPrefsSection({
   scope,
+  exchangeEnabled = false,
 }: {
   scope: NotificationScope;
+  /** Server component đọc cờ giao lưu 1 lần rồi truyền xuống; tắt thì ẩn nhóm. */
+  exchangeEnabled?: boolean;
 }) {
   const t = useTranslations("notifications");
   const queryClient = useQueryClient();
@@ -81,8 +84,9 @@ export function NotificationPrefsSection({
     },
   });
 
-  const groups: readonly NotificationGroup[] =
-    scope === "admin" ? ADMIN_GROUPS : MEMBER_GROUPS;
+  const groups: readonly NotificationGroup[] = (
+    scope === "admin" ? ADMIN_GROUPS : MEMBER_GROUPS
+  ).filter((g) => g !== "exchange" || exchangeEnabled);
   const muted = data?.mutedGroups ?? [];
 
   // Số lần gửi chưa xong. Chỉ đọc lại server khi không còn lần nào đang chạy,

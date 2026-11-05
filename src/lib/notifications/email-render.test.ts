@@ -121,3 +121,32 @@ describe("email-render", () => {
     expect(out.text).toContain("Đã chốt sổ buổi chơi");
   });
 });
+
+describe("email-render exchange", () => {
+  it("email: exchange_fee_locked email has no group fund QR", () => {
+    const out = renderNotificationEmail(
+      view(
+        "exchange_fee_locked",
+        {
+          eventCode: "ab12",
+          eventTitle: "Giao lưu",
+          startAt: "2026-11-14T12:00:00.000Z",
+          amount: 120000,
+          deposit: 0,
+          remaining: 120000,
+          refundDue: 0,
+          aboveEstimate: false,
+        },
+        true,
+        null,
+      ),
+      ctx,
+    );
+    expect(out.html).not.toContain("vietqr.io");
+    expect(out.text).not.toContain("FWBB NO");
+    expect(out.html).toContain("https://fwbb.test/giao-luu/ab12");
+    expect(`${out.subject}${out.text}${out.html}`).not.toMatch(
+      /[\u2013\u2014]/,
+    );
+  });
+});

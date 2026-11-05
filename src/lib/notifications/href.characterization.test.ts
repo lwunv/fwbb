@@ -67,6 +67,18 @@ const HREFS: Record<NotificationKind, [string, string]> = {
   group_join_request: ["/", "/admin/members"],
   venue_pending: ["/", "/admin/venues"],
   low_stock: ["/", "/admin/inventory"],
+  // Thêm ở G2b Task 6 (payload rỗng nên thiếu eventCode, rơi về /giao-luu; link theo mã ở test riêng).
+  exchange_registration_received: ["/giao-luu", "/admin/dashboard"],
+  exchange_registration_cancelled: ["/giao-luu", "/admin/dashboard"],
+  exchange_cancelled_after_lock: ["/giao-luu", "/admin/dashboard"],
+  exchange_event_hidden: ["/giao-luu", "/admin/dashboard"],
+  exchange_registration_approved: ["/giao-luu", "/admin/dashboard"],
+  exchange_registration_rejected: ["/giao-luu", "/admin/dashboard"],
+  exchange_waitlist_promoted: ["/giao-luu", "/admin/dashboard"],
+  exchange_fee_locked: ["/giao-luu", "/admin/dashboard"],
+  exchange_fee_changed: ["/giao-luu", "/admin/dashboard"],
+  exchange_event_cancelled: ["/giao-luu", "/admin/dashboard"],
+  exchange_reported: ["/", "/admin/giao-luu"],
 };
 
 describe("notificationHref", () => {
@@ -81,6 +93,34 @@ describe("notificationHref", () => {
         admin,
       );
     }
+  });
+});
+
+describe("notificationHref exchange", () => {
+  it("href: exchange kinds link to the event or its manage page", () => {
+    const withCode = (kind: NotificationKind) =>
+      notificationHref(view(kind, { eventCode: "ab12" }), "member");
+    for (const kind of [
+      "exchange_registration_received",
+      "exchange_registration_cancelled",
+      "exchange_cancelled_after_lock",
+      "exchange_event_hidden",
+    ] as const) {
+      expect(withCode(kind), kind).toBe("/giao-luu/ab12/quan-ly");
+    }
+    for (const kind of [
+      "exchange_registration_approved",
+      "exchange_registration_rejected",
+      "exchange_waitlist_promoted",
+      "exchange_fee_locked",
+      "exchange_fee_changed",
+      "exchange_event_cancelled",
+    ] as const) {
+      expect(withCode(kind), kind).toBe("/giao-luu/ab12");
+    }
+    expect(notificationHref(view("exchange_reported"), "admin")).toBe(
+      "/admin/giao-luu",
+    );
   });
 });
 

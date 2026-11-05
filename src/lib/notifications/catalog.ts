@@ -9,6 +9,7 @@ export type NotificationGroup =
   | "money"
   | "account"
   | "venue"
+  | "exchange"
   | "admin_session"
   | "admin_money"
   | "admin_members"
@@ -19,6 +20,7 @@ export const MEMBER_GROUPS = [
   "money",
   "account",
   "venue",
+  "exchange",
 ] as const satisfies readonly NotificationGroup[];
 
 export const ADMIN_GROUPS = [
@@ -165,7 +167,61 @@ export interface NotificationPayloads {
      */
     debtors?: { name: string; amount: number }[];
   };
+  /**
+   * Tin giao lưu (G2b). Tin gửi host chỉ có SỐ NGƯỜI (`heads`), không tên và
+   * không tiền của ai; tin gửi người đăng ký chỉ có khoản của chính họ.
+   */
+  exchange_registration_received: ExchangeEventRef & {
+    heads: number;
+    needsApproval: boolean;
+  };
+  exchange_registration_cancelled: ExchangeEventRef & {
+    heads: number;
+    late: boolean;
+  };
+  exchange_cancelled_after_lock: ExchangeEventRef & {
+    heads: number;
+    late: boolean;
+  };
+  exchange_registration_approved: ExchangeEventRef & { startAt: string };
+  exchange_registration_rejected: ExchangeEventRef & {
+    startAt: string;
+    refundDue: number;
+  };
+  exchange_waitlist_promoted: ExchangeEventRef & {
+    startAt: string;
+    status: "pending" | "approved";
+  };
+  exchange_fee_locked: ExchangeFee;
+  /** `amount` = 0 khi người đó không còn bị tính phí. */
+  exchange_fee_changed: ExchangeFee & { previousAmount: number };
+  exchange_event_cancelled: ExchangeEventRef & {
+    startAt: string;
+    refundDue: number;
+  };
+  exchange_event_hidden: ExchangeEventRef;
+  /** Mã đối tượng và lý do (dịch lúc hiển thị), không có tên ai. */
+  exchange_reported: { targetType: string; reason: string };
 }
+
+/** Trường chung của tin giao lưu: mã URL công khai và tên buổi. */
+interface ExchangeEventRef {
+  eventCode: string;
+  eventTitle: string;
+}
+
+/** Khoản của CHÍNH member khi host chốt phí (VND nguyên). */
+type ExchangeFee = ExchangeEventRef & {
+  /** ISO UTC. */
+  startAt: string;
+  amount: number;
+  deposit: number;
+  /** Còn phải trả sau khi trừ cọc. */
+  remaining: number;
+  /** Cọc dư được hoàn. */
+  refundDue: number;
+  aboveEstimate: boolean;
+};
 
 export type NotificationKind = keyof NotificationPayloads;
 
@@ -219,7 +275,31 @@ export const NOTIFICATION_CATALOG: Record<NotificationKind, KindDef> = {
   // Member, sân mình đề xuất
   venue_approved: def("member", "venue", false, true, "digest"),
   venue_hidden: def("member", "venue", false, true, "digest"),
+  // Member, giao lưu (cờ `exchangeEnabled` quyết định có hiện nhóm này ở cài đặt)
+  exchange_registration_received: def(
+    "member",
+    "exchange",
+    false,
+    false,
+    "now",
+  ),
+  exchange_registration_cancelled: def(
+    "member",
+    "exchange",
+    false,
+    false,
+    "now",
+  ),
+  exchange_cancelled_after_lock: def("member", "exchange", true, false, "now"),
+  exchange_registration_approved: def("member", "exchange", true, true, "now"),
+  exchange_registration_rejected: def("member", "exchange", true, false, "now"),
+  exchange_waitlist_promoted: def("member", "exchange", true, true, "now"),
+  exchange_fee_locked: def("member", "exchange", true, true, "now"),
+  exchange_fee_changed: def("member", "exchange", true, true, "now"),
+  exchange_event_cancelled: def("member", "exchange", true, true, "now", true),
+  exchange_event_hidden: def("member", "exchange", true, false, "now"),
   // Admin
+  exchange_reported: def("admin", "admin_members", false, false, "now"),
   capacity_alert: def("admin", "admin_session", true, true, "now"),
   low_attendance: def("admin", "admin_session", true, true, "scheduled"),
   member_dropped_late: def("admin", "admin_session", false, false, "now"),

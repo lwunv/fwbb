@@ -58,6 +58,7 @@ function deferredUpdates() {
 
 function setup(
   url: { searchParams?: string; onUrlUpdate?: OnUrlUpdateFunction } = {},
+  exchangeEnabled?: boolean,
 ) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -66,7 +67,10 @@ function setup(
     <NuqsTestingAdapter {...url}>
       <QueryClientProvider client={qc}>
         <NextIntlClientProvider locale="vi" messages={viMessages}>
-          <NotificationPrefsSection scope="member" />
+          <NotificationPrefsSection
+            scope="member"
+            exchangeEnabled={exchangeEnabled}
+          />
         </NextIntlClientProvider>
       </QueryClientProvider>
     </NuqsTestingAdapter>,
@@ -218,5 +222,32 @@ describe("NotificationPrefsSection", () => {
     expect(h.toastSuccess).toHaveBeenCalledWith(
       viMessages.notifications.prefs.emailSent,
     );
+  });
+});
+
+describe("NotificationPrefsSection exchange group", () => {
+  const labels = () =>
+    screen.getAllByRole("switch").map((s) => s.getAttribute("aria-label"));
+
+  it("prefs section hides exchange unless exchangeEnabled", async () => {
+    setup();
+    await openCard();
+    expect(labels()).not.toContain(groups.exchange);
+    cleanup();
+
+    setup({}, false);
+    await openCard();
+    expect(labels()).not.toContain(groups.exchange);
+    cleanup();
+
+    setup({}, true);
+    await openCard();
+    expect(labels()).toEqual([
+      groups.session,
+      groups.money,
+      groups.account,
+      groups.venue,
+      groups.exchange,
+    ]);
   });
 });
