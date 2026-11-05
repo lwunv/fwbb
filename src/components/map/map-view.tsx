@@ -101,8 +101,10 @@ function createPin(onClick: () => void): HTMLButtonElement {
   const el = document.createElement("button");
   el.type = "button";
   el.className =
-    "flex size-11 cursor-pointer items-end justify-center rounded-full pb-0.5 transition-transform duration-200 focus-visible:outline-2 focus-visible:outline-ring data-[selected=true]:z-10 data-[selected=true]:scale-125";
-  el.innerHTML = PIN_SVG;
+    "group flex size-11 cursor-pointer items-end justify-center rounded-full pb-0.5 focus-visible:outline-2 focus-visible:outline-ring data-[selected=true]:z-10";
+  // maplibre ghi `transform` của chính phần tử marker mỗi khung hình để bám
+  // toạ độ, nên hiệu ứng phóng to nằm ở span con, không ở nút.
+  el.innerHTML = `<span class="origin-bottom transition-[scale] duration-200 group-data-[selected=true]:scale-125">${PIN_SVG}</span>`;
   el.addEventListener("click", (e) => {
     // Không để cú bấm ghim lọt xuống bản đồ.
     e.stopPropagation();
@@ -186,6 +188,7 @@ export function MapView({
   // Component chỉ chạy phía client (LazyMapView tắt SSR) nên kiểm ngay lúc
   // render đầu, không chớp khung bản đồ trắng trước khi hiện thông báo.
   const [unsupported, setUnsupported] = useState(() => !hasWebGL2());
+  const [styleFailed, setStyleFailed] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markersRef = useRef(new Map<number, PinEntry>());
@@ -246,7 +249,6 @@ export function MapView({
       });
     } catch {
       // Máy báo có WebGL2 nhưng tạo context vẫn hỏng (GPUInitializationError).
-      console.warn("[Map] webgl_unavailable");
       // eslint-disable-next-line react-hooks/set-state-in-effect -- the map constructor is the external system; its failure is only known here.
       setUnsupported(true);
       return;
@@ -254,17 +256,22 @@ export function MapView({
     mapRef.current = map;
     const markers = markersRef.current;
 
-    // Mất mạng tới openfreemap: nền trống nhưng ghim HTML vẫn hiện. Chỉ log.
-    map.on("error", (e) => {
-      console.warn("[Map] style_error", e.error?.message);
+    // Lỗi trước lần nạp style đầu (mất mạng tới openfreemap): nền trống nhưng
+    // ghim HTML vẫn hiện, báo người dùng bằng lớp phủ. Lỗi tile lẻ về sau thì
+    // bỏ qua, vì nền đã có và maplibre tự thử lại.
+    let styleLoaded = false;
+    map.on("error", () => {
+      if (!styleLoaded) setStyleFailed(true);
     });
     map.on("style.load", () => {
+      styleLoaded = true;
+      setStyleFailed(false);
       const s = latest.current;
       applyVietnamSovereignty(map, s.locale);
       try {
         addRadiusRing(map, s.center, s.radiusKm);
       } catch {
-        console.warn("[Map] radius_error");
+        // Chỉ mất vòng bán kính; bản đồ và ghim vẫn dùng được.
       }
     });
     map.on("moveend", (e) => {
@@ -395,6 +402,18 @@ export function MapView({
       <div className="absolute inset-0">
         <div ref={containerRef} className="h-full w-full" />
       </div>
+      {styleFailed && (
+        <div
+          role="status"
+          className="bg-card/80 pointer-events-none absolute inset-x-3 top-3 z-10 flex items-center gap-2 rounded-xl border p-3 text-sm backdrop-blur"
+        >
+          <MapPinOff
+            className="text-muted-foreground size-5 shrink-0"
+            aria-hidden
+          />
+          <p>{t("mapTilesFailed")}</p>
+        </div>
+      )}
     </div>
   );
 }

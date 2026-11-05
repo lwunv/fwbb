@@ -1579,6 +1579,8 @@
     "mapAttributionToggle": "Toggle attribution",
     "mapFeedback": "Map feedback",
     "loadingVenues": "Loading venues...",
-    "pinHint": "Tap a pin to see the venue"
+    "pinHint": "Tap a pin to see the venue",
+    "mapTilesFailed": "The map background could not load. Venue pins are still shown.",
+    "pickerUnsupported": "This browser can't display the map. Please enter the coordinates by hand."
   }
 }

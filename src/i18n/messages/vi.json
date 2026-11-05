@@ -1579,6 +1579,8 @@
     "mapAttributionToggle": "Bật/tắt nguồn bản đồ",
     "mapFeedback": "Góp ý về bản đồ",
     "loadingVenues": "Đang tải sân...",
-    "pinHint": "Bấm một ghim để xem sân"
+    "pinHint": "Bấm một ghim để xem sân",
+    "mapTilesFailed": "Không tải được nền bản đồ. Các ghim sân vẫn hiển thị.",
+    "pickerUnsupported": "Trình duyệt không hiển thị được bản đồ. Bạn nhập toạ độ bằng tay nhé."
   }
 }

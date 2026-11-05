@@ -107,7 +107,7 @@ describe("VenueForm map picker", () => {
     await screen.findByTestId("lazy-map");
     act(() => captured.props?.onUnsupported?.());
     expect(
-      await screen.findByText(viMessages.venues.mapUnsupported),
+      await screen.findByText(viMessages.venues.pickerUnsupported),
     ).toBeTruthy();
     expect(
       screen.queryByRole("button", { name: "Dùng vị trí này" }),

@@ -92,7 +92,7 @@ function PickerBody({
       {unsupported ? (
         <div className="bg-muted/50 flex h-40 flex-col items-center justify-center gap-2 rounded-2xl border p-4 text-center">
           <MapPinOff className="text-muted-foreground size-6" aria-hidden />
-          <p className="text-base">{t("mapUnsupported")}</p>
+          <p className="text-base">{t("pickerUnsupported")}</p>
         </div>
       ) : (
         <div className="relative">

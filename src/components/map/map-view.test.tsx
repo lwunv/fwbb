@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import {
+  render,
+  screen,
+  cleanup,
+  fireEvent,
+  act,
+} from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import viMessages from "@/i18n/messages/vi.json";
 import type { MapPoint } from "@/lib/map/map-points";
@@ -221,20 +227,18 @@ describe("MapView", () => {
       lng: 105.8,
       label: `Sân ${i + 1}`,
     }));
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     renderMap({ points: many, selectedId: 45 });
     // openfreemap không tới được: chỉ có `error`, không bao giờ có `load`
     // hay `style.load`.
-    maps[0].fire("error", { error: new Error("style fetch failed") });
+    act(() =>
+      maps[0].fire("error", { error: new Error("style fetch failed") }),
+    );
     expect(screen.getAllByRole("button")).toHaveLength(45);
     expect(
       screen.getByRole("button", { name: "Sân 45" }).dataset.selected,
     ).toBe("true");
     expect(maps[0].addLayer).not.toHaveBeenCalled();
-    expect(warn).toHaveBeenCalledWith(
-      "[Map] style_error",
-      "style fetch failed",
-    );
+    expect(screen.getByRole("status")).toBeTruthy();
   });
 
   it("app layers sit below the sovereignty label", () => {
@@ -292,12 +296,35 @@ describe("MapView", () => {
     );
   });
 
-  it("a style or tile error is logged with a code and does not throw", () => {
+  it("a style error before the first style load shows a notice, keeps the pins, and never logs", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     renderMap();
     expect(() =>
-      maps[0].fire("error", { error: new Error("tile 404") }),
+      act(() => maps[0].fire("error", { error: new Error("style 503") })),
     ).not.toThrow();
-    expect(warn.mock.calls[0][0]).toBe("[Map] style_error");
+    const notice = screen.getByRole("status");
+    expect(notice.textContent).toContain(viMessages.venues.mapTilesFailed);
+    expect(screen.getAllByRole("button")).toHaveLength(2);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("a tile error after the style has loaded shows no notice", () => {
+    renderMap();
+    act(() => maps[0].fire("style.load"));
+    act(() => maps[0].fire("error", { error: new Error("tile 404") }));
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("scales the selected pin on an inner span, not on the marker element", () => {
+    renderMap({ selectedId: 1 });
+    const pin = screen.getByRole("button", { name: "Sân Cầu Giấy" });
+    expect(pin.className).toContain("group");
+    expect(pin.className).not.toContain("transition-transform");
+    expect(pin.className).not.toContain("scale-125");
+    const inner = pin.firstElementChild as HTMLElement;
+    expect(inner.tagName).toBe("SPAN");
+    expect(inner.className).toContain("group-data-[selected=true]:scale-125");
+    expect(inner.className).toContain("transition-[scale]");
+    expect(inner.querySelector("svg")).not.toBeNull();
   });
 });
