@@ -13,6 +13,7 @@ type SovereigntyMap = Parameters<typeof applyVietnamSovereignty>[0];
 /** Map giả: 2 layer chữ (địa danh + đường) và 1 layer biên giới. */
 function fakeMap(layers?: unknown[]) {
   const added = new Set<string>();
+  const filters = new Map<string, unknown>();
   const map = {
     getStyle: vi.fn(() => ({
       version: 8,
@@ -48,7 +49,10 @@ function fakeMap(layers?: unknown[]) {
         },
       ],
     })),
-    setFilter: vi.fn(),
+    setFilter: vi.fn((id: string, f: unknown) => {
+      filters.set(id, f);
+    }),
+    getFilter: vi.fn((id: string) => filters.get(id)),
     setLayoutProperty: vi.fn(),
     addSource: vi.fn(),
     addLayer: vi.fn((l: { id: string }) => added.add(l.id)),
@@ -215,7 +219,7 @@ describe("applyVietnamSovereignty", () => {
     expect(m.addSource).toHaveBeenCalledTimes(2);
   });
 
-  it("logs only a code and does not throw when the map fails", () => {
+  it("does not throw and never logs when the map fails", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const m = fakeMap();
     m.setFilter.mockImplementation(() => {
@@ -225,7 +229,38 @@ describe("applyVietnamSovereignty", () => {
       throw new Error("boom");
     });
     expect(() => applyVietnamSovereignty(asMap(m), "vi")).not.toThrow();
-    expect(warn).toHaveBeenCalledWith("[Map] sovereignty_error");
+    expect(warn).not.toHaveBeenCalled();
+    // setFilter ném lỗi thì layer chữ bị ẩn hẳn.
+    expect(m.setLayoutProperty).toHaveBeenCalledWith(
+      "label_city",
+      "visibility",
+      "none",
+    );
+  });
+
+  it("hides a layer whose filter silently did not apply (maplibre emits an error instead of throwing)", () => {
+    const m = fakeMap();
+    // Giống maplibre khi filter không hợp lệ: không ném, không đổi gì.
+    m.setFilter.mockImplementation(() => {});
+    m.getFilter.mockImplementation(() => undefined);
+    applyVietnamSovereignty(asMap(m), "en");
+    for (const id of ["label_city", "highway-name-major", "boundary_2"]) {
+      expect(m.setLayoutProperty).toHaveBeenCalledWith(
+        id,
+        "visibility",
+        "none",
+      );
+    }
+  });
+
+  it("keeps a layer visible when its filter applied", () => {
+    const m = fakeMap();
+    applyVietnamSovereignty(asMap(m), "en");
+    expect(m.setLayoutProperty).not.toHaveBeenCalledWith(
+      "label_city",
+      "visibility",
+      "none",
+    );
   });
 
   describe("East Sea naming (G3-R6)", () => {

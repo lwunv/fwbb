@@ -121,6 +121,7 @@ type SovereigntyMap = Pick<
   MapLibreMap,
   | "getStyle"
   | "setFilter"
+  | "getFilter"
   | "setLayoutProperty"
   | "addSource"
   | "addLayer"
@@ -183,6 +184,26 @@ function isExpressionFilter(filter: unknown): boolean {
   }
 }
 
+/**
+ * maplibre không ném lỗi khi filter sai: `setFilter` phát sự kiện `error` rồi
+ * bỏ qua, layer giữ nguyên filter cũ (nhãn nước ngoài vẫn hiện). Nên đặt xong
+ * phải đọc lại bằng `getFilter`; không khớp thì ẩn cả layer.
+ */
+function setFilterOrHide(
+  map: SovereigntyMap,
+  id: string,
+  filter: FilterSpecification,
+) {
+  let applied = false;
+  try {
+    map.setFilter(id, filter);
+    applied = JSON.stringify(map.getFilter(id)) === JSON.stringify(filter);
+  } catch {
+    applied = false;
+  }
+  if (!applied) map.setLayoutProperty(id, "visibility", "none");
+}
+
 /** Thêm điều kiện vào filter sẵn có của layer nền (giữ filter cũ). */
 function addConditions(
   map: SovereigntyMap,
@@ -192,9 +213,9 @@ function addConditions(
   const old: FilterSpecification | undefined =
     "filter" in layer ? layer.filter : undefined;
   if (old === undefined) {
-    map.setFilter(layer.id, ["all", ...conditions]);
+    setFilterOrHide(map, layer.id, ["all", ...conditions]);
   } else if (isExpressionFilter(old)) {
-    map.setFilter(layer.id, [
+    setFilterOrHide(map, layer.id, [
       "all",
       old as ExpressionSpecification,
       ...conditions,
@@ -321,14 +342,13 @@ function addEastSeaLabel(
  * Áp chủ quyền lên style vừa nạp xong: nhãn "Quần đảo Hoàng Sa/Trường Sa
  * (Việt Nam)" trên cùng, che nhãn nền trong hai vùng, ẩn đường biên tranh
  * chấp và trên biển, ưu tiên tên tiếng Việt khi người xem dùng tiếng Việt.
- * Gọi lại mỗi lần style nạp lại (`style.load`). Không bao giờ ném lỗi: bản
- * đồ vẫn phải dùng được, chỉ log mã.
+ * Gọi lại mỗi lần style nạp lại (`style.load`). Không bao giờ ném lỗi và không
+ * log: bản đồ vẫn phải dùng được.
  */
 export function applyVietnamSovereignty(
   map: SovereigntyMap,
   locale: string,
 ): void {
-  let failed = false;
   try {
     if (map.getLayer(VN_ISLANDS_LAYER_ID)) return;
     const baseLayers = map.getStyle().layers;
@@ -338,17 +358,16 @@ export function applyVietnamSovereignty(
       addIslandLabels(map, baseLayers, locale);
       addEastSeaLabel(map, baseLayers, locale);
     } catch {
-      failed = true;
+      // Bản đồ vẫn dùng được; phần thiếu đã được ẩn layer hoặc bỏ qua.
     }
     for (const layer of baseLayers) {
       try {
         patchBaseLayer(map, layer, locale);
       } catch {
-        failed = true;
+        // Bản đồ vẫn dùng được; phần thiếu đã được ẩn layer hoặc bỏ qua.
       }
     }
   } catch {
-    failed = true;
+    // Bản đồ vẫn dùng được; phần thiếu đã được ẩn layer hoặc bỏ qua.
   }
-  if (failed) console.warn("[Map] sovereignty_error");
 }
