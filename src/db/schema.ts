@@ -12,6 +12,14 @@ import { sql, relations } from "drizzle-orm";
 import { SKILL_LEVELS } from "@/lib/skill-level";
 import { GENDERS } from "@/lib/gender";
 import { VENUE_STATUSES } from "@/lib/venue-amenities";
+import {
+  EXCHANGE_EVENT_STATUSES,
+  EXCHANGE_REG_STATUSES,
+  FEE_MODES,
+  REPORT_TARGET_TYPES,
+  REPORT_REASONS,
+  REPORT_STATUSES,
+} from "@/lib/exchange/constants";
 
 export const admins = sqliteTable(
   "admins",
@@ -886,7 +894,15 @@ export const notifications = sqliteTable(
     recipientId: integer("recipient_id").notNull(),
     kind: text("kind").notNull(),
     entityType: text("entity_type", {
-      enum: ["session", "member", "transaction", "venue", "brand", "month"],
+      enum: [
+        "session",
+        "member",
+        "transaction",
+        "venue",
+        "brand",
+        "month",
+        "exchange_event",
+      ],
     }),
     entityId: integer("entity_id"),
     payload: text("payload", { mode: "json" })
@@ -1012,5 +1028,235 @@ export const scheduledJobs = sqliteTable(
       table.sessionId,
       table.status,
     ),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Giao lưu (G2b). Tiền là số nguyên VND. Enum ở TS, unique bằng uniqueIndex
+// riêng; CHECK nằm trong CREATE TABLE của bảng mới (không ALTER bảng cũ).
+// Giờ lưu ISO UTC có `Z`.
+// ---------------------------------------------------------------------------
+
+export const exchangeEvents = sqliteTable(
+  "exchange_events",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    /** Mã ngẫu nhiên dùng trong URL công khai. */
+    publicCode: text("public_code").notNull(),
+    idempotencyKey: text("idempotency_key"),
+    hostMemberId: integer("host_member_id")
+      .notNull()
+      .references(() => members.id),
+    venueId: integer("venue_id")
+      .notNull()
+      .references(() => venues.id),
+    title: text("title").notNull(),
+    description: text("description"),
+    startAt: text("start_at").notNull(),
+    endAt: text("end_at").notNull(),
+    skillMin: text("skill_min", { enum: SKILL_LEVELS }),
+    skillMax: text("skill_max", { enum: SKILL_LEVELS }),
+    slotsTotal: integer("slots_total").notNull(),
+    femaleReservedSlots: integer("female_reserved_slots").notNull().default(0),
+    reserveReleaseAt: text("reserve_release_at"),
+    /** Số người của host, không chiếm slot, có trong mẫu số khi chia. */
+    hostHeads: integer("host_heads").notNull().default(1),
+    shuttleType: text("shuttle_type"),
+    feeMode: text("fee_mode", { enum: FEE_MODES }).notNull(),
+    feeAmountMale: integer("fee_amount_male"),
+    feeAmountFemale: integer("fee_amount_female"),
+    feeFemalePercent: integer("fee_female_percent"),
+    estimatedTotalCost: integer("estimated_total_cost"),
+    minHeads: integer("min_heads"),
+    depositAmount: integer("deposit_amount").notNull().default(0),
+    registerDeadline: text("register_deadline").notNull(),
+    cancelDeadline: text("cancel_deadline").notNull(),
+    autoApprove: integer("auto_approve", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    allowPlusOnes: integer("allow_plus_ones", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    payoutBankBin: text("payout_bank_bin"),
+    payoutAccountNo: text("payout_account_no"),
+    payoutAccountName: text("payout_account_name"),
+    hostContact: text("host_contact"),
+    zaloGroupLink: text("zalo_group_link"),
+    status: text("status", { enum: EXCHANGE_EVENT_STATUSES })
+      .notNull()
+      .default("open"),
+    lockCount: integer("lock_count").notNull().default(0),
+    lockedAt: text("locked_at"),
+    doneAt: text("done_at"),
+    cancelledAt: text("cancelled_at"),
+    hiddenAt: text("hidden_at"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("exchange_events_public_code_unique").on(table.publicCode),
+    uniqueIndex("exchange_events_idempotency_key_unique").on(
+      table.idempotencyKey,
+    ),
+    index("exchange_events_status_start_idx").on(table.status, table.startAt),
+    index("exchange_events_venue_start_idx").on(table.venueId, table.startAt),
+    index("exchange_events_host_start_idx").on(
+      table.hostMemberId,
+      table.startAt,
+    ),
+    check(
+      "exchange_events_fee_male_non_negative",
+      sql`${table.feeAmountMale} IS NULL OR ${table.feeAmountMale} >= 0`,
+    ),
+    check(
+      "exchange_events_fee_female_non_negative",
+      sql`${table.feeAmountFemale} IS NULL OR ${table.feeAmountFemale} >= 0`,
+    ),
+    check(
+      "exchange_events_estimated_cost_non_negative",
+      sql`${table.estimatedTotalCost} IS NULL OR ${table.estimatedTotalCost} >= 0`,
+    ),
+    check(
+      "exchange_events_min_heads_non_negative",
+      sql`${table.minHeads} IS NULL OR ${table.minHeads} >= 0`,
+    ),
+    check(
+      "exchange_events_deposit_non_negative",
+      sql`${table.depositAmount} >= 0`,
+    ),
+    check(
+      "exchange_events_slots_total_positive",
+      sql`${table.slotsTotal} >= 1`,
+    ),
+    check(
+      "exchange_events_female_reserved_range",
+      sql`${table.femaleReservedSlots} BETWEEN 0 AND ${table.slotsTotal}`,
+    ),
+    check(
+      "exchange_events_host_heads_non_negative",
+      sql`${table.hostHeads} >= 0`,
+    ),
+    check(
+      "exchange_events_fee_female_percent_range",
+      sql`${table.feeFemalePercent} IS NULL OR ${table.feeFemalePercent} BETWEEN 0 AND 100`,
+    ),
+  ],
+);
+
+export const exchangeRegistrations = sqliteTable(
+  "exchange_registrations",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    eventId: integer("event_id")
+      .notNull()
+      .references(() => exchangeEvents.id),
+    memberId: integer("member_id")
+      .notNull()
+      .references(() => members.id),
+    status: text("status", { enum: EXCHANGE_REG_STATUSES })
+      .notNull()
+      .default("pending"),
+    maleCount: integer("male_count").notNull().default(0),
+    femaleCount: integer("female_count").notNull().default(0),
+    note: text("note"),
+    waitlistPos: integer("waitlist_pos"),
+    feeAmount: integer("fee_amount"),
+    feeWaived: integer("fee_waived", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    depositPaid: integer("deposit_paid", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    depositPaidAt: text("deposit_paid_at"),
+    paid: integer("paid", { mode: "boolean" }).notNull().default(false),
+    /** Số tiền tại lúc host đánh dấu đã trả. */
+    paidAmount: integer("paid_amount"),
+    paidAt: text("paid_at"),
+    checkedIn: integer("checked_in", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    checkedInAt: text("checked_in_at"),
+    decidedAt: text("decided_at"),
+    cancelledAt: text("cancelled_at"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("exchange_registrations_event_member_unique").on(
+      table.eventId,
+      table.memberId,
+    ),
+    index("exchange_registrations_event_status_idx").on(
+      table.eventId,
+      table.status,
+    ),
+    index("exchange_registrations_member_status_idx").on(
+      table.memberId,
+      table.status,
+    ),
+    index("exchange_registrations_member_checked_in_idx").on(
+      table.memberId,
+      table.checkedIn,
+    ),
+    check("exchange_regs_male_non_negative", sql`${table.maleCount} >= 0`),
+    check("exchange_regs_female_non_negative", sql`${table.femaleCount} >= 0`),
+    check(
+      "exchange_regs_heads_positive",
+      sql`${table.maleCount} + ${table.femaleCount} >= 1`,
+    ),
+    check(
+      "exchange_regs_fee_non_negative",
+      sql`${table.feeAmount} IS NULL OR ${table.feeAmount} >= 0`,
+    ),
+    check(
+      "exchange_regs_paid_non_negative",
+      sql`${table.paidAmount} IS NULL OR ${table.paidAmount} >= 0`,
+    ),
+  ],
+);
+
+export const hostBlocks = sqliteTable(
+  "host_blocks",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    hostMemberId: integer("host_member_id")
+      .notNull()
+      .references(() => members.id),
+    blockedMemberId: integer("blocked_member_id")
+      .notNull()
+      .references(() => members.id),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("host_blocks_host_blocked_unique").on(
+      table.hostMemberId,
+      table.blockedMemberId,
+    ),
+  ],
+);
+
+export const abuseReports = sqliteTable(
+  "abuse_reports",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    reporterMemberId: integer("reporter_member_id")
+      .notNull()
+      .references(() => members.id),
+    targetType: text("target_type", { enum: REPORT_TARGET_TYPES }).notNull(),
+    targetId: integer("target_id").notNull(),
+    reason: text("reason", { enum: REPORT_REASONS }).notNull(),
+    note: text("note"),
+    status: text("status", { enum: REPORT_STATUSES }).notNull().default("open"),
+    createdAt: text("created_at").notNull(),
+    resolvedAt: text("resolved_at"),
+  },
+  (table) => [
+    uniqueIndex("abuse_reports_reporter_target_unique").on(
+      table.reporterMemberId,
+      table.targetType,
+      table.targetId,
+    ),
+    index("abuse_reports_status_created_idx").on(table.status, table.createdAt),
+    index("abuse_reports_target_idx").on(table.targetType, table.targetId),
   ],
 );

@@ -204,6 +204,13 @@
       "when": 1793762793125,
       "tag": "0028_fast_hellfire_club",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1793857255865,
+      "tag": "0029_short_hitman",
+      "breakpoints": true
     }
   ]
 }
