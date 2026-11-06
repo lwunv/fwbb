@@ -14,8 +14,8 @@ import bcrypt from "bcryptjs";
  *
  * Seed thẳng vào e2e/local.db (server `next start` dùng cùng file). Mỗi bài
  * dùng một buổi riêng để cache bình luận công khai (60 giây, theo buổi) không
- * lẫn giữa các bài. Cờ `exchangeEnabled` và `notificationsEnabled` được khôi
- * phục đúng giá trị cũ ở afterAll.
+ * lẫn giữa các bài. Cờ `exchangeEnabled` và `notificationsEnabled` được đưa
+ * về mặc định (xoá hàng) ở afterAll.
  */
 
 test.use({ storageState: { cookies: [], origins: [] } });
@@ -43,8 +43,6 @@ let venueId = 0;
 const HOUR = 3_600_000;
 const iso = (ms: number) => new Date(ms).toISOString();
 
-let previousFlag: string | null = null;
-let previousNotify: string | null = null;
 /** Ngữ cảnh của tài khoản giao lưu, giữ qua các bài để cookie Turnstile còn. */
 let exCtx: BrowserContext | null = null;
 
@@ -59,16 +57,6 @@ async function withDb<T>(
   } finally {
     db.close();
   }
-}
-
-async function readSetting(key: string): Promise<string | null> {
-  return withDb(async (db) => {
-    const r = await db.execute({
-      sql: "SELECT value FROM app_settings WHERE key = ?",
-      args: [key],
-    });
-    return r.rows[0] ? String(r.rows[0].value) : null;
-  });
 }
 
 async function writeSetting(key: string, value: string | null) {
@@ -293,8 +281,10 @@ async function cleanup() {
 
 test.beforeAll(async () => {
   await cleanup();
-  previousFlag = await readSetting("exchangeEnabled");
-  previousNotify = await readSetting("notificationsEnabled");
+  // Về mặc định (hàng không tồn tại) thay vì tin giá trị đang có: lần chạy bị
+  // ngắt giữa chừng có thể để cờ bật, và giữ nguyên là giữ luôn rò rỉ đó.
+  await writeSetting("exchangeEnabled", null);
+  await writeSetting("notificationsEnabled", null);
   await writeSetting("exchangeEnabled", "true");
   await writeSetting("notificationsEnabled", "true");
   await withDb(async (db) => {
@@ -310,10 +300,13 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await exCtx?.close().catch(() => {});
-  await cleanup();
-  await writeSetting("exchangeEnabled", previousFlag);
-  await writeSetting("notificationsEnabled", previousNotify);
+  try {
+    await exCtx?.close().catch(() => {});
+    await cleanup();
+  } finally {
+    await writeSetting("exchangeEnabled", null);
+    await writeSetting("notificationsEnabled", null);
+  }
 });
 
 /** Ngữ cảnh 390px, không tải SDK đăng nhập ngoài. */
@@ -450,9 +443,14 @@ test("exchange account asks a question after Turnstile, host replies, asker sees
       { timeout: 20_000 },
     )
     .toBe(1);
-  await expect(
-    page.getByRole("button", { name: /Thông báo/ }).first(),
-  ).toBeVisible({ timeout: 15_000 });
+  // Chuông cập nhật khi tải lại: có số chưa đọc và mở ra thấy tin trả lời.
+  await page.reload({ waitUntil: "domcontentloaded" });
+  const bell = page.getByRole("button", { name: /^Thông báo, \d+ chưa đọc/ });
+  await expect(bell.first()).toBeVisible({ timeout: 20_000 });
+  await bell.first().click();
+  await expect(page.getByText("Có người trả lời bạn").first()).toBeVisible({
+    timeout: 20_000,
+  });
 });
 
 test("second comment in the same session shows no Turnstile", async () => {
@@ -462,17 +460,28 @@ test("second comment in the same session shows no Turnstile", async () => {
   await clearBurst("ex");
   await openEvent(page, ev.code);
   const q = "Có cho thuê vợt tại sân không?";
+  // Đếm request tới Cloudflare từ trước khi gửi: không có widget thì không có request.
+  const turnstileRequests: string[] = [];
+  page.on("request", (r) => {
+    if (r.url().includes("challenges.cloudflare.com"))
+      turnstileRequests.push(r.url());
+  });
   await composer(page).fill(q);
   await sendBtn(page).click();
+  await expect
+    .poll(
+      () =>
+        scalar(
+          "SELECT COUNT(*) FROM exchange_comments WHERE event_id = ? AND author_member_id = ?",
+          [ev.id, ids.ex],
+        ),
+      { timeout: 20_000 },
+    )
+    .toBe(1);
   await expect(article(page, q)).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText("Đang gửi…")).toHaveCount(0, { timeout: 20_000 });
   await expect(turnstileFrame(page)).toHaveCount(0);
-  expect(
-    await scalar(
-      "SELECT COUNT(*) FROM exchange_comments WHERE event_id = ? AND author_member_id = ?",
-      [ev.id, ids.ex],
-    ),
-  ).toBe(1);
+  expect(turnstileRequests).toEqual([]);
 });
 
 test("comment with a phone waits for the host, guest cannot see it, host approves", async ({
@@ -505,6 +514,17 @@ test("comment with a phone waits for the host, guest cannot see it, host approve
   await expect(host.getByText("Đang chờ duyệt (1)")).toHaveCount(0, {
     timeout: 20_000,
   });
+  // Chờ trạng thái đã lưu trước khi đóng ngữ cảnh của host.
+  await expect
+    .poll(
+      () =>
+        scalar(
+          "SELECT COUNT(*) FROM exchange_comments WHERE event_id = ? AND status = 'visible' AND body = ?",
+          [ev.id, q],
+        ),
+      { timeout: 20_000 },
+    )
+    .toBe(1);
   await hostCtx.close();
 
   await openEvent(guest, ev.code);
@@ -612,18 +632,29 @@ test("three reports hide a comment; admin unhides it in /admin/giao-luu", async 
   await admin.getByRole("tab", { name: "Bình luận", exact: true }).click();
   await admin.getByRole("tab", { name: "Đang ẩn", exact: true }).click();
   await expect(admin.getByText(text)).toBeVisible({ timeout: 20_000 });
-  await admin.getByRole("button", { name: "Bỏ ẩn" }).first().click();
+  // Thẻ gần nhất chứa cả đoạn chữ lẫn nút Bỏ ẩn (không bấm nhầm thẻ khác).
+  await admin
+    .locator("div")
+    .filter({ hasText: text })
+    .filter({ has: admin.getByRole("button", { name: "Bỏ ẩn" }) })
+    .last()
+    .getByRole("button", { name: "Bỏ ẩn" })
+    .click();
   await expect(admin.getByText("Đã bỏ ẩn bình luận")).toBeVisible({
     timeout: 20_000,
   });
   await adminCtx.close();
 
-  expect(
-    await scalar(
-      "SELECT COUNT(*) FROM exchange_comments WHERE id = ? AND status = 'visible'",
-      [commentId],
-    ),
-  ).toBe(1);
+  await expect
+    .poll(
+      () =>
+        scalar(
+          "SELECT COUNT(*) FROM exchange_comments WHERE id = ? AND status = 'visible'",
+          [commentId],
+        ),
+      { timeout: 20_000 },
+    )
+    .toBe(1);
   await openEvent(guest, ev.code);
   await expect(guest.getByText(text)).toBeVisible({ timeout: 20_000 });
   await guestCtx.close();
@@ -642,12 +673,16 @@ test("host locks comments and the composer is replaced by the locked line", asyn
     host.getByText("Host đã khoá bình luận của buổi này."),
   ).toBeVisible({ timeout: 20_000 });
   await expect(composer(host)).toHaveCount(0);
+  await expect
+    .poll(
+      () =>
+        scalar("SELECT comments_locked FROM exchange_events WHERE id = ?", [
+          ev.id,
+        ]),
+      { timeout: 20_000 },
+    )
+    .toBe(1);
   await hostCtx.close();
-  expect(
-    await scalar("SELECT comments_locked FROM exchange_events WHERE id = ?", [
-      ev.id,
-    ]),
-  ).toBe(1);
 
   const page = await exCtx!.newPage();
   await openEvent(page, ev.code);
@@ -684,6 +719,17 @@ test("deleting a comment with a reply shows [đã xoá] right after reload", asy
   await expect(page.getByText("[đã xoá]").first()).toBeVisible({
     timeout: 20_000,
   });
+  // Chờ bản xoá đã lưu trước khi tải lại.
+  await expect
+    .poll(
+      () =>
+        scalar(
+          "SELECT COUNT(*) FROM exchange_comments WHERE id = ? AND status = 'deleted'",
+          [parent],
+        ),
+      { timeout: 20_000 },
+    )
+    .toBe(1);
 
   await openEvent(page, ev.code);
   await expect(page.getByText("[đã xoá]").first()).toBeVisible({

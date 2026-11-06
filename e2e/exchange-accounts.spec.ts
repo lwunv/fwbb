@@ -108,10 +108,9 @@ test.beforeAll(async () => {
     // Mỗi lần đăng nhập mật khẩu ghi một dòng rate limit; xoá để nhiều bài
     // trong suite không chạm ngưỡng.
     await db.execute("DELETE FROM rate_limit_buckets").catch(() => {});
-    const r = await db.execute(
-      "SELECT value FROM app_settings WHERE key = 'exchangeEnabled'",
-    );
-    previousFlag = r.rows[0] ? String(r.rows[0].value) : null;
+    // Về mặc định, không tin giá trị còn sót từ lần chạy bị ngắt.
+    previousFlag = null;
+    await db.execute("DELETE FROM app_settings WHERE key = 'exchangeEnabled'");
   });
 });
 

@@ -14,7 +14,7 @@ import bcrypt from "bcryptjs";
  * Dữ liệu seed thẳng vào e2e/local.db (server `next start` dùng cùng file).
  * Buổi mở bằng form chỉ phủ ở bài đầu; các bài sau seed buổi bằng SQL để mỗi
  * bài kiểm đúng một luồng. Cờ `exchangeEnabled` (và `notificationsEnabled`
- * cho bài duyệt đăng ký) được khôi phục đúng giá trị cũ ở afterAll.
+ * cho bài duyệt đăng ký) được khôi về mặc định (xoá hàng) ở afterAll.
  */
 
 test.use({ storageState: { cookies: [], origins: [] } });
@@ -41,9 +41,6 @@ const HOUR = 3_600_000;
 const iso = (ms: number) => new Date(ms).toISOString();
 const inHours = (h: number) => iso(Date.now() + h * HOUR);
 
-let previousFlag: string | null = null;
-let previousNotify: string | null = null;
-
 async function withDb<T>(
   fn: (db: ReturnType<typeof createClient>) => Promise<T>,
 ): Promise<T> {
@@ -55,16 +52,6 @@ async function withDb<T>(
   } finally {
     db.close();
   }
-}
-
-async function readSetting(key: string): Promise<string | null> {
-  return withDb(async (db) => {
-    const r = await db.execute({
-      sql: "SELECT value FROM app_settings WHERE key = ?",
-      args: [key],
-    });
-    return r.rows[0] ? String(r.rows[0].value) : null;
-  });
 }
 
 async function writeSetting(key: string, value: string | null) {
@@ -260,8 +247,10 @@ async function cleanup() {
 
 test.beforeAll(async () => {
   await cleanup();
-  previousFlag = await readSetting("exchangeEnabled");
-  previousNotify = await readSetting("notificationsEnabled");
+  // Về mặc định (hàng không tồn tại) thay vì tin giá trị đang có: lần chạy bị
+  // ngắt giữa chừng có thể để cờ bật, và giữ nguyên là giữ luôn rò rỉ đó.
+  await writeSetting("exchangeEnabled", null);
+  await writeSetting("notificationsEnabled", null);
   await setFlag(true);
   await withDb(async (db) => {
     // Mỗi lần đăng nhập mật khẩu ghi một dòng rate limit.
@@ -278,9 +267,12 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await cleanup();
-  await writeSetting("exchangeEnabled", previousFlag);
-  await writeSetting("notificationsEnabled", previousNotify);
+  try {
+    await cleanup();
+  } finally {
+    await writeSetting("exchangeEnabled", null);
+    await writeSetting("notificationsEnabled", null);
+  }
 });
 
 /** Ngữ cảnh 390px có GPS giả, style bản đồ rỗng và không tải SDK đăng nhập ngoài. */

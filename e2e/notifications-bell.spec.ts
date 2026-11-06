@@ -30,18 +30,6 @@ let memberId: number;
 let saved: { email: string | null; hash: string | null };
 let savedSwitch: string | null = null;
 
-async function readSwitch(): Promise<string | null> {
-  const c = await db();
-  try {
-    const r = await c.execute(
-      "SELECT value FROM app_settings WHERE key = 'notificationsEnabled'",
-    );
-    return r.rows[0] ? String(r.rows[0].value) : null;
-  } finally {
-    c.close();
-  }
-}
-
 /** `null` = xóa hàng (về mặc định tắt). */
 async function writeSwitch(value: string | null) {
   const c = await db();
@@ -99,7 +87,9 @@ async function seedSession(
 }
 
 test.beforeAll(async () => {
-  savedSwitch = await readSwitch();
+  // Về mặc định (tắt), không tin giá trị còn sót từ lần chạy bị ngắt.
+  savedSwitch = null;
+  await writeSwitch(null);
   const c = await db();
   try {
     const m = (
