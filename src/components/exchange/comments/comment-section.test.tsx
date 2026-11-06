@@ -20,6 +20,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { NuqsTestingAdapter } from "nuqs/adapters/testing";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import viMessages from "@/i18n/messages/vi.json";
+import enMessages from "@/i18n/messages/en.json";
 import { makePage, makeView } from "./fixtures";
 
 const mocks = vi.hoisted(() => ({
@@ -27,6 +28,8 @@ const mocks = vi.hoisted(() => ({
   replies: vi.fn(),
   add: vi.fn(),
   vote: vi.fn(),
+  edit: vi.fn(),
+  del: vi.fn(),
   lock: vi.fn(),
   mark: vi.fn(),
   report: vi.fn(),
@@ -37,8 +40,8 @@ vi.mock("@/actions/exchange-comments", () => ({
   listExchangeComments: mocks.list,
   listCommentReplies: mocks.replies,
   addComment: mocks.add,
-  editComment: vi.fn(),
-  deleteComment: vi.fn(),
+  editComment: mocks.edit,
+  deleteComment: mocks.del,
   toggleCommentVote: mocks.vote,
   pinComment: vi.fn(),
   setCommentsLocked: mocks.lock,
@@ -76,15 +79,31 @@ function renderSection(
     signedIn?: boolean;
     search?: string;
     eventId?: number | null;
+    locale?: "vi" | "en";
+    /** Giữ nguyên retry mặc định của react-query (app thật không tắt retry). */
+    defaultRetry?: boolean;
+    /** URL cập nhật thật (nuqs testing adapter), cần khi kênh phải đổi theo URL. */
+    memory?: boolean;
+    onUrlUpdate?: (u: { searchParams: URLSearchParams }) => void;
   } = {},
 ) {
   const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    defaultOptions: {
+      queries: opts.defaultRetry ? { gcTime: 0 } : { retry: false, gcTime: 0 },
+    },
   });
+  const en = opts.locale === "en";
   return render(
-    <NextIntlClientProvider locale="vi" messages={viMessages}>
+    <NextIntlClientProvider
+      locale={en ? "en" : "vi"}
+      messages={en ? enMessages : viMessages}
+    >
       <QueryClientProvider client={client}>
-        <NuqsTestingAdapter searchParams={opts.search ?? ""}>
+        <NuqsTestingAdapter
+          searchParams={opts.search ?? ""}
+          hasMemory={opts.memory}
+          onUrlUpdate={opts.onUrlUpdate}
+        >
           <CommentSection
             code="ABCD1234"
             signedIn={opts.signedIn ?? true}
@@ -304,17 +323,17 @@ describe("CommentSection", () => {
   });
 
   it("Tải bình luận mới refetches; no interval is set", async () => {
+    // Giả lập thời gian TRƯỚC khi render để bắt cả `refetchInterval`.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     pageFor({ roots: [makeView()] });
     renderSection();
     await screen.findByText("Sân có điều hòa không?");
     expect(mocks.list).toHaveBeenCalledTimes(1);
 
-    vi.useFakeTimers();
     await act(async () => {
-      vi.advanceTimersByTime(5 * 60_000);
+      await vi.advanceTimersByTimeAsync(5 * 60_000);
     });
     expect(mocks.list).toHaveBeenCalledTimes(1);
-    vi.useRealTimers();
 
     fireEvent.click(screen.getByRole("button", { name: "Tải bình luận mới" }));
     await waitFor(() => expect(mocks.list).toHaveBeenCalledTimes(2));
@@ -337,6 +356,212 @@ describe("CommentSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tải bình luận mới" }));
     await waitFor(() => expect(mocks.list).toHaveBeenCalledTimes(2));
     expect(mocks.mark).toHaveBeenCalledTimes(1);
+  });
+
+  it("deleting a loaded reply keeps it gone after the refetch, and a new reply after full expansion is reachable", async () => {
+    const reply = (id: number) =>
+      makeView({
+        id,
+        parentId: 1,
+        body: `trả lời ${id}`,
+        canDelete: true,
+      });
+    let phase: "before" | "afterDelete" | "afterNew" = "before";
+    mocks.list.mockImplementation(async () => ({
+      success: true,
+      data: makePage({
+        roots: [
+          makeView({
+            id: 1,
+            moreReplies: phase === "afterDelete" ? 2 : 3,
+            replies: [reply(11), reply(12)],
+          }),
+        ],
+      }),
+    }));
+    mocks.replies.mockImplementation(async () => ({
+      success: true,
+      data: {
+        replies:
+          phase === "before"
+            ? [reply(13), reply(14), reply(15)]
+            : phase === "afterDelete"
+              ? [reply(14), reply(15)]
+              : [reply(14), reply(15), reply(16)],
+        hasMore: false,
+        nextOffset: null,
+      },
+    }));
+    mocks.del.mockResolvedValue({ success: true });
+    renderSection();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Xem 3 trả lời" }),
+    );
+    await screen.findByText("trả lời 13");
+
+    // Xoá một trả lời đã tải thêm (13).
+    const row = screen.getByText("trả lời 13").closest("article")!;
+    fireEvent.click(within(row).getByRole("button", { name: "Thêm" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Xoá" }));
+    phase = "afterDelete";
+    fireEvent.click(await screen.findByRole("button", { name: "Xoá" }));
+    await waitFor(() =>
+      expect(mocks.del).toHaveBeenCalledWith({ commentId: 13 }),
+    );
+    await waitFor(() =>
+      expect(mocks.list.mock.calls.length).toBeGreaterThan(1),
+    );
+    await waitFor(() => expect(screen.queryByText("[đã xoá]")).toBeNull());
+    expect(screen.getByText("trả lời 14")).toBeTruthy();
+    expect(screen.queryByText("trả lời 13")).toBeNull();
+
+    // Có trả lời mới sau khi đã mở hết: tải lại thì thấy ngay.
+    phase = "afterNew";
+    fireEvent.click(screen.getByRole("button", { name: "Tải bình luận mới" }));
+    await screen.findByText("trả lời 16");
+    expect(screen.queryByText("trả lời 13")).toBeNull();
+  });
+
+  it("a new reply after full expansion shows a Xem 1 trả lời button", async () => {
+    let extra = 0;
+    mocks.list.mockImplementation(async () => ({
+      success: true,
+      data: makePage({
+        roots: [
+          makeView({
+            id: 1,
+            moreReplies: 1 + extra,
+            replies: [makeView({ id: 11, parentId: 1, body: "đầu tiên" })],
+          }),
+        ],
+      }),
+    }));
+    mocks.replies.mockImplementation(async () => ({
+      success: true,
+      data: {
+        replies: [makeView({ id: 12, parentId: 1, body: "thứ hai" })],
+        hasMore: false,
+        nextOffset: null,
+      },
+    }));
+    renderSection();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Xem 1 trả lời" }),
+    );
+    await screen.findByText("thứ hai");
+    expect(
+      screen.queryByRole("button", { name: /Xem \d+ trả lời/ }),
+    ).toBeNull();
+    // Server báo thêm một trả lời; danh sách mở rộng giữ nguyên vì được tải lại.
+    extra = 1;
+    mocks.replies.mockImplementation(async () => ({
+      success: true,
+      data: {
+        replies: [
+          makeView({ id: 12, parentId: 1, body: "thứ hai" }),
+          makeView({ id: 13, parentId: 1, body: "thứ ba mới" }),
+        ],
+        hasMore: false,
+        nextOffset: null,
+      },
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "Tải bình luận mới" }));
+    await screen.findByText("thứ ba mới");
+    expect(screen.getByText("thứ hai")).toBeTruthy();
+  });
+
+  it("denied group channel falls back to Hỏi đáp at once, without react-query retries", async () => {
+    mocks.list.mockImplementation(async (input: { channel: string }) =>
+      input.channel === "group"
+        ? { error: "Không tìm thấy bình luận" }
+        : { success: true, data: makePage({ roots: [makeView()] }) },
+    );
+    const urls: string[] = [];
+    renderSection({
+      search: "?kenh=nhom",
+      defaultRetry: true,
+      memory: true,
+      onUrlUpdate: (u) => urls.push(u.searchParams.toString()),
+    });
+    await screen.findByText("Sân có điều hòa không?");
+    const groupCalls = mocks.list.mock.calls.filter(
+      (c) => c[0].channel === "group",
+    );
+    expect(groupCalls).toHaveLength(1);
+    expect(mocks.toast.error).not.toHaveBeenCalled();
+    expect(urls.at(-1)).not.toContain("kenh=nhom");
+  });
+
+  it("guest opening ?kenh=nhom also corrects the URL back to qa", async () => {
+    pageFor({ role: "guest", canWrite: false, roots: [makeView()] });
+    const urls: string[] = [];
+    renderSection({
+      signedIn: false,
+      search: "?kenh=nhom",
+      onUrlUpdate: (u) => urls.push(u.searchParams.toString()),
+    });
+    await screen.findByText("Sân có điều hòa không?");
+    await waitFor(() => expect(urls.length).toBeGreaterThan(0));
+    expect(urls.at(-1)).not.toContain("kenh=nhom");
+    expect(mocks.toast.error).not.toHaveBeenCalled();
+  });
+
+  it("a locked account (page role guest) gets the login line and no vote or report", async () => {
+    pageFor({ role: "guest", canWrite: false, roots: [makeView()] });
+    renderSection({ signedIn: true });
+    await screen.findByText("Sân có điều hòa không?");
+    expect(
+      screen.getByRole("link", { name: "Đăng nhập để bình luận" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(
+      (screen.getByRole("button", { name: /Hữu ích/ }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(screen.queryByRole("button", { name: "Thêm" })).toBeNull();
+  });
+
+  it("edit is optimistic and rolls back with a toast on error", async () => {
+    pageFor({
+      roots: [makeView({ id: 8, body: "bản cũ", mine: true, canEdit: true })],
+    });
+    let reject!: (v: unknown) => void;
+    mocks.edit.mockReturnValueOnce(new Promise((_, r) => (reject = r)));
+    renderSection();
+    await screen.findByText("bản cũ");
+    fireEvent.click(screen.getByRole("button", { name: "Thêm" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Sửa" }));
+    fireEvent.change(screen.getAllByRole("textbox")[0], {
+      target: { value: "bản mới" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    expect(screen.getByText("bản mới")).toBeTruthy();
+    expect(screen.getByText("đã sửa")).toBeTruthy();
+    expect(mocks.edit).toHaveBeenCalledWith({ commentId: 8, body: "bản mới" });
+    await act(async () => reject(new Error("hết hạn sửa")));
+    await waitFor(() => expect(screen.getByText("bản cũ")).toBeTruthy());
+    expect(screen.queryByText("đã sửa")).toBeNull();
+    expect(mocks.toast.error).toHaveBeenCalledWith("hết hạn sửa");
+  });
+
+  it("a failing reply load shows a toast instead of an unhandled rejection", async () => {
+    pageFor({ roots: [makeView({ id: 1, moreReplies: 2, replies: [] })] });
+    mocks.replies.mockRejectedValue(new Error("mạng lỗi"));
+    renderSection();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Xem 2 trả lời" }),
+    );
+    await waitFor(() =>
+      expect(mocks.toast.error).toHaveBeenCalledWith("mạng lỗi"),
+    );
+  });
+
+  it("en uses a plural for the reply count", async () => {
+    pageFor({ roots: [makeView({ id: 1, moreReplies: 1, replies: [] })] });
+    renderSection({ locale: "en" });
+    expect(
+      await screen.findByRole("button", { name: "View 1 reply" }),
+    ).toBeTruthy();
   });
 
   it("report sheet with commentId sends a comment target", async () => {

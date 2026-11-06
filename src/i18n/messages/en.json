@@ -1445,7 +1445,7 @@
       "sortNew": "Newest",
       "loadNew": "Load new comments",
       "loadMore": "Show more",
-      "viewReplies": "View {count} replies",
+      "viewReplies": "{count, plural, one {View # reply} other {View # replies}}",
       "loadError": "Could not load comments",
       "retry": "Try again",
       "empty": "No questions yet. Ask the host what you need to know.",

@@ -7,6 +7,7 @@ import { MoreHorizontal, Pin, ThumbsUp } from "lucide-react";
 import {
   approveHeldComment,
   deleteComment,
+  editComment,
   pinComment,
   toggleCommentVote,
 } from "@/actions/exchange-comments";
@@ -90,11 +91,23 @@ export function CommentItem({
       async () => {
         const r = await toggleCommentVote({ commentId: v.id, voted: next });
         // Số thật từ server thay số đoán.
-        if ("success" in r) ctx.patch(v.id, { upvotes: r.data.upvotes });
+        if ("success" in r)
+          ctx.patch(v.id, { myVote: next, upvotes: r.data.upvotes });
         return r;
       },
       () => ctx.patch(v.id, prev),
       { retry: false },
+    );
+  }
+
+  function edit(body: string) {
+    const prev = { body: v.body, edited: v.edited };
+    setEditing(false);
+    ctx.patch(v.id, { body, edited: true });
+    fireAction(
+      () => editComment({ commentId: v.id, body }),
+      () => ctx.patch(v.id, prev),
+      { retry: false, onSuccess: ctx.changed },
     );
   }
 
@@ -203,15 +216,12 @@ export function CommentItem({
         <CommentComposer
           code={ctx.code}
           channel={ctx.channel}
-          editId={v.id}
           initialText={v.body ?? ""}
           needsCaptcha={false}
           autoFocus
           onCancel={() => setEditing(false)}
-          onSent={() => {
-            setEditing(false);
-            ctx.changed();
-          }}
+          onEditSubmit={edit}
+          onSent={() => {}}
         />
       ) : (
         <p className="text-base break-words whitespace-pre-wrap">

@@ -24,7 +24,7 @@ import { CommentThread } from "./comment-thread";
 const KENH = ["qa", "nhom"] as const;
 const SORTS = ["top", "new"] as const;
 
-type Extra = { replies: CommentView[]; more: number; next: number | null };
+type Extra = { replies: CommentView[]; next: number | null };
 
 /**
  * Khu bình luận kiểu Reddit của trang buổi. Quyền đọc/ghi lấy từ trang server
@@ -48,6 +48,7 @@ export function CommentSection({
     parseAsStringLiteral(KENH).withDefault("qa"),
   );
   const [bl, setBl] = useQueryState("bl", parseAsStringLiteral(SORTS));
+  // `signedIn` chỉ là gợi ý ban đầu; khi trang đầu về thì vai trò thật của server thắng.
   // Khách không bao giờ có Nhóm buổi: về Hỏi đáp ngay, không gọi server.
   const channel = kenh === "nhom" && signedIn ? "group" : "qa";
   const sort = bl ?? (channel === "group" ? "new" : "top");
@@ -75,33 +76,90 @@ export function CommentSection({
     },
     initialPageParam: 0,
     getNextPageParam: (p) => p.nextOffset ?? undefined,
+    // Khu Nhóm buổi không đọc được trả lỗi ngay: thử lại chỉ làm màn chờ lâu thêm.
+    retry: (count) => channel !== "group" && count < 3,
     staleTime: 60_000,
     refetchOnWindowFocus: true,
   });
   const first = q.data?.pages[0];
+  const viewerIn = first ? first.role !== "guest" : signedIn;
 
   // Vào ?kenh=nhom mà không đọc được: về Hỏi đáp, không báo lỗi.
   const groupDenied =
     channel === "group" && (q.isError || first?.canRead.group === false);
   useEffect(() => {
-    if (groupDenied) void setKenh("qa");
-  }, [groupDenied, setKenh]);
+    if (groupDenied || (kenh === "nhom" && !signedIn)) void setKenh("qa");
+  }, [groupDenied, kenh, signedIn, setKenh]);
 
   // Đánh dấu đã đọc một lần cho mỗi khu; lỗi ở đây không đáng làm phiền người đọc.
   const newestAt = first?.newestAt ?? null;
   const unread = first?.unread ?? false;
   useEffect(() => {
-    if (!signedIn || !unread || !newestAt || marked.current.has(channel))
+    if (!viewerIn || !unread || !newestAt || marked.current.has(channel))
       return;
     marked.current.add(channel);
     void markCommentsRead({ code, channel, upTo: newestAt }).catch(() => {});
-  }, [signedIn, unread, newestAt, channel, code]);
+  }, [viewerIn, unread, newestAt, channel, code]);
 
   async function changed() {
     await qc.invalidateQueries({ queryKey: ["exchange-comments", code] });
-    setPatches({});
     setLockOverride(null);
   }
+
+  // Mỗi lần có dữ liệu mới (ghi xong, "Tải bình luận mới", focus lại): số server
+  // thắng bản đoán optimistic, và các chủ đề đã mở "Xem N trả lời" được tải lại
+  // để không giữ bản cũ (bình luận đã xoá/sửa, trả lời mới).
+  const extraRef = useRef(extra);
+  useEffect(() => {
+    extraRef.current = extra;
+  });
+  useEffect(() => {
+    if (!q.dataUpdatedAt) return;
+    const ids = Object.keys(extraRef.current).map(Number);
+    if (ids.length === 0) {
+      setPatches({});
+      return;
+    }
+    let cancelled = false;
+    const fresh = new Map<number, CommentView>();
+    const walk = (v: CommentView) => {
+      fresh.set(v.id, v);
+      v.replies.forEach(walk);
+    };
+    q.data?.pages.forEach((p) => p.roots.forEach(walk));
+    void (async () => {
+      const next: Record<number, Extra> = {};
+      for (const id of ids) {
+        const f = fresh.get(id);
+        if (!f) continue;
+        let offset = f.replies.filter((r) => r.state === "visible").length;
+        let more = f.moreReplies;
+        const acc: CommentView[] = [];
+        for (let i = 0; i < 5 && more > 0; i++) {
+          const r = await listCommentReplies({ commentId: id, offset }).catch(
+            () => null,
+          );
+          if (!r || "error" in r) {
+            if (r) toast.error(r.error);
+            break;
+          }
+          acc.push(...r.data.replies);
+          if (!r.data.hasMore) break;
+          offset = r.data.nextOffset ?? offset + r.data.replies.length;
+          more -= r.data.replies.length;
+        }
+        if (acc.length > 0) next[id] = { replies: acc, next: null };
+      }
+      if (cancelled) return;
+      setExtra(next);
+      setPatches({});
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Chỉ chạy khi có dữ liệu mới; `q.data` đọc đúng bản vừa về.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q.dataUpdatedAt]);
 
   function apply(v: CommentView): CommentView {
     const e = extra[v.id];
@@ -109,8 +167,13 @@ export function CommentSection({
     let replies = v.replies;
     if (e) {
       const seen = new Set(v.replies.map((r) => r.id));
-      replies = [...v.replies, ...e.replies.filter((r) => !seen.has(r.id))];
-      merged.moreReplies = e.more;
+      const added = e.replies.filter((r) => !seen.has(r.id));
+      replies = [...v.replies, ...added];
+      // `moreReplies` của server là gốc; chỉ trừ số trả lời đã tải thêm.
+      merged.moreReplies = Math.max(
+        0,
+        v.moreReplies - added.filter((r) => r.state === "visible").length,
+      );
     }
     merged.replies = replies.map(apply);
     return merged;
@@ -133,17 +196,20 @@ export function CommentSection({
     const offset =
       extra[c.id]?.next ??
       c.replies.filter((r) => r.state === "visible").length;
-    const r = await listCommentReplies({ commentId: c.id, offset });
+    const r = await listCommentReplies({ commentId: c.id, offset }).catch(
+      (e: unknown) => ({
+        error: e instanceof Error ? e.message : t("loadError"),
+      }),
+    );
     if ("error" in r) {
       toast.error(r.error);
       return;
     }
-    const { replies, hasMore, nextOffset } = r.data;
+    const { replies, nextOffset } = r.data;
     setExtra((prev) => ({
       ...prev,
       [c.id]: {
         replies: [...(prev[c.id]?.replies ?? []), ...replies],
-        more: hasMore ? Math.max(1, c.moreReplies - replies.length) : 0,
         next: nextOffset,
       },
     }));
@@ -171,7 +237,7 @@ export function CommentSection({
   const ctx: CommentCtx = {
     code,
     channel,
-    signedIn,
+    signedIn: viewerIn,
     canWrite: !!first?.canWrite && writeState === "open",
     needsCaptcha: first?.needsCaptcha ?? false,
     patch: (id, p) =>
@@ -179,13 +245,15 @@ export function CommentSection({
     changed: () => void changed(),
   };
 
-  const showGroupTab = signedIn && !!first?.canRead.group;
+  const showGroupTab = viewerIn && !!first?.canRead.group;
   const loginHref = `/giao-luu/dang-nhap?next=${encodeURIComponent(`/giao-luu/${code}`)}`;
   const line = "text-muted-foreground text-base";
 
   function writeArea() {
     if (!first) return null;
-    if (!signedIn)
+    if (writeState === "closed")
+      return <p className={line}>{t("closedLine")}</p>;
+    if (!viewerIn)
       return (
         <Link
           href={loginHref}
@@ -196,8 +264,6 @@ export function CommentSection({
       );
     if (writeState === "locked")
       return <p className={line}>{t("lockedLine")}</p>;
-    if (writeState === "closed")
-      return <p className={line}>{t("closedLine")}</p>;
     if (!first.canWrite) return <p className={line}>{t("cannotWrite")}</p>;
     return (
       <div ref={composerRef}>

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Send } from "lucide-react";
 import { toast } from "sonner";
-import { addComment, editComment } from "@/actions/exchange-comments";
+import { addComment } from "@/actions/exchange-comments";
 import { TurnstileWidget } from "@/components/security/turnstile-widget";
 import {
   COMMENT_MAX_LEN,
@@ -19,8 +19,8 @@ export type CommentComposerProps = {
   channel: CommentChannel;
   /** Bình luận được bấm "Trả lời"; server tự quy về tầng đúng. */
   parentId?: number;
-  /** Có thì đây là ô sửa: gọi `editComment` thay vì `addComment`. */
-  editId?: number;
+  /** Có thì đây là ô sửa: bấm Lưu chỉ trao nội dung cho cha (cha lo optimistic). */
+  onEditSubmit?: (body: string) => void;
   initialText?: string;
   needsCaptcha: boolean;
   onSent: (status: "visible" | "held") => void;
@@ -41,7 +41,7 @@ export function CommentComposer({
   code,
   channel,
   parentId,
-  editId,
+  onEditSubmit,
   initialText = "",
   needsCaptcha,
   onSent,
@@ -73,10 +73,14 @@ export function CommentComposer({
 
   const body = text.trim();
   const tooLong = text.length > COMMENT_MAX_LEN;
-  const showCaptcha = !editId && (needsCaptcha || captcha);
+  const showCaptcha = !onEditSubmit && (needsCaptcha || captcha);
 
   function send(tk: string | null) {
     if (sending || !body || tooLong) return;
+    if (onEditSubmit) {
+      onEditSubmit(body);
+      return;
+    }
     if (showCaptcha && !tk) {
       // Chưa có token: hiện widget rồi tự gửi khi token về.
       awaitingToken.current = true;
@@ -100,7 +104,6 @@ export function CommentComposer({
     };
     fireAction(
       async () => {
-        if (editId) return editComment({ commentId: editId, body });
         const r = await addComment({
           code,
           channel,
@@ -161,7 +164,7 @@ export function CommentComposer({
           "bg-background/95 sticky bottom-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] z-20 -mx-4 border-t px-4 py-3 backdrop-blur sm:bottom-0 sm:mx-0 sm:rounded-2xl sm:border sm:px-3",
       )}
     >
-      {sending && !editId && (
+      {sending && !onEditSubmit && (
         <div className="bg-muted/60 space-y-1 rounded-xl p-3 text-base">
           <p className="break-words whitespace-pre-wrap">{sentText}</p>
           <p className="text-muted-foreground text-sm">{t("sending")}</p>
@@ -175,7 +178,7 @@ export function CommentComposer({
       <textarea
         ref={areaRef}
         value={text}
-        rows={editId || parentId ? 3 : 2}
+        rows={onEditSubmit || parentId ? 3 : 2}
         autoFocus={autoFocus}
         placeholder={placeholder ?? t("placeholder")}
         aria-label={placeholder ?? t("placeholder")}
@@ -218,7 +221,7 @@ export function CommentComposer({
             className="bg-primary text-primary-foreground inline-flex min-h-11 items-center gap-2 rounded-xl px-5 text-base font-semibold disabled:opacity-50"
           >
             <Send className="h-4 w-4" aria-hidden />
-            {editId ? t("save") : t("send")}
+            {onEditSubmit ? t("save") : t("send")}
           </button>
         </div>
       </div>

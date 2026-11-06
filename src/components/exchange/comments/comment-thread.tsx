@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import type { CommentView } from "@/lib/exchange/comment-tree";
 import { CommentItem, type CommentCtx } from "./comment-item";
 
@@ -26,6 +27,8 @@ export function CommentThread({
     setLoading(c.id);
     try {
       await onLoadReplies(c);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("loadError"));
     } finally {
       setLoading(null);
     }
