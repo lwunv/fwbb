@@ -1,11 +1,16 @@
 "use server";
 
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, ne, sql } from "drizzle-orm";
 import { updateTag } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { db } from "@/db";
-import { exchangeComments, exchangeRegistrations } from "@/db/schema";
+import {
+  exchangeCommentVotes,
+  exchangeComments,
+  exchangeEvents,
+  exchangeRegistrations,
+} from "@/db/schema";
 import type { Tx } from "@/db/tx";
 import { attendanceStats } from "@/lib/exchange/attendance";
 import {
@@ -19,9 +24,11 @@ import {
   RL_COMMENT_EDIT,
   RL_COMMENT_HOST,
   RL_COMMENT_MOD,
+  RL_COMMENT_VOTE,
   TS_COMMENT,
 } from "@/lib/exchange/constants";
 import {
+  commentMetaTag,
   commentTag,
   getCommentEventMetaCached,
   loadCommentContext,
@@ -34,7 +41,11 @@ import {
   detectContact,
   normalizeCommentBody,
 } from "@/lib/exchange/comment-text";
-import { checkBotAndRate, exchangeGate } from "@/lib/exchange/guards";
+import {
+  checkBotAndRate,
+  exchangeGate,
+  loadHostedEvent,
+} from "@/lib/exchange/guards";
 import { runSerial } from "@/lib/exchange/serial";
 import {
   notifyCommentHeld,
@@ -537,6 +548,331 @@ export async function deleteComment(input: unknown): Promise<SimpleResult> {
     );
   } catch {
     console.error("[Exchange] comment-delete-failed", { id: f.commentId });
+    return { error: t("commentSaveFailed") };
+  }
+
+  if ("success" in result) updateTag(commentTag(eventId));
+  return result;
+}
+
+const voteSchema = z.object({
+  commentId: z.number().int().positive(),
+  voted: z.boolean(),
+});
+const pinSchema = z.object({
+  commentId: z.number().int().positive(),
+  pinned: z.boolean(),
+});
+const lockSchema = z.object({
+  eventId: z.number().int().positive(),
+  locked: z.boolean(),
+});
+const approveSchema = z.object({ commentId: z.number().int().positive() });
+
+type VoteResult =
+  | { success: true; data: { upvotes: number } }
+  | { error: string };
+
+/**
+ * Bấm Hữu ích. Cố ý không gọi `updateTag` và không đặt cookie: cả hai làm Next
+ * render lại cả trang buổi, quá đắt cho một lượt bấm. Số mới trả về cho client
+ * tự cập nhật, cache công khai hội tụ khi có thao tác khác hoặc hết hạn.
+ */
+export async function toggleCommentVote(input: unknown): Promise<VoteResult> {
+  const gate = await exchangeGate();
+  if ("error" in gate) return gate;
+
+  const auth = await requireExchangeMember();
+  if ("error" in auth) return { error: auth.error };
+  const { member } = auth;
+
+  const t = await getTranslations("exchange.errors");
+  const parsed = voteSchema.safeParse(input);
+  if (!parsed.success) return { error: t("invalidInput") };
+  const f = parsed.data;
+
+  // Hữu ích là đường nóng, nhiều người bấm cùng lúc: xếp cả bước rate limit vào
+  // hàng đợi ghi để không tranh khoá SQLite với transaction của lượt khác.
+  const rl = await runSerial(() =>
+    checkRateLimit(
+      `exchange-comment-vote:${member.id}`,
+      RL_COMMENT_VOTE.limit,
+      RL_COMMENT_VOTE.windowMs,
+    ),
+  );
+  if (!rl.ok)
+    return { error: t("rateLimited", { seconds: rl.retryAfter ?? 60 }) };
+
+  try {
+    return await runSerial(() =>
+      db.transaction(async (tx): Promise<VoteResult> => {
+        const now = new Date();
+        const found = await loadCommentWithContext(
+          tx,
+          f.commentId,
+          member,
+          now,
+        );
+        if (!found) return { error: t("commentNotFound") };
+        const { ctx, comment } = found;
+        if (comment.status !== "visible")
+          return { error: t("commentNotFound") };
+        if (comment.authorMemberId === member.id)
+          return { error: t("cannotComment") };
+        if (ctx.blocked || !ctx.canRead[comment.channel])
+          return { error: t("cannotComment") };
+        if (ctx.writeState === "closed") return { error: t("commentsClosed") };
+
+        if (f.voted) {
+          const inserted = await tx
+            .insert(exchangeCommentVotes)
+            .values({
+              commentId: comment.id,
+              memberId: member.id,
+              createdAt: now.toISOString(),
+            })
+            .onConflictDoNothing()
+            .returning({ id: exchangeCommentVotes.id });
+          if (inserted.length > 0)
+            await tx
+              .update(exchangeComments)
+              .set({ upvotes: sql`${exchangeComments.upvotes} + 1` })
+              .where(eq(exchangeComments.id, comment.id));
+        } else {
+          const removed = await tx
+            .delete(exchangeCommentVotes)
+            .where(
+              and(
+                eq(exchangeCommentVotes.commentId, comment.id),
+                eq(exchangeCommentVotes.memberId, member.id),
+              ),
+            )
+            .returning({ id: exchangeCommentVotes.id });
+          if (removed.length > 0)
+            await tx
+              .update(exchangeComments)
+              .set({ upvotes: sql`MAX(${exchangeComments.upvotes} - 1, 0)` })
+              .where(eq(exchangeComments.id, comment.id));
+        }
+        const [{ upvotes }] = await tx
+          .select({ upvotes: exchangeComments.upvotes })
+          .from(exchangeComments)
+          .where(eq(exchangeComments.id, comment.id));
+        return { success: true, data: { upvotes } };
+      }),
+    );
+  } catch {
+    console.error("[Exchange] comment-vote-failed", { id: f.commentId });
+    return { error: t("commentSaveFailed") };
+  }
+}
+
+export async function pinComment(input: unknown): Promise<SimpleResult> {
+  const gate = await exchangeGate();
+  if ("error" in gate) return gate;
+
+  const auth = await requireExchangeMember();
+  if ("error" in auth) return { error: auth.error };
+  const { member } = auth;
+
+  const t = await getTranslations("exchange.errors");
+  const parsed = pinSchema.safeParse(input);
+  if (!parsed.success) return { error: t("invalidInput") };
+  const f = parsed.data;
+
+  const rl = await checkRateLimit(
+    `exchange-comment-mod:${member.id}`,
+    RL_COMMENT_MOD.limit,
+    RL_COMMENT_MOD.windowMs,
+  );
+  if (!rl.ok)
+    return { error: t("rateLimited", { seconds: rl.retryAfter ?? 60 }) };
+
+  let eventId = 0;
+  let result: SimpleResult;
+  try {
+    result = await runSerial(() =>
+      db.transaction(async (tx): Promise<SimpleResult> => {
+        const found = await loadCommentWithContext(
+          tx,
+          f.commentId,
+          member,
+          new Date(),
+        );
+        if (!found || found.ctx.role !== "host")
+          return { error: t("commentNotFound") };
+        const { ctx, comment } = found;
+        if (comment.parentId !== null || comment.status !== "visible")
+          return { error: t("commentNotFound") };
+        if (f.pinned) {
+          // Mỗi khu chỉ một bình luận ghim.
+          await tx
+            .update(exchangeComments)
+            .set({ pinned: false })
+            .where(
+              and(
+                eq(exchangeComments.eventId, comment.eventId),
+                eq(exchangeComments.channel, comment.channel),
+                ne(exchangeComments.id, comment.id),
+              ),
+            );
+        }
+        await tx
+          .update(exchangeComments)
+          .set({ pinned: f.pinned })
+          .where(eq(exchangeComments.id, comment.id));
+        eventId = ctx.event.id;
+        return { success: true };
+      }),
+    );
+  } catch {
+    console.error("[Exchange] comment-pin-failed", { id: f.commentId });
+    return { error: t("commentSaveFailed") };
+  }
+
+  if ("success" in result) updateTag(commentTag(eventId));
+  return result;
+}
+
+export async function setCommentsLocked(input: unknown): Promise<SimpleResult> {
+  const gate = await exchangeGate();
+  if ("error" in gate) return gate;
+
+  const auth = await requireExchangeMember();
+  if ("error" in auth) return { error: auth.error };
+  const { member } = auth;
+
+  const t = await getTranslations("exchange.errors");
+  const parsed = lockSchema.safeParse(input);
+  if (!parsed.success) return { error: t("invalidInput") };
+  const f = parsed.data;
+
+  const rl = await checkRateLimit(
+    `exchange-comment-mod:${member.id}`,
+    RL_COMMENT_MOD.limit,
+    RL_COMMENT_MOD.windowMs,
+  );
+  if (!rl.ok)
+    return { error: t("rateLimited", { seconds: rl.retryAfter ?? 60 }) };
+
+  let code = "";
+  let result: SimpleResult;
+  try {
+    result = await runSerial(() =>
+      db.transaction(async (tx): Promise<SimpleResult> => {
+        const ev = await loadHostedEvent(tx, f.eventId, member.id);
+        if (!ev) return { error: t("commentNotFound") };
+        await tx
+          .update(exchangeEvents)
+          .set({ commentsLocked: f.locked })
+          .where(eq(exchangeEvents.id, ev.id));
+        code = ev.publicCode;
+        return { success: true };
+      }),
+    );
+  } catch {
+    console.error("[Exchange] comment-lock-failed", { id: f.eventId });
+    return { error: t("commentSaveFailed") };
+  }
+
+  if ("success" in result) {
+    updateTag(commentTag(f.eventId));
+    updateTag(commentMetaTag(code));
+  }
+  return result;
+}
+
+export async function approveHeldComment(
+  input: unknown,
+): Promise<SimpleResult> {
+  const gate = await exchangeGate();
+  if ("error" in gate) return gate;
+
+  const auth = await requireExchangeMember();
+  if ("error" in auth) return { error: auth.error };
+  const { member } = auth;
+
+  const t = await getTranslations("exchange.errors");
+  const parsed = approveSchema.safeParse(input);
+  if (!parsed.success) return { error: t("invalidInput") };
+  const f = parsed.data;
+
+  const rl = await checkRateLimit(
+    `exchange-comment-mod:${member.id}`,
+    RL_COMMENT_MOD.limit,
+    RL_COMMENT_MOD.windowMs,
+  );
+  if (!rl.ok)
+    return { error: t("rateLimited", { seconds: rl.retryAfter ?? 60 }) };
+
+  let eventId = 0;
+  let result: SimpleResult;
+  try {
+    result = await runSerial(() =>
+      db.transaction(async (tx): Promise<SimpleResult> => {
+        const now = new Date();
+        const found = await loadCommentWithContext(
+          tx,
+          f.commentId,
+          member,
+          now,
+        );
+        if (!found || found.ctx.role !== "host")
+          return { error: t("commentNotFound") };
+        const { ctx, comment } = found;
+        if (comment.status !== "held") return { error: t("commentNotFound") };
+
+        await tx
+          .update(exchangeComments)
+          .set({ status: "visible" })
+          .where(eq(exchangeComments.id, comment.id));
+
+        const [full] = await tx
+          .select({ replyToMemberId: exchangeComments.replyToMemberId })
+          .from(exchangeComments)
+          .where(eq(exchangeComments.id, comment.id))
+          .limit(1);
+        let parentAuthorId: number | null = null;
+        if (comment.parentId !== null) {
+          const [p] = await tx
+            .select({ a: exchangeComments.authorMemberId })
+            .from(exchangeComments)
+            .where(eq(exchangeComments.id, comment.parentId))
+            .limit(1);
+          parentAuthorId = p?.a ?? null;
+        }
+        const notifyOn = await isNotificationsEnabled(tx);
+        await notifyCommentVisible(
+          tx,
+          {
+            event: {
+              id: ctx.event.id,
+              publicCode: ctx.event.publicCode,
+              title: ctx.event.title,
+              hostMemberId: ctx.event.hostMemberId,
+            },
+            comment: {
+              id: comment.id,
+              channel: comment.channel,
+              parentId: comment.parentId,
+              authorMemberId: comment.authorMemberId,
+            },
+            parentAuthorId,
+            replyToMemberId: full?.replyToMemberId ?? null,
+            groupMemberIds:
+              notifyOn && comment.channel === "group"
+                ? await groupMemberIdsOf(tx, ctx.event.id)
+                : [],
+          },
+          notifyOn,
+          now,
+        );
+        eventId = ctx.event.id;
+        return { success: true };
+      }),
+    );
+  } catch {
+    console.error("[Exchange] comment-approve-failed", { id: f.commentId });
     return { error: t("commentSaveFailed") };
   }
 
