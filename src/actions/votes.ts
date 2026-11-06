@@ -12,6 +12,10 @@ import { requireApprovedMember } from "@/lib/member-auth";
 import { requireAdmin } from "@/lib/auth";
 import { adminGuestCountSchema, voteSchema } from "@/lib/validators";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { getFundBalance } from "@/lib/fund-calculator";
+import { isVoteBlockedByDebt } from "@/lib/fund-core";
+import { getSettings } from "@/actions/settings";
+import { formatVND } from "@/lib/utils";
 import {
   MAX_PLAY_SLOTS,
   playHeadcount,
@@ -68,6 +72,24 @@ export async function submitVote(
           ? t("voteDeadlinePassed")
           : t("voteNotAccepted"),
     };
+  }
+
+  // Nợ quá hạn mức thì không được vote CHƠI hoặc NHẬU, dù vào từ trang nào
+  // (trang chủ, link /vote/[id], gọi thẳng action). Bỏ vote thì vẫn cho.
+  // Spec 2026-11-06-debt-vote-block-design.md mục 4.2.
+  if (data.willPlay || data.willDine) {
+    const [{ balance }, settings] = await Promise.all([
+      getFundBalance(user.memberId),
+      getSettings(),
+    ]);
+    if (isVoteBlockedByDebt(balance, settings.voteBlockDebtThreshold)) {
+      return {
+        error: t("voteBlockedByDebt", {
+          debt: formatVND(-balance),
+          limit: formatVND(settings.voteBlockDebtThreshold),
+        }),
+      };
+    }
   }
 
   // Rate-limit SAU validation + gate: chỉ đếm attempt hợp lệ thật sự đi tới

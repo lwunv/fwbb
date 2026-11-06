@@ -15,7 +15,7 @@ import { NumberStepper } from "@/components/ui/number-stepper";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { SearchInput } from "@/components/shared/search-input";
 import { formatK } from "@/lib/utils";
-import { getFundStatus } from "@/lib/fund-core";
+import { getFundStatus, isVoteBlockedByDebt } from "@/lib/fund-core";
 import { FundStatusIcon } from "@/components/shared/fund-status-icon";
 import { useSettings } from "@/components/settings-provider";
 import {
@@ -128,6 +128,7 @@ export function AdminVoteManager({
     groupPolicies,
     minDeductionAmount,
     genderPricingEnabled,
+    voteBlockDebtThreshold,
   } = useSettings();
   const [search, setSearch] = useState("");
   const [removeTarget, setRemoveTarget] = useState<{
@@ -837,6 +838,18 @@ export function AdminVoteManager({
                             👫 +2
                           </span>
                         )}
+                        {/* Nợ quá hạn mức: member không tự vote được và phiếu ở
+                            buổi còn mở vote tự bị bỏ; admin vẫn thêm tay được
+                            nên cần thấy rõ để tự quyết (spec 2026-11-06 mục 4.2). */}
+                        {memberBalances[member.id] !== undefined &&
+                          isVoteBlockedByDebt(
+                            memberBalances[member.id],
+                            voteBlockDebtThreshold,
+                          ) && (
+                            <span className="border-destructive/40 bg-destructive/10 text-destructive inline-flex shrink-0 items-center rounded border px-1.5 text-sm font-semibold">
+                              {tA("overDebtLimit")}
+                            </span>
+                          )}
                       </span>
                       {(() => {
                         if (memberBalances[member.id] === undefined)
