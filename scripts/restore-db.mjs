@@ -159,15 +159,29 @@ try {
     await tx.execute(`DELETE FROM "${t}"`);
   }
 
+  // Ghi theo LÔ, không từng dòng một. Mỗi lệnh execute là một round-trip mạng;
+  // nạp 4418 dòng từng dòng mất ~8 phút và chạm timeout CI (05/11/2026). Gộp
+  // nhiều dòng vào một INSERT ... VALUES (...),(...),... cắt số round-trip vài
+  // chục lần. Chia lô theo trần số biến của SQLite (SQLITE_MAX_VARIABLE_NUMBER,
+  // mặc định 999) để câu lệnh không bao giờ vượt; 900 biến/lệnh là biên an toàn.
+  const MAX_VARS = 900;
   for (const t of order) {
     const rows = dump.tables[t];
     if (rows.length === 0) continue;
     const cols = Object.keys(rows[0]);
     const colList = cols.map((c) => `"${c}"`).join(", ");
-    const placeholders = cols.map(() => "?").join(", ");
-    const sql = `INSERT INTO "${t}" (${colList}) VALUES (${placeholders})`;
-    for (const row of rows) {
-      await tx.execute({ sql, args: cols.map((c) => row[c] ?? null) });
+    const rowPlaceholder = `(${cols.map(() => "?").join(", ")})`;
+    const chunkSize = Math.max(1, Math.floor(MAX_VARS / cols.length));
+    for (let i = 0; i < rows.length; i += chunkSize) {
+      const chunk = rows.slice(i, i + chunkSize);
+      const sql = `INSERT INTO "${t}" (${colList}) VALUES ${chunk
+        .map(() => rowPlaceholder)
+        .join(", ")}`;
+      const args = [];
+      for (const row of chunk) {
+        for (const c of cols) args.push(row[c] ?? null);
+      }
+      await tx.execute({ sql, args });
     }
     console.log(`  ✓ ${t.padEnd(34)} ${String(rows.length).padStart(6)} dòng`);
   }

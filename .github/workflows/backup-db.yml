@@ -44,7 +44,11 @@ concurrency:
 jobs:
   backup:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Biên an toàn. Nhân bản giờ nạp theo lô nên job xong trong 1-2 phút, nhưng
+    # 05/11/2026 bản nạp-từng-dòng từng mất ~8 phút và thỉnh thoảng vượt mốc 10
+    # phút rồi bị huỷ, làm bản dự phòng "cũ" và cảnh báo sức khoẻ báo đỏ. 20 phút
+    # không tốn thêm phút Actions khi chạy bình thường; nó chỉ là trần chống treo.
+    timeout-minutes: 20
     permissions:
       contents: read
 
