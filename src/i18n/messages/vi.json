@@ -1122,7 +1122,13 @@
       "cannotReport": "Bạn không thể báo cáo mục này.",
       "invalidSearch": "Bộ lọc tìm kiếm chưa hợp lệ, ví dụ ngày không có thật. Bạn chọn lại nhé.",
       "nothingToRefund": "Đăng ký này không có khoản nào cần hoàn.",
-      "cannotRefund": "Chỉ đánh dấu đã hoàn được khi người này đang có khoản cần hoàn."
+      "cannotRefund": "Chỉ đánh dấu đã hoàn được khi người này đang có khoản cần hoàn.",
+      "commentsClosed": "Bình luận của buổi này đã đóng.",
+      "commentsLocked": "Host đã tắt bình luận mới cho buổi này.",
+      "cannotComment": "Bạn không thể bình luận ở đây.",
+      "commentNotFound": "Bình luận này không còn tồn tại.",
+      "commentEditExpired": "Bạn chỉ sửa được bình luận trong 10 phút sau khi đăng.",
+      "commentCapReached": "Phần thảo luận này đã đạt giới hạn bình luận."
     },
     "search": {
       "viewSwitch": "Chế độ xem",

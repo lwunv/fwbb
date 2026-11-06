@@ -1,6 +1,8 @@
 import { cookies } from "next/headers";
 import { createHmac, timingSafeEqual } from "crypto";
 
+/** Trùng `COMMENT_PASS_COOKIE` (comment-pass.ts là server-only nên không import được ở đây). */
+const COMMENT_PASS_COOKIE = "fwbb_xcp";
 const USER_COOKIE = "fwbb-user";
 const SECRET_RAW = process.env.USER_COOKIE_SECRET;
 if (!SECRET_RAW || SECRET_RAW.length < 16) {
@@ -116,4 +118,6 @@ export async function getUserFromCookie(): Promise<{
 export async function clearUserCookie() {
   const cookieStore = await cookies();
   cookieStore.delete(USER_COOKIE);
+  // Vé Turnstile gắn với danh tính này: đăng xuất thì bỏ luôn.
+  cookieStore.delete(COMMENT_PASS_COOKIE);
 }

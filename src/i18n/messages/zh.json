@@ -1122,7 +1122,13 @@
       "cannotReport": "你无法举报此内容。",
       "invalidSearch": "搜索条件无效，例如日期不存在。请重新选择。",
       "nothingToRefund": "此报名没有需要退还的款项。",
-      "cannotRefund": "只有此人有待退款项时才能标记已退。"
+      "cannotRefund": "只有此人有待退款项时才能标记已退。",
+      "commentsClosed": "本场活动的评论已关闭。",
+      "commentsLocked": "主办方已关闭本场活动的新评论。",
+      "cannotComment": "你无法在此评论。",
+      "commentNotFound": "该评论已不存在。",
+      "commentEditExpired": "评论发布后只能在 10 分钟内编辑。",
+      "commentCapReached": "此讨论的评论数已达上限。"
     },
     "search": {
       "viewSwitch": "查看方式",

@@ -117,3 +117,19 @@ describe("createUserCookieValue + parseUserCookie", () => {
     expect(parsed).toBeNull();
   });
 });
+
+describe("clearUserCookie", () => {
+  it("clearUserCookie also deletes fwbb_xcp", async () => {
+    const del = vi.fn();
+    const headers = await import("next/headers");
+    vi.mocked(headers.cookies).mockResolvedValueOnce({
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: del,
+    } as never);
+    const { clearUserCookie } = await import("./user-identity");
+    await clearUserCookie();
+    expect(del).toHaveBeenCalledWith("fwbb_xcp");
+    expect(del).toHaveBeenCalledWith("fwbb-user");
+  });
+});

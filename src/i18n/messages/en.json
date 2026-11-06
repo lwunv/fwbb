@@ -1122,7 +1122,13 @@
       "cannotReport": "You cannot report this.",
       "invalidSearch": "Some search filters are not valid, for example a date that does not exist. Please pick again.",
       "nothingToRefund": "There is nothing to refund on this registration.",
-      "cannotRefund": "You can only mark a refund when this person is owed money back."
+      "cannotRefund": "You can only mark a refund when this person is owed money back.",
+      "commentsClosed": "Comments on this game are closed.",
+      "commentsLocked": "The host has turned off new comments for this game.",
+      "cannotComment": "You can't comment here.",
+      "commentNotFound": "This comment is not available.",
+      "commentEditExpired": "You can only edit a comment within 10 minutes of posting.",
+      "commentCapReached": "This discussion has reached its comment limit."
     },
     "search": {
       "viewSwitch": "View mode",
