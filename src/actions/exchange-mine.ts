@@ -13,6 +13,10 @@ import { requireExchangeMember } from "@/lib/member-auth";
 import { registrationSettlement } from "@/lib/exchange-fee";
 import { exchangeGate } from "@/lib/exchange/guards";
 import { attachGroups, candidateColumns, toCard } from "@/lib/exchange/cards";
+import {
+  newCommentsSince,
+  type NewCommentEvent,
+} from "@/lib/exchange/comment-reads";
 import type { ExchangeCard } from "@/lib/exchange/public-event";
 
 const MINE_LIMIT = 50;
@@ -25,11 +29,13 @@ export type MyRegistration = ExchangeCard & {
   /** Còn thiếu / cần hoàn, từ `registrationSettlement` (nguồn duy nhất, tính theo phần đã trả). */
   remaining: number;
   refundDue: number;
+  /** Bình luận mới của người khác ở các khu mình đọc được, từ lần đọc trước. */
+  newComments: number;
 };
 
 export type MyExchanges = {
   registrations: MyRegistration[];
-  hosting: ExchangeCard[];
+  hosting: (ExchangeCard & { newComments: number })[];
   blocks: { id: number; name: string }[];
 };
 
@@ -59,6 +65,7 @@ export async function getMyExchanges(): Promise<
   const regRows = await db
     .select({
       ...candidateColumns,
+      cancelledAt: exchangeEvents.cancelledAt,
       depositAmount: exchangeEvents.depositAmount,
       reg: exchangeRegistrations,
     })
@@ -74,7 +81,7 @@ export async function getMyExchanges(): Promise<
     .limit(MINE_LIMIT);
 
   const hostRows = await db
-    .select(candidateColumns)
+    .select({ ...candidateColumns, cancelledAt: exchangeEvents.cancelledAt })
     .from(exchangeEvents)
     .innerJoin(venues, eq(venues.id, exchangeEvents.venueId))
     .innerJoin(members, eq(members.id, exchangeEvents.hostMemberId))
@@ -95,6 +102,26 @@ export async function getMyExchanges(): Promise<
     attachGroups(hostRows),
   ]);
 
+  // Một truy vấn cho cả hai danh sách. Nhóm buổi chỉ tính khi là host hoặc `approved`.
+  const events = new Map<number, NewCommentEvent>();
+  for (const row of regRows)
+    events.set(row.id, {
+      id: row.id,
+      groupAccess: row.reg.status === "approved",
+      endAt: row.endAt,
+      cancelledAt: row.cancelledAt,
+    });
+  for (const row of hostRows)
+    events.set(row.id, {
+      id: row.id,
+      groupAccess: true,
+      endAt: row.endAt,
+      cancelledAt: row.cancelledAt,
+    });
+  const newComments = new Map(
+    await newCommentsSince(db, me, [...events.values()], now),
+  );
+
   const registrations = regRows.map((row, i): MyRegistration => {
     const s = registrationSettlement(row.reg, row.depositAmount, row.status);
     return {
@@ -105,12 +132,16 @@ export async function getMyExchanges(): Promise<
       waitlistPos: row.reg.waitlistPos ?? null,
       remaining: s.remaining,
       refundDue: s.refundDue,
+      newComments: newComments.get(row.id) ?? 0,
     };
   });
 
   return {
     registrations,
-    hosting: hostCandidates.map((c) => toCard(c, now, null)),
+    hosting: hostCandidates.map((c, i) => ({
+      ...toCard(c, now, null),
+      newComments: newComments.get(hostRows[i].id) ?? 0,
+    })),
     blocks: blockRows,
   };
 }

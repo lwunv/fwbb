@@ -18,6 +18,10 @@ import {
   COMMENT_CHANNEL_CAP,
   COMMENT_EDIT_WINDOW_MS,
   COMMENT_MAX_LEN,
+  COMMENT_MAX_ROWS,
+  COMMENT_PAGE_ROOTS,
+  COMMENT_REPLIES_PAGE,
+  COMMENT_SORTS,
   RL_COMMENT_BURST,
   RL_COMMENT_DAY,
   RL_COMMENT_DAY_NEW,
@@ -35,8 +39,26 @@ import {
   loadCommentInEvent,
   loadCommentWithContext,
   type CommentContext,
+  type CommentRole,
+  type CommentWriteState,
 } from "@/lib/exchange/comment-access";
 import { grantCommentPass, hasCommentPass } from "@/lib/exchange/comment-pass";
+import {
+  applyViewerOverlay,
+  getPublicQaPageCached,
+  hasUnreadComments,
+  isCommentReader,
+  loadReplyRows,
+  loadThreadRows,
+  loadViewerOverlay,
+  markCommentsReadUpTo,
+} from "@/lib/exchange/comment-reads";
+import {
+  buildThreads,
+  type BuildThreadsOpts,
+  type CommentRow,
+  type CommentView,
+} from "@/lib/exchange/comment-tree";
 import {
   detectContact,
   normalizeCommentBody,
@@ -52,7 +74,7 @@ import {
   notifyCommentVisible,
 } from "@/lib/notifications/exchange-comments";
 import { isNotificationsEnabled } from "@/lib/notifications/notify";
-import { requireExchangeMember } from "@/lib/member-auth";
+import { getExchangeViewer, requireExchangeMember } from "@/lib/member-auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 // Chỉ export action tự kiểm quyền: người thực hiện luôn lấy từ cookie phiên.
@@ -878,4 +900,266 @@ export async function approveHeldComment(
 
   if ("success" in result) updateTag(commentTag(eventId));
   return result;
+}
+
+export type CommentPage = {
+  channel: (typeof COMMENT_CHANNELS)[number];
+  sort: (typeof COMMENT_SORTS)[number];
+  roots: CommentView[];
+  /** Hàng chờ duyệt của khu, chỉ host ở trang đầu. */
+  hostHeld: CommentView[];
+  hasMore: boolean;
+  nextOffset: number | null;
+  /** Số bình luận đang hiện của khu. */
+  total: number;
+  writeState: CommentWriteState;
+  role: CommentRole;
+  canRead: CommentContext["canRead"];
+  canWrite: boolean;
+  needsCaptcha: boolean;
+  unread: boolean;
+  /** Mốc mới nhất trong trang, để client gọi `markCommentsRead`. */
+  newestAt: string | null;
+};
+type ListResult = { success: true; data: CommentPage } | { error: string };
+type RepliesResult =
+  | {
+      success: true;
+      data: {
+        replies: CommentView[];
+        hasMore: boolean;
+        nextOffset: number | null;
+      };
+    }
+  | { error: string };
+
+const listSchema = z.object({
+  code: z.string().min(1).max(64),
+  channel: z.enum(COMMENT_CHANNELS),
+  sort: z.enum(COMMENT_SORTS),
+  offset: z
+    .number()
+    .int()
+    .min(0)
+    .max(COMMENT_CHANNEL_CAP)
+    .refine((n) => n % COMMENT_PAGE_ROOTS === 0),
+});
+const repliesSchema = z.object({
+  commentId: z.number().int().positive(),
+  offset: z.number().int().min(0).max(COMMENT_CHANNEL_CAP),
+});
+const markSchema = z.object({
+  code: z.string().min(1).max(64),
+  channel: z.enum(COMMENT_CHANNELS),
+  upTo: z.string().datetime(),
+});
+
+/** Khách, tài khoản bị khoá hay bị từ chối đều đọc như khách. Khách không chạm bảng members. */
+async function readerOrGuest(): Promise<{ id: number } | null> {
+  const v = await getExchangeViewer();
+  return v.status === "ok" ? { id: v.member.id } : null;
+}
+
+function treeOpts(
+  ctx: CommentContext,
+  viewer: { id: number } | null,
+  channel: (typeof COMMENT_CHANNELS)[number],
+  sort: (typeof COMMENT_SORTS)[number],
+  myVotes: Set<number>,
+  now: Date,
+): BuildThreadsOpts {
+  return {
+    hostMemberId: ctx.event.hostMemberId,
+    viewerId: viewer?.id ?? null,
+    isHost: ctx.role === "host",
+    myVotes,
+    sort,
+    now,
+    writeOpen: ctx.canWrite[channel],
+  };
+}
+
+/**
+ * Hàng chờ duyệt cũng đi qua `buildThreads` để không lộ member id. Mỗi dòng
+ * đứng riêng (không cây), mới nhất trước; `parentId` thật được gắn lại sau.
+ */
+function heldQueue(rows: CommentRow[], opts: BuildThreadsOpts): CommentView[] {
+  const parentOf = new Map(rows.map((r) => [r.id, r.parentId]));
+  return buildThreads(
+    rows.map((r) => ({ ...r, parentId: null, pinned: false, replyCount: 0 })),
+    { ...opts, sort: "new" },
+  ).map((v) => ({ ...v, parentId: parentOf.get(v.id) ?? null }));
+}
+
+/**
+ * Một trang bình luận của một khu. Hỏi đáp đọc qua cache công khai (khách không
+ * truy vấn DB khi cache còn); Nhóm buổi đọc thẳng, không bao giờ qua cache.
+ * Người đã đăng nhập được ghép phần riêng (phiếu, số Hữu ích mới, bản đầy đủ
+ * của bình luận chờ duyệt mình được thấy). Không ghi gì, không đặt cookie.
+ */
+export async function listExchangeComments(
+  input: unknown,
+): Promise<ListResult> {
+  const gate = await exchangeGate();
+  if ("error" in gate) return gate;
+
+  const t = await getTranslations("exchange.errors");
+  const parsed = listSchema.safeParse(input);
+  if (!parsed.success) return { error: t("invalidInput") };
+  const f = parsed.data;
+
+  const now = new Date();
+  const viewer = await readerOrGuest();
+  const ctx = await loadCommentContext(db, { code: f.code }, viewer, now);
+  if (!ctx || !ctx.canRead[f.channel]) return { error: t("commentNotFound") };
+
+  const page =
+    f.channel === "qa"
+      ? await getPublicQaPageCached(ctx.event.id, f.sort, f.offset)
+      : await loadThreadRows(db, ctx.event.id, "group", f.sort, f.offset);
+
+  let rows = page.rows;
+  let myVotes = new Set<number>();
+  let held: CommentRow[] = [];
+  if (viewer) {
+    const overlay = await loadViewerOverlay(db, ctx, viewer.id, rows, {
+      channel: f.channel,
+      offset: f.offset,
+    });
+    rows = applyViewerOverlay(rows, overlay);
+    myVotes = overlay.myVotes;
+    held = overlay.hostHeld;
+  }
+  const opts = treeOpts(ctx, viewer, f.channel, f.sort, myVotes, now);
+  const newestAt = rows.reduce<string | null>(
+    (m, r) =>
+      r.status === "visible" && (m === null || r.createdAt > m)
+        ? r.createdAt
+        : m,
+    null,
+  );
+
+  return {
+    success: true,
+    data: {
+      channel: f.channel,
+      sort: f.sort,
+      roots: buildThreads(rows, opts),
+      hostHeld: heldQueue(held, opts),
+      hasMore: page.hasMore,
+      nextOffset: page.hasMore ? f.offset + COMMENT_PAGE_ROOTS : null,
+      total: page.total,
+      writeState: ctx.writeState,
+      role: ctx.role,
+      canRead: ctx.canRead,
+      canWrite: ctx.canWrite[f.channel],
+      needsCaptcha: viewer ? !(await hasCommentPass(viewer.id)) : false,
+      unread: viewer
+        ? await hasUnreadComments(db, ctx, viewer.id, f.channel, now)
+        : false,
+      newestAt,
+    },
+  };
+}
+
+/** "Xem thêm trả lời" của một gốc hoặc một tầng 1, cùng luật thấy như trang. */
+export async function listCommentReplies(
+  input: unknown,
+): Promise<RepliesResult> {
+  const gate = await exchangeGate();
+  if ("error" in gate) return gate;
+
+  const t = await getTranslations("exchange.errors");
+  const parsed = repliesSchema.safeParse(input);
+  if (!parsed.success) return { error: t("invalidInput") };
+  const f = parsed.data;
+
+  const now = new Date();
+  const viewer = await readerOrGuest();
+  // Null cả khi khu không đọc được hoặc là `held` của người khác.
+  const found = await loadCommentWithContext(db, f.commentId, viewer, now);
+  if (!found) return { error: t("commentNotFound") };
+  const { ctx, comment } = found;
+
+  const page = await loadReplyRows(db, comment.id, f.offset);
+  let rows = page.rows;
+  let myVotes = new Set<number>();
+  if (viewer) {
+    const overlay = await loadViewerOverlay(db, ctx, viewer.id, rows);
+    rows = applyViewerOverlay(rows, overlay);
+    myVotes = overlay.myVotes;
+  }
+  // Neo giả làm gốc để buildThreads dựng cây con; neo không được trả về.
+  const anchor: CommentRow = {
+    id: comment.id,
+    parentId: null,
+    channel: comment.channel,
+    authorMemberId: null,
+    authorName: null,
+    authorAvatarUrl: null,
+    authorAvatarKey: null,
+    replyToName: null,
+    body: "",
+    status: "visible",
+    upvotes: 0,
+    pinned: false,
+    editedAt: null,
+    createdAt: comment.createdAt,
+    replyCount: 0,
+  };
+  const opts = treeOpts(ctx, viewer, comment.channel, "top", myVotes, now);
+  const [tree] = buildThreads([anchor, ...rows], opts);
+  const step =
+    comment.parentId === null ? COMMENT_REPLIES_PAGE : COMMENT_MAX_ROWS;
+  return {
+    success: true,
+    data: {
+      replies: tree?.replies ?? [],
+      hasMore: page.hasMore,
+      nextOffset: page.hasMore ? f.offset + step : null,
+    },
+  };
+}
+
+/**
+ * Lưu mốc đã đọc của một khu = min(upTo, now), chỉ tiến lên. Chỉ host và người
+ * có đăng ký đọc được khu đó; người khác nhận `success` mà không ghi gì. Cố ý
+ * không gọi `updateTag` và không đặt cookie (cả hai làm Next render lại trang).
+ */
+export async function markCommentsRead(input: unknown): Promise<SimpleResult> {
+  const gate = await exchangeGate();
+  if ("error" in gate) return gate;
+
+  const auth = await requireExchangeMember();
+  if ("error" in auth) return { error: auth.error };
+  const { member } = auth;
+
+  const t = await getTranslations("exchange.errors");
+  const parsed = markSchema.safeParse(input);
+  if (!parsed.success) return { error: t("invalidInput") };
+  const f = parsed.data;
+
+  const now = new Date();
+  const ctx = await loadCommentContext(db, { code: f.code }, member, now);
+  if (!ctx) return { error: t("commentNotFound") };
+  if (!ctx.canRead[f.channel]) return { success: true };
+  if (!(await isCommentReader(db, ctx, member.id))) return { success: true };
+
+  const upTo = new Date(f.upTo).toISOString();
+  const nowIso = now.toISOString();
+  try {
+    await runSerial(() =>
+      markCommentsReadUpTo(
+        db,
+        ctx.event.id,
+        member.id,
+        f.channel,
+        upTo < nowIso ? upTo : nowIso,
+      ),
+    );
+  } catch {
+    console.error("[Exchange] comment-read-failed", { id: ctx.event.id });
+    return { error: t("commentSaveFailed") };
+  }
+  return { success: true };
 }

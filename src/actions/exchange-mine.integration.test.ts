@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { sql } from "drizzle-orm";
 import { createTestDb } from "@/db/test-db";
 import {
+  exchangeCommentReads,
+  exchangeComments,
   exchangeEvents,
   exchangeRegistrations,
   hostBlocks,
@@ -14,10 +17,12 @@ vi.mock("@/lib/member-auth", () => ({
   requireExchangeMember: mocks.auth,
 }));
 
-const { db: testDb } = await createTestDb();
+const { db: testDb, client } = await createTestDb();
 vi.mock("@/db", () => ({ db: testDb }));
 
 const { getMyExchanges } = await import("./exchange-mine");
+const { newCommentsSince, newCommentsQuery } =
+  await import("@/lib/exchange/comment-reads");
 
 const NOW = "2026-11-05T00:00:00.000Z";
 const day = (d: string, h: number) =>
@@ -86,6 +91,8 @@ async function seedReg(
 }
 
 beforeEach(async () => {
+  await testDb.delete(exchangeCommentReads);
+  await testDb.delete(exchangeComments);
   await testDb.delete(hostBlocks);
   await testDb.delete(exchangeRegistrations);
   await testDb.delete(exchangeEvents);
@@ -171,5 +178,138 @@ describe("getMyExchanges", () => {
     mocks.flag.mockResolvedValue(false);
     const r = await getMyExchanges();
     expect("error" in r).toBe(true);
+  });
+});
+
+describe("getMyExchanges: new comments", () => {
+  async function seedComment(
+    eventId: number,
+    authorMemberId: number,
+    createdAt: string,
+    o: Partial<typeof exchangeComments.$inferInsert> = {},
+  ) {
+    await testDb.insert(exchangeComments).values({
+      eventId,
+      authorMemberId,
+      channel: "qa",
+      body: "x",
+      status: "visible",
+      createdAt,
+      ...o,
+    });
+  }
+
+  it("my exchanges counts new comments per readable channel since last read; events older than 14 days count 0 without a query", async () => {
+    const ev1 = await seedEvent();
+    const ev2 = await seedEvent();
+    const old = await seedEvent({
+      startAt: day("2020-01-01", 12),
+      endAt: day("2020-01-01", 14),
+      status: "done",
+    });
+    const cancelledLongAgo = await seedEvent({
+      cancelledAt: day("2020-01-02", 0),
+      status: "cancelled",
+    });
+    // ev1: đăng ký pending chỉ đọc được Hỏi đáp.
+    await seedReg(ev1.id, me.id, { status: "pending" });
+    await seedComment(ev1.id, other.id, day("2026-11-01", 1));
+    await seedComment(ev1.id, other.id, day("2026-11-01", 2));
+    await seedComment(ev1.id, me.id, day("2026-11-01", 3));
+    await seedComment(ev1.id, other.id, day("2026-11-01", 4), {
+      status: "held",
+    });
+    await seedComment(ev1.id, other.id, day("2026-11-01", 5), {
+      status: "deleted",
+    });
+    for (const h of [6, 7, 8])
+      await seedComment(ev1.id, host.id, day("2026-11-01", h), {
+        channel: "group",
+      });
+    // ev2: approved, đã đọc Hỏi đáp và Nhóm buổi tới 03:00.
+    await seedReg(ev2.id, me.id, { status: "approved" });
+    await seedComment(ev2.id, other.id, day("2026-11-01", 1));
+    await seedComment(ev2.id, host.id, day("2026-11-01", 2), {
+      channel: "group",
+    });
+    await seedComment(ev2.id, host.id, day("2026-11-01", 5), {
+      channel: "group",
+    });
+    await testDb.insert(exchangeCommentReads).values({
+      eventId: ev2.id,
+      memberId: me.id,
+      lastReadAt: day("2026-11-01", 3),
+      lastReadGroupAt: day("2026-11-01", 3),
+    });
+    await seedReg(old.id, me.id);
+    await seedComment(old.id, other.id, day("2026-11-01", 1));
+    await seedReg(cancelledLongAgo.id, me.id);
+    await seedComment(cancelledLongAgo.id, other.id, day("2026-11-01", 1));
+
+    const r = await getMyExchanges();
+    if ("error" in r) throw new Error(r.error);
+    const byCode = new Map(r.registrations.map((x) => [x.code, x.newComments]));
+    expect(byCode.get(ev1.publicCode)).toBe(2);
+    expect(byCode.get(ev2.publicCode)).toBe(1);
+    expect(byCode.get(old.publicCode)).toBe(0);
+    expect(byCode.get(cancelledLongAgo.publicCode)).toBe(0);
+
+    // Host: cả hai khu, không tính bình luận của chính mình.
+    mocks.auth.mockResolvedValue({
+      user: { memberId: host.id, externalId: "x" },
+      member: host,
+    });
+    const h = await getMyExchanges();
+    if ("error" in h) throw new Error(h.error);
+    const hostCounts = new Map(h.hosting.map((x) => [x.code, x.newComments]));
+    expect(hostCounts.get(ev1.publicCode)).toBe(3);
+    expect(hostCounts.get(ev2.publicCode)).toBe(1);
+    expect(hostCounts.get(old.publicCode)).toBe(0);
+
+    // Buổi ngoài cửa sổ 14 ngày: trả 0 mà không chạm DB.
+    const exec = vi.spyOn(client, "execute");
+    try {
+      const counts = await newCommentsSince(
+        testDb,
+        me.id,
+        [
+          {
+            id: old.id,
+            groupAccess: true,
+            endAt: old.endAt,
+            cancelledAt: null,
+          },
+          {
+            id: cancelledLongAgo.id,
+            groupAccess: true,
+            endAt: cancelledLongAgo.endAt,
+            cancelledAt: cancelledLongAgo.cancelledAt,
+          },
+        ],
+        new Date(),
+      );
+      expect(counts).toEqual([
+        [old.id, 0],
+        [cancelledLongAgo.id, 0],
+      ]);
+      expect(exec).not.toHaveBeenCalled();
+    } finally {
+      exec.mockRestore();
+    }
+  });
+
+  it("EXPLAIN QUERY PLAN of the count has no SCAN exchange_comments", async () => {
+    const ev1 = await seedEvent();
+    const ev2 = await seedEvent();
+    const plan = await testDb.all<{ detail: string }>(
+      sql`EXPLAIN QUERY PLAN ${newCommentsQuery(me.id, [ev1.id, ev2.id], [ev1.id])}`,
+    );
+    const details = plan.map((p) => p.detail);
+    expect(details.some((d) => /SCAN exchange_comments/.test(d))).toBe(false);
+    expect(
+      details.filter((d) =>
+        d.includes("exchange_comments_event_channel_created_idx"),
+      ),
+    ).toHaveLength(2);
   });
 });
