@@ -86,7 +86,9 @@ export function NotificationPrefsSection({
 
   const groups: readonly NotificationGroup[] = (
     scope === "admin" ? ADMIN_GROUPS : MEMBER_GROUPS
-  ).filter((g) => g !== "exchange" || exchangeEnabled);
+  ).filter(
+    (g) => (g !== "exchange" && g !== "exchange_comments") || exchangeEnabled,
+  );
   const muted = data?.mutedGroups ?? [];
 
   // Số lần gửi chưa xong. Chỉ đọc lại server khi không còn lần nào đang chạy,

@@ -2077,7 +2077,8 @@
       "admin_money": "Tiền và sổ quỹ (admin)",
       "admin_members": "Thành viên và sân (admin)",
       "admin_inventory": "Kho cầu (admin)",
-      "exchange": "Giao lưu"
+      "exchange": "Giao lưu",
+      "exchange_comments": "Bình luận giao lưu"
     },
     "kinds": {
       "session_opened": {
@@ -2284,6 +2285,22 @@
       "exchange_reported": {
         "title": "Có báo cáo mới",
         "body": "Có người báo cáo {targetType} với lý do: {reason}."
+      },
+      "exchange_comment_new": {
+        "title": "Có câu hỏi mới",
+        "body": "Buổi {eventTitle} có bình luận mới. Vào xem và trả lời nhé."
+      },
+      "exchange_comment_reply": {
+        "title": "Có người trả lời bạn",
+        "body": "Bạn có một câu trả lời mới ở buổi {eventTitle}."
+      },
+      "exchange_comment_host_post": {
+        "title": "Host đăng bài mới",
+        "body": "Host vừa đăng một bài trong Nhóm buổi {eventTitle}."
+      },
+      "exchange_comment_held": {
+        "title": "Có bình luận chờ duyệt",
+        "body": "Buổi {eventTitle} có bình luận đang chờ bạn duyệt."
       }
     },
     "unsubscribe": {
@@ -2301,6 +2318,7 @@
     "reportTargets": {
       "member": "một thành viên",
       "event": "một buổi giao lưu",
+      "comment": "một bình luận",
       "other": "một nội dung"
     },
     "reportReasons": {

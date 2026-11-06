@@ -2077,7 +2077,8 @@
       "admin_money": "Money and ledger (admin)",
       "admin_members": "Members and venues (admin)",
       "admin_inventory": "Shuttlecock stock (admin)",
-      "exchange": "Exchange events"
+      "exchange": "Exchange events",
+      "exchange_comments": "Exchange comments"
     },
     "kinds": {
       "session_opened": {
@@ -2284,6 +2285,22 @@
       "exchange_reported": {
         "title": "New report",
         "body": "Someone reported {targetType} for this reason: {reason}."
+      },
+      "exchange_comment_new": {
+        "title": "New question",
+        "body": "There is a new comment on {eventTitle}. Take a look and reply."
+      },
+      "exchange_comment_reply": {
+        "title": "Someone replied to you",
+        "body": "You have a new reply on {eventTitle}."
+      },
+      "exchange_comment_host_post": {
+        "title": "New post from the host",
+        "body": "The host just posted in the {eventTitle} group chat."
+      },
+      "exchange_comment_held": {
+        "title": "Comment waiting for review",
+        "body": "A comment on {eventTitle} is waiting for you to review."
       }
     },
     "unsubscribe": {
@@ -2301,6 +2318,7 @@
     "reportTargets": {
       "member": "a member",
       "event": "an exchange event",
+      "comment": "a comment",
       "other": "an item"
     },
     "reportReasons": {

@@ -79,6 +79,11 @@ const HREFS: Record<NotificationKind, [string, string]> = {
   exchange_fee_changed: ["/giao-luu", "/admin/dashboard"],
   exchange_event_cancelled: ["/giao-luu", "/admin/dashboard"],
   exchange_reported: ["/", "/admin/giao-luu"],
+  // Thêm ở G2c Task 4 (thiếu eventCode nên về /giao-luu; link đầy đủ ở test riêng).
+  exchange_comment_new: ["/giao-luu", "/admin/dashboard"],
+  exchange_comment_reply: ["/giao-luu", "/admin/dashboard"],
+  exchange_comment_host_post: ["/giao-luu", "/admin/dashboard"],
+  exchange_comment_held: ["/giao-luu", "/admin/dashboard"],
 };
 
 describe("notificationHref", () => {
@@ -121,6 +126,40 @@ describe("notificationHref exchange", () => {
     expect(notificationHref(view("exchange_reported"), "admin")).toBe(
       "/admin/giao-luu",
     );
+  });
+});
+
+describe("notificationHref exchange comments", () => {
+  it("href: comment kinds open the right tab anchor", () => {
+    const href = (kind: NotificationKind, payload: Record<string, unknown>) =>
+      notificationHref(view(kind, { eventCode: "ab12", ...payload }), "member");
+    expect(href("exchange_comment_new", { channel: "qa" })).toBe(
+      "/giao-luu/ab12?kenh=qa#binh-luan",
+    );
+    expect(href("exchange_comment_new", { channel: "group" })).toBe(
+      "/giao-luu/ab12?kenh=nhom#binh-luan",
+    );
+    expect(href("exchange_comment_reply", { channel: "group" })).toBe(
+      "/giao-luu/ab12?kenh=nhom#binh-luan",
+    );
+    expect(href("exchange_comment_reply", { channel: "qa" })).toBe(
+      "/giao-luu/ab12?kenh=qa#binh-luan",
+    );
+    expect(href("exchange_comment_held", {})).toBe(
+      "/giao-luu/ab12?kenh=qa#binh-luan",
+    );
+    expect(href("exchange_comment_host_post", {})).toBe(
+      "/giao-luu/ab12?kenh=nhom#binh-luan",
+    );
+    expect(notificationHref(view("exchange_comment_new"), "member")).toBe(
+      "/giao-luu",
+    );
+    expect(
+      notificationHref(
+        view("exchange_reported", { targetType: "comment" }),
+        "admin",
+      ),
+    ).toBe("/admin/giao-luu");
   });
 });
 

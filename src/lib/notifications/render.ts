@@ -199,6 +199,20 @@ export function notificationHref(
   if (scope === "admin" && item.kind === "exchange_reported") {
     return "/admin/giao-luu";
   }
+  if (scope === "member" && group === "exchange_comments") {
+    const code = item.payload?.eventCode;
+    if (typeof code !== "string" || !code) return "/giao-luu";
+    // `qa` là khu công khai; `nhom` là Nhóm buổi. Tin chờ duyệt luôn về khu hỏi đáp.
+    const channel =
+      item.kind === "exchange_comment_host_post"
+        ? "nhom"
+        : item.kind === "exchange_comment_held"
+          ? "qa"
+          : item.payload?.channel === "group"
+            ? "nhom"
+            : "qa";
+    return `/giao-luu/${code}?kenh=${channel}#binh-luan`;
+  }
   if (scope === "member" && group === "exchange") {
     const code = item.payload?.eventCode;
     if (typeof code !== "string" || !code) return "/giao-luu";

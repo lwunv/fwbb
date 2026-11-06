@@ -10,6 +10,7 @@ export type NotificationGroup =
   | "account"
   | "venue"
   | "exchange"
+  | "exchange_comments"
   | "admin_session"
   | "admin_money"
   | "admin_members"
@@ -21,6 +22,7 @@ export const MEMBER_GROUPS = [
   "account",
   "venue",
   "exchange",
+  "exchange_comments",
 ] as const satisfies readonly NotificationGroup[];
 
 export const ADMIN_GROUPS = [
@@ -202,6 +204,14 @@ export interface NotificationPayloads {
   exchange_event_hidden: ExchangeEventRef;
   /** Mã đối tượng và lý do (dịch lúc hiển thị), không có tên ai. */
   exchange_reported: { targetType: string; reason: string };
+  /**
+   * Tin bình luận (G2c), chỉ chuông. Payload không có tên và không có nội dung
+   * bình luận: người đọc mở trang để xem.
+   */
+  exchange_comment_new: ExchangeEventRef & { channel: "qa" | "group" };
+  exchange_comment_reply: ExchangeEventRef & { channel: "qa" | "group" };
+  exchange_comment_host_post: ExchangeEventRef;
+  exchange_comment_held: ExchangeEventRef;
 }
 
 /** Trường chung của tin giao lưu: mã URL công khai và tên buổi. */
@@ -298,6 +308,29 @@ export const NOTIFICATION_CATALOG: Record<NotificationKind, KindDef> = {
   exchange_fee_changed: def("member", "exchange", true, true, "now"),
   exchange_event_cancelled: def("member", "exchange", true, true, "now", true),
   exchange_event_hidden: def("member", "exchange", true, false, "now"),
+  // Member, bình luận giao lưu (chỉ chuông, tắt được theo nhóm)
+  exchange_comment_new: def("member", "exchange_comments", false, false, "now"),
+  exchange_comment_reply: def(
+    "member",
+    "exchange_comments",
+    false,
+    false,
+    "now",
+  ),
+  exchange_comment_host_post: def(
+    "member",
+    "exchange_comments",
+    false,
+    false,
+    "now",
+  ),
+  exchange_comment_held: def(
+    "member",
+    "exchange_comments",
+    false,
+    false,
+    "now",
+  ),
   // Admin
   exchange_reported: def("admin", "admin_members", false, false, "now"),
   capacity_alert: def("admin", "admin_session", true, true, "now"),

@@ -248,6 +248,18 @@ describe("NotificationPrefsSection exchange group", () => {
       groups.account,
       groups.venue,
       groups.exchange,
+      groups.exchange_comments,
     ]);
+  });
+
+  it("prefs: exchange_comments shows only when exchangeEnabled", async () => {
+    setup({}, false);
+    await openCard();
+    expect(labels()).not.toContain(groups.exchange_comments);
+    cleanup();
+
+    setup({}, true);
+    await openCard();
+    expect(labels()).toContain(groups.exchange_comments);
   });
 });

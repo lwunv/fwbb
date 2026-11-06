@@ -2077,7 +2077,8 @@
       "admin_money": "费用和账本（管理员）",
       "admin_members": "成员和场地（管理员）",
       "admin_inventory": "羽毛球库存（管理员）",
-      "exchange": "交流活动"
+      "exchange": "交流活动",
+      "exchange_comments": "交流评论"
     },
     "kinds": {
       "session_opened": {
@@ -2284,6 +2285,22 @@
       "exchange_reported": {
         "title": "收到新举报",
         "body": "有人举报了{targetType}，原因：{reason}。"
+      },
+      "exchange_comment_new": {
+        "title": "有新提问",
+        "body": "{eventTitle} 有新评论，去看看并回复吧。"
+      },
+      "exchange_comment_reply": {
+        "title": "有人回复了你",
+        "body": "你在 {eventTitle} 收到一条新回复。"
+      },
+      "exchange_comment_host_post": {
+        "title": "主办方发布了新帖",
+        "body": "主办方刚在 {eventTitle} 的活动群里发了帖子。"
+      },
+      "exchange_comment_held": {
+        "title": "有评论待审核",
+        "body": "{eventTitle} 有一条评论等你审核。"
       }
     },
     "unsubscribe": {
@@ -2301,6 +2318,7 @@
     "reportTargets": {
       "member": "一位成员",
       "event": "一场交流活动",
+      "comment": "一条评论",
       "other": "一项内容"
     },
     "reportReasons": {

@@ -68,8 +68,9 @@ describe("catalog", () => {
   });
 
   it("catalog: every exchange kind has vi/en/zh title and body", () => {
-    const exchange = NOTIFICATION_KINDS.filter((k) =>
-      k.startsWith("exchange_"),
+    // Tin bình luận có test riêng bên dưới.
+    const exchange = NOTIFICATION_KINDS.filter(
+      (k) => k.startsWith("exchange_") && !k.startsWith("exchange_comment_"),
     );
     expect(exchange).toHaveLength(11);
     for (const bundle of [vi, en, zh]) {
@@ -181,5 +182,48 @@ describe("catalog", () => {
       "now",
       false,
     ]);
+  });
+});
+
+describe("catalog exchange comments", () => {
+  const COMMENT_KINDS = [
+    "exchange_comment_new",
+    "exchange_comment_reply",
+    "exchange_comment_host_post",
+    "exchange_comment_held",
+  ] as const;
+
+  it("catalog: four comment kinds have vi/en/zh title and body", () => {
+    expect(
+      NOTIFICATION_KINDS.filter((k) => k.startsWith("exchange_comment_")),
+    ).toEqual([...COMMENT_KINDS]);
+    for (const bundle of [vi, en, zh]) {
+      const kinds = (bundle as unknown as Bundle).notifications.kinds;
+      for (const kind of COMMENT_KINDS) {
+        expect(kinds[kind]?.title, `${kind}.title`).toBeTruthy();
+        expect(kinds[kind]?.body, `${kind}.body`).toBeTruthy();
+        expect(kinds[kind]?.body).not.toContain(String.fromCharCode(0x2014));
+      }
+      const n = (
+        bundle as unknown as {
+          notifications: {
+            groups: Record<string, string>;
+            reportTargets: Record<string, string>;
+          };
+        }
+      ).notifications;
+      expect(n.groups.exchange_comments).toBeTruthy();
+      expect(n.reportTargets.comment).toBeTruthy();
+    }
+    for (const kind of COMMENT_KINDS) {
+      expect(NOTIFICATION_CATALOG[kind]).toEqual({
+        audience: "member",
+        group: "exchange_comments",
+        mandatory: false,
+        email: false,
+        level: "now",
+        quietHoursBypassSameDay: false,
+      });
+    }
   });
 });
