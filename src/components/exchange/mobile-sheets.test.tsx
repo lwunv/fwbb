@@ -130,6 +130,9 @@ describe("sticky primary action in exchange sheets", () => {
           onOpenChange={() => {}}
           eventId={7}
           slotsTotal={10}
+          title="Giao lưu tối"
+          shuttleType=""
+          payout={null}
           description=""
           hostContact=""
           zaloGroupLink=""

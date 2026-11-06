@@ -15,12 +15,14 @@ import {
   markNoShow,
   setCheckedIn,
   setDepositReceived,
+  setRefunded,
   setRegistrationPaid,
   settleWaitlist,
   unblockMember,
   unlockExchangeFees,
 } from "@/actions/exchange-host";
 import type { ManageReg, ManageView } from "@/actions/exchange-host";
+import { ConfirmSheet } from "@/components/exchange/confirm-sheet";
 import { ReportSheet } from "@/components/exchange/report-sheet";
 import { ResponsiveSheet } from "@/components/exchange/responsive-sheet";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -111,6 +113,7 @@ export function ManageClient({ view }: { view: ManageView }) {
   const [blockFor, setBlockFor] = useState<ManageReg | null>(null);
   const [reportFor, setReportFor] = useState<ManageReg | null>(null);
   const [finishOpen, setFinishOpen] = useState(false);
+  const [unlockOpen, setUnlockOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [settling, setSettling] = useState(false);
 
@@ -191,6 +194,15 @@ export function ManageClient({ view }: { view: ManageView }) {
         undo,
         { onSuccess: sync },
       );
+    },
+    onRefunded: (r, refunded) => {
+      // Ghi đã hoàn đúng phần đang cần hoàn; số thật do server tính lại (R25).
+      const undo = patch(r.id, {
+        refundedAmount: refunded ? (r.refundedAmount ?? 0) + r.refundDue : null,
+      });
+      fireAction(() => setRefunded({ registrationId: r.id, refunded }), undo, {
+        onSuccess: sync,
+      });
     },
     onMore: setMoreFor,
   };
@@ -310,6 +322,9 @@ export function ManageClient({ view }: { view: ManageView }) {
         r.feeAmount !== null &&
         !(CHARGEABLE_STATUSES as readonly string[]).includes(r.status),
     );
+  const started = now >= startMs;
+  // R28: sau giờ bắt đầu, việc chính của buổi đã chốt là kết thúc buổi.
+  const finishIsPrimary = status === "locked" && started;
   const filled = regs
     .filter((r) => r.status === "pending" || r.status === "approved")
     .reduce((s, r) => s + r.maleCount + r.femaleCount, 0);
@@ -476,14 +491,23 @@ export function ManageClient({ view }: { view: ManageView }) {
             {t("editBtn")}
           </button>
         )}
-        {status === "locked" && (
+        {status === "locked" && !finishIsPrimary && (
           <button
             type="button"
-            disabled={now < startMs}
+            disabled={!started}
             onClick={() => setFinishOpen(true)}
             className={BTN}
           >
             {t("finishBtn")}
+          </button>
+        )}
+        {finishIsPrimary && (
+          <button
+            type="button"
+            onClick={() => setUnlockOpen(true)}
+            className={BTN}
+          >
+            {t("unlockBtn")}
           </button>
         )}
         {(isOpen || status === "locked") && (
@@ -499,6 +523,7 @@ export function ManageClient({ view }: { view: ManageView }) {
 
       {(isOpen || status === "locked") && (
         <motion.div
+          data-testid="manage-sticky"
           initial={{ y: 24, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           className="bg-background/95 fixed inset-x-0 bottom-0 z-30 border-t p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0"
@@ -511,10 +536,18 @@ export function ManageClient({ view }: { view: ManageView }) {
             >
               {t("lockBtn")}
             </button>
+          ) : finishIsPrimary ? (
+            <button
+              type="button"
+              onClick={() => setFinishOpen(true)}
+              className="bg-primary text-primary-foreground min-h-12 w-full rounded-xl text-base font-semibold"
+            >
+              {t("finishBtn")}
+            </button>
           ) : (
             <button
               type="button"
-              onClick={unlock}
+              onClick={() => setUnlockOpen(true)}
               className="bg-primary text-primary-foreground min-h-12 w-full rounded-xl text-base font-semibold"
             >
               {t("unlockBtn")}
@@ -543,6 +576,9 @@ export function ManageClient({ view }: { view: ManageView }) {
           onOpenChange={setEditOpen}
           eventId={eventId}
           slotsTotal={slotsTotal}
+          title={event.title}
+          shuttleType={event.shuttleType ?? ""}
+          payout={view.payout}
           description={event.description ?? ""}
           hostContact={view.hostContact}
           zaloGroupLink={view.zaloGroupLink}
@@ -590,6 +626,16 @@ export function ManageClient({ view }: { view: ManageView }) {
         onConfirm={() => {
           if (blockFor) block(blockFor);
         }}
+      />
+      <ConfirmSheet
+        open={unlockOpen}
+        onOpenChange={setUnlockOpen}
+        title={t("unlockTitle")}
+        description={t("unlockBody")}
+        confirmLabel={t("unlockConfirm")}
+        cancelLabel={t("unlockKeep")}
+        destructive={false}
+        onConfirm={unlock}
       />
       <ConfirmDialog
         open={finishOpen}

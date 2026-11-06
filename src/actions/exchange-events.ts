@@ -247,18 +247,24 @@ export async function updateExchangeEvent(input: unknown): Promise<Result> {
     patch.payoutAccountName = p.payout?.accountName ?? null;
   }
 
-  const result = await db.transaction(async (tx) => {
-    const ev = await loadHostedEvent(tx, p.eventId, auth.member.id);
-    if (!ev) return { error: t("notAllowed") };
-    if (!EDITABLE_STATUSES.includes(ev.status))
-      return { error: t("eventClosed") };
-    if (Object.keys(patch).length === 0) return { ok: true };
-    await tx
-      .update(exchangeEvents)
-      .set({ ...patch, updatedAt: new Date().toISOString() })
-      .where(eq(exchangeEvents.id, ev.id));
-    return { ok: true };
-  });
+  let result: { ok: true } | { error: string };
+  try {
+    result = await db.transaction(async (tx) => {
+      const ev = await loadHostedEvent(tx, p.eventId, auth.member.id);
+      if (!ev) return { error: t("notAllowed") };
+      if (!EDITABLE_STATUSES.includes(ev.status))
+        return { error: t("eventClosed") };
+      if (Object.keys(patch).length === 0) return { ok: true as const };
+      await tx
+        .update(exchangeEvents)
+        .set({ ...patch, updatedAt: new Date().toISOString() })
+        .where(eq(exchangeEvents.id, ev.id));
+      return { ok: true as const };
+    });
+  } catch {
+    console.error("[Exchange] update_failed", { eventId: p.eventId });
+    return { error: t("saveFailed") };
+  }
   if (!("ok" in result)) return { error: result.error };
   updateTag("exchange");
   return { success: true };

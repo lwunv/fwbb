@@ -132,6 +132,26 @@ beforeEach(async () => {
 });
 
 describe("reportAbuse", () => {
+  it("a database failure returns the translated saveFailed instead of throwing", async () => {
+    const ev = await mkEvent();
+    asMember(await newMember({ approvalStatus: "pending" }));
+    const spy = vi
+      .spyOn(testDb, "transaction")
+      .mockRejectedValueOnce(new Error("socket hang up"));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(
+        await reportAbuse(rep({ type: "event", code: ev.publicCode })),
+      ).toEqual({ error: "saveFailed" });
+      expect(log).toHaveBeenCalledWith("[Exchange] report_failed", {
+        targetType: "event",
+      });
+    } finally {
+      spy.mockRestore();
+      log.mockRestore();
+    }
+  });
+
   it("reports an event and the host by code, mapped server-side", async () => {
     const ev = await mkEvent();
     const me = await newMember({ approvalStatus: "pending" });

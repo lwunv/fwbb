@@ -16,16 +16,23 @@ const bankOptions = VN_BANKS.filter((b) => b.transferSupported).map((b) => ({
   label: b.shortName,
 }));
 
+type Payout = { bankBin: string; accountNo: string; accountName: string };
+
 /**
- * Sửa buổi đang mở: tăng slot, mô tả, liên hệ, link Zalo và tài khoản nhận
- * tiền. Giờ, sân và cách tính phí không sửa được sau khi mở. Đóng ngay rồi gửi
- * nền (lạc quan); lỗi thì hoàn lại số slot đã hiện và báo bằng toast.
+ * Sửa buổi đang mở (quyết định 9): tăng slot, tiêu đề, mô tả, loại cầu, liên
+ * hệ, link Zalo và tài khoản nhận tiền. Giờ, sân và cách tính phí không sửa
+ * được sau khi mở. Tài khoản nhận tiền phải đủ cả ba ô hoặc trống cả ba (trống
+ * thì gửi `null` để bỏ). Đóng ngay rồi gửi nền (lạc quan); lỗi thì hoàn lại số
+ * slot đã hiện và báo bằng toast.
  */
 export function EditEventSheet({
   open,
   onOpenChange,
   eventId,
   slotsTotal,
+  title,
+  shuttleType,
+  payout: currentPayout,
   description,
   hostContact,
   zaloGroupLink,
@@ -36,6 +43,9 @@ export function EditEventSheet({
   onOpenChange: (open: boolean) => void;
   eventId: number;
   slotsTotal: number;
+  title: string;
+  shuttleType: string;
+  payout: Payout | null;
   description: string;
   hostContact: string;
   zaloGroupLink: string;
@@ -44,30 +54,49 @@ export function EditEventSheet({
 }) {
   const t = useTranslations("exchange.manage");
   const [slots, setSlots] = useState(String(slotsTotal));
+  const [name, setName] = useState(title);
+  const [shuttle, setShuttle] = useState(shuttleType);
   const [desc, setDesc] = useState(description);
   const [contact, setContact] = useState(hostContact);
   const [zalo, setZalo] = useState(zaloGroupLink);
-  const [bank, setBank] = useState("");
-  const [accNo, setAccNo] = useState("");
-  const [accName, setAccName] = useState("");
+  const [bank, setBank] = useState(currentPayout?.bankBin ?? "");
+  const [accNo, setAccNo] = useState(currentPayout?.accountNo ?? "");
+  const [accName, setAccName] = useState(currentPayout?.accountName ?? "");
+  const [tried, setTried] = useState(false);
 
   const slotsNum = Number(slots);
   const slotsValid =
     Number.isInteger(slotsNum) &&
     slotsNum >= slotsTotal &&
     slotsNum <= MAX_SLOTS;
+  const titleLen = name.trim().length;
+  const titleValid = titleLen >= 5 && titleLen <= 80;
+  const payoutFilled = [bank, accNo.trim(), accName.trim()].filter(
+    Boolean,
+  ).length;
+  const payoutPartial = payoutFilled > 0 && payoutFilled < 3;
+
+  function clearPayout() {
+    setBank("");
+    setAccNo("");
+    setAccName("");
+  }
 
   function save() {
-    if (!slotsValid) return;
+    setTried(true);
+    if (!slotsValid || !titleValid || payoutPartial) return;
     const raiseSlots = slotsNum > slotsTotal;
-    const payout =
-      bank && accNo.trim() && accName.trim()
+    // Trống cả ba: bỏ tài khoản cũ (null); chưa từng có thì không gửi gì.
+    const payout: Payout | null | undefined =
+      payoutFilled === 3
         ? {
             bankBin: bank,
             accountNo: accNo.trim(),
             accountName: accName.trim().toUpperCase(),
           }
-        : undefined;
+        : currentPayout
+          ? null
+          : undefined;
     onOpenChange(false);
     if (raiseSlots) onSlots(slotsNum);
     // Không retry: `increaseSlots` chỉ chạy khi slot mới lớn hơn slot hiện có.
@@ -79,10 +108,12 @@ export function EditEventSheet({
         }
         return updateExchangeEvent({
           eventId,
+          title: name.trim(),
+          shuttleType: shuttle.trim(),
           description: desc,
           hostContact: contact,
           zaloGroupLink: zalo,
-          ...(payout ? { payout } : {}),
+          ...(payout !== undefined ? { payout } : {}),
         });
       },
       () => onSlots(slotsTotal),
@@ -120,6 +151,21 @@ export function EditEventSheet({
         />
       </label>
       <label className={field}>
+        <span className="text-base font-medium">{t("editTitleField")}</span>
+        <Input
+          className={input}
+          maxLength={80}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          aria-invalid={tried && !titleValid}
+        />
+        {tried && !titleValid && (
+          <p role="alert" className="text-destructive text-base">
+            {t("editTitleInvalid")}
+          </p>
+        )}
+      </label>
+      <label className={field}>
         <span className="text-base font-medium">{t("editDescription")}</span>
         <textarea
           value={desc}
@@ -127,6 +173,15 @@ export function EditEventSheet({
           rows={4}
           onChange={(e) => setDesc(e.target.value)}
           className="bg-background w-full rounded-xl border p-3 text-base"
+        />
+      </label>
+      <label className={field}>
+        <span className="text-base font-medium">{t("editShuttle")}</span>
+        <Input
+          className={input}
+          maxLength={60}
+          value={shuttle}
+          onChange={(e) => setShuttle(e.target.value)}
         />
       </label>
       <label className={field}>
@@ -182,6 +237,20 @@ export function EditEventSheet({
             onChange={(e) => setAccName(e.target.value)}
           />
         </label>
+        {tried && payoutPartial && (
+          <p role="alert" className="text-destructive text-base">
+            {t("editPayoutPartial")}
+          </p>
+        )}
+        {payoutFilled > 0 && (
+          <button
+            type="button"
+            onClick={clearPayout}
+            className="text-destructive inline-flex min-h-11 items-center rounded-xl border px-4 text-base font-medium"
+          >
+            {t("editPayoutClear")}
+          </button>
+        )}
       </fieldset>
     </ResponsiveSheet>
   );

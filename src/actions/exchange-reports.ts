@@ -63,85 +63,94 @@ export async function reportAbuse(input: unknown): Promise<ReportResult> {
 
   const note = f.note?.trim() || null;
 
-  return db.transaction(async (tx): Promise<ReportResult> => {
-    const notifyOn = await isNotificationsEnabled(tx);
+  try {
+    return await db.transaction(async (tx): Promise<ReportResult> => {
+      const notifyOn = await isNotificationsEnabled(tx);
 
-    let targetType: ReportTargetType;
-    let targetId: number;
+      let targetType: ReportTargetType;
+      let targetId: number;
 
-    if (f.target.type === "registration") {
-      // Chỉ host của buổi mới báo được người đăng ký; mọi trường hợp khác
-      // cùng một lỗi chung để không lộ registration của buổi người khác.
-      const [row] = await tx
-        .select({
-          memberId: exchangeRegistrations.memberId,
-          hostMemberId: exchangeEvents.hostMemberId,
-        })
-        .from(exchangeRegistrations)
-        .innerJoin(
-          exchangeEvents,
-          eq(exchangeEvents.id, exchangeRegistrations.eventId),
-        )
-        .where(eq(exchangeRegistrations.id, f.target.registrationId))
-        .limit(1);
-      if (!row || row.hostMemberId !== member.id || row.memberId === member.id)
-        return { error: t("cannotReport") };
-      targetType = "member";
-      targetId = row.memberId;
-    } else {
-      const [ev] = await tx
-        .select()
-        .from(exchangeEvents)
-        .where(eq(exchangeEvents.publicCode, f.target.code))
-        .limit(1);
-      if (!ev) return { error: t("notFound") };
-
-      const isHost = ev.hostMemberId === member.id;
-      if (ev.hiddenAt !== null && !isHost) {
-        // Buổi bị ẩn: người đã đăng ký vẫn được báo, người lạ coi như không có.
-        const [reg] = await tx
-          .select({ id: exchangeRegistrations.id })
+      if (f.target.type === "registration") {
+        // Chỉ host của buổi mới báo được người đăng ký; mọi trường hợp khác
+        // cùng một lỗi chung để không lộ registration của buổi người khác.
+        const [row] = await tx
+          .select({
+            memberId: exchangeRegistrations.memberId,
+            hostMemberId: exchangeEvents.hostMemberId,
+          })
           .from(exchangeRegistrations)
-          .where(
-            and(
-              eq(exchangeRegistrations.eventId, ev.id),
-              eq(exchangeRegistrations.memberId, member.id),
-            ),
+          .innerJoin(
+            exchangeEvents,
+            eq(exchangeEvents.id, exchangeRegistrations.eventId),
           )
+          .where(eq(exchangeRegistrations.id, f.target.registrationId))
           .limit(1);
-        if (!reg) return { error: t("notFound") };
-      }
-      if (isHost) return { error: t("cannotReport") };
-
-      if (f.target.type === "event") {
-        targetType = "event";
-        targetId = ev.id;
-      } else {
+        if (
+          !row ||
+          row.hostMemberId !== member.id ||
+          row.memberId === member.id
+        )
+          return { error: t("cannotReport") };
         targetType = "member";
-        targetId = ev.hostMemberId;
+        targetId = row.memberId;
+      } else {
+        const [ev] = await tx
+          .select()
+          .from(exchangeEvents)
+          .where(eq(exchangeEvents.publicCode, f.target.code))
+          .limit(1);
+        if (!ev) return { error: t("notFound") };
+
+        const isHost = ev.hostMemberId === member.id;
+        if (ev.hiddenAt !== null && !isHost) {
+          // Buổi bị ẩn: người đã đăng ký vẫn được báo, người lạ coi như không có.
+          const [reg] = await tx
+            .select({ id: exchangeRegistrations.id })
+            .from(exchangeRegistrations)
+            .where(
+              and(
+                eq(exchangeRegistrations.eventId, ev.id),
+                eq(exchangeRegistrations.memberId, member.id),
+              ),
+            )
+            .limit(1);
+          if (!reg) return { error: t("notFound") };
+        }
+        if (isHost) return { error: t("cannotReport") };
+
+        if (f.target.type === "event") {
+          targetType = "event";
+          targetId = ev.id;
+        } else {
+          targetType = "member";
+          targetId = ev.hostMemberId;
+        }
       }
-    }
 
-    const [row] = await tx
-      .insert(abuseReports)
-      .values({
-        reporterMemberId: member.id,
-        targetType,
-        targetId,
-        reason: f.reason,
-        note,
-        createdAt: new Date().toISOString(),
-      })
-      .onConflictDoNothing()
-      .returning({ id: abuseReports.id });
+      const [row] = await tx
+        .insert(abuseReports)
+        .values({
+          reporterMemberId: member.id,
+          targetType,
+          targetId,
+          reason: f.reason,
+          note,
+          createdAt: new Date().toISOString(),
+        })
+        .onConflictDoNothing()
+        .returning({ id: abuseReports.id });
 
-    // Báo trùng: không ghi, không gửi tin thứ hai, và không cho người báo biết.
-    if (row)
-      await notifyReported(
-        tx,
-        { reportId: row.id, targetType, reason: f.reason },
-        notifyOn,
-      );
-    return { success: true };
-  });
+      // Báo trùng: không ghi, không gửi tin thứ hai, và không cho người báo biết.
+      if (row)
+        await notifyReported(
+          tx,
+          { reportId: row.id, targetType, reason: f.reason },
+          notifyOn,
+        );
+      return { success: true };
+    });
+  } catch {
+    console.error("[Exchange] report_failed", { targetType: f.target.type });
+    return { error: t("saveFailed") };
+  }
 }

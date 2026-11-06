@@ -220,6 +220,39 @@ describe("updateExchangeEvent", () => {
     expect(row.hostContact).toBe("https://zalo.me/0900000000");
   });
 
+  it("update: a database failure returns the translated saveFailed and logs only the event id", async () => {
+    const ev = await open();
+    const spy = vi
+      .spyOn(testDb, "transaction")
+      .mockRejectedValueOnce(new Error("socket hang up"));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(
+        await updateExchangeEvent({ eventId: ev.id, title: "Tên mới hẳn" }),
+      ).toEqual({ error: "saveFailed" });
+      expect(log).toHaveBeenCalledWith("[Exchange] update_failed", {
+        eventId: ev.id,
+      });
+    } finally {
+      spy.mockRestore();
+      log.mockRestore();
+    }
+  });
+
+  it("update: payout null clears the account", async () => {
+    const ev = await open();
+    expect(await updateExchangeEvent({ eventId: ev.id, payout: null })).toEqual(
+      { success: true },
+    );
+    const [row] = await testDb
+      .select()
+      .from(exchangeEvents)
+      .where(eq(exchangeEvents.id, ev.id));
+    expect(row.payoutBankBin).toBeNull();
+    expect(row.payoutAccountNo).toBeNull();
+    expect(row.payoutAccountName).toBeNull();
+  });
+
   it("update: an empty contact clears it to null", async () => {
     const ev = await open();
     const r = await updateExchangeEvent({ eventId: ev.id, hostContact: "" });

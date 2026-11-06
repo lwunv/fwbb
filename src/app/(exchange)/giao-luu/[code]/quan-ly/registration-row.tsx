@@ -6,7 +6,10 @@ import { motion } from "framer-motion";
 import type { ManageReg } from "@/actions/exchange-host";
 import { nameSeed } from "@/components/exchange/exchange-card";
 import { MemberAvatar } from "@/components/shared/member-avatar";
+import { CHARGEABLE_STATUSES } from "@/lib/exchange/constants";
 import { cn, formatVND } from "@/lib/utils";
+
+const CHARGEABLE = new Set<string>(CHARGEABLE_STATUSES);
 
 export type RowContext = {
   depositAmount: number;
@@ -24,6 +27,7 @@ export type RowHandlers = {
   onCheckIn: (r: ManageReg, checkedIn: boolean) => void;
   onNoShow: (r: ManageReg) => void;
   onPaid: (r: ManageReg, paid: boolean) => void;
+  onRefunded: (r: ManageReg, refunded: boolean) => void;
   onMore: (r: ManageReg) => void;
 };
 
@@ -80,7 +84,15 @@ export function RegistrationRow({
   const hasDeposit = ctx.depositAmount > 0;
   const received = reg.paid ? reg.received : null;
   const hasFee = reg.feeAmount !== null;
-  const showMoney = hasFee || reg.depositPaid || reg.paid || reg.refundDue > 0;
+  const refundedAmount = reg.refundedAmount ?? 0;
+  const showMoney =
+    hasFee ||
+    reg.depositPaid ||
+    reg.paid ||
+    reg.refundDue > 0 ||
+    refundedAmount > 0;
+  // Còn phần cần hoàn thì bấm là ghi đã hoàn; đã hoàn hết thì bấm là bỏ ghi.
+  const refundSettled = refundedAmount > 0 && reg.refundDue === 0;
 
   return (
     <motion.li
@@ -180,6 +192,11 @@ export function RegistrationRow({
               )}
             </>
           )}
+          {refundedAmount > 0 && (
+            <p className="text-muted-foreground">
+              {t("refundedLine", { amount: money(refundedAmount) })}
+            </p>
+          )}
         </div>
       )}
 
@@ -215,7 +232,8 @@ export function RegistrationRow({
             <Toggle
               label={t("depositReceived")}
               pressed={reg.depositPaid}
-              disabled={!ctx.open}
+              // Server chỉ cho bỏ cọc khi còn chờ duyệt; đã duyệt thì khoá.
+              disabled={!ctx.open || reg.status === "approved"}
               onClick={() => h.onDeposit(reg, !reg.depositPaid)}
             />
           )}
@@ -242,11 +260,20 @@ export function RegistrationRow({
             {t("reject")}
           </button>
         )}
-        {ctx.canMarkPaid && reg.feeAmount !== null && (
+        {ctx.canMarkPaid &&
+          reg.feeAmount !== null &&
+          CHARGEABLE.has(reg.status) && (
+            <Toggle
+              label={t("paid")}
+              pressed={reg.paid}
+              onClick={() => h.onPaid(reg, !reg.paid)}
+            />
+          )}
+        {(reg.refundDue > 0 || refundedAmount > 0) && (
           <Toggle
-            label={t("paid")}
-            pressed={reg.paid}
-            onClick={() => h.onPaid(reg, !reg.paid)}
+            label={t("refunded")}
+            pressed={refundSettled}
+            onClick={() => h.onRefunded(reg, !refundSettled)}
           />
         )}
       </div>

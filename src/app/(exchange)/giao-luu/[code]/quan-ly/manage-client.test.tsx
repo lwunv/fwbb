@@ -13,6 +13,7 @@ import {
   cleanup,
   waitFor,
   fireEvent,
+  within,
 } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import viMessages from "@/i18n/messages/vi.json";
@@ -37,6 +38,7 @@ const host = vi.hoisted(() => ({
   lockExchangeFees: vi.fn(),
   unlockExchangeFees: vi.fn(),
   setRegistrationPaid: vi.fn(),
+  setRefunded: vi.fn(),
   setCheckedIn: vi.fn(),
   markNoShow: vi.fn(),
   finishExchangeEvent: vi.fn(),
@@ -47,7 +49,8 @@ vi.mock("next/navigation", () => ({ useRouter: () => router }));
 vi.mock("sonner", () => ({ toast }));
 vi.mock("@/lib/use-is-mobile", () => ({ useIsMobile: () => true }));
 vi.mock("@/actions/exchange-host", () => host);
-vi.mock("@/actions/exchange-events", () => ({ updateExchangeEvent: vi.fn() }));
+const events = vi.hoisted(() => ({ updateExchangeEvent: vi.fn() }));
+vi.mock("@/actions/exchange-events", () => events);
 vi.mock("@/actions/exchange-reports", () => ({ reportAbuse: vi.fn() }));
 vi.mock("@/components/security/turnstile-widget", () => ({
   TurnstileWidget: () => <div data-testid="turnstile" />,
@@ -59,6 +62,7 @@ afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
   for (const fn of Object.values(host)) fn.mockResolvedValue({ success: true });
+  events.updateExchangeEvent.mockResolvedValue({ success: true });
 });
 
 const feeConfig: ExchangeFeeConfig = {
@@ -92,6 +96,7 @@ function makeReg(over: Partial<ManageReg> = {}): ManageReg {
     feeWaived: false,
     paid: false,
     paidAmount: null,
+    refundedAmount: null,
     refundDue: 0,
     remaining: 0,
     checkedIn: false,
@@ -112,6 +117,7 @@ function makeView(over: Partial<ManageView> = {}): ManageView {
     feeConfig,
     hostContact: "",
     zaloGroupLink: "",
+    payout: null,
     regs: [],
     blocks: [],
     reserveOpened: false,
@@ -281,6 +287,8 @@ describe("ManageClient", () => {
     );
     expect(screen.getByText("Cần mở khoá và chốt lại")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Mở khoá để sửa" }));
+    // R28: unlocking asks first.
+    fireEvent.click(screen.getByRole("button", { name: "Mở khoá" }));
     expect(host.unlockExchangeFees).toHaveBeenCalledWith({ eventId: 7 });
   });
 
@@ -363,5 +371,197 @@ describe("ManageClient", () => {
       registrationId: 1,
       checkedIn: true,
     });
+  });
+
+  it("unlocking fees asks for confirmation and sends nothing until confirmed (R28)", async () => {
+    renderManage(makeView({ event: makeEvent({ status: "locked" }) }));
+    fireEvent.click(screen.getByRole("button", { name: "Mở khoá để sửa" }));
+    expect(screen.getByText("Mở khoá phí?")).toBeTruthy();
+    expect(host.unlockExchangeFees).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Giữ nguyên" }));
+    expect(host.unlockExchangeFees).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Mở khoá để sửa" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mở khoá" }));
+    await waitFor(() =>
+      expect(host.unlockExchangeFees).toHaveBeenCalledWith({ eventId: 7 }),
+    );
+  });
+
+  it("after the start a locked event has Kết thúc buổi as the sticky action and unlock in the secondary row (R28)", () => {
+    const start = new Date(Date.now() - 3_600_000).toISOString();
+    const end = new Date(Date.now() + 3_600_000).toISOString();
+    renderManage(
+      makeView({
+        event: makeEvent({ status: "locked", startAt: start, endAt: end }),
+      }),
+    );
+    const sticky = screen.getByTestId("manage-sticky");
+    expect(
+      within(sticky).getByRole("button", { name: "Kết thúc buổi" }),
+    ).toBeTruthy();
+    expect(
+      within(sticky).queryByRole("button", { name: "Mở khoá để sửa" }),
+    ).toBeNull();
+    expect(
+      screen.getAllByRole("button", { name: "Kết thúc buổi" }),
+    ).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Mở khoá để sửa" })).toBeTruthy();
+  });
+
+  it("Đã hoàn closes the refund line optimistically and rolls back on error (R25)", async () => {
+    host.setRefunded.mockResolvedValue({ error: "Không lưu được." });
+    renderManage(
+      makeView({
+        event: makeEvent({ status: "locked" }),
+        regs: [
+          makeReg({
+            feeAmount: 80000,
+            paid: true,
+            paidAmount: 100000,
+            refundDue: 20000,
+          }),
+        ],
+      }),
+    );
+    const refundBtn = () => screen.getByRole("button", { name: "Đã hoàn" });
+    expect(refundBtn().getAttribute("aria-pressed")).toBe("false");
+    expect(hasText(`Cần hoàn ${formatVND(20000)}`)).toBe(true);
+    fireEvent.click(refundBtn());
+    expect(host.setRefunded).toHaveBeenCalledWith({
+      registrationId: 1,
+      refunded: true,
+    });
+    expect(hasText(`Cần hoàn ${formatVND(20000)}`)).toBe(false);
+    expect(hasText(`Đã hoàn ${formatVND(20000)}`)).toBe(true);
+    expect(refundBtn().getAttribute("aria-pressed")).toBe("true");
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Không lưu được."),
+    );
+    await waitFor(() =>
+      expect(hasText(`Cần hoàn ${formatVND(20000)}`)).toBe(true),
+    );
+  });
+
+  it("a refunded row with nothing left due can be unticked; rows with no refund have no Đã hoàn button", () => {
+    renderManage(
+      makeView({
+        event: makeEvent({ status: "locked" }),
+        regs: [
+          makeReg({
+            id: 1,
+            name: "Đã hoàn rồi",
+            feeAmount: 80000,
+            paid: true,
+            paidAmount: 100000,
+            refundedAmount: 20000,
+          }),
+          makeReg({ id: 2, name: "Không hoàn", feeAmount: 80000 }),
+        ],
+      }),
+    );
+    const btns = screen.getAllByRole("button", { name: "Đã hoàn" });
+    expect(btns).toHaveLength(1);
+    expect(btns[0].getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(btns[0]);
+    expect(host.setRefunded).toHaveBeenCalledWith({
+      registrationId: 1,
+      refunded: false,
+    });
+  });
+
+  it("Đã trả is hidden for a non-chargeable row and the deposit toggle is locked once approved", () => {
+    renderManage(
+      makeView({
+        event: makeEvent({ status: "locked", depositAmount: 30000 }),
+        regs: [
+          makeReg({
+            id: 1,
+            name: "Huỷ",
+            status: "late_cancelled",
+            feeAmount: 80000,
+          }),
+          makeReg({
+            id: 2,
+            name: "Huỷ thường",
+            status: "cancelled",
+            feeAmount: 80000,
+          }),
+        ],
+      }),
+    );
+    fireEvent.click(screen.getByRole("tab", { name: /Đã huỷ/ }));
+    // late_cancelled is charged and keeps the toggle; the plain cancel does not.
+    expect(screen.getAllByRole("button", { name: "Đã trả" })).toHaveLength(1);
+    cleanup();
+    renderManage(
+      makeView({
+        event: makeEvent({ depositAmount: 30000 }),
+        regs: [makeReg({ id: 1, status: "approved", depositPaid: true })],
+      }),
+    );
+    const approvedToggle = screen.getByRole("button", {
+      name: "Đã nhận cọc",
+    }) as HTMLButtonElement;
+    expect(approvedToggle.disabled).toBe(true);
+  });
+
+  it("lock sheet never shows a raw exception message", async () => {
+    host.lockExchangeFees.mockRejectedValue(new Error("SQLITE_BUSY at db.ts"));
+    renderManage(makeView({ regs: [makeReg()] }));
+    fireEvent.click(screen.getByRole("button", { name: "Chốt phí" }));
+    fireEvent.click(screen.getByRole("button", { name: "Xác nhận chốt phí" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(toast.error).not.toHaveBeenCalledWith(
+      expect.stringContaining("SQLITE_BUSY"),
+    );
+    expect(toast.error).toHaveBeenCalledWith(
+      viMessages.exchange.errors.saveFailed,
+    );
+  });
+
+  it("edit sheet edits title and shuttle, clears the payout, and blocks a half-filled payout", async () => {
+    renderManage(
+      makeView({
+        event: makeEvent({ title: "Giao lưu cũ", shuttleType: "Thành Công" }),
+        payout: {
+          bankBin: "970436",
+          accountNo: "111222333",
+          accountName: "HOST",
+        },
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Sửa buổi" }));
+    const title = screen.getByLabelText("Tiêu đề") as HTMLInputElement;
+    expect(title.value).toBe("Giao lưu cũ");
+    fireEvent.change(title, { target: { value: "Giao lưu mới" } });
+    const shuttle = screen.getByLabelText("Loại cầu") as HTMLInputElement;
+    expect(shuttle.value).toBe("Thành Công");
+    fireEvent.change(shuttle, { target: { value: "Yonex" } });
+
+    // Half-filled payout: save is blocked with a visible message.
+    const accNo = screen.getByLabelText("Số tài khoản") as HTMLInputElement;
+    expect(accNo.value).toBe("111222333");
+    fireEvent.change(accNo, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    expect(
+      screen.getByText(viMessages.exchange.manage.editPayoutPartial),
+    ).toBeTruthy();
+    expect(events.updateExchangeEvent).not.toHaveBeenCalled();
+
+    // Clearing the whole payout sends null.
+    fireEvent.click(
+      screen.getByRole("button", { name: "Bỏ tài khoản nhận tiền" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await waitFor(() =>
+      expect(events.updateExchangeEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventId: 7,
+          title: "Giao lưu mới",
+          shuttleType: "Yonex",
+          payout: null,
+        }),
+      ),
+    );
   });
 });

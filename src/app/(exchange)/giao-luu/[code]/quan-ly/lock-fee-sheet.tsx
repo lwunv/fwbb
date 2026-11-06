@@ -39,6 +39,7 @@ export function LockFeeSheet({
   onLocked: () => void;
 }) {
   const t = useTranslations("exchange.manage");
+  const tErr = useTranslations("exchange.errors");
   const [waived, setWaived] = useState<Set<number>>(
     () => new Set(regs.filter((r) => r.feeWaived).map((r) => r.id)),
   );
@@ -86,8 +87,9 @@ export function LockFeeSheet({
         onLocked();
         onOpenChange(false);
       }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+    } catch {
+      // Lỗi mạng hay lỗi lạ: không đưa chữ kỹ thuật lên màn hình.
+      toast.error(tErr("saveFailed"));
     } finally {
       setSending(false);
     }
