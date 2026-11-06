@@ -67,7 +67,7 @@ import { fireAction } from "@/lib/optimistic-action";
 import { getFundStatus } from "@/lib/fund-core";
 import { useSettings } from "@/components/settings-provider";
 import { cn, formatK, normalizeVietnamese } from "@/lib/utils";
-import { SkillChip } from "@/components/shared/skill-chip";
+import { SkillLevelSelect } from "@/components/shared/skill-level-select";
 import { useOptimisticRecord } from "@/lib/optimistic-ui";
 import { dropConvergedSkillOverrides } from "@/lib/skill-overrides";
 import {
@@ -679,24 +679,13 @@ export function MemberList({
     );
   }
 
-  const SKILL_SELECT_OPTIONS = [
-    { value: "", label: tMe("skillNone") },
-    ...SKILL_LEVELS.map((lv) => ({
-      value: lv,
-      label: tMe(`skillShort.${lv}`),
-    })),
-  ];
-
-  /** Dropdown đổi trình độ ngay trên dòng. Chip màu + câu mô tả khi rê chuột
-   *  vẫn giữ cạnh nó (quyết định 28/10/2026), dropdown chỉ là chỗ đổi. */
+  /** Dropdown trình độ trên dòng, GỘP luôn chip màu + mô tả khi rê chuột
+   *  (yêu cầu user 6/11/2026, thay cặp chip + ô chọn cạnh nhau). */
   const inlineSkillSelect = (memberId: number, level: SkillLevel | null) => (
-    <CustomSelect
-      name={`skill-${memberId}`}
+    <SkillLevelSelect
       value={level ?? ""}
       onChange={(v) => handleInlineSkill(memberId, level, v)}
-      options={SKILL_SELECT_OPTIONS}
-      ariaLabel={t("changeSkillAria")}
-      className="w-32 min-w-0"
+      ariaLabelPrefix={t("changeSkillAria")}
     />
   );
 
@@ -1288,10 +1277,7 @@ export function MemberList({
                     </td>
                     {/* Trình độ: cột riêng, không nhét chung ô tên. */}
                     <td className="px-3 py-2.5 align-middle">
-                      <div className="flex items-center gap-2">
-                        <SkillChip level={displaySkill} withBlurb />
-                        {inlineSkillSelect(member.id, displaySkill)}
-                      </div>
+                      {inlineSkillSelect(member.id, displaySkill)}
                     </td>
                     {/* Quỹ / Nợ */}
                     <td className="px-3 py-2.5 align-middle">
@@ -1493,7 +1479,6 @@ export function MemberList({
                                 </span>
                               )}
                             </button>
-                            <SkillChip level={displaySkill} withBlurb />
                           </div>
                           <div className="mt-1.5">
                             {inlineSkillSelect(member.id, displaySkill)}

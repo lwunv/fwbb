@@ -28,7 +28,7 @@ export const ADMIN_DEBT_QUERY_KEY = ["admin-debt-notifications"] as const;
 
 /**
  * Chuông cạnh logo Admin (yêu cầu user 6/11/2026). Số đỏ = mọi member trong
- * quỹ đang âm. Bấm mở danh sách nhanh (bottom sheet), link sang trang thông
+ * quỹ đang âm. Bấm mở danh sách nhanh (ngăn trượt ngang từ trái, phía sidebar), link sang trang thông
  * báo đầy đủ có lịch sử. Khi N1 (thông báo đầy đủ) lên prod thì chuông N1 thay
  * chỗ này.
  */
@@ -76,8 +76,8 @@ export function AdminDebtBell({ className }: { className?: string }) {
 
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
-          side="bottom"
-          className="mx-auto flex max-h-[80dvh] w-full max-w-lg flex-col gap-0 overflow-hidden p-0"
+          side="left"
+          className="flex h-dvh w-80 max-w-[85vw] flex-col gap-0 overflow-hidden p-0"
         >
           <SheetHeader className="border-b pr-12">
             <SheetTitle>{t("owingTitle")}</SheetTitle>

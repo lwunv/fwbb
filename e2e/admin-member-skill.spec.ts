@@ -151,7 +151,8 @@ test("admin đổi trình độ ngay trên dòng, lọc và sắp theo trình đ
   const inline = row.getByRole("button", { name: "Đổi trình độ" });
   await expect(inline).toBeVisible({ timeout: 20_000 });
   await inline.click();
-  await page.getByRole("button", { name: "TBK", exact: true }).last().click();
+  // Menu trình độ mới (base-ui): mỗi mức là menuitem, tên kèm câu mô tả.
+  await page.getByRole("menuitem", { name: /^TBK/ }).click();
   await expect.poll(() => read("skill_level"), { timeout: 10_000 }).toBe("tbk");
   // Chip màu cạnh dropdown cập nhật ngay (optimistic), không cần reload.
   await expect(row.locator("td").nth(1)).toContainText("TBK");
