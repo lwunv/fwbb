@@ -279,7 +279,12 @@ describe("CommentSection", () => {
     await screen.findByText("Host đã khoá bình luận của buổi này.");
     expect(screen.queryByRole("textbox")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Thêm" }));
-    expect(screen.getByRole("menuitem", { name: "Xoá" })).toBeTruthy();
+    expect(await screen.findByRole("menuitem", { name: "Xoá" })).toBeTruthy();
+    // Danh sách thao tác là hộp thoại modal: đóng nó trước khi chạm công tắc phía sau.
+    fireEvent.keyDown(document.activeElement ?? document.body, {
+      key: "Escape",
+    });
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
     // Công tắc khoá của host gửi đúng id buổi (đang khoá thì mở lại).
     mocks.lock.mockResolvedValue({ success: true });
     fireEvent.click(screen.getByRole("switch", { name: "Khoá bình luận" }));
@@ -711,8 +716,8 @@ describe("CommentSection", () => {
 
   it("sending shows a temporary row at once and removes it with the text kept on error", async () => {
     pageFor({ roots: [makeView({ id: 1, body: "Câu hỏi một" })] });
-    let rejectAdd: (v: unknown) => void = () => {};
-    mocks.add.mockReturnValue(new Promise((r) => (rejectAdd = r)));
+    let failSend: (v: unknown) => void = () => {};
+    mocks.add.mockReturnValue(new Promise((r) => (failSend = r)));
     renderSection({ search: "?bl=new" });
     await screen.findByText("Câu hỏi một");
     fireEvent.change(screen.getByRole("textbox"), {
@@ -727,7 +732,7 @@ describe("CommentSection", () => {
     expect(
       within(temp!.closest("article")!).getByText("Đang gửi…"),
     ).toBeTruthy();
-    await act(async () => rejectAdd({ error: "Bạn gửi quá nhanh" }));
+    await act(async () => failSend({ error: "Bạn gửi quá nhanh" }));
     await waitFor(() =>
       expect(mocks.toast.error).toHaveBeenCalledWith("Bạn gửi quá nhanh"),
     );
@@ -756,15 +761,93 @@ describe("CommentSection", () => {
     expect(mocks.toast.error).toHaveBeenCalledWith("máy chủ bận");
   });
 
-  it("Escape closes the kebab menu and returns focus to its trigger", async () => {
+  it("the action list opens in a dialog outside the thread card and still works", async () => {
+    pageFor({
+      roots: [makeView({ id: 1, canDelete: true }), makeView({ id: 2 })],
+    });
+    renderSection();
+    const trigger = (await screen.findAllByRole("button", { name: "Thêm" }))[0];
+    fireEvent.click(trigger);
+    const menu = await screen.findByRole("menu");
+    // Không nằm trong thẻ chủ đề (thẻ có backdrop-blur giam z-index của dropdown).
+    expect(menu.closest("[data-thread]")).toBeNull();
+    expect(screen.getByRole("dialog").contains(menu)).toBe(true);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Xoá" }));
+    expect(await screen.findByText("Xoá bình luận này?")).toBeTruthy();
+  });
+
+  it("Escape closes the action list and returns focus to its trigger", async () => {
     pageFor({ roots: [makeView({ id: 1, canDelete: true })] });
     renderSection();
     const trigger = await screen.findByRole("button", { name: "Thêm" });
     fireEvent.click(trigger);
-    expect(screen.getByRole("menu")).toBeTruthy();
-    fireEvent.keyDown(document, { key: "Escape" });
+    await screen.findByRole("menu");
+    fireEvent.keyDown(document.activeElement ?? document.body, {
+      key: "Escape",
+    });
     await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
-    expect(document.activeElement).toBe(trigger);
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+  });
+
+  it("the temporary row is replaced by the real one with no gap and no duplicate", async () => {
+    const real = makeView({ id: 50, body: "Chốt nhé", mine: true });
+    let sent = false;
+    mocks.list.mockImplementation(async () => ({
+      success: true,
+      data: makePage({
+        roots: sent
+          ? [real, makeView({ id: 1, body: "Câu hỏi một" })]
+          : [makeView({ id: 1, body: "Câu hỏi một" })],
+      }),
+    }));
+    mocks.add.mockImplementation(async () => {
+      sent = true;
+      return { success: true, data: { id: 50, status: "visible" } };
+    });
+    const { container } = renderSection({ search: "?bl=new" });
+    await screen.findByText("Câu hỏi một");
+    const count = () =>
+      screen.queryAllByText("Chốt nhé").filter((el) => el.closest("article"))
+        .length;
+    const seen: number[] = [];
+    const obs = new MutationObserver(() => seen.push(count()));
+    obs.observe(container, { childList: true, subtree: true });
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "Chốt nhé" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+    await waitFor(() =>
+      expect(mocks.list.mock.calls.length).toBeGreaterThan(1),
+    );
+    await waitFor(() => expect(screen.queryByText("Đang gửi…")).toBeNull());
+    obs.disconnect();
+    expect(count()).toBe(1);
+    // Từ lúc dòng tạm hiện, không khung nào có 0 hoặc 2 bản.
+    const afterFirst = seen.slice(seen.indexOf(1));
+    expect(afterFirst).toEqual(afterFirst.map(() => 1));
+  });
+
+  it("a pending send is not shown in the other channel", async () => {
+    pageFor({
+      canRead: { qa: true, group: true },
+      roots: [makeView({ id: 1, body: "Câu hỏi một" })],
+    });
+    mocks.add.mockReturnValue(new Promise(() => {}));
+    renderSection({ memory: true });
+    await screen.findByText("Câu hỏi một");
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "Chỉ ở hỏi đáp" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+    await screen.findAllByText("Đang gửi…");
+    fireEvent.click(await screen.findByRole("tab", { name: /Nhóm buổi/ }));
+    await waitFor(() =>
+      expect(
+        screen
+          .queryAllByText("Chỉ ở hỏi đáp")
+          .filter((el) => el.closest("article")),
+      ).toHaveLength(0),
+    );
   });
 
   it("report sheet with commentId sends a comment target", async () => {

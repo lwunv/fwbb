@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { MoreHorizontal, Pin, ThumbsUp } from "lucide-react";
 import {
   approveHeldComment,
@@ -12,6 +12,7 @@ import {
   toggleCommentVote,
 } from "@/actions/exchange-comments";
 import { nameSeed } from "@/components/exchange/exchange-card";
+import { ResponsiveSheet } from "@/components/exchange/responsive-sheet";
 import { ReportSheet } from "@/components/exchange/report-sheet";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { MemberAvatar } from "@/components/shared/member-avatar";
@@ -20,6 +21,7 @@ import type { CommentChannel } from "@/lib/exchange/constants";
 import { fireAction } from "@/lib/optimistic-action";
 import { cn } from "@/lib/utils";
 import { CommentComposer } from "./comment-composer";
+import type { TempHandle } from "./use-open-threads";
 
 /** Những thứ mọi bình luận trong khu cần chung, gom một chỗ để khỏi truyền từng prop. */
 export type CommentCtx = {
@@ -36,7 +38,7 @@ export type CommentCtx = {
   /** Tải lại các trang đã mở sau khi server đã nhận thay đổi; xong khi dữ liệu mới về. */
   changed: () => Promise<void>;
   /** Chèn dòng tạm "Đang gửi…" cho một trả lời (cha = id bình luận); trả về hàm gỡ. */
-  addTemp: (parentId: number | null, body: string) => () => void;
+  addTemp: (parentId: number | null, body: string) => TempHandle;
 };
 
 function agoLabel(iso: string, locale: string): string {
@@ -67,30 +69,13 @@ export function CommentItem({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
   const v = view;
 
-  // Menu: Escape đóng và trả focus về nút ba chấm; chạm ra ngoài cũng đóng.
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      setMenuOpen(false);
-      menuTriggerRef.current?.focus();
-    };
-    const onPointer = (e: PointerEvent) => {
-      const el = e.target as Node;
-      if (menuRef.current?.contains(el) || menuTriggerRef.current?.contains(el))
-        return;
-      setMenuOpen(false);
-    };
-    document.addEventListener("keydown", onKey);
-    document.addEventListener("pointerdown", onPointer);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.removeEventListener("pointerdown", onPointer);
-    };
-  }, [menuOpen]);
+  /** Đóng sheet thao tác và trả focus về nút ba chấm (Escape do Dialog lo). */
+  function closeMenu() {
+    setMenuOpen(false);
+    menuTriggerRef.current?.focus();
+  }
 
   if (v.state === "deleted" || v.state === "hidden" || !v.author) {
     const key =
@@ -286,7 +271,7 @@ export function CommentItem({
       )}
 
       {v.state === "held" && (
-        <p className="text-warning-foreground text-sm font-medium">
+        <p className="text-warning-text text-sm font-medium">
           {t("waitingApproval")}
         </p>
       )}
@@ -327,35 +312,30 @@ export function CommentItem({
             >
               <MoreHorizontal className="h-5 w-5" aria-hidden />
             </button>
-            <AnimatePresence>
-              {menuOpen && (
-                <motion.div
-                  ref={menuRef}
-                  role="menu"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.12 }}
-                  style={{ transformOrigin: "top right" }}
-                  className="bg-popover absolute top-full right-0 z-20 max-w-[calc(100vw-2rem)] min-w-40 rounded-xl border p-1 shadow-lg"
-                >
-                  {menu.map((m) => (
-                    <button
-                      key={m.key}
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        m.run();
-                      }}
-                      className="hover:bg-accent flex min-h-11 w-full items-center rounded-lg px-3 text-left text-base"
-                    >
-                      {m.label}
-                    </button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {/* Sheet/hộp thoại (portal) thay cho dropdown: thẻ chủ đề có backdrop-blur
+                nên dropdown tuyệt đối bị thẻ kế bên đè và chặn chạm. */}
+            <ResponsiveSheet
+              open={menuOpen}
+              onOpenChange={(o) => (o ? setMenuOpen(true) : closeMenu())}
+              title={t("menu")}
+            >
+              <div role="menu" className="-my-2 space-y-1">
+                {menu.map((m) => (
+                  <button
+                    key={m.key}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      m.run();
+                    }}
+                    className="hover:bg-accent flex min-h-11 w-full items-center rounded-lg px-3 text-left text-base"
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </ResponsiveSheet>
           </>
         )}
       </div>
@@ -372,7 +352,7 @@ export function CommentItem({
           onPending={(body) => ctx.addTemp(v.id, body)}
           onSent={() => {
             setReplying(false);
-            return ctx.changed();
+            void ctx.changed();
           }}
         />
       )}

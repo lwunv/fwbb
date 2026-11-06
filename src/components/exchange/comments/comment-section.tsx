@@ -103,7 +103,7 @@ export function CommentSection({
   }
 
   const { apply, patch, begin, end, loadReplies, addTemp, rootTemps } =
-    useOpenThreads(q.data?.pages, q.dataUpdatedAt);
+    useOpenThreads(q.data?.pages, q.dataUpdatedAt, channel);
 
   const seen = new Set<number>();
   const roots: CommentView[] = [];
@@ -115,9 +115,10 @@ export function CommentSection({
     }
   }
   // Gốc vừa gửi: mới nhất ở đầu khi sắp "Mới nhất", cuối danh sách khi "Hữu ích".
+  // Nằm ngoài AnimatePresence: dòng tạm không có exit animation, nếu không nó còn
+  // lại một nhịp cạnh bình luận thật vừa về (thấy hai bản).
   const temps = rootTemps();
-  if (sort === "new") roots.unshift(...temps.reverse());
-  else roots.push(...temps);
+  if (sort === "new") temps.reverse();
   const held = (first?.hostHeld ?? [])
     .map(apply)
     .filter((h) => h.state === "held");
@@ -181,7 +182,7 @@ export function CommentSection({
           channel={channel}
           needsCaptcha={first.needsCaptcha}
           onPending={(body) => addTemp(null, body)}
-          onSent={changed}
+          onSent={() => void changed()}
         />
       </div>
     );
@@ -266,7 +267,7 @@ export function CommentSection({
               ))}
             </div>
           )}
-          {roots.length === 0 && held.length === 0 ? (
+          {roots.length === 0 && temps.length === 0 && held.length === 0 ? (
             <EmptyState
               icon={MessageSquare}
               title={channel === "group" ? t("emptyGroup") : t("empty")}
@@ -286,13 +287,22 @@ export function CommentSection({
             />
           ) : (
             <div className="space-y-3">
+              {sort === "new" &&
+                temps.map((r) => (
+                  <CommentThread
+                    key={r.id}
+                    root={r}
+                    ctx={ctx}
+                    onLoadReplies={loadReplies}
+                  />
+                ))}
               <AnimatePresence initial={false}>
                 {roots.map((r) => (
                   <motion.div
                     key={r.id}
                     layout
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
+                    initial={{ y: 8 }}
+                    animate={{ y: 0 }}
                     exit={{ opacity: 0, scale: 0.97 }}
                   >
                     <CommentThread
@@ -303,6 +313,15 @@ export function CommentSection({
                   </motion.div>
                 ))}
               </AnimatePresence>
+              {sort !== "new" &&
+                temps.map((r) => (
+                  <CommentThread
+                    key={r.id}
+                    root={r}
+                    ctx={ctx}
+                    onLoadReplies={loadReplies}
+                  />
+                ))}
             </div>
           )}
           {q.hasNextPage && (

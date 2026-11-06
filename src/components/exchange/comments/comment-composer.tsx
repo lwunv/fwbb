@@ -12,6 +12,7 @@ import {
   TS_COMMENT,
   type CommentChannel,
 } from "@/lib/exchange/constants";
+import type { TempHandle } from "./use-open-threads";
 import { fireAction } from "@/lib/optimistic-action";
 import { cn } from "@/lib/utils";
 
@@ -24,13 +25,10 @@ export type CommentComposerProps = {
   onEditSubmit?: (body: string) => void;
   initialText?: string;
   needsCaptcha: boolean;
-  /**
-   * Gọi khi server đã nhận. Trả Promise (tải lại danh sách) thì dòng tạm chỉ gỡ
-   * sau khi dữ liệu thật về, để bình luận không chớp tắt.
-   */
-  onSent: (status: "visible" | "held") => void | Promise<unknown>;
-  /** Chèn dòng "Đang gửi…" vào danh sách; trả về hàm gỡ dòng đó. */
-  onPending?: (body: string) => () => void;
+  /** Gọi khi server đã nhận (cha tải lại danh sách). */
+  onSent: (status: "visible" | "held") => void;
+  /** Chèn dòng "Đang gửi…" vào danh sách; dòng tự biến mất khi dữ liệu thật về. */
+  onPending?: (body: string) => TempHandle;
   onCancel?: () => void;
   placeholder?: string;
   autoFocus?: boolean;
@@ -130,7 +128,7 @@ export function CommentComposer({
         onSuccess: () => {
           settle();
           if (outcome === "captcha") {
-            dropTemp?.();
+            dropTemp?.remove();
             awaitingToken.current = true;
             setCaptcha(true);
             return;
@@ -141,12 +139,13 @@ export function CommentComposer({
             setHeld(true);
             toast.info(t("heldToast"));
           }
-          // Dòng tạm ở lại tới khi danh sách tải lại xong (nếu cha trả Promise).
-          void Promise.resolve(onSent(status)).finally(() => dropTemp?.());
+          onSent(status);
+          // Sau onSent để mốc "dữ liệu mới hơn" tính từ lúc cha bắt đầu tải lại.
+          dropTemp?.settle();
         },
         // Lỗi: giữ nguyên chữ, gỡ dòng tạm; toast đã do fireAction hiện.
         onError: () => {
-          dropTemp?.();
+          dropTemp?.remove();
           settle();
         },
       },
@@ -168,7 +167,7 @@ export function CommentComposer({
   return (
     <div className="space-y-2">
       {held && (
-        <p className="text-warning-foreground text-sm font-medium">
+        <p className="text-warning-text text-sm font-medium">
           {t("waitingApproval")}
         </p>
       )}

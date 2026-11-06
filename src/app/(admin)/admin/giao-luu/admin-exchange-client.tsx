@@ -86,6 +86,10 @@ export function AdminExchangeClient({
   const [commentPatch, setCommentPatch] = useState<
     Record<string, Partial<AdminCommentRow> | "removed">
   >({});
+  // Mốc dataUpdatedAt lúc server nhận xử lý; dữ liệu mới hơn mốc này thay patch.
+  const [commentSettled, setCommentSettled] = useState<Record<string, number>>(
+    {},
+  );
   const [confirmDeleteRow, setConfirmDeleteRow] =
     useState<AdminCommentRow | null>(null);
   const [confirmCancelId, setConfirmCancelId] = useState<number | null>(null);
@@ -174,6 +178,12 @@ export function AdminExchangeClient({
       action === "approve" && commentFilter === "reported"
         ? { status: "visible" }
         : "removed";
+    // Xử lý lại cùng dòng: mốc "đã về" của lần trước không được che patch mới.
+    setCommentSettled((m) => {
+      const n = { ...m };
+      delete n[pk];
+      return n;
+    });
     setCommentPatch((m) => ({ ...m, [pk]: next }));
     fireAction(
       () => adminModerateComment({ commentId: row.id, action }),
@@ -192,24 +202,18 @@ export function AdminExchangeClient({
           dismiss: t("commentDismissedToast"),
           delete: t("commentDeletedToast"),
         }[action],
-        // Bỏ patch sau khi danh sách tải lại xong, không thì dòng đã xử lý hiện lại
-        // một nhịp giữa lúc patch mất và dữ liệu mới về.
+        // Patch chỉ bỏ khi danh sách mới đã về (xem `commentRows`): bỏ ngay sau
+        // `await invalidate` thì react-query chưa kịp báo, một khung hình thấy dòng cũ.
         onSuccess: () => {
-          void (async () => {
-            await Promise.all([
-              qc.invalidateQueries({ queryKey: ["admin-exchange-comments"] }),
-              action !== "approve"
-                ? qc.invalidateQueries({
-                    queryKey: ["admin-exchange-reports"],
-                  })
-                : undefined,
-            ]);
-            setCommentPatch((m) => {
-              const n = { ...m };
-              delete n[pk];
-              return n;
+          const at =
+            qc.getQueryState(["admin-exchange-comments", commentFilter])
+              ?.dataUpdatedAt ?? 0;
+          setCommentSettled((m) => ({ ...m, [pk]: at }));
+          void qc.invalidateQueries({ queryKey: ["admin-exchange-comments"] });
+          if (action !== "approve")
+            void qc.invalidateQueries({
+              queryKey: ["admin-exchange-reports"],
             });
-          })();
         },
       },
     );
@@ -243,7 +247,11 @@ export function AdminExchangeClient({
   );
 
   const commentRows = (comments.data ?? []).flatMap((r) => {
-    const p = commentPatch[`${commentFilter}:${r.id}`];
+    const pk = `${commentFilter}:${r.id}`;
+    const arrived =
+      commentSettled[pk] !== undefined &&
+      comments.dataUpdatedAt > commentSettled[pk];
+    const p = arrived ? undefined : commentPatch[pk];
     if (p === "removed") return [];
     return [{ ...r, ...p }];
   });

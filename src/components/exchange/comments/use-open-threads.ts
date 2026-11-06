@@ -8,6 +8,7 @@ import {
   type CommentPage,
 } from "@/actions/exchange-comments";
 import type { CommentView } from "@/lib/exchange/comment-tree";
+import type { CommentChannel } from "@/lib/exchange/constants";
 
 /** Trả lời đã tải thêm của một bình luận; `next` = offset kế tiếp, null khi đã hết. */
 type Extra = { replies: CommentView[]; next: number | null };
@@ -19,9 +20,18 @@ type PendingSend = {
   tempId: number;
   /** Bình luận được trả lời; null = bình luận gốc. */
   parentId: number | null;
+  channel: CommentChannel;
   body: string;
   createdAt: string;
+  /** Server đã nhận; dòng tạm biến mất khi dữ liệu mới hơn mốc này về. */
+  after?: { at: number; pages: CommentPage[] | undefined };
 };
+
+/** Điều khiển một dòng tạm: `remove` khi gửi lỗi, `settle` khi server đã nhận. */
+export type TempHandle = { remove: () => void; settle: () => void };
+
+/** Sau chừng này mà dữ liệu mới vẫn chưa về (tải lại lỗi) thì vẫn gỡ dòng tạm. */
+const SETTLE_FALLBACK_MS = 8000;
 
 const visibleCount = (list: CommentView[]) =>
   list.filter((r) => r.state === "visible").length;
@@ -35,6 +45,7 @@ const visibleCount = (list: CommentView[]) =>
 export function useOpenThreads(
   pages: CommentPage[] | undefined,
   dataUpdatedAt: number,
+  channel: CommentChannel,
 ) {
   const t = useTranslations("exchange.comments");
   const [patches, setPatches] = useState<Record<number, Partial<CommentView>>>(
@@ -46,23 +57,63 @@ export function useOpenThreads(
   const extraRef = useRef(extra);
   const pagesRef = useRef(pages);
   const pending = useRef(new Map<number, number>());
+  const updatedAtRef = useRef(dataUpdatedAt);
   useEffect(() => {
     extraRef.current = extra;
     pagesRef.current = pages;
+    updatedAtRef.current = dataUpdatedAt;
   });
+
+  // Dòng tạm đã được server nhận và dữ liệu mới hơn đã về: ẩn ngay trong lúc
+  // render (không chờ effect) để không có khung hình thấy cả hai hoặc không thấy gì.
+  // Mốc ms có thể trùng khi mạng rất nhanh, nên danh sách mới (đổi tham chiếu) cũng tính.
+  const arrived = (s: PendingSend) =>
+    s.after !== undefined &&
+    (dataUpdatedAt > s.after.at || pages !== s.after.pages);
+  const liveSends = sends.filter((s) => s.channel === channel && !arrived(s));
+  useEffect(() => {
+    setSends((prev) =>
+      prev.some(arrived) ? prev.filter((s) => !arrived(s)) : prev,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataUpdatedAt, pages]);
 
   const patch = useCallback((id: number, p: Partial<CommentView>) => {
     setPatches((prev) => ({ ...prev, [id]: { ...prev[id], ...p } }));
   }, []);
   /** Chèn dòng tạm; trả về hàm gỡ nó (gọi khi lỗi, hoặc khi dữ liệu thật đã về). */
-  const addTemp = useCallback((parentId: number | null, body: string) => {
-    const tempId = -(tempSeq.current += 1);
-    setSends((prev) => [
-      ...prev,
-      { tempId, parentId, body, createdAt: new Date().toISOString() },
-    ]);
-    return () => setSends((prev) => prev.filter((s) => s.tempId !== tempId));
-  }, []);
+  const addTemp = useCallback(
+    (parentId: number | null, body: string): TempHandle => {
+      const tempId = -(tempSeq.current += 1);
+      setSends((prev) => [
+        ...prev,
+        {
+          tempId,
+          parentId,
+          channel,
+          body,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+      const remove = () =>
+        setSends((prev) => prev.filter((s) => s.tempId !== tempId));
+      return {
+        remove,
+        settle: () => {
+          // Đọc mốc ngay, không trong updater (chạy lúc render, có thể sau khi dữ liệu mới về).
+          const after = {
+            at: updatedAtRef.current,
+            pages: pagesRef.current,
+          };
+          setSends((prev) =>
+            prev.map((s) => (s.tempId === tempId ? { ...s, after } : s)),
+          );
+          setTimeout(remove, SETTLE_FALLBACK_MS);
+        },
+      };
+    },
+    [channel],
+  );
   const begin = useCallback((id: number) => {
     pending.current.set(id, (pending.current.get(id) ?? 0) + 1);
   }, []);
@@ -199,7 +250,7 @@ export function useOpenThreads(
 
   /** Gốc đang chờ gửi, theo thứ tự gửi. */
   const rootTemps = () =>
-    sends.filter((s) => s.parentId === null).map(tempView);
+    liveSends.filter((s) => s.parentId === null).map(tempView);
 
   function build(v: CommentView, depth: number): CommentView {
     const e = extra[v.id];
@@ -213,7 +264,7 @@ export function useOpenThreads(
       merged.moreReplies = Math.max(0, v.moreReplies - visibleCount(added));
     }
     // Server gộp trả lời tầng 2 về tầng 1, nên trả lời một tầng 2 cũng hiện ở đây.
-    const temps = sends.filter(
+    const temps = liveSends.filter(
       (s) =>
         s.parentId !== null &&
         depth < 2 &&
