@@ -218,6 +218,13 @@
       "when": 1793876013284,
       "tag": "0030_rare_veda",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1793939100453,
+      "tag": "0031_thankful_titanium_man",
+      "breakpoints": true
     }
   ]
 }

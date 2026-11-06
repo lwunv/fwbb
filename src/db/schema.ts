@@ -19,6 +19,8 @@ import {
   REPORT_TARGET_TYPES,
   REPORT_REASONS,
   REPORT_STATUSES,
+  COMMENT_CHANNELS,
+  COMMENT_STATUSES,
 } from "@/lib/exchange/constants";
 
 export const admins = sqliteTable(
@@ -1090,6 +1092,9 @@ export const exchangeEvents = sqliteTable(
     doneAt: text("done_at"),
     cancelledAt: text("cancelled_at"),
     hiddenAt: text("hidden_at"),
+    commentsLocked: integer("comments_locked", { mode: "boolean" })
+      .notNull()
+      .default(false),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },
@@ -1215,6 +1220,101 @@ export const exchangeRegistrations = sqliteTable(
       "exchange_regs_paid_non_negative",
       sql`${table.paidAmount} IS NULL OR ${table.paidAmount} >= 0`,
     ),
+  ],
+);
+
+export const exchangeComments = sqliteTable(
+  "exchange_comments",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    eventId: integer("event_id")
+      .notNull()
+      .references(() => exchangeEvents.id),
+    channel: text("channel", { enum: COMMENT_CHANNELS }).notNull(),
+    parentId: integer("parent_id").references(
+      (): AnySQLiteColumn => exchangeComments.id,
+    ),
+    replyToMemberId: integer("reply_to_member_id").references(() => members.id),
+    authorMemberId: integer("author_member_id")
+      .notNull()
+      .references(() => members.id),
+    body: text("body").notNull(),
+    status: text("status", { enum: COMMENT_STATUSES })
+      .notNull()
+      .default("visible"),
+    upvotes: integer("upvotes").notNull().default(0),
+    pinned: integer("pinned", { mode: "boolean" }).notNull().default(false),
+    idempotencyKey: text("idempotency_key"),
+    editedAt: text("edited_at"),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    index("exchange_comments_event_channel_created_idx").on(
+      table.eventId,
+      table.channel,
+      table.createdAt,
+    ),
+    index("exchange_comments_event_created_idx").on(
+      table.eventId,
+      table.createdAt,
+    ),
+    index("exchange_comments_parent_created_idx").on(
+      table.parentId,
+      table.createdAt,
+    ),
+    index("exchange_comments_author_created_idx").on(
+      table.authorMemberId,
+      table.createdAt,
+    ),
+    uniqueIndex("exchange_comments_idempotency_key_unique").on(
+      table.idempotencyKey,
+    ),
+    check("exchange_comments_upvotes_non_negative", sql`${table.upvotes} >= 0`),
+  ],
+);
+
+export const exchangeCommentVotes = sqliteTable(
+  "exchange_comment_votes",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    commentId: integer("comment_id")
+      .notNull()
+      .references(() => exchangeComments.id),
+    memberId: integer("member_id")
+      .notNull()
+      .references(() => members.id),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("exchange_comment_votes_comment_member_unique").on(
+      table.commentId,
+      table.memberId,
+    ),
+    index("exchange_comment_votes_member_idx").on(table.memberId),
+  ],
+);
+
+export const exchangeCommentReads = sqliteTable(
+  "exchange_comment_reads",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    eventId: integer("event_id")
+      .notNull()
+      .references(() => exchangeEvents.id),
+    memberId: integer("member_id")
+      .notNull()
+      .references(() => members.id),
+    /** Mốc đọc khu Hỏi đáp. */
+    lastReadAt: text("last_read_at"),
+    /** Mốc đọc khu Nhóm buổi. */
+    lastReadGroupAt: text("last_read_group_at"),
+  },
+  (table) => [
+    uniqueIndex("exchange_comment_reads_event_member_unique").on(
+      table.eventId,
+      table.memberId,
+    ),
+    index("exchange_comment_reads_member_idx").on(table.memberId),
   ],
 );
 
