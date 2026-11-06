@@ -181,3 +181,17 @@ describe("buildThreads", () => {
     expect(JSON.stringify(out)).not.toContain('"authorMemberId"');
   });
 });
+
+describe("buildThreads moreReplies with non-visible children", () => {
+  it("held child on the page does not hide an unseen visible reply", () => {
+    const root = row({ id: 1, replyCount: 3 });
+    const kids = [
+      row({ id: 2, parentId: 1 }),
+      row({ id: 3, parentId: 1 }),
+      row({ id: 4, parentId: 1, status: "held", authorMemberId: 10 }),
+    ];
+    const out = buildThreads([root, ...kids], opts());
+    expect(out[0].replies).toHaveLength(3);
+    expect(out[0].moreReplies).toBe(1);
+  });
+});

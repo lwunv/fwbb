@@ -61,3 +61,20 @@ describe("detectContact link", () => {
     expect(detectContact("a.b").link).toBe(false);
   });
 });
+
+describe("zero-width and bidi characters", () => {
+  it("normalize strips zero-width and bidi control characters", () => {
+    expect(
+      normalizeCommentBody("a\u200Bb\u200Fc\u202Ad\u202Ee\u2060f\uFEFFg"),
+    ).toBe("abcdefg");
+  });
+
+  it("cannot bypass phone and link detection", () => {
+    expect(detectContact(normalizeCommentBody("0912\u200B345678")).phone).toBe(
+      true,
+    );
+    expect(
+      detectContact(normalizeCommentBody("shopee\u200B.vn/abc")).link,
+    ).toBe(true);
+  });
+});

@@ -133,8 +133,11 @@ export function buildThreads(
       canApprove: hasBody && opts.isHost && r.status === "held",
       canPin:
         hasBody && opts.isHost && r.parentId === null && r.status === "visible",
-      // Con có trong rows nhưng chưa dựng được vẫn tính là "đã có trên trang".
-      moreReplies: Math.max(0, r.replyCount - kids.length),
+      // replyCount chỉ đếm con visible, nên chỉ trừ con visible đã có trong rows.
+      moreReplies: Math.max(
+        0,
+        r.replyCount - kids.filter((k) => k.status === "visible").length,
+      ),
       replies,
     };
   }

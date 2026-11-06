@@ -2,12 +2,16 @@
 
 /** Chuẩn hoá chữ bình luận trước khi đếm độ dài, kiểm tra và lưu. */
 export function normalizeCommentBody(raw: string): string {
-  return raw
-    .normalize("NFC")
-    .replace(/\r\n?/g, "\n")
-    .replace(/[\u0000-\u0009\u000B-\u001F\u007F-\u009F]/g, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  return (
+    raw
+      .normalize("NFC")
+      .replace(/\r\n?/g, "\n")
+      .replace(/[\u0000-\u0009\u000B-\u001F\u007F-\u009F]/g, "")
+      // Ký tự vô hình (zero-width, bidi) chèn giữa số/tên miền để né kiểm tra sđt/link.
+      .replace(/[​-‏‪-‮⁠﻿]/g, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim()
+  );
 }
 
 // Che trước ngày, giờ, tiền để chuỗi như "09.11.2026 19:30" hay "1.200.000"
