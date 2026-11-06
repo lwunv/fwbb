@@ -113,16 +113,16 @@ export function AdminDebtBell({ className }: { className?: string }) {
                     key={o.memberId}
                     className="flex min-h-11 items-center justify-between gap-3 rounded-lg px-2"
                   >
-                    <TruncatedName name={o.name} className="text-base" />
-                    <span className="flex shrink-0 items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                      <TruncatedName name={o.name} className="text-base" />
                       {o.overLimit && (
-                        <span className="border-destructive/40 bg-destructive/10 text-destructive rounded border px-1.5 text-sm font-semibold">
+                        <span className="border-destructive/40 bg-destructive/10 text-destructive mt-0.5 inline-block rounded border px-1.5 text-sm font-semibold">
                           {t("overLimit")}
                         </span>
                       )}
-                      <span className="text-destructive text-base font-semibold tabular-nums">
-                        {formatVND(o.balance)}
-                      </span>
+                    </div>
+                    <span className="text-destructive shrink-0 text-base font-semibold tabular-nums">
+                      {formatVND(o.balance)}
                     </span>
                   </li>
                 ))}

@@ -1534,6 +1534,29 @@
     "historyEmpty": "Nobody has owed the fund yet",
     "historyItem": "Balance {before} → {after}",
     "owingCount": "{count} members",
-    "retry": "Try again"
+    "retry": "Try again",
+    "markAllSeen": "Mark all as seen",
+    "statOwing": "Owing",
+    "statTotalDebt": "Total debt",
+    "statOverLimit": "Over limit",
+    "tabActivity": "Activity",
+    "tabOwing": "Owing",
+    "searchPlaceholder": "Search by name or nickname",
+    "levelAll": "All",
+    "levelOver": "Over limit",
+    "levelUnder": "Under limit",
+    "rangeAll": "All",
+    "rangeDays": "{days} days",
+    "crossedNegative": "went into debt",
+    "unread": "Unseen",
+    "loadMore": "Load more",
+    "group": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "week": "This week",
+      "earlier": "Earlier"
+    },
+    "historyEmptyRange": "Nobody went into debt in the last {days} days",
+    "noMatch": "No matching results"
   }
 }

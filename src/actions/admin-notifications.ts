@@ -16,12 +16,14 @@ import {
 } from "@/lib/debt-history";
 
 /** Giới hạn số dòng lịch sử trả về (mới nhất trước). */
-const HISTORY_LIMIT = 100;
+const HISTORY_LIMIT = 500;
 
 export type OwingMember = {
   memberId: number;
   name: string;
   nickname: string | null;
+  avatarKey: string | null;
+  avatarUrl: string | null;
   balance: number;
   /** Nợ từ hạn mức chặn vote trở lên. */
   overLimit: boolean;
@@ -30,6 +32,8 @@ export type OwingMember = {
 export type DebtHistoryItem = NegativeCrossing & {
   name: string;
   nickname: string | null;
+  avatarKey: string | null;
+  avatarUrl: string | null;
 };
 
 /**
@@ -64,6 +68,8 @@ export async function getAdminDebtNotifications(): Promise<
         id: members.id,
         name: members.name,
         nickname: members.nickname,
+        avatarKey: members.avatarKey,
+        avatarUrl: members.avatarUrl,
       })
       .from(members)
       .where(inArray(members.id, ids)),
@@ -99,12 +105,20 @@ export async function getAdminDebtNotifications(): Promise<
         memberId: m.id,
         name: m.name,
         nickname: m.nickname,
+        avatarKey: m.avatarKey,
+        avatarUrl: m.avatarUrl,
         balance,
         overLimit: isVoteBlockedByDebt(balance, threshold),
       });
     }
     for (const c of findNegativeCrossings(m.id, rows)) {
-      history.push({ ...c, name: m.name, nickname: m.nickname });
+      history.push({
+        ...c,
+        name: m.name,
+        nickname: m.nickname,
+        avatarKey: m.avatarKey,
+        avatarUrl: m.avatarUrl,
+      });
     }
   }
 

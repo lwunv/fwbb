@@ -1534,6 +1534,29 @@
     "historyEmpty": "Chưa có ai từng âm quỹ",
     "historyItem": "Số dư {before} → {after}",
     "owingCount": "{count} thành viên",
-    "retry": "Thử lại"
+    "retry": "Thử lại",
+    "markAllSeen": "Đánh dấu đã xem",
+    "statOwing": "Đang âm quỹ",
+    "statTotalDebt": "Tổng nợ",
+    "statOverLimit": "Quá hạn mức",
+    "tabActivity": "Hoạt động",
+    "tabOwing": "Đang nợ",
+    "searchPlaceholder": "Tìm theo tên hoặc biệt danh",
+    "levelAll": "Tất cả",
+    "levelOver": "Quá hạn mức",
+    "levelUnder": "Dưới hạn mức",
+    "rangeAll": "Tất cả",
+    "rangeDays": "{days} ngày",
+    "crossedNegative": "vừa âm quỹ",
+    "unread": "Chưa xem",
+    "loadMore": "Xem thêm",
+    "group": {
+      "today": "Hôm nay",
+      "yesterday": "Hôm qua",
+      "week": "Tuần này",
+      "earlier": "Trước đó"
+    },
+    "historyEmptyRange": "Không có ai âm quỹ trong {days} ngày qua",
+    "noMatch": "Không có kết quả phù hợp"
   }
 }

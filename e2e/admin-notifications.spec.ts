@@ -62,12 +62,16 @@ test("chuông cạnh logo có số, mở ra thấy member nợ, sang trang thôn
 
   await sheet.getByRole("link", { name: "Xem tất cả thông báo" }).click();
   await expect(page).toHaveURL(/\/admin\/notifications$/);
-  await expect(
-    page.getByRole("heading", { name: "Lịch sử âm quỹ" }),
-  ).toBeVisible();
-  const historyItem = page
-    .locator("section", { hasText: "Lịch sử âm quỹ" })
-    .locator("li", { hasText: NAME });
-  await expect(historyItem).toContainText("Chốt sổ buổi e2e");
-  await expect(historyItem).toContainText("-188.000");
+  // Tab mặc định "Hoạt động": dòng kiểu Facebook "<tên> vừa âm quỹ".
+  const item = page.locator("li", { hasText: `${NAME} vừa âm quỹ` });
+  await expect(item).toBeVisible({ timeout: 10_000 });
+  await expect(item).toContainText("Chốt sổ buổi e2e");
+  await expect(item).toContainText("-188.000");
+
+  // Tìm theo tên + tab "Đang nợ" lọc "Quá hạn mức" vẫn thấy member này.
+  await page.getByPlaceholder("Tìm theo tên hoặc biệt danh").fill("chuong no");
+  await page.getByRole("tab", { name: /Đang nợ/ }).click();
+  await page.getByRole("tab", { name: "Quá hạn mức" }).click();
+  await expect(page.locator("li", { hasText: NAME })).toBeVisible();
+  await expect(page).toHaveURL(/tab=owing/);
 });

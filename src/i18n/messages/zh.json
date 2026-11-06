@@ -1534,6 +1534,29 @@
     "historyEmpty": "还没有人欠过基金",
     "historyItem": "余额 {before} → {after}",
     "owingCount": "{count} 位成员",
-    "retry": "重试"
+    "retry": "重试",
+    "markAllSeen": "全部标为已读",
+    "statOwing": "欠款人数",
+    "statTotalDebt": "欠款总额",
+    "statOverLimit": "超出限额",
+    "tabActivity": "动态",
+    "tabOwing": "欠款",
+    "searchPlaceholder": "按姓名或昵称搜索",
+    "levelAll": "全部",
+    "levelOver": "超出限额",
+    "levelUnder": "未超限额",
+    "rangeAll": "全部",
+    "rangeDays": "{days} 天",
+    "crossedNegative": "开始欠基金",
+    "unread": "未读",
+    "loadMore": "加载更多",
+    "group": {
+      "today": "今天",
+      "yesterday": "昨天",
+      "week": "本周",
+      "earlier": "更早"
+    },
+    "historyEmptyRange": "过去 {days} 天内没有人欠基金",
+    "noMatch": "没有符合条件的结果"
   }
 }
