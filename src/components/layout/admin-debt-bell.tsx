@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { motion } from "framer-motion";
+import { TruncatedName } from "@/components/shared/truncated-name";
 import { useTranslations } from "next-intl";
 import { Bell } from "lucide-react";
 import {
@@ -33,7 +35,7 @@ export const ADMIN_DEBT_QUERY_KEY = ["admin-debt-notifications"] as const;
 export function AdminDebtBell({ className }: { className?: string }) {
   const t = useTranslations("adminNotifications");
   const [open, setOpen] = useState(false);
-  const { data, isPending, isError } = useQuery({
+  const { data, isPending, isError, refetch } = useQuery({
     queryKey: ADMIN_DEBT_QUERY_KEY,
     queryFn: () => getAdminDebtNotifications(),
     staleTime: STALE_MS,
@@ -46,9 +48,15 @@ export function AdminDebtBell({ className }: { className?: string }) {
 
   return (
     <>
-      <button
+      <motion.button
         type="button"
-        onClick={() => setOpen(true)}
+        whileTap={{ scale: 0.92 }}
+        onClick={() => {
+          setOpen(true);
+          // Chuông nằm trong layout, không unmount khi chuyển trang: mở ra là
+          // lấy lại 1 lần (không poll) để số không đứng yên giá trị cũ.
+          void refetch();
+        }}
         aria-label={count > 0 ? t("bellLabelCount", { count }) : t("bellLabel")}
         className={cn(
           "hover:bg-sidebar-accent relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors",
@@ -64,7 +72,7 @@ export function AdminDebtBell({ className }: { className?: string }) {
             {count > 99 ? "99+" : count}
           </span>
         )}
-      </button>
+      </motion.button>
 
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
@@ -82,9 +90,18 @@ export function AdminDebtBell({ className }: { className?: string }) {
                 ))}
               </div>
             ) : isError || !result ? (
-              <p className="text-destructive py-4 text-center text-base">
-                {t("loadError")}
-              </p>
+              <div className="flex flex-col items-center gap-3 py-4">
+                <p className="text-destructive text-center text-base">
+                  {t("loadError")}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void refetch()}
+                  className="border-border hover:bg-muted min-h-11 rounded-lg border px-4 text-base"
+                >
+                  {t("retry")}
+                </button>
+              </div>
             ) : owing.length === 0 ? (
               <p className="text-muted-foreground py-4 text-center text-base">
                 {t("empty")}
@@ -96,9 +113,7 @@ export function AdminDebtBell({ className }: { className?: string }) {
                     key={o.memberId}
                     className="flex min-h-11 items-center justify-between gap-3 rounded-lg px-2"
                   >
-                    <span className="min-w-0 truncate text-base" title={o.name}>
-                      {o.name}
-                    </span>
+                    <TruncatedName name={o.name} className="text-base" />
                     <span className="flex shrink-0 items-center gap-2">
                       {o.overLimit && (
                         <span className="border-destructive/40 bg-destructive/10 text-destructive rounded border px-1.5 text-sm font-semibold">

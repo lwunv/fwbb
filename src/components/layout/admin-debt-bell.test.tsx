@@ -67,6 +67,10 @@ describe("AdminDebtBell", () => {
     });
     fireEvent.click(bell);
     await waitFor(() => expect(screen.getByText("Nguyen Thanh")).toBeTruthy());
+    // Mở chuông là lấy lại 1 lần (chuông nằm trong layout, không unmount).
+    await waitFor(() =>
+      expect(action.getAdminDebtNotifications).toHaveBeenCalledTimes(2),
+    );
     expect(screen.getByText("Lan")).toBeTruthy();
     const link = screen.getByRole("link", {
       name: viMessages.adminNotifications.viewAll,

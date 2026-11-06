@@ -1533,6 +1533,7 @@
     "historyTitle": "欠款记录",
     "historyEmpty": "还没有人欠过基金",
     "historyItem": "余额 {before} → {after}",
-    "owingCount": "{count} 位成员"
+    "owingCount": "{count} 位成员",
+    "retry": "重试"
   }
 }

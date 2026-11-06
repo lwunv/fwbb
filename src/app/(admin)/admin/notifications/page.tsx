@@ -2,6 +2,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { getAdminDebtNotifications } from "@/actions/admin-notifications";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatVND } from "@/lib/utils";
+import { TruncatedName } from "@/components/shared/truncated-name";
 
 /**
  * `created_at` lưu kiểu SQLite "YYYY-MM-DD HH:MM:SS" theo UTC. Hiện theo giờ VN
@@ -72,15 +73,10 @@ export default async function AdminNotificationsPage() {
                     key={o.memberId}
                     className="flex min-h-11 items-center justify-between gap-3 px-2 py-2"
                   >
-                    <span className="min-w-0 truncate text-base" title={o.name}>
-                      {o.name}
-                      {o.nickname && (
-                        <span className="text-muted-foreground">
-                          {" "}
-                          ({o.nickname})
-                        </span>
-                      )}
-                    </span>
+                    <TruncatedName
+                      name={o.nickname ? `${o.name} (${o.nickname})` : o.name}
+                      className="text-base"
+                    />
                     <span className="flex shrink-0 items-center gap-2">
                       {o.overLimit && (
                         <span className="border-destructive/40 bg-destructive/10 text-destructive rounded border px-1.5 text-sm font-semibold">
@@ -117,12 +113,10 @@ export default async function AdminNotificationsPage() {
                     className="space-y-0.5 px-2 py-2.5"
                   >
                     <div className="flex items-baseline justify-between gap-3">
-                      <span
-                        className="min-w-0 truncate text-base font-medium"
-                        title={h.name}
-                      >
-                        {h.name}
-                      </span>
+                      <TruncatedName
+                        name={h.name}
+                        className="text-base font-medium"
+                      />
                       <time className="text-muted-foreground shrink-0 text-sm tabular-nums">
                         {fmtLedgerTime(h.at, locale)}
                       </time>
@@ -134,12 +128,10 @@ export default async function AdminNotificationsPage() {
                       })}
                     </p>
                     {h.description && (
-                      <p
-                        className="text-muted-foreground truncate text-sm"
-                        title={h.description}
-                      >
-                        {h.description}
-                      </p>
+                      <TruncatedName
+                        name={h.description}
+                        className="text-muted-foreground text-sm"
+                      />
                     )}
                   </li>
                 ))}

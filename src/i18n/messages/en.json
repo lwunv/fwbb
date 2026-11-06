@@ -1533,6 +1533,7 @@
     "historyTitle": "Debt history",
     "historyEmpty": "Nobody has owed the fund yet",
     "historyItem": "Balance {before} → {after}",
-    "owingCount": "{count} members"
+    "owingCount": "{count} members",
+    "retry": "Try again"
   }
 }

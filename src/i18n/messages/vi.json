@@ -1533,6 +1533,7 @@
     "historyTitle": "Lịch sử âm quỹ",
     "historyEmpty": "Chưa có ai từng âm quỹ",
     "historyItem": "Số dư {before} → {after}",
-    "owingCount": "{count} thành viên"
+    "owingCount": "{count} thành viên",
+    "retry": "Thử lại"
   }
 }
