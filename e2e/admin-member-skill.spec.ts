@@ -137,11 +137,17 @@ test("admin đổi trình độ ngay trên dòng, lọc và sắp theo trình đ
   page,
 }) => {
   await page.goto("/admin/members", { waitUntil: "domcontentloaded" });
-  await page
-    .getByPlaceholder(/Tìm theo tên/)
-    .last()
-    .fill(memberName);
+  // Gõ lại tới khi danh sách lọc đúng: trang stream + hydrate, gõ quá sớm thì
+  // chữ bị mất, dòng đầu là người khác và bài đổi nhầm trình độ của họ
+  // (dính 6/11/2026).
   const row = page.locator("tbody tr").first();
+  await expect(async () => {
+    await page
+      .getByPlaceholder(/Tìm theo tên/)
+      .last()
+      .fill(memberName);
+    await expect(row).toContainText(memberName, { timeout: 3_000 });
+  }).toPass({ timeout: 30_000 });
   const inline = row.getByRole("button", { name: "Đổi trình độ" });
   await expect(inline).toBeVisible({ timeout: 20_000 });
   await inline.click();

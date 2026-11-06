@@ -68,6 +68,8 @@ import { getFundStatus } from "@/lib/fund-core";
 import { useSettings } from "@/components/settings-provider";
 import { cn, formatK, normalizeVietnamese } from "@/lib/utils";
 import { SkillChip } from "@/components/shared/skill-chip";
+import { useOptimisticRecord } from "@/lib/optimistic-ui";
+import { dropConvergedSkillOverrides } from "@/lib/skill-overrides";
 import {
   SKILL_LEVELS,
   parseSkillLevel,
@@ -161,11 +163,13 @@ export function MemberList({
   const [sortMode, setSortMode] = useState<SortMode>("smart");
   // Lọc theo trình độ: "all" | "none" (chưa khai) | một mức cụ thể.
   const [skillFilter, setSkillFilter] = useState<string>("all");
-  // Trình độ vừa đổi INLINE trên dòng (optimistic). `in` chứ không `??` vì
-  // null = admin vừa xoá khai báo.
-  const [skillOverrides, setSkillOverrides] = useState<
-    Record<number, SkillLevel | null>
-  >({});
+  // Trình độ vừa đổi INLINE trên dòng (optimistic, hoàn lại ĐÚNG key của
+  // member đó khi lỗi). `in` chứ không `??` vì null = admin vừa xoá khai báo.
+  const {
+    record: skillOverrides,
+    updateOptimistically: updateSkillOptimistically,
+    setRecord: setSkillOverrides,
+  } = useOptimisticRecord<number, SkillLevel | null>();
   const [toggledMembers, setToggledMembers] = useState<Record<number, boolean>>(
     {},
   );
@@ -356,6 +360,9 @@ export function MemberList({
   const [prevMembersProp, setPrevMembersProp] = useState(members);
   if (members !== prevMembersProp) {
     setPrevMembersProp(members);
+    // Server đã khớp thì bỏ bản tạm trình độ (để thay đổi từ /me hay admin
+    // khác hiện ra), member đang lưu dở thì giữ.
+    setSkillOverrides((o) => dropConvergedSkillOverrides(o, members));
     if (addedMembers.length > 0) {
       setAddedMembers((prev) =>
         prev.filter((g) => !members.some((m) => m.name === g.name)),
@@ -629,7 +636,9 @@ export function MemberList({
     }));
     setInfoEditTarget(null);
     // Giữ lọc/sắp theo trình độ khớp ngay với giá trị vừa sửa trong hộp thoại.
-    const prevSkill = skillOverrides;
+    // Lỗi thì chỉ trả lại key của member NÀY, không đè thay đổi của người khác.
+    const hadSkill = memberId in skillOverrides;
+    const prevSkill = skillOverrides[memberId];
     setSkillOverrides((o) => ({
       ...o,
       [memberId]: parseSkillLevel(values.skillLevel),
@@ -643,27 +652,29 @@ export function MemberList({
           else delete n[memberId];
           return n;
         });
-        setSkillOverrides(prevSkill);
+        setSkillOverrides((o) => {
+          const n = { ...o };
+          if (hadSkill) n[memberId] = prevSkill;
+          else delete n[memberId];
+          return n;
+        });
       },
       { successMsg: t("toastInfoSaved") },
     );
   }
 
   /** Đổi trình độ ngay trên dòng: hiện trước, lưu ngầm, lỗi thì trả lại. */
-  function handleInlineSkill(memberId: number, raw: string) {
-    const next = parseSkillLevel(raw);
-    const had = memberId in skillOverrides;
-    const prevVal = skillOverrides[memberId];
-    setSkillOverrides((o) => ({ ...o, [memberId]: next }));
-    fireAction(
+  function handleInlineSkill(
+    memberId: number,
+    current: SkillLevel | null,
+    raw: string,
+  ) {
+    // Chọn lại đúng mức đang hiện: không gọi server, không toast thừa.
+    if (raw === (current ?? "")) return;
+    updateSkillOptimistically(
+      memberId,
+      parseSkillLevel(raw),
       () => setMemberSkillLevel(memberId, raw),
-      () =>
-        setSkillOverrides((o) => {
-          const n = { ...o };
-          if (had) n[memberId] = prevVal;
-          else delete n[memberId];
-          return n;
-        }),
       { successMsg: t("toastSkillSaved") },
     );
   }
@@ -682,7 +693,7 @@ export function MemberList({
     <CustomSelect
       name={`skill-${memberId}`}
       value={level ?? ""}
-      onChange={(v) => handleInlineSkill(memberId, v)}
+      onChange={(v) => handleInlineSkill(memberId, level, v)}
       options={SKILL_SELECT_OPTIONS}
       ariaLabel={t("changeSkillAria")}
       className="w-32 min-w-0"
