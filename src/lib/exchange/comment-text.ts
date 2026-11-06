@@ -8,7 +8,7 @@ export function normalizeCommentBody(raw: string): string {
       .replace(/\r\n?/g, "\n")
       .replace(/[\u0000-\u0009\u000B-\u001F\u007F-\u009F]/g, "")
       // Ký tự vô hình (zero-width, bidi) chèn giữa số/tên miền để né kiểm tra sđt/link.
-      .replace(/[​-‏‪-‮⁠﻿]/g, "")
+      .replace(/[\u200B-\u200F\u202A-\u202E\u2060\uFEFF]/g, "")
       .replace(/\n{3,}/g, "\n\n")
       .trim()
   );
