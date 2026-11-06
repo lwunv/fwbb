@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
 import { AnimatePresence, motion } from "framer-motion";
@@ -13,49 +14,29 @@ import type {
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { SearchInput } from "@/components/shared/search-input";
 import { TabSegment } from "@/components/shared/tab-segment";
-import { TruncatedName } from "@/components/shared/truncated-name";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import {
   filterHistory,
   filterOwing,
   groupByRecency,
+  latestCrossingByMember,
   ledgerTimeToDate,
+  notificationHref,
   type OwingLevelFilter,
 } from "@/lib/admin-notifications-view";
+import {
+  isNotificationUnread,
+  markAllNotificationsSeen,
+  markNotificationRead,
+  notificationKey,
+  useNotificationReadState,
+} from "@/lib/notification-read-state";
 import { cn, formatVND } from "@/lib/utils";
 
 const PAGE_STEP = 20;
 const TABS = ["activity", "owing"] as const;
 const LEVELS = ["all", "over", "under"] as const;
 const RANGES = ["7", "30", "90", "all"] as const;
-/** Mốc "đã xem" lưu trên trình duyệt của admin (không cần bảng DB). */
-const LAST_SEEN_KEY = "fwbb.adminNotifications.lastSeenAt";
-
-function readLastSeen(): string | null {
-  try {
-    return window.localStorage.getItem(LAST_SEEN_KEY);
-  } catch {
-    // Trình duyệt chặn localStorage: coi như chưa xem gì, trang vẫn chạy.
-    return null;
-  }
-}
-
-// Kho nhỏ quanh localStorage cho useSyncExternalStore: tab khác bấm "đã xem"
-// (sự kiện storage) hoặc chính trang này bấm thì đều cập nhật.
-const seenListeners = new Set<() => void>();
-function subscribeSeen(cb: () => void) {
-  seenListeners.add(cb);
-  window.addEventListener("storage", cb);
-  return () => {
-    seenListeners.delete(cb);
-    window.removeEventListener("storage", cb);
-  };
-}
-/** "" = chưa từng xem. Server trả SERVER_SNAPSHOT = chưa đọc được. */
-const SERVER_SNAPSHOT = "__server__";
-const getSeenSnapshot = () => readLastSeen() ?? "";
-const getSeenServerSnapshot = () => SERVER_SNAPSHOT;
-
 /**
  * Trang thông báo admin kiểu Facebook (yêu cầu user 6/11/2026): 3 ô tổng
  * quan, tab "Hoạt động" (dòng thời gian gom Hôm nay / Hôm qua / Tuần này /
@@ -88,15 +69,8 @@ export function NotificationsClient({
     parseAsStringLiteral(RANGES).withDefault("30"),
   );
   const [shown, setShown] = useState(PAGE_STEP);
-  // Mốc "đã xem" chỉ có trên trình duyệt. Server render coi như chưa đọc được
-  // (không hiện chấm chưa xem) để HTML server và client khớp lúc hydrate.
-  const seenSnapshot = useSyncExternalStore(
-    subscribeSeen,
-    getSeenSnapshot,
-    getSeenServerSnapshot,
-  );
-  const seenReady = seenSnapshot !== SERVER_SNAPSHOT;
-  const lastSeen = seenSnapshot === "" ? null : seenSnapshot;
+  // Trạng thái đã đọc lưu trên trình duyệt, dùng chung với chuông.
+  const readState = useNotificationReadState();
   const [now] = useState(() => new Date());
 
   const totalDebt = owing.reduce((s, o) => s - o.balance, 0);
@@ -115,22 +89,13 @@ export function NotificationsClient({
       }),
     [history, q, range, now],
   );
-  const isUnread = (at: string) =>
-    !seenReady
-      ? false
-      : lastSeen === null
-        ? now.getTime() - ledgerTimeToDate(at).getTime() < 7 * 86_400_000
-        : ledgerTimeToDate(at).toISOString() > lastSeen;
-  const unreadCount = history.filter((h) => isUnread(h.at)).length;
-
-  function markAllSeen() {
-    try {
-      window.localStorage.setItem(LAST_SEEN_KEY, new Date().toISOString());
-    } catch {
-      // Không lưu được (trình duyệt chặn): chấm chưa xem vẫn còn, không lỗi.
-    }
-    seenListeners.forEach((cb) => cb());
-  }
+  const isUnread = (h: { memberId: number; txId: number; at: string }) =>
+    isNotificationUnread(readState, notificationKey(h), h.at, now);
+  const unreadCount = history.filter(isUnread).length;
+  const latestByMember = useMemo(
+    () => latestCrossingByMember(history),
+    [history],
+  );
 
   const resetPaging = () => setShown(PAGE_STEP);
   const groups = groupByRecency(historyView.slice(0, shown), now);
@@ -145,7 +110,7 @@ export function NotificationsClient({
         {unreadCount > 0 && (
           <button
             type="button"
-            onClick={markAllSeen}
+            onClick={markAllNotificationsSeen}
             className="text-primary hover:bg-primary/10 inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-medium"
           >
             <CheckCheck className="h-4 w-4" aria-hidden />
@@ -259,7 +224,7 @@ export function NotificationsClient({
                 <ul>
                   <AnimatePresence initial={false}>
                     {g.items.map((h) => {
-                      const unread = isUnread(h.at);
+                      const unread = isUnread(h);
                       return (
                         <motion.li
                           key={`${h.memberId}-${h.txId}`}
@@ -267,56 +232,62 @@ export function NotificationsClient({
                           initial={{ opacity: 0, y: 6 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0 }}
-                          className={cn(
-                            "flex items-start gap-3 px-4 py-3",
-                            unread && "bg-primary/[0.06]",
-                          )}
+                          className={cn(unread && "bg-primary/[0.06]")}
                         >
-                          <MemberAvatar
-                            memberId={h.memberId}
-                            avatarKey={h.avatarKey}
-                            avatarUrl={h.avatarUrl}
-                            size={44}
-                            className="shrink-0"
-                          />
-                          <div className="min-w-0 flex-1 space-y-0.5">
-                            <p className="text-base leading-snug">
-                              <span className="font-semibold">{h.name}</span>{" "}
-                              {t("crossedNegative")}
-                            </p>
-                            {h.description && (
-                              <TruncatedName
-                                name={h.description}
-                                className="text-muted-foreground text-sm"
+                          <Link
+                            href={notificationHref(h.name)}
+                            onClick={() =>
+                              markNotificationRead(notificationKey(h))
+                            }
+                            className="hover:bg-muted/60 flex items-start gap-3 px-4 py-3 transition-colors"
+                          >
+                            <MemberAvatar
+                              memberId={h.memberId}
+                              avatarKey={h.avatarKey}
+                              avatarUrl={h.avatarUrl}
+                              size={44}
+                              className="shrink-0"
+                            />
+                            <div className="min-w-0 flex-1 space-y-0.5">
+                              <p className="text-base leading-snug">
+                                <span className="font-semibold">{h.name}</span>{" "}
+                                {t("crossedNegative")}
+                              </p>
+                              {h.description && (
+                                // Trong link: xuống tối đa 2 dòng thay vì cắt cụt
+                                // (không lồng nút xem-đủ vào trong link).
+                                <p className="text-muted-foreground line-clamp-2 text-sm break-words">
+                                  {h.description}
+                                </p>
+                              )}
+                              <p className="text-sm tabular-nums">
+                                {t("historyItem", {
+                                  before: formatVND(h.balanceBefore),
+                                  after: formatVND(h.balanceAfter),
+                                })}
+                              </p>
+                              <time
+                                dateTime={ledgerTimeToDate(h.at).toISOString()}
+                                className={cn(
+                                  "text-sm",
+                                  unread
+                                    ? "text-primary font-semibold"
+                                    : "text-muted-foreground",
+                                )}
+                              >
+                                {formatDistanceToNow(ledgerTimeToDate(h.at), {
+                                  addSuffix: true,
+                                  locale: dfLocale,
+                                })}
+                              </time>
+                            </div>
+                            {unread && (
+                              <span
+                                className="bg-primary mt-4 h-3 w-3 shrink-0 rounded-full"
+                                aria-label={t("unread")}
                               />
                             )}
-                            <p className="text-sm tabular-nums">
-                              {t("historyItem", {
-                                before: formatVND(h.balanceBefore),
-                                after: formatVND(h.balanceAfter),
-                              })}
-                            </p>
-                            <time
-                              dateTime={ledgerTimeToDate(h.at).toISOString()}
-                              className={cn(
-                                "text-sm",
-                                unread
-                                  ? "text-primary font-semibold"
-                                  : "text-muted-foreground",
-                              )}
-                            >
-                              {formatDistanceToNow(ledgerTimeToDate(h.at), {
-                                addSuffix: true,
-                                locale: dfLocale,
-                              })}
-                            </time>
-                          </div>
-                          {unread && (
-                            <span
-                              className="bg-primary mt-4 h-3 w-3 shrink-0 rounded-full"
-                              aria-label={t("unread")}
-                            />
-                          )}
+                          </Link>
                         </motion.li>
                       );
                     })}
@@ -330,32 +301,36 @@ export function NotificationsClient({
         ) : (
           <ul className="divide-border/60 divide-y">
             {owingShown.map((o) => (
-              <motion.li
-                key={o.memberId}
-                layout
-                className="flex min-h-14 items-center gap-3 px-4 py-2.5"
-              >
-                <MemberAvatar
-                  memberId={o.memberId}
-                  avatarKey={o.avatarKey}
-                  avatarUrl={o.avatarUrl}
-                  size={44}
-                  className="shrink-0"
-                />
-                <div className="min-w-0 flex-1">
-                  <TruncatedName
-                    name={o.nickname ? `${o.name} (${o.nickname})` : o.name}
-                    className="text-base font-medium"
+              <motion.li key={o.memberId} layout>
+                <Link
+                  href={notificationHref(o.name)}
+                  onClick={() => {
+                    const latest = latestByMember.get(o.memberId);
+                    if (latest) markNotificationRead(notificationKey(latest));
+                  }}
+                  className="hover:bg-muted/60 flex min-h-14 items-center gap-3 px-4 py-2.5 transition-colors"
+                >
+                  <MemberAvatar
+                    memberId={o.memberId}
+                    avatarKey={o.avatarKey}
+                    avatarUrl={o.avatarUrl}
+                    size={44}
+                    className="shrink-0"
                   />
-                  {o.overLimit && (
-                    <span className="border-destructive/40 bg-destructive/10 text-destructive mt-0.5 inline-block rounded border px-1.5 text-sm font-semibold">
-                      {t("overLimit")}
-                    </span>
-                  )}
-                </div>
-                <span className="text-destructive shrink-0 text-base font-semibold tabular-nums">
-                  {formatVND(o.balance)}
-                </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="line-clamp-2 text-base font-medium break-words">
+                      {o.nickname ? `${o.name} (${o.nickname})` : o.name}
+                    </p>
+                    {o.overLimit && (
+                      <span className="border-destructive/40 bg-destructive/10 text-destructive mt-0.5 inline-block rounded border px-1.5 text-sm font-semibold">
+                        {t("overLimit")}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-destructive shrink-0 text-base font-semibold tabular-nums">
+                    {formatVND(o.balance)}
+                  </span>
+                </Link>
               </motion.li>
             ))}
           </ul>

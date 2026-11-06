@@ -76,6 +76,15 @@ describe("AdminDebtBell", () => {
       name: viMessages.adminNotifications.viewAll,
     });
     expect(link.getAttribute("href")).toBe("/admin/notifications");
+
+    // Mỗi dòng là link tới sổ quỹ lọc sẵn tên; bấm thì đóng ngăn.
+    const item = screen.getByRole("link", { name: /Nguyen Thanh/ });
+    expect(item.getAttribute("href")).toBe(
+      "/admin/fund/transactions?q=Nguyen%20Thanh",
+    );
+    item.addEventListener("click", (e) => e.preventDefault());
+    fireEvent.click(item);
+    await waitFor(() => expect(screen.queryByText("Lan")).toBeNull());
   });
 
   it("không ai âm quỹ → không có số đỏ", async () => {

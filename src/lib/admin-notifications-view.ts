@@ -77,3 +77,24 @@ export function groupByRecency<T extends { at: string }>(
     .filter((k) => groups[k].length > 0)
     .map((k) => ({ key: k, items: groups[k] }));
 }
+
+/**
+ * Trang tương ứng với một thông báo âm quỹ: sổ quỹ đã lọc sẵn tên member, nơi
+ * thấy cả khoản làm họ âm (yêu cầu user 6/11/2026: bấm thông báo thì chuyển
+ * tới trang tương ứng).
+ */
+export function notificationHref(name: string): string {
+  return `/admin/fund/transactions?q=${encodeURIComponent(name)}`;
+}
+
+/**
+ * Key thông báo âm quỹ MỚI NHẤT của từng member (lịch sử đã sắp mới nhất
+ * trước), để dòng "đang nợ" ở chuông biết có tin chưa đọc không.
+ */
+export function latestCrossingByMember<
+  T extends { memberId: number; txId: number; at: string },
+>(history: ReadonlyArray<T>): Map<number, T> {
+  const out = new Map<number, T>();
+  for (const h of history) if (!out.has(h.memberId)) out.set(h.memberId, h);
+  return out;
+}

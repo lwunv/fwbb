@@ -56,11 +56,32 @@ test("chuông cạnh logo có số, mở ra thấy member nợ, sang trang thôn
   await bell.click();
   const sheet = page.getByRole("dialog");
   await expect(sheet.getByText(NAME)).toBeVisible({ timeout: 10_000 });
+  // Desktop: ngăn trượt ra NGAY SAU sidebar (rộng 240px), không che sidebar
+  // (yêu cầu user 6/11/2026). Sidebar vẫn bấm được khi ngăn đang mở.
+  await expect
+    .poll(async () => (await sheet.boundingBox())?.x ?? -1, { timeout: 5_000 })
+    .toBeGreaterThanOrEqual(239);
+  await page
+    .getByRole("link", { name: /Thành viên/ })
+    .first()
+    .click({ trial: true, timeout: 5_000 });
   await expect(
     sheet.locator("li", { hasText: NAME }).getByText("Quá hạn mức"),
   ).toBeVisible();
 
-  await sheet.getByRole("link", { name: "Xem tất cả thông báo" }).click();
+  // Bấm 1 dòng trong chuông → sang sổ quỹ đã lọc sẵn tên member đó.
+  await sheet.getByRole("link", { name: new RegExp(NAME) }).click();
+  await expect(page).toHaveURL(/\/admin\/fund\/transactions\?q=/);
+  await expect(
+    page.getByRole("searchbox").or(page.getByPlaceholder(/Tìm/)).first(),
+  ).toHaveValue(NAME);
+
+  // Mở lại chuông, sang trang thông báo.
+  await bell.click();
+  await page
+    .getByRole("dialog")
+    .getByRole("link", { name: "Xem tất cả thông báo" })
+    .click();
   await expect(page).toHaveURL(/\/admin\/notifications$/);
   // Tab mặc định "Hoạt động": dòng kiểu Facebook "<tên> vừa âm quỹ".
   const item = page.locator("li", { hasText: `${NAME} vừa âm quỹ` });

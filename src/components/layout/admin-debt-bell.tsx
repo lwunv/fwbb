@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { TruncatedName } from "@/components/shared/truncated-name";
 import { useTranslations } from "next-intl";
 import { Bell } from "lucide-react";
 import {
@@ -16,6 +15,16 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { getAdminDebtNotifications } from "@/actions/admin-notifications";
 import { cn, formatVND } from "@/lib/utils";
+import {
+  latestCrossingByMember,
+  notificationHref,
+} from "@/lib/admin-notifications-view";
+import {
+  isNotificationUnread,
+  markNotificationRead,
+  notificationKey,
+  useNotificationReadState,
+} from "@/lib/notification-read-state";
 
 /**
  * Lấy lại tối đa 5 phút một lần. KHÔNG đặt trong layout server: các trang
@@ -44,6 +53,12 @@ export function AdminDebtBell({ className }: { className?: string }) {
 
   const result = data && !("error" in data) ? data : null;
   const owing = result?.owing ?? [];
+  const readState = useNotificationReadState();
+  const [now] = useState(() => new Date());
+  const latestByMember = useMemo(
+    () => latestCrossingByMember(result?.history ?? []),
+    [result],
+  );
   const count = owing.length;
 
   return (
@@ -74,10 +89,13 @@ export function AdminDebtBell({ className }: { className?: string }) {
         )}
       </motion.button>
 
-      <Sheet open={open} onOpenChange={setOpen}>
+      <Sheet open={open} onOpenChange={setOpen} modal={false}>
         <SheetContent
           side="left"
-          className="flex h-dvh w-80 max-w-[85vw] flex-col gap-0 overflow-hidden p-0"
+          // Desktop: trượt ra NGAY SAU sidebar cố định (lg:w-60), cả nền mờ lẫn
+          // ngăn đều chừa sidebar ra để không che nó (yêu cầu user 6/11/2026).
+          overlayClassName="lg:left-60"
+          className="flex h-dvh w-80 max-w-[85vw] flex-col gap-0 overflow-hidden p-0 lg:left-60!"
         >
           <SheetHeader className="border-b pr-12">
             <SheetTitle>{t("owingTitle")}</SheetTitle>
@@ -108,24 +126,55 @@ export function AdminDebtBell({ className }: { className?: string }) {
               </p>
             ) : (
               <ul className="space-y-1">
-                {owing.map((o) => (
-                  <li
-                    key={o.memberId}
-                    className="flex min-h-11 items-center justify-between gap-3 rounded-lg px-2"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <TruncatedName name={o.name} className="text-base" />
-                      {o.overLimit && (
-                        <span className="border-destructive/40 bg-destructive/10 text-destructive mt-0.5 inline-block rounded border px-1.5 text-sm font-semibold">
-                          {t("overLimit")}
+                {owing.map((o) => {
+                  const latest = latestByMember.get(o.memberId);
+                  const unread = latest
+                    ? isNotificationUnread(
+                        readState,
+                        notificationKey(latest),
+                        latest.at,
+                        now,
+                      )
+                    : false;
+                  return (
+                    <li key={o.memberId}>
+                      <Link
+                        href={notificationHref(o.name)}
+                        onClick={() => {
+                          if (latest) {
+                            markNotificationRead(notificationKey(latest));
+                          }
+                          setOpen(false);
+                        }}
+                        className={cn(
+                          "hover:bg-muted/60 flex min-h-11 items-center justify-between gap-3 rounded-lg px-2 py-1.5 transition-colors",
+                          unread && "bg-primary/[0.06]",
+                        )}
+                      >
+                        <div className="min-w-0 flex-1">
+                          {/* Trong link: xuống tối đa 2 dòng, không cắt cụt. */}
+                          <p className="line-clamp-2 text-base break-words">
+                            {o.name}
+                          </p>
+                          {o.overLimit && (
+                            <span className="border-destructive/40 bg-destructive/10 text-destructive mt-0.5 inline-block rounded border px-1.5 text-sm font-semibold">
+                              {t("overLimit")}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-destructive shrink-0 text-base font-semibold tabular-nums">
+                          {formatVND(o.balance)}
                         </span>
-                      )}
-                    </div>
-                    <span className="text-destructive shrink-0 text-base font-semibold tabular-nums">
-                      {formatVND(o.balance)}
-                    </span>
-                  </li>
-                ))}
+                        {unread && (
+                          <span
+                            className="bg-primary h-2.5 w-2.5 shrink-0 rounded-full"
+                            aria-label={t("unread")}
+                          />
+                        )}
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>

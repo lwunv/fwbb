@@ -145,3 +145,25 @@ describe("NotificationsClient — lọc ngày mà trống", () => {
     await waitFor(() => expect(activityItems()).toHaveLength(2));
   });
 });
+
+describe("NotificationsClient — bấm vào thông báo", () => {
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+  });
+
+  it("link tới sổ quỹ lọc sẵn tên, bấm thì riêng dòng đó thành đã đọc", () => {
+    renderPage();
+    const link = screen.getByRole("link", { name: /Nguyen Thanh/ });
+    expect(link.getAttribute("href")).toBe(
+      "/admin/fund/transactions?q=Nguyen%20Thanh",
+    );
+    const before = screen.getAllByLabelText(vn.unread).length;
+    expect(within(link).getByLabelText(vn.unread)).toBeTruthy();
+    // Chặn điều hướng thật trong jsdom, chỉ cần onClick chạy.
+    link.addEventListener("click", (e) => e.preventDefault());
+    fireEvent.click(link);
+    expect(within(link).queryByLabelText(vn.unread)).toBeNull();
+    expect(screen.getAllByLabelText(vn.unread)).toHaveLength(before - 1);
+  });
+});

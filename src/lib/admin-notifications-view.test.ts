@@ -4,6 +4,8 @@ import {
   filterHistory,
   groupByRecency,
   ledgerTimeToDate,
+  notificationHref,
+  latestCrossingByMember,
 } from "./admin-notifications-view";
 
 const owing = [
@@ -124,5 +126,22 @@ describe("ledgerTimeToDate", () => {
     expect(ledgerTimeToDate("2026-11-05 18:00:00").toISOString()).toBe(
       "2026-11-05T18:00:00.000Z",
     );
+  });
+});
+
+describe("notificationHref + latestCrossingByMember", () => {
+  it("link sang sổ quỹ lọc sẵn tên (mã hoá URL)", () => {
+    expect(notificationHref("Nguyễn Thanh")).toBe(
+      "/admin/fund/transactions?q=Nguy%E1%BB%85n%20Thanh",
+    );
+  });
+  it("lấy tin mới nhất của mỗi member (lịch sử đã sắp mới nhất trước)", () => {
+    const m = latestCrossingByMember([
+      { memberId: 1, txId: 9, at: "2026-11-05 10:00:00" },
+      { memberId: 2, txId: 8, at: "2026-11-04 10:00:00" },
+      { memberId: 1, txId: 3, at: "2026-10-01 10:00:00" },
+    ]);
+    expect(m.get(1)?.txId).toBe(9);
+    expect(m.get(2)?.txId).toBe(8);
   });
 });
