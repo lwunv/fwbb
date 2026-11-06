@@ -168,3 +168,33 @@ export async function sessionLedgerMemberIds(
     .map((r) => r.memberId)
     .filter((x): x is number => typeof x === "number");
 }
+
+/**
+ * Member đang có phiếu ở ít nhất một buổi còn mở vote (`isVoteOpen`). Dùng khi
+ * admin hạ hạn mức và cho script dọn phiếu một lần: chỉ những người này mới
+ * có phiếu để bỏ.
+ */
+export async function findMembersWithOpenVotes(tx: DbLike): Promise<number[]> {
+  const rows = await tx
+    .select({
+      memberId: votes.memberId,
+      status: sessions.status,
+      voteDeadline: sessions.voteDeadline,
+    })
+    .from(votes)
+    .innerJoin(sessions, eq(sessions.id, votes.sessionId));
+  return [
+    ...new Set(
+      rows
+        .filter(
+          (r) =>
+            isVoteOpen({
+              status: r.status as SessionStatus,
+              voteDeadline: r.voteDeadline ?? null,
+            }).open,
+        )
+        .map((r) => r.memberId)
+        .filter((x): x is number => typeof x === "number"),
+    ),
+  ];
+}
