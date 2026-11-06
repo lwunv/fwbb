@@ -3,7 +3,9 @@ import { financialTransactions } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getTranslations } from "next-intl/server";
 
-type DbLike = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type DbLike =
+  | typeof db
+  | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export type FinancialTransactionType =
   | "fund_contribution"
