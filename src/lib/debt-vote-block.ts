@@ -1,5 +1,6 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import {
+  admins,
   appSettings,
   financialTransactions,
   sessions,
@@ -30,7 +31,14 @@ export async function enforceDebtVoteBlock(
   memberIds: number[],
   threshold: number,
 ): Promise<{ removed: RemovedVote[] }> {
-  const ids = [...new Set(memberIds)];
+  // Member là admin không bao giờ bị tự bỏ phiếu: số dư admin lên xuống theo
+  // tiền pass sân / phần dư sàn chứ không phải nợ thật, và admin tự vote hộ.
+  const adminMemberIds = new Set(
+    (await tx.select({ memberId: admins.memberId }).from(admins))
+      .map((a) => a.memberId)
+      .filter((x): x is number => typeof x === "number"),
+  );
+  const ids = [...new Set(memberIds)].filter((id) => !adminMemberIds.has(id));
   if (ids.length === 0) return { removed: [] };
 
   const txRows = await tx
@@ -63,12 +71,36 @@ export async function enforceDebtVoteBlock(
     .innerJoin(sessions, eq(sessions.id, votes.sessionId))
     .where(inArray(votes.memberId, blocked));
 
-  const toRemove = candidates.filter(
+  const openCandidates = candidates.filter(
     (c) =>
       isVoteOpen({
         status: c.status as SessionStatus,
         voteDeadline: c.voteDeadline ?? null,
       }).open,
+  );
+  if (openCandidates.length === 0) return { removed: [] };
+
+  // Buổi ĐÃ TỪNG chốt sổ (còn dòng fund_deduction gắn buổi, kể cả đã đảo khi
+  // mở khoá) thì không bao giờ tự bỏ phiếu: mở khoá đưa buổi về 'voting' không
+  // hạn, và finalize lấy người chơi từ votes, nên xoá phiếu ở đây làm lần chốt
+  // lại bỏ sót tiền của member nợ (review cuối 6/11/2026).
+  const finalizedSessionIds = new Set(
+    (
+      await tx
+        .selectDistinct({ sessionId: financialTransactions.sessionId })
+        .from(financialTransactions)
+        .where(
+          and(
+            inArray(financialTransactions.sessionId, [
+              ...new Set(openCandidates.map((c) => c.sessionId as number)),
+            ]),
+            eq(financialTransactions.type, "fund_deduction"),
+          ),
+        )
+    ).map((r) => r.sessionId),
+  );
+  const toRemove = openCandidates.filter(
+    (c) => !finalizedSessionIds.has(c.sessionId),
   );
   if (toRemove.length === 0) return { removed: [] };
 
