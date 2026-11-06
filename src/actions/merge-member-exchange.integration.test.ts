@@ -333,6 +333,68 @@ describe("exchange rows through merge and delete", () => {
     });
   });
 
+  it("merge conflict sums what the host already refunded on both rows (R25)", async () => {
+    const source = await mk("Nguon");
+    const target = await mk("Dich");
+    const host = await mk("Host");
+    const setMoney = (
+      id: number,
+      v: Partial<typeof exchangeRegistrations.$inferInsert>,
+    ) =>
+      testDb
+        .update(exchangeRegistrations)
+        .set(v)
+        .where(eq(exchangeRegistrations.id, id));
+
+    // Both refunded part of what they paid: refunds add up, earliest time wins.
+    const both = await mkEvent(host, "RRA");
+    const s1 = await mkReg(both, source, "approved");
+    const t1 = await mkReg(both, target, "approved");
+    await setMoney(s1, {
+      paid: true,
+      paidAmount: 50_000,
+      refundedAmount: 10_000,
+      refundedAt: "2026-11-05T00:00:00.000Z",
+    });
+    await setMoney(t1, {
+      paid: true,
+      paidAmount: 30_000,
+      refundedAmount: 5_000,
+      refundedAt: "2026-11-04T00:00:00.000Z",
+    });
+
+    // Only the source has a refund: the kept row carries it.
+    const srcOnly = await mkEvent(host, "RRB");
+    const s2 = await mkReg(srcOnly, source, "approved");
+    const t2 = await mkReg(srcOnly, target, "approved");
+    await setMoney(s2, {
+      paid: true,
+      paidAmount: 80_000,
+      refundedAmount: 20_000,
+      refundedAt: "2026-11-06T00:00:00.000Z",
+    });
+
+    expect(await mergeMember(source, target)).toEqual({ success: true });
+
+    const row = async (id: number) =>
+      (
+        await testDb
+          .select()
+          .from(exchangeRegistrations)
+          .where(eq(exchangeRegistrations.id, id))
+      )[0];
+    expect(await row(t1)).toMatchObject({
+      paidAmount: 80_000,
+      refundedAmount: 15_000,
+      refundedAt: "2026-11-04T00:00:00.000Z",
+    });
+    expect(await row(t2)).toMatchObject({
+      paidAmount: 80_000,
+      refundedAmount: 20_000,
+      refundedAt: "2026-11-06T00:00:00.000Z",
+    });
+  });
+
   it("merge cancels the target's registration to an event the source hosted", async () => {
     const source = await mk("Nguon");
     const target = await mk("Dich");

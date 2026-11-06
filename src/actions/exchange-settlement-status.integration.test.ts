@@ -64,6 +64,7 @@ const {
   decideRegistration,
   getManageView,
   lockExchangeFees,
+  setRefunded,
   setRegistrationPaid,
   unlockExchangeFees,
 } = await import("./exchange-host");
@@ -315,5 +316,165 @@ describe("re-register keeps what was paid (R23)", () => {
     const v = await memberView(m, ev.publicCode);
     expect([v.my.remaining, v.my.refundDue]).toEqual([0, 0]);
     expect(v.payout).toBeNull();
+  });
+});
+
+async function lock(eventId: number, waivedRegistrationIds: number[] = []) {
+  as(host);
+  expect(
+    await lockExchangeFees({
+      eventId,
+      waivedRegistrationIds,
+      confirmAboveEstimate: true,
+    }),
+  ).toMatchObject({ success: true });
+}
+
+async function unlock(eventId: number) {
+  as(host);
+  expect(await unlockExchangeFees({ eventId })).toEqual({ success: true });
+}
+
+describe("host marks a refund as done (R25)", () => {
+  // Split 300K, host counts as 1 head. Two players: 100K each.
+  const split = {
+    feeMode: "split_equal" as const,
+    feeAmountMale: null,
+    estimatedTotalCost: 300000,
+    hostHeads: 1,
+    slotsTotal: 6,
+  };
+
+  it("only the host of the event can mark a refund", async () => {
+    const ev = await mkEvent(split);
+    const a = await newMember();
+    const b = await newMember();
+    const ra = await addReg(ev.id, a.id);
+    await addReg(ev.id, b.id);
+    await lock(ev.id);
+    expect(
+      await setRegistrationPaid({ registrationId: ra.id, paid: true }),
+    ).toEqual({ success: true });
+    await unlock(ev.id);
+    await addReg(ev.id, (await newMember()).id);
+    await lock(ev.id);
+    // a paid 100K, fee now 75K: 25K to give back.
+    as(b);
+    expect(
+      await setRefunded({ registrationId: ra.id, refunded: true }),
+    ).toEqual({ error: "notAllowed" });
+    as(a);
+    expect(
+      await setRefunded({ registrationId: ra.id, refunded: true }),
+    ).toEqual({ error: "notAllowed" });
+    expect((await regRow(ra.id)).refundedAmount).toBeNull();
+  });
+
+  it("marking the refund closes the line everywhere; a later relock down shows only the new difference", async () => {
+    const ev = await mkEvent(split);
+    const a = await newMember();
+    const ra = await addReg(ev.id, a.id);
+    await addReg(ev.id, (await newMember()).id);
+    await lock(ev.id);
+    as(host);
+    await setRegistrationPaid({ registrationId: ra.id, paid: true });
+    expect((await regRow(ra.id)).paidAmount).toBe(100000);
+
+    // Third player joins: 300K / 4 = 75K, a is owed 25K.
+    await unlock(ev.id);
+    await addReg(ev.id, (await newMember()).id);
+    await lock(ev.id);
+    expect((await hostRow(ev.publicCode, ra.id)).refundDue).toBe(25000);
+
+    as(host);
+    // Nothing to refund on a row that owes nothing back: refused.
+    const other = await addReg(ev.id, (await newMember()).id, {
+      status: "cancelled",
+    });
+    expect(
+      await setRefunded({ registrationId: other.id, refunded: true }),
+    ).toEqual({ error: "nothingToRefund" });
+
+    expect(
+      await setRefunded({ registrationId: ra.id, refunded: true }),
+    ).toEqual({ success: true });
+    const row = await regRow(ra.id);
+    expect(row.refundedAmount).toBe(25000);
+    expect(row.refundedAt).not.toBeNull();
+    const h1 = await hostRow(ev.publicCode, ra.id);
+    expect(h1).toMatchObject({ refundDue: 0, remaining: 0, received: 75000 });
+    const m1 = await memberView(a, ev.publicCode);
+    expect(m1.my.refundDue).toBe(0);
+    expect(m1.card?.refundDue).toBe(0);
+
+    // Fourth player: 300K / 5 = 60K. Raw refund 40K, 25K already back: 15K.
+    await unlock(ev.id);
+    await addReg(ev.id, (await newMember()).id);
+    await testDb.delete(notifications);
+    await lock(ev.id);
+    expect((await hostRow(ev.publicCode, ra.id)).refundDue).toBe(15000);
+    const [notice] = await testDb
+      .select()
+      .from(notifications)
+      .where(eq(notifications.kind, "exchange_fee_changed"))
+      .then((rows) => rows.filter((n) => n.recipientId === a.id));
+    expect(notice?.payload).toMatchObject({ amount: 60000, refundDue: 15000 });
+    const m2 = await memberView(a, ev.publicCode);
+    expect(m2.my.refundDue).toBe(15000);
+    expect(m2.card?.refundDue).toBe(15000);
+
+    // Untick clears the record and the full 40K shows again.
+    as(host);
+    expect(
+      await setRefunded({ registrationId: ra.id, refunded: false }),
+    ).toEqual({ success: true });
+    const cleared = await regRow(ra.id);
+    expect(cleared.refundedAmount).toBeNull();
+    expect(cleared.refundedAt).toBeNull();
+    expect((await hostRow(ev.publicCode, ra.id)).refundDue).toBe(40000);
+  });
+});
+
+describe("paid toggle only on chargeable rows", () => {
+  it("refuses to mark a plain-cancelled row as paid after lock", async () => {
+    const ev = await mkEvent();
+    const r = await addReg(ev.id, (await newMember()).id);
+    await addReg(ev.id, (await newMember()).id);
+    await lock(ev.id);
+    await testDb
+      .update(exchangeRegistrations)
+      .set({ status: "cancelled" })
+      .where(eq(exchangeRegistrations.id, r.id));
+    as(host);
+    expect(
+      await setRegistrationPaid({ registrationId: r.id, paid: true }),
+    ).toEqual({ error: "cannotMarkPaid" });
+    expect((await regRow(r.id)).paid).toBe(false);
+  });
+});
+
+describe("card price after lock (R27)", () => {
+  it("split 600K with one waived player: the card shows the same rate as the event page", async () => {
+    const ev = await mkEvent({
+      feeMode: "split_equal",
+      feeAmountMale: null,
+      estimatedTotalCost: 600000,
+      hostHeads: 1,
+    });
+    const a = await newMember();
+    await addReg(ev.id, a.id);
+    const rb = await addReg(ev.id, (await newMember()).id);
+    await lock(ev.id, [rb.id]);
+    // Charged: a + host = 2 heads, 300K each. The waived player is not a head.
+    as(a);
+    const page = await getExchangeEvent(ev.publicCode);
+    const mine = await getMyExchanges();
+    if (!page || "error" in mine) throw new Error("no view");
+    const card = mine.registrations.find((x) => x.code === ev.publicCode)!;
+    expect(page.event.fee).toMatchObject({
+      kind: "locked",
+      rates: { male: 300000 },
+    });
+    expect(card.fee).toEqual(page.event.fee);
   });
 });

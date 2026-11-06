@@ -14,6 +14,8 @@ type RegMoney = {
   paid: boolean;
   paidAmount: number | null;
   paidAt: string | null;
+  refundedAmount: number | null;
+  refundedAt: string | null;
 };
 
 /** Mốc sớm nhất trong hai (ISO UTC so được bằng chuỗi), bỏ qua null. */
@@ -42,6 +44,12 @@ function mergeRegMoney(target: RegMoney, source: RegMoney): RegMoney {
     paid: target.paid || source.paid,
     paidAmount,
     paidAt: earliest(target.paidAt, source.paidAt),
+    // Đã hoàn trên cả hai dòng đều là tiền đã trả lại thật: cộng dồn (R25).
+    refundedAmount:
+      target.refundedAmount === null && source.refundedAmount === null
+        ? null
+        : (target.refundedAmount ?? 0) + (source.refundedAmount ?? 0),
+    refundedAt: earliest(target.refundedAt, source.refundedAt),
   };
 }
 
@@ -51,6 +59,8 @@ const moneyCols = {
   paid: exchangeRegistrations.paid,
   paidAmount: exchangeRegistrations.paidAmount,
   paidAt: exchangeRegistrations.paidAt,
+  refundedAmount: exchangeRegistrations.refundedAmount,
+  refundedAt: exchangeRegistrations.refundedAt,
 };
 
 /**

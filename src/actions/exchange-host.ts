@@ -85,6 +85,10 @@ const lockSchema = z.object({
   confirmAboveEstimate: z.boolean(),
 });
 const paidSchema = z.object({ registrationId: idSchema, paid: z.boolean() });
+const refundedSchema = z.object({
+  registrationId: idSchema,
+  refunded: z.boolean(),
+});
 const checkInSchema = z.object({
   registrationId: idSchema,
   checkedIn: z.boolean(),
@@ -452,6 +456,7 @@ export async function lockExchangeFees(
           depositPaid: boolean;
           paid: boolean;
           paidAmount: number | null;
+          refundedAmount: number | null;
         };
         amount: number;
         previousAmount: number | null;
@@ -474,6 +479,7 @@ export async function lockExchangeFees(
           depositPaid: r.depositPaid,
           paid: r.paid,
           paidAmount: r.paidAmount,
+          refundedAmount: r.refundedAmount,
         };
         if (amount !== null) {
           if (lockCount === 1 || r.feeAmount !== amount)
@@ -535,7 +541,9 @@ export async function setRegistrationPaid(input: unknown): Promise<Result> {
     if (hosted.ev.status !== "locked" && hosted.ev.status !== "done")
       return { error: t("cannotMarkPaid") };
     const reg = await readReg(h, f.registrationId);
-    if (!reg || reg.feeAmount === null) return { error: t("cannotMarkPaid") };
+    // Huỷ thường hay bị từ chối không còn bị tính phí: không có gì để "đã trả".
+    if (!reg || reg.feeAmount === null || !CHARGEABLE.has(reg.status))
+      return { error: t("cannotMarkPaid") };
     // Bấm lại khi đã trả là no-op: ghi đè paidAmount bằng phí mới sẽ xoá khoản hoàn.
     if (f.paid && reg.paid) return { success: true };
     await tx
@@ -550,6 +558,44 @@ export async function setRegistrationPaid(input: unknown): Promise<Result> {
             }
           : { paid: false, paidAt: null, paidAmount: null, updatedAt: nowIso },
       )
+      .where(eq(exchangeRegistrations.id, reg.id));
+    return { success: true };
+  });
+}
+
+/**
+ * Host đánh dấu đã hoàn (R25) phần tiền thừa ngoài app, hoặc bỏ đánh dấu.
+ * `refunded: true` ghi đúng số `refundDue` hiện tại (từ `registrationSettlement`)
+ * cộng dồn vào `refundedAmount`, nên chốt lại thấp hơn sau đó chỉ hiện phần
+ * chênh mới. `false` xoá cả số lẫn mốc giờ. Không ghi sổ quỹ.
+ */
+export async function setRefunded(input: unknown): Promise<Result> {
+  return hostAction(refundedSchema, input, "refunded", async (h, f) => {
+    const { t, tx, nowIso } = h;
+    const hosted = await loadHostedReg(h, f.registrationId);
+    if (!hosted) return { error: t("notAllowed") };
+    const reg = await readReg(h, f.registrationId);
+    if (!reg) return { error: t("notAllowed") };
+    if (!f.refunded) {
+      await tx
+        .update(exchangeRegistrations)
+        .set({ refundedAmount: null, refundedAt: null, updatedAt: nowIso })
+        .where(eq(exchangeRegistrations.id, reg.id));
+      return { success: true };
+    }
+    const { refundDue } = registrationSettlement(
+      reg,
+      hosted.ev.depositAmount,
+      hosted.ev.status,
+    );
+    if (refundDue <= 0) return { error: t("nothingToRefund") };
+    await tx
+      .update(exchangeRegistrations)
+      .set({
+        refundedAmount: (reg.refundedAmount ?? 0) + refundDue,
+        refundedAt: nowIso,
+        updatedAt: nowIso,
+      })
       .where(eq(exchangeRegistrations.id, reg.id));
     return { success: true };
   });
@@ -670,6 +716,8 @@ export type ManageReg = {
   feeWaived: boolean;
   paid: boolean;
   paidAmount: number | null;
+  /** Số host đã đánh dấu đã hoàn (R25), null khi chưa. */
+  refundedAmount: number | null;
   refundDue: number;
   remaining: number;
   /** Số host đang giữ, từ `registrationSettlement` (không tự cộng ở client). */
@@ -686,6 +734,8 @@ export type ManageView = {
   /** Của chính host, chỉ để điền sẵn form sửa buổi. */
   hostContact: string;
   zaloGroupLink: string;
+  /** Tài khoản nhận tiền hiện tại của buổi, để form sửa điền sẵn hoặc bỏ đi. */
+  payout: { bankBin: string; accountNo: string; accountName: string } | null;
   regs: ManageReg[];
   blocks: { id: number; name: string }[];
   /** True only when the event has a female reserve and its release time has passed. */
@@ -807,6 +857,7 @@ export async function getManageView(code: string): Promise<ManageView | null> {
       feeWaived: r.reg.feeWaived,
       paid: r.reg.paid,
       paidAmount: r.reg.paidAmount,
+      refundedAmount: r.reg.refundedAmount ?? null,
       refundDue,
       remaining,
       received,
@@ -820,6 +871,14 @@ export async function getManageView(code: string): Promise<ManageView | null> {
     feeConfig: feeConfig(ev),
     hostContact: ev.hostContact ?? "",
     zaloGroupLink: ev.zaloGroupLink ?? "",
+    payout:
+      ev.payoutBankBin && ev.payoutAccountNo && ev.payoutAccountName
+        ? {
+            bankBin: ev.payoutBankBin,
+            accountNo: ev.payoutAccountNo,
+            accountName: ev.payoutAccountName,
+          }
+        : null,
     event: toPublicExchangeEvent({
       event: ev,
       venue: row.venue,

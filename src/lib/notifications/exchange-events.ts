@@ -173,6 +173,8 @@ export async function notifyFeesLocked(
         depositPaid: boolean;
         paid?: boolean;
         paidAmount?: number | null;
+        /** Số host đã hoàn ngoài app (R25). */
+        refundedAmount?: number | null;
       };
       amount: number;
       previousAmount: number | null;
@@ -201,6 +203,7 @@ export async function notifyFeesLocked(
         feeAmount: c.amount,
         paid: c.reg.paid ?? false,
         paidAmount: c.reg.paidAmount ?? null,
+        refundedAmount: c.reg.refundedAmount ?? null,
       },
       event.depositAmount,
     );

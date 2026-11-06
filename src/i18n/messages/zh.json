@@ -1119,7 +1119,10 @@
       "checkInClosed": "当前不在签到时间内。",
       "cannotFinish": "只有已锁定且已开始的活动才能结束。",
       "cannotNoShow": "目前无法将此人标记为缺席。",
-      "cannotReport": "你无法举报此内容。"
+      "cannotReport": "你无法举报此内容。",
+      "invalidSearch": "搜索条件无效，例如日期不存在。请重新选择。",
+      "nothingToRefund": "此报名没有需要退还的款项。",
+      "cannotRefund": "只有此人有待退款项时才能标记已退。"
     },
     "search": {
       "viewSwitch": "查看方式",
@@ -1347,7 +1350,18 @@
       "blockBody": "此人将无法报名您之后的活动。现有报名保持不变。",
       "blockConfirm": "拉黑",
       "blocksTitle": "黑名单",
-      "unblock": "解除拉黑"
+      "unblock": "解除拉黑",
+      "refunded": "已退款",
+      "refundedLine": "已退款 {amount}",
+      "unlockTitle": "解锁费用？",
+      "unlockBody": "活动将重新开放以便修改并重新锁定费用。如有空位，候补名单中的人可能会递补并收到通知。",
+      "unlockConfirm": "解锁",
+      "unlockKeep": "保持锁定",
+      "editTitleField": "标题",
+      "editShuttle": "羽毛球类型",
+      "editPayoutClear": "移除收款账户",
+      "editPayoutPartial": "请填写银行、账号和账户名，或三项都留空。",
+      "editTitleInvalid": "标题需要 5 到 80 个字符。"
     },
     "mine": {
       "title": "我的交流",

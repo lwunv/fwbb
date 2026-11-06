@@ -1119,7 +1119,10 @@
       "checkInClosed": "Check-in isn't open for this event right now.",
       "cannotFinish": "You can only finish an event that is locked and has started.",
       "cannotNoShow": "You can't mark this person as a no-show right now.",
-      "cannotReport": "You cannot report this."
+      "cannotReport": "You cannot report this.",
+      "invalidSearch": "Some search filters are not valid, for example a date that does not exist. Please pick again.",
+      "nothingToRefund": "There is nothing to refund on this registration.",
+      "cannotRefund": "You can only mark a refund when this person is owed money back."
     },
     "search": {
       "viewSwitch": "View mode",
@@ -1347,7 +1350,18 @@
       "blockBody": "This person cannot sign up for your later events. Their current registration stays.",
       "blockConfirm": "Block",
       "blocksTitle": "Blocked people",
-      "unblock": "Unblock"
+      "unblock": "Unblock",
+      "refunded": "Refunded",
+      "refundedLine": "Refunded {amount}",
+      "unlockTitle": "Unlock fees?",
+      "unlockBody": "The event reopens so you can edit and lock fees again. If there is room, people on the waitlist may move up and get notified.",
+      "unlockConfirm": "Unlock",
+      "unlockKeep": "Keep locked",
+      "editTitleField": "Title",
+      "editShuttle": "Shuttlecock",
+      "editPayoutClear": "Remove payout account",
+      "editPayoutPartial": "Fill in the bank, account number and account name, or leave all three empty.",
+      "editTitleInvalid": "The title needs 5 to 80 characters."
     },
     "mine": {
       "title": "My exchanges",

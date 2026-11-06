@@ -379,6 +379,39 @@ describe("registrationSettlement", () => {
       80_000,
     );
   });
+
+  it("a refund the host already made closes the line, and a later relock raises only the new difference (R25)", () => {
+    // Paid 100K, relocked down to 80K: 20K to give back.
+    const paid = {
+      status: "approved",
+      depositPaid: true,
+      paid: true,
+      paidAmount: 100_000,
+    };
+    const s = (feeAmount: number, refundedAmount: number | null) =>
+      registrationSettlement(
+        { ...reg({ ...paid, feeAmount }), refundedAmount },
+        30_000,
+        "locked",
+      );
+    expect(s(80_000, null)).toMatchObject({ remaining: 0, refundDue: 20_000 });
+    // Host marks the 20K as refunded: nothing left, host now holds 80K.
+    expect(s(80_000, 20_000)).toMatchObject({
+      remaining: 0,
+      refundDue: 0,
+      received: 80_000,
+    });
+    // Relocked down again to 60K: only the new 20K is due.
+    expect(s(60_000, 20_000)).toMatchObject({
+      remaining: 0,
+      refundDue: 20_000,
+    });
+    // Relocked up to 100K after the refund: the 20K given back is owed again.
+    expect(s(100_000, 20_000)).toMatchObject({
+      remaining: 20_000,
+      refundDue: 0,
+    });
+  });
 });
 
 describe("integer safety", () => {

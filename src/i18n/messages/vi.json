@@ -1119,7 +1119,10 @@
       "checkInClosed": "Chưa đến hoặc đã quá thời gian điểm danh.",
       "cannotFinish": "Chỉ kết thúc được buổi đã chốt phí và đã bắt đầu.",
       "cannotNoShow": "Chưa thể đánh dấu vắng mặt lúc này.",
-      "cannotReport": "Bạn không thể báo cáo mục này."
+      "cannotReport": "Bạn không thể báo cáo mục này.",
+      "invalidSearch": "Bộ lọc tìm kiếm chưa hợp lệ, ví dụ ngày không có thật. Bạn chọn lại nhé.",
+      "nothingToRefund": "Đăng ký này không có khoản nào cần hoàn.",
+      "cannotRefund": "Chỉ đánh dấu đã hoàn được khi người này đang có khoản cần hoàn."
     },
     "search": {
       "viewSwitch": "Chế độ xem",
@@ -1347,7 +1350,18 @@
       "blockBody": "Người này sẽ không đăng ký được các buổi sau của bạn. Đăng ký hiện có giữ nguyên.",
       "blockConfirm": "Chặn",
       "blocksTitle": "Danh sách chặn",
-      "unblock": "Bỏ chặn"
+      "unblock": "Bỏ chặn",
+      "refunded": "Đã hoàn",
+      "refundedLine": "Đã hoàn {amount}",
+      "unlockTitle": "Mở khoá phí?",
+      "unlockBody": "Buổi sẽ mở lại để sửa và chốt lại phí. Nếu còn chỗ, người trong danh sách chờ có thể được đôn lên và nhận thông báo.",
+      "unlockConfirm": "Mở khoá",
+      "unlockKeep": "Giữ nguyên",
+      "editTitleField": "Tiêu đề",
+      "editShuttle": "Loại cầu",
+      "editPayoutClear": "Bỏ tài khoản nhận tiền",
+      "editPayoutPartial": "Cần đủ ngân hàng, số tài khoản và tên chủ tài khoản, hoặc để trống cả ba.",
+      "editTitleInvalid": "Tiêu đề cần từ 5 đến 80 ký tự."
     },
     "mine": {
       "title": "Giao lưu của tôi",

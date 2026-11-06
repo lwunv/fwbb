@@ -209,6 +209,11 @@ export function depositSettlement(
  * chối sau khi chốt): `feeAmount` cũ vẫn nằm trên dòng làm mốc chốt lại nhưng
  * người đó không còn nợ, chỉ được hoàn. Vẫn dùng `depositSettlement`, không có
  * công thức thứ hai.
+ *
+ * `refundedAmount` (R25) là số host đã hoàn ngoài app: trừ khỏi số host đang
+ * giữ, nên `refundDue = max(0, phần hoàn thô - refundedAmount)`, chốt lại thấp
+ * hơn nữa chỉ hiện phần chênh mới, còn chốt lại cao hơn thì phần đã hoàn thành
+ * khoản phải trả lại.
  */
 export function registrationSettlement(
   r: {
@@ -217,6 +222,7 @@ export function registrationSettlement(
     feeAmount: number | null;
     paid: boolean;
     paidAmount: number | null;
+    refundedAmount?: number | null;
   },
   depositAmount: number,
   eventStatus?: string,
@@ -226,11 +232,12 @@ export function registrationSettlement(
       ? null
       : r.feeAmount;
   // `paid` mà thiếu `paidAmount` (dữ liệu cũ): coi như đã trả đúng phí chốt.
-  const received = r.paid
+  const gross = r.paid
     ? money(r.paidAmount ?? money(r.feeAmount))
     : r.depositPaid
       ? money(depositAmount)
       : 0;
+  const received = Math.max(0, gross - money(r.refundedAmount));
   return {
     ...depositSettlement({ depositPaid: received > 0, feeAmount }, received),
     received,

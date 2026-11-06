@@ -1172,6 +1172,9 @@ export const exchangeRegistrations = sqliteTable(
     /** Số tiền tại lúc host đánh dấu đã trả. */
     paidAmount: integer("paid_amount"),
     paidAt: text("paid_at"),
+    /** Số host đã hoàn ngoài app (R25); trừ vào phần cần hoàn. */
+    refundedAmount: integer("refunded_amount"),
+    refundedAt: text("refunded_at"),
     checkedIn: integer("checked_in", { mode: "boolean" })
       .notNull()
       .default(false),
