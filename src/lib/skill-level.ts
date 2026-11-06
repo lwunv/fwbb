@@ -46,3 +46,21 @@ export function isSkillLevel(raw: unknown): raw is SkillLevel {
     typeof raw === "string" && (SKILL_LEVELS as readonly string[]).includes(raw)
   );
 }
+
+/**
+ * So sánh hai trình độ theo thứ tự `SKILL_LEVELS` (Tập chơi thấp nhất, TBK cao
+ * nhất). Member chưa khai (null) LUÔN nằm cuối, sắp chiều nào cũng vậy, để admin
+ * sắp theo trình độ không bị cả loạt "chưa khai" chen lên đầu. Cùng mức trả 0
+ * để chỗ gọi tự phân định (ví dụ theo tên).
+ */
+export function compareSkill(
+  a: SkillLevel | null,
+  b: SkillLevel | null,
+  dir: "asc" | "desc",
+): number {
+  if (a === b) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  const diff = SKILL_LEVELS.indexOf(a) - SKILL_LEVELS.indexOf(b);
+  return dir === "asc" ? diff : -diff;
+}

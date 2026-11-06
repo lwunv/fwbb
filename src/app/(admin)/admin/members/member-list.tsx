@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import {
   createMember,
   updateMember,
+  setMemberSkillLevel,
   toggleMemberActive,
   deleteMember,
   linkAdminToMember,
@@ -70,6 +71,7 @@ import { SkillChip } from "@/components/shared/skill-chip";
 import {
   SKILL_LEVELS,
   parseSkillLevel,
+  compareSkill,
   type SkillLevel,
 } from "@/lib/skill-level";
 import { ymdInVN } from "@/lib/date-format";
@@ -124,6 +126,8 @@ type SortMode =
   | "yearAsc"
   | "restDesc"
   | "restAsc"
+  | "skillDesc"
+  | "skillAsc"
   | "newest"
   | "oldest";
 
@@ -155,6 +159,13 @@ export function MemberList({
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortMode, setSortMode] = useState<SortMode>("smart");
+  // Lọc theo trình độ: "all" | "none" (chưa khai) | một mức cụ thể.
+  const [skillFilter, setSkillFilter] = useState<string>("all");
+  // Trình độ vừa đổi INLINE trên dòng (optimistic). `in` chứ không `??` vì
+  // null = admin vừa xoá khai báo.
+  const [skillOverrides, setSkillOverrides] = useState<
+    Record<number, SkillLevel | null>
+  >({});
   const [toggledMembers, setToggledMembers] = useState<Record<number, boolean>>(
     {},
   );
@@ -196,6 +207,7 @@ export function MemberList({
     playStats[memberId]?.lastPlayedDate == null && !fundMemberSet.has(memberId);
 
   const t = useTranslations("adminMembers");
+  const tMe = useTranslations("me");
   const tHistory = useTranslations("memberHistory");
   const confirm = useConfirm();
   async function handleLinkAdmin(member: Member) {
@@ -392,6 +404,11 @@ export function MemberList({
         return false;
       if (statusFilter === "lowInteraction" && !isLowInteraction(m.id))
         return false;
+      if (skillFilter !== "all") {
+        const lv = m.id in skillOverrides ? skillOverrides[m.id] : m.skillLevel;
+        if (skillFilter === "none" ? lv !== null : lv !== skillFilter)
+          return false;
+      }
       // Search: tên/biệt danh khớp không phân biệt hoa thường + có/không dấu
       // (normalizeVietnamese); SĐT khớp theo chuỗi số (bỏ khoảng trắng/dấu).
       if (!q) return true;
@@ -413,6 +430,8 @@ export function MemberList({
     // thay vì NaN → tie-break bằng tên ổn định.
     const rest = (id: number) =>
       restDaysFrom(playStats[id]?.lastPlayedDate, today) ?? 1e9;
+    const skillOf = (m: Member) =>
+      m.id in skillOverrides ? skillOverrides[m.id] : m.skillLevel;
     return list.sort((a, b) => {
       // Ghost luôn xuống cuối, bất kể sort đang chọn.
       const ga = isGhost(a.id);
@@ -436,6 +455,10 @@ export function MemberList({
           return yearPlay(b.id) - yearPlay(a.id) || byName;
         case "yearAsc":
           return yearPlay(a.id) - yearPlay(b.id) || byName;
+        case "skillDesc": // trình độ cao trước, chưa khai cuối
+          return compareSkill(skillOf(a), skillOf(b), "desc") || byName;
+        case "skillAsc":
+          return compareSkill(skillOf(a), skillOf(b), "asc") || byName;
         case "restDesc": // nghỉ lâu nhất trước (chưa từng chơi lên đầu)
           return rest(b.id) - rest(a.id) || byName;
         case "restAsc": // mới đi gần đây nhất trước
@@ -465,6 +488,8 @@ export function MemberList({
     members,
     addedMembers,
     search,
+    skillFilter,
+    skillOverrides,
     statusFilter,
     sortMode,
     deletedIds,
@@ -603,18 +628,66 @@ export function MemberList({
       },
     }));
     setInfoEditTarget(null);
+    // Giữ lọc/sắp theo trình độ khớp ngay với giá trị vừa sửa trong hộp thoại.
+    const prevSkill = skillOverrides;
+    setSkillOverrides((o) => ({
+      ...o,
+      [memberId]: parseSkillLevel(values.skillLevel),
+    }));
     fireAction(
       () => updateMember(memberId, formData),
-      () =>
+      () => {
         setInfoOverrides((o) => {
           const n = { ...o };
           if (prev) n[memberId] = prev;
           else delete n[memberId];
           return n;
-        }),
+        });
+        setSkillOverrides(prevSkill);
+      },
       { successMsg: t("toastInfoSaved") },
     );
   }
+
+  /** Đổi trình độ ngay trên dòng: hiện trước, lưu ngầm, lỗi thì trả lại. */
+  function handleInlineSkill(memberId: number, raw: string) {
+    const next = parseSkillLevel(raw);
+    const had = memberId in skillOverrides;
+    const prevVal = skillOverrides[memberId];
+    setSkillOverrides((o) => ({ ...o, [memberId]: next }));
+    fireAction(
+      () => setMemberSkillLevel(memberId, raw),
+      () =>
+        setSkillOverrides((o) => {
+          const n = { ...o };
+          if (had) n[memberId] = prevVal;
+          else delete n[memberId];
+          return n;
+        }),
+      { successMsg: t("toastSkillSaved") },
+    );
+  }
+
+  const SKILL_SELECT_OPTIONS = [
+    { value: "", label: tMe("skillNone") },
+    ...SKILL_LEVELS.map((lv) => ({
+      value: lv,
+      label: tMe(`skillShort.${lv}`),
+    })),
+  ];
+
+  /** Dropdown đổi trình độ ngay trên dòng. Chip màu + câu mô tả khi rê chuột
+   *  vẫn giữ cạnh nó (quyết định 28/10/2026), dropdown chỉ là chỗ đổi. */
+  const inlineSkillSelect = (memberId: number, level: SkillLevel | null) => (
+    <CustomSelect
+      name={`skill-${memberId}`}
+      value={level ?? ""}
+      onChange={(v) => handleInlineSkill(memberId, v)}
+      options={SKILL_SELECT_OPTIONS}
+      ariaLabel={t("changeSkillAria")}
+      className="w-32 min-w-0"
+    />
+  );
 
   // Bucket đếm sẵn cho mỗi chip filter — hiện luôn kể cả khi chip không active
   // (khớp mockup "Tất cả 12 / Hoạt động 10 / ..."). Đếm trên toàn bộ list
@@ -676,6 +749,8 @@ export function MemberList({
     { value: "smart", label: t("sortSmart") },
     { value: "balanceDesc", label: t("sortBalanceDesc") },
     { value: "balanceAsc", label: t("sortBalanceAsc") },
+    { value: "skillDesc", label: t("sortSkillDesc") },
+    { value: "skillAsc", label: t("sortSkillAsc") },
     { value: "restDesc", label: t("sortRestLongest") },
     { value: "yearDesc", label: t("sortYearPlayDesc") },
     { value: "nameAsc", label: t("sortNameAsc") },
@@ -758,9 +833,11 @@ export function MemberList({
     // `null`, mà `??` sẽ coi null là "chưa có" rồi rơi về giá trị cũ của
     // server, làm nhãn vẫn đứng đó sau khi vừa xoá.
     const displaySkill =
-      member.id in infoOverrides
-        ? infoOverrides[member.id].skillLevel
-        : member.skillLevel;
+      member.id in skillOverrides
+        ? skillOverrides[member.id]
+        : member.id in infoOverrides
+          ? infoOverrides[member.id].skillLevel
+          : member.skillLevel;
     const balance = memberBalances[member.id] ?? 0;
     const stat = playStats[member.id];
     const rest = restDaysFrom(stat?.lastPlayedDate, today);
@@ -1021,6 +1098,32 @@ export function MemberList({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <label
+            htmlFor="member-skill-filter"
+            className="text-muted-foreground text-sm whitespace-nowrap"
+          >
+            {t("skillFilterLabel")}
+          </label>
+          <CustomSelect
+            name="member-skill-filter"
+            ariaLabel={t("skillFilterAria")}
+            value={skillFilter}
+            onChange={(v) => {
+              setSkillFilter(v);
+              setPage(1);
+            }}
+            options={[
+              { value: "all", label: t("all") },
+              { value: "none", label: tMe("skillNone") },
+              ...SKILL_LEVELS.map((lv) => ({
+                value: lv,
+                label: tMe(`skillShort.${lv}`),
+              })),
+            ]}
+            className="min-w-0 flex-1 sm:w-40 sm:flex-none"
+          />
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <label
             htmlFor="member-sort"
             className="text-muted-foreground text-sm whitespace-nowrap"
           >
@@ -1048,7 +1151,14 @@ export function MemberList({
               <th className="px-3 py-2.5">
                 {sortHeader(t("colMember"), "nameAsc", "nameDesc", "nameAsc")}
               </th>
-              <th className="px-3 py-2.5">{t("colSkill")}</th>
+              <th className="px-3 py-2.5">
+                {sortHeader(
+                  t("colSkill"),
+                  "skillAsc",
+                  "skillDesc",
+                  "skillDesc",
+                )}
+              </th>
               <th className="px-3 py-2.5">
                 {sortHeader(
                   t("colFund"),
@@ -1167,7 +1277,10 @@ export function MemberList({
                     </td>
                     {/* Trình độ: cột riêng, không nhét chung ô tên. */}
                     <td className="px-3 py-2.5 align-middle">
-                      <SkillChip level={displaySkill} withBlurb />
+                      <div className="flex items-center gap-2">
+                        <SkillChip level={displaySkill} withBlurb />
+                        {inlineSkillSelect(member.id, displaySkill)}
+                      </div>
                     </td>
                     {/* Quỹ / Nợ */}
                     <td className="px-3 py-2.5 align-middle">
@@ -1370,6 +1483,9 @@ export function MemberList({
                               )}
                             </button>
                             <SkillChip level={displaySkill} withBlurb />
+                          </div>
+                          <div className="mt-1.5">
+                            {inlineSkillSelect(member.id, displaySkill)}
                           </div>
                           {/* SUBROW: chấm + trạng thái quỹ · số người. Switch đã
                               lên góc phải row 1 — ở đây chỉ HIỂN THỊ số người. */}

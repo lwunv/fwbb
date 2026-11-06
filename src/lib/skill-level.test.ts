@@ -11,6 +11,8 @@ import {
   SKILL_BADGE_CLASS,
   parseSkillLevel,
   isSkillLevel,
+  compareSkill,
+  type SkillLevel,
 } from "./skill-level";
 import viMessages from "@/i18n/messages/vi.json";
 import enMessages from "@/i18n/messages/en.json";
@@ -68,4 +70,33 @@ describe("file dịch", () => {
       }
     });
   }
+});
+
+describe("compareSkill", () => {
+  const sortBy = (dir: "asc" | "desc", xs: Array<SkillLevel | null>) =>
+    [...xs].sort((a, b) => compareSkill(a, b, dir));
+
+  it("cao → thấp: TBK trước, Tập chơi sau, chưa khai cuối cùng", () => {
+    expect(sortBy("desc", [null, "tapChoi", "tbk", "tb", "yeu"])).toEqual([
+      "tbk",
+      "tb",
+      "yeu",
+      "tapChoi",
+      null,
+    ]);
+  });
+
+  it("thấp → cao: Tập chơi trước, chưa khai VẪN cuối cùng", () => {
+    expect(sortBy("asc", [null, "tbk", "tapChoi", "tby"])).toEqual([
+      "tapChoi",
+      "tby",
+      "tbk",
+      null,
+    ]);
+  });
+
+  it("cùng mức → 0 (để chỗ gọi tự phân định bằng tên)", () => {
+    expect(compareSkill("tb", "tb", "desc")).toBe(0);
+    expect(compareSkill(null, null, "asc")).toBe(0);
+  });
 });

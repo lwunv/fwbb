@@ -466,6 +466,34 @@ export async function updateMySkillLevel(
   return { success: true };
 }
 
+/**
+ * Admin đổi trình độ một member ngay trên dòng ở /admin/members (yêu cầu
+ * 6/11/2026). Chỉ ghi `skill_level`: không qua `updateMember` vì hàm đó bắt
+ * gửi tên và luôn ghi đè biệt danh. Chuỗi rỗng = xoá khai báo.
+ */
+export async function setMemberSkillLevel(
+  memberId: number,
+  raw: string,
+): Promise<{ success: true } | { error: string }> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return { error: auth.error };
+  const t = await getTranslations("serverErrors");
+  if (!Number.isInteger(memberId) || memberId <= 0) {
+    return { error: t("invalidMemberId") };
+  }
+  const lv = typeof raw === "string" ? raw.trim() : "";
+  if (lv !== "" && !isSkillLevel(lv)) {
+    return { error: t("invalidData", { detail: "skillLevel" }) };
+  }
+  await db
+    .update(members)
+    .set({ skillLevel: parseSkillLevel(lv) })
+    .where(eq(members.id, memberId));
+  revalidatePath("/admin/members");
+  revalidatePath("/");
+  return { success: true };
+}
+
 export async function updateMember(id: number, formData: FormData) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
