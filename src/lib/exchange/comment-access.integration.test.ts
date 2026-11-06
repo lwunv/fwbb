@@ -68,6 +68,10 @@ async function seedMember(
 }
 const host = await seedMember("Host");
 const stranger = await seedMember("Stranger");
+// Tài khoản mới đăng ký, admin chưa duyệt.
+const pendingAccount = await seedMember("Pending", {
+  approvalStatus: "pending",
+});
 const alice = await seedMember("Alice");
 const bob = await seedMember("Bob");
 
@@ -184,6 +188,29 @@ describe("comment access", () => {
     ).toBe("closed");
   });
 
+  it("write state fails closed when the end or cancel date cannot be parsed", () => {
+    const base = {
+      commentsLocked: false,
+      hidden: false,
+      endAt: iso(-1),
+      cancelledAt: null,
+    };
+    expect(commentWriteState({ ...base, endAt: "not a date" }, true, NOW)).toBe(
+      "closed",
+    );
+    expect(commentWriteState({ ...base, endAt: "" }, true, NOW)).toBe("closed");
+    expect(
+      commentWriteState({ ...base, cancelledAt: "garbage" }, true, NOW),
+    ).toBe("closed");
+    expect(
+      commentWriteState(
+        { ...base, commentsLocked: true, endAt: "not a date" },
+        true,
+        NOW,
+      ),
+    ).toBe("closed");
+  });
+
   it("guest reads qa, not group, writes nothing, and runs no DB query when the meta cache is warm", async () => {
     const ev = await seedEvent();
     await loadCommentContext(testDb, { code: ev.publicCode }, null, NOW);
@@ -207,7 +234,7 @@ describe("comment access", () => {
     const ctx = await loadCommentContext(
       testDb,
       { code: ev.publicCode },
-      { id: stranger.id },
+      { id: pendingAccount.id },
       NOW,
     );
     expect(ctx?.role).toBe("member");
@@ -371,5 +398,48 @@ describe("comment access", () => {
         authorAnyChannel: true,
       }),
     ).toBeNull();
+  });
+
+  it("loadCommentWithContext: a member of another event, a guest, or a pending account never reaches a group comment or someone else's held one", async () => {
+    const ev = await seedEvent();
+    const other = await seedEvent();
+    // Bob duyệt ở buổi khác, không có đăng ký ở `ev`.
+    await seedReg(other.id, bob.id, "approved");
+    await seedReg(ev.id, alice.id, "approved");
+    const group = await seedComment(ev.id, alice.id, { channel: "group" });
+    const held = await seedComment(ev.id, alice.id, { status: "held" });
+    const ok = await seedComment(ev.id, alice.id);
+
+    for (const viewer of [{ id: bob.id }, { id: pendingAccount.id }, null]) {
+      expect(
+        await loadCommentWithContext(testDb, group.id, viewer, NOW),
+      ).toBeNull();
+      expect(
+        await loadCommentWithContext(testDb, held.id, viewer, NOW),
+      ).toBeNull();
+      // Ngữ cảnh luôn là buổi của chính bình luận, không phải buổi người xem có quyền.
+      const got = await loadCommentWithContext(testDb, ok.id, viewer, NOW);
+      expect(got?.ctx.event.id).toBe(ev.id);
+      expect(got?.ctx.canRead.group).toBe(false);
+    }
+    // Tác giả và host vẫn thấy.
+    expect(
+      (await loadCommentWithContext(testDb, held.id, { id: alice.id }, NOW))
+        ?.comment.status,
+    ).toBe("held");
+    expect(
+      (await loadCommentWithContext(testDb, group.id, { id: host.id }, NOW))
+        ?.comment.channel,
+    ).toBe("group");
+  });
+
+  it("loadCommentWithContext of a comment in another, hidden event is null for outsiders and guests", async () => {
+    const hiddenEv = await seedEvent({ hiddenAt: iso(-1) });
+    const c = await seedComment(hiddenEv.id, alice.id);
+    for (const viewer of [{ id: bob.id }, { id: pendingAccount.id }, null]) {
+      expect(
+        await loadCommentWithContext(testDb, c.id, viewer, NOW),
+      ).toBeNull();
+    }
   });
 });

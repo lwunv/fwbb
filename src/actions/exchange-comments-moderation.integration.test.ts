@@ -8,7 +8,7 @@ import {
   vi,
 } from "vitest";
 import { randomUUID } from "crypto";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { createTestDb } from "@/db/test-db";
 import {
   exchangeCommentVotes,
@@ -318,6 +318,44 @@ describe("pin, lock, approve", () => {
     expect((await rowOf(b.id)).pinned).toBe(true);
     expect((await rowOf(g.id)).pinned).toBe(true);
     expect(mocks.updateTag).toHaveBeenCalledWith(`xcmt:e${ev.id}`);
+  });
+
+  it("pinning only rewrites the old pinned row and the new one, not the whole channel", async () => {
+    const ev = await mkEvent();
+    const m = await newMember();
+    const a = await seedComment({
+      eventId: ev.id,
+      authorMemberId: m.id,
+      pinned: true,
+    });
+    const others = [];
+    for (let i = 0; i < 3; i++)
+      others.push(await seedComment({ eventId: ev.id, authorMemberId: m.id }));
+    const b = await seedComment({ eventId: ev.id, authorMemberId: m.id });
+    // Trigger ghi lại mọi dòng bị UPDATE cột pinned, kể cả khi giá trị không đổi
+    // (Turso tính lượt ghi theo dòng bị chạm).
+    await testDb.run(
+      sql`CREATE TABLE IF NOT EXISTS pin_touch (comment_id integer NOT NULL)`,
+    );
+    await testDb.run(sql`DELETE FROM pin_touch`);
+    await testDb.run(sql`CREATE TRIGGER IF NOT EXISTS pin_touch_trg
+      AFTER UPDATE OF pinned ON exchange_comments
+      BEGIN INSERT INTO pin_touch (comment_id) VALUES (NEW.id); END`);
+    try {
+      asMember(host);
+      expect(await pinComment({ commentId: b.id, pinned: true })).toEqual({
+        success: true,
+      });
+      const touched = await testDb.all<{ id: number }>(
+        sql`SELECT comment_id AS id FROM pin_touch ORDER BY comment_id`,
+      );
+      expect(touched.map((r) => Number(r.id))).toEqual([a.id, b.id]);
+      expect((await rowOf(a.id)).pinned).toBe(false);
+      for (const o of others) expect((await rowOf(o.id)).pinned).toBe(false);
+    } finally {
+      await testDb.run(sql`DROP TRIGGER IF EXISTS pin_touch_trg`);
+      await testDb.run(sql`DROP TABLE IF EXISTS pin_touch`);
+    }
   });
 
   it("cannot pin a reply", async () => {

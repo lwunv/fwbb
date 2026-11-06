@@ -114,6 +114,23 @@ describe("CommentComposer", () => {
     expect(Math.max(...mocks.resetKeys)).toBeGreaterThan(0);
   });
 
+  it("after a successful send with a token, the next comment does not show Turnstile again", async () => {
+    mocks.addComment
+      .mockResolvedValueOnce({ needsCaptcha: true })
+      .mockResolvedValueOnce({
+        success: true,
+        data: { id: 3, status: "visible" },
+      });
+    const { onSent } = renderComposer();
+    type("Câu đầu tiên");
+    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+    await waitFor(() => expect(screen.getByTestId("turnstile")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("turnstile"));
+    await waitFor(() => expect(onSent).toHaveBeenCalledWith("visible"));
+    // Server đã cấp vé qua Turnstile: ô viết trở lại như trước, không hỏi lại.
+    await waitFor(() => expect(screen.queryByTestId("turnstile")).toBeNull());
+  });
+
   it("send error keeps the text and shows the server message", async () => {
     mocks.addComment.mockResolvedValue({ error: "Bạn gửi quá nhanh" });
     const { onSent } = renderComposer();

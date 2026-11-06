@@ -29,6 +29,8 @@ export type CommentCtx = {
   channel: CommentChannel;
   signedIn: boolean;
   canWrite: boolean;
+  /** Bấm Hữu ích được không: tắt khi khu đã đóng (khoá thì vẫn bấm được). */
+  canVote: boolean;
   needsCaptcha: boolean;
   /** Ghi đè tạm lên một bình luận (optimistic); hoàn lại bằng giá trị cũ khi lỗi. */
   patch: (id: number, p: Partial<CommentView>) => void;
@@ -281,7 +283,13 @@ export function CommentItem({
           type="button"
           whileTap={{ scale: 0.92 }}
           onClick={vote}
-          disabled={!ctx.signedIn || v.state !== "visible" || sending}
+          disabled={
+            !ctx.signedIn ||
+            !ctx.canVote ||
+            v.mine ||
+            v.state !== "visible" ||
+            sending
+          }
           aria-pressed={v.myVote}
           className={cn(actionBtn, v.myVote && "text-primary")}
         >

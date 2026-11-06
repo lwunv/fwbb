@@ -95,6 +95,7 @@ const {
 } = await import("./exchange-comments");
 const { sealCommentPass, COMMENT_PASS_COOKIE } =
   await import("@/lib/exchange/comment-pass");
+const { getMyExchanges } = await import("./exchange-mine");
 
 type Member = typeof members.$inferSelect;
 type Page = Extract<
@@ -661,6 +662,7 @@ describe("listExchangeComments: paging, replies and sort", () => {
     expect(r0.replies[0].moreReplies).toBe(2);
 
     const more = await listCommentReplies({
+      code: ev.publicCode,
       commentId: firstRoot.id,
       offset: 0,
     });
@@ -681,6 +683,7 @@ describe("listExchangeComments: paging, replies and sort", () => {
     expect(countRows(more.data.replies)).toBeLessThanOrEqual(50);
 
     const tier2 = await listCommentReplies({
+      code: ev.publicCode,
       commentId: firstRoot.tier1[1],
       offset: 0,
     });
@@ -704,12 +707,20 @@ describe("listExchangeComments: paging, replies and sort", () => {
         createdAt: iso((t += 1000)),
       })),
     );
-    const p1 = await listCommentReplies({ commentId: big.id, offset: 0 });
+    const p1 = await listCommentReplies({
+      code: ev.publicCode,
+      commentId: big.id,
+      offset: 0,
+    });
     if (!("success" in p1)) throw new Error("p1 failed");
     expect(p1.data.replies).toHaveLength(10);
     expect(p1.data.hasMore).toBe(true);
     expect(p1.data.nextOffset).toBe(10);
-    const p2 = await listCommentReplies({ commentId: big.id, offset: 10 });
+    const p2 = await listCommentReplies({
+      code: ev.publicCode,
+      commentId: big.id,
+      offset: 10,
+    });
     if (!("success" in p2)) throw new Error("p2 failed");
     expect(p2.data.replies.map((r) => r.body)).toEqual(["b10", "b11"]);
     expect(p2.data.hasMore).toBe(false);
@@ -733,15 +744,27 @@ describe("listExchangeComments: paging, replies and sort", () => {
       body: "host reply",
     });
     asMember(other);
-    expect(await listCommentReplies({ commentId: held.id, offset: 0 })).toEqual(
-      { error: "commentNotFound" },
-    );
+    expect(
+      await listCommentReplies({
+        code: ev.publicCode,
+        commentId: held.id,
+        offset: 0,
+      }),
+    ).toEqual({ error: "commentNotFound" });
     asGuest();
-    expect(await listCommentReplies({ commentId: held.id, offset: 0 })).toEqual(
-      { error: "commentNotFound" },
-    );
+    expect(
+      await listCommentReplies({
+        code: ev.publicCode,
+        commentId: held.id,
+        offset: 0,
+      }),
+    ).toEqual({ error: "commentNotFound" });
     asMember(m2);
-    const own = await listCommentReplies({ commentId: held.id, offset: 0 });
+    const own = await listCommentReplies({
+      code: ev.publicCode,
+      commentId: held.id,
+      offset: 0,
+    });
     if (!("success" in own)) throw new Error("own failed");
     expect(own.data.replies.map((r) => r.body)).toEqual(["host reply"]);
   });
@@ -862,7 +885,13 @@ describe("listExchangeComments: privacy and viewer fields", () => {
         offset: 0,
       }),
     );
-    payloads.push(await listCommentReplies({ commentId: root.id, offset: 0 }));
+    payloads.push(
+      await listCommentReplies({
+        code: ev.publicCode,
+        commentId: root.id,
+        offset: 0,
+      }),
+    );
     asMember(m1);
     payloads.push(
       await listExchangeComments({
@@ -1099,5 +1128,287 @@ describe("unread and markCommentsRead", () => {
         })),
     ).toBe(true);
     expect(await testDb.select().from(exchangeCommentReads)).toEqual([]);
+  });
+});
+
+describe("listCommentReplies: scoped to the event code and cached for guests", () => {
+  const repliesCached = () =>
+    [...mocks.store.entries()]
+      .filter(([k]) => JSON.parse(k)[0] === "xcmr")
+      .map(([k, v]) => ({
+        keyParts: JSON.parse(k) as string[],
+        tags: v.tags,
+        json: v.json,
+      }));
+
+  it("a comment id of another event or a missing code returns commentNotFound", async () => {
+    const ev = await mkEvent();
+    const other = await mkEvent();
+    const m1 = await newMember();
+    const foreign = await seedComment({
+      eventId: other.id,
+      authorMemberId: m1.id,
+    });
+    await seedComment({
+      eventId: other.id,
+      authorMemberId: m1.id,
+      parentId: foreign.id,
+      replyToMemberId: m1.id,
+      body: "foreign reply",
+    });
+
+    for (const who of [null, m1] as const) {
+      if (who) asMember(who);
+      else asGuest();
+      expect(
+        await listCommentReplies({
+          code: ev.publicCode,
+          commentId: foreign.id,
+          offset: 0,
+        }),
+      ).toEqual({ error: "commentNotFound" });
+      expect(
+        await listCommentReplies({ commentId: foreign.id, offset: 0 }),
+      ).toEqual({ error: "commentNotFound" });
+      expect(
+        await listCommentReplies({
+          code: "nope-no-event",
+          commentId: foreign.id,
+          offset: 0,
+        }),
+      ).toEqual({ error: "commentNotFound" });
+    }
+    // Đúng mã buổi thì vẫn đọc được.
+    asGuest();
+    const ok = await listCommentReplies({
+      code: other.publicCode,
+      commentId: foreign.id,
+      offset: 0,
+    });
+    if (!("success" in ok)) throw new Error("own event failed");
+    expect(ok.data.replies.map((r) => r.body)).toEqual(["foreign reply"]);
+  });
+
+  it("guest second call runs no DB query while the replies page is cached", async () => {
+    const ev = await mkEvent();
+    const m1 = await newMember();
+    const root = await seedComment({ eventId: ev.id, authorMemberId: m1.id });
+    await seedComment({
+      eventId: ev.id,
+      authorMemberId: m1.id,
+      parentId: root.id,
+      replyToMemberId: m1.id,
+      body: "r1",
+    });
+    asGuest();
+    const exec = vi.spyOn(client, "execute");
+    try {
+      const input = { code: ev.publicCode, commentId: root.id, offset: 0 };
+      const first = await listCommentReplies(input);
+      expect(exec).toHaveBeenCalled();
+      exec.mockClear();
+      const again = await listCommentReplies(input);
+      expect(exec).not.toHaveBeenCalled();
+      expect(again).toEqual(first);
+    } finally {
+      exec.mockRestore();
+    }
+    const entries = repliesCached();
+    expect(entries).toHaveLength(1);
+    expect(entries[0].keyParts).toEqual([
+      "xcmr",
+      String(ev.id),
+      String(root.id),
+      "0",
+    ]);
+    expect(entries[0].tags).toEqual([`xcmt:e${ev.id}`]);
+  });
+
+  it("the cached replies payload has no held, deleted or hidden content and the group channel is never cached", async () => {
+    const ev = await mkEvent();
+    const m1 = await newMember();
+    const m2 = await newMember();
+    await addReg(ev.id, m1.id);
+    const root = await seedComment({ eventId: ev.id, authorMemberId: m1.id });
+    let t = 0;
+    for (const status of ["held", "deleted", "hidden", "visible"] as const) {
+      const tier1 = await seedComment({
+        eventId: ev.id,
+        authorMemberId: m2.id,
+        parentId: root.id,
+        replyToMemberId: m1.id,
+        status,
+        body: status === "visible" ? "plain" : `secret ${status} 0912345678`,
+        createdAt: iso((t += 1000)),
+      });
+      // Một trả lời hiện bên dưới để dòng giữ chỗ còn ở trong cây.
+      await seedComment({
+        eventId: ev.id,
+        authorMemberId: m1.id,
+        parentId: tier1.id,
+        replyToMemberId: m2.id,
+        body: "under",
+        createdAt: iso((t += 1000)),
+      });
+    }
+    const groupRoot = await seedComment({
+      eventId: ev.id,
+      authorMemberId: host.id,
+      channel: "group",
+      body: "group root",
+    });
+    await seedComment({
+      eventId: ev.id,
+      authorMemberId: m1.id,
+      channel: "group",
+      parentId: groupRoot.id,
+      replyToMemberId: host.id,
+      body: "secret group reply",
+    });
+
+    asGuest();
+    const res = await listCommentReplies({
+      code: ev.publicCode,
+      commentId: root.id,
+      offset: 0,
+    });
+    if (!("success" in res)) throw new Error("guest replies failed");
+    expect(JSON.stringify(res)).not.toContain("secret");
+    expect(
+      await listCommentReplies({
+        code: ev.publicCode,
+        commentId: groupRoot.id,
+        offset: 0,
+      }),
+    ).toEqual({ error: "commentNotFound" });
+
+    const entries = repliesCached();
+    expect(entries.every((e) => !e.json.includes("secret"))).toBe(true);
+    const page = entries.find((e) => e.keyParts[2] === String(root.id));
+    if (!page) throw new Error("replies page not cached");
+    const stored = JSON.parse(page.json) as {
+      rows: Record<string, unknown>[];
+    };
+    const masked = stored.rows.filter((r) =>
+      ["held", "deleted", "hidden"].includes(r.status as string),
+    );
+    expect(masked).toHaveLength(3);
+    for (const r of masked) {
+      expect(r.body).toBeNull();
+      expect(r.authorMemberId).toBeNull();
+      expect(r.authorName).toBeNull();
+      expect(r.authorAvatarUrl).toBeNull();
+      expect(r.authorAvatarKey).toBeNull();
+    }
+    expect(stored.rows.every((r) => r.channel === "qa")).toBe(true);
+
+    // Host đọc trả lời khu Nhóm buổi: đọc thẳng, không vào cache.
+    asMember(host);
+    const before = repliesCached().length;
+    const grp = await listCommentReplies({
+      code: ev.publicCode,
+      commentId: groupRoot.id,
+      offset: 0,
+    });
+    if (!("success" in grp)) throw new Error("host group replies failed");
+    expect(grp.data.replies.map((r) => r.body)).toEqual(["secret group reply"]);
+    expect(repliesCached()).toHaveLength(before);
+    expect(repliesCached().some((e) => e.json.includes("secret group"))).toBe(
+      false,
+    );
+  });
+
+  it("a new reply evicts the cached replies page", async () => {
+    const ev = await mkEvent();
+    const m1 = await newMember();
+    const root = await seedComment({ eventId: ev.id, authorMemberId: m1.id });
+    asGuest();
+    const input = { code: ev.publicCode, commentId: root.id, offset: 0 };
+    const before = await listCommentReplies(input);
+    if (!("success" in before)) throw new Error("before failed");
+    expect(before.data.replies).toEqual([]);
+
+    asMember(await newMember());
+    const r = await post(ev.publicCode, { body: "tra loi", parentId: root.id });
+    expect("success" in r).toBe(true);
+
+    asGuest();
+    const after = await listCommentReplies(input);
+    if (!("success" in after)) throw new Error("after failed");
+    expect(after.data.replies.map((x) => x.body)).toEqual(["tra loi"]);
+  });
+});
+
+describe("unread clears even when the newest comment is not on page 1", () => {
+  it("a 3rd reply and a new root beyond page 1 under sort top: listing then markCommentsRead clears unread and newComments", async () => {
+    const ev = await mkEvent();
+    const reader = await newMember();
+    const author = await newMember();
+    await addReg(ev.id, reader.id);
+    let t = -200_000;
+    const roots = [];
+    for (let i = 0; i < 10; i++) {
+      roots.push(
+        await seedComment({
+          eventId: ev.id,
+          authorMemberId: author.id,
+          body: `root ${i}`,
+          createdAt: iso((t += 1000)),
+        }),
+      );
+    }
+    for (const j of [1, 2, 3]) {
+      await seedComment({
+        eventId: ev.id,
+        authorMemberId: author.id,
+        parentId: roots[0].id,
+        replyToMemberId: author.id,
+        body: `reply ${j}`,
+        createdAt: iso((t += 1000)),
+      });
+    }
+    // Gốc mới 0 Hữu ích: sắp "Hữu ích" thì nằm ở trang 2.
+    await seedComment({
+      eventId: ev.id,
+      authorMemberId: author.id,
+      body: "late root",
+      createdAt: iso((t += 1000)),
+    });
+
+    asMember(reader);
+    const page = await list(ev.publicCode, { sort: "top" });
+    expect(page.hasMore).toBe(true);
+    expect(JSON.stringify(page.roots)).not.toContain("late root");
+    expect(JSON.stringify(page.roots)).not.toContain("reply 3");
+    expect(page.unread).toBe(true);
+    expect(page.newestAt).not.toBeNull();
+
+    expect(
+      await markCommentsRead({
+        code: ev.publicCode,
+        channel: "qa",
+        upTo: page.newestAt as string,
+      }),
+    ).toEqual({ success: true });
+
+    const mine = await getMyExchanges();
+    if ("error" in mine) throw new Error(mine.error);
+    expect(
+      mine.registrations.find((x) => x.code === ev.publicCode)?.newComments,
+    ).toBe(0);
+    expect((await list(ev.publicCode, { sort: "top" })).unread).toBe(false);
+  });
+
+  it("newestAt is null for guests and for a reader with nothing unread", async () => {
+    const ev = await mkEvent();
+    const reader = await newMember();
+    await addReg(ev.id, reader.id);
+    await seedComment({ eventId: ev.id, authorMemberId: reader.id });
+    asGuest();
+    expect((await list(ev.publicCode)).newestAt).toBeNull();
+    asMember(reader);
+    const page = await list(ev.publicCode);
+    expect(page.unread).toBe(false);
+    expect(page.newestAt).toBeNull();
   });
 });

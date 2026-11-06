@@ -207,6 +207,70 @@ export function getPublicQaPageCached(
   )();
 }
 
+/** Bình luận được mở "Xem thêm trả lời", đủ để kiểm quyền và dựng neo. */
+export type ReplyAnchor = {
+  parentId: number | null;
+  status: CommentRow["status"];
+  createdAt: string;
+};
+
+/**
+ * Trang trả lời Hỏi đáp cho khách, cache 60s theo buổi + bình luận + offset.
+ * Neo chỉ được nạp khi đúng buổi và đúng khu Hỏi đáp, nên id của buổi khác
+ * hay của Nhóm buổi cho `anchor = null` và không kéo dòng nào vào cache. Dùng
+ * cùng phép che SQL với trang công khai: dòng `held`/`deleted`/`hidden` không
+ * có nội dung hay tác giả. Tag `commentTag(eventId)` nên mọi thao tác ghi của
+ * buổi làm mới luôn.
+ */
+export function getPublicQaRepliesCached(
+  eventId: number,
+  commentId: number,
+  offset: number,
+): Promise<{
+  anchor: ReplyAnchor | null;
+  rows: CommentRow[];
+  hasMore: boolean;
+}> {
+  return unstable_cache(
+    async () => {
+      const [a] = await db.all<ReplyAnchor>(sql`
+        SELECT parent_id AS parentId, status, created_at AS createdAt
+        FROM exchange_comments
+        WHERE id = ${commentId} AND event_id = ${eventId} AND channel = 'qa'`);
+      if (!a) return { anchor: null, rows: [], hasMore: false };
+      const page = await loadReplyRows(db, commentId, offset);
+      return {
+        anchor: {
+          parentId: a.parentId === null ? null : Number(a.parentId),
+          status: a.status,
+          createdAt: a.createdAt,
+        },
+        ...page,
+      };
+    },
+    ["xcmr", String(eventId), String(commentId), String(offset)],
+    { tags: [commentTag(eventId)], revalidate: 60 },
+  )();
+}
+
+/**
+ * Mốc tạo của bình luận `visible` mới nhất trong khu, để đánh dấu đã đọc tới
+ * đó dù bình luận ấy không nằm ở trang 1. Đi ngược index (event_id, channel,
+ * created_at) và dừng ở dòng `visible` đầu tiên, không đọc cả khu.
+ */
+export async function newestVisibleCommentAt(
+  tx: DbOrTx,
+  eventId: number,
+  channel: CommentChannel,
+): Promise<string | null> {
+  const [row] = await tx.all<{ at: string }>(sql`
+    SELECT created_at AS at FROM exchange_comments
+    WHERE event_id = ${eventId} AND channel = ${channel} AND status = 'visible'
+    ORDER BY created_at DESC
+    LIMIT 1`);
+  return row?.at ?? null;
+}
+
 export type ViewerOverlay = {
   myVotes: Set<number>;
   upvotes: Map<number, number>;

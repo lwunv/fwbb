@@ -603,6 +603,8 @@ export async function adminModerateComment(input: unknown): Promise<Result> {
     console.error("[Exchange] comment_moderate_failed", { id: commentId });
     return { error: t("saveFailed") };
   }
-  if ("success" in outcome) updateTag(commentTag(eventId));
+  // Bỏ qua báo cáo không đổi nội dung công khai: không làm mới cache (đỡ render lại trang buổi).
+  if ("success" in outcome && action !== "dismiss")
+    updateTag(commentTag(eventId));
   return outcome;
 }

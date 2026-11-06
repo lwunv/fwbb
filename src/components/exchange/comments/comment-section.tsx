@@ -55,7 +55,8 @@ export function CommentSection({
 
   const [lockOverride, setLockOverride] = useState<boolean | null>(null);
   const composerRef = useRef<HTMLDivElement>(null);
-  const marked = useRef(new Set<string>());
+  /** Mốc đã gửi `markCommentsRead` của từng khu, để không gửi lặp cùng một mốc. */
+  const marked = useRef(new Map<string, string>());
 
   const key = ["exchange-comments", code, channel, sort] as const;
   const q = useInfiniteQuery({
@@ -87,13 +88,15 @@ export function CommentSection({
     if (groupDenied || (kenh === "nhom" && !signedIn)) void setKenh("qa");
   }, [groupDenied, kenh, signedIn, setKenh]);
 
-  // Đánh dấu đã đọc một lần cho mỗi khu; lỗi ở đây không đáng làm phiền người đọc.
+  // Đánh dấu đã đọc mỗi khi trang về còn `unread` với mốc mới (lần đầu, "Tải
+  // bình luận mới", focus lại); cùng mốc thì không gửi lại. Lỗi ở đây không
+  // đáng làm phiền người đọc.
   const newestAt = first?.newestAt ?? null;
   const unread = first?.unread ?? false;
   useEffect(() => {
-    if (!viewerIn || !unread || !newestAt || marked.current.has(channel))
-      return;
-    marked.current.add(channel);
+    if (!viewerIn || !unread || !newestAt) return;
+    if (marked.current.get(channel) === newestAt) return;
+    marked.current.set(channel, newestAt);
     void markCommentsRead({ code, channel, upTo: newestAt }).catch(() => {});
   }, [viewerIn, unread, newestAt, channel, code]);
 
@@ -103,7 +106,7 @@ export function CommentSection({
   }
 
   const { apply, patch, begin, end, loadReplies, addTemp, rootTemps } =
-    useOpenThreads(q.data?.pages, q.dataUpdatedAt, channel);
+    useOpenThreads(q.data?.pages, q.dataUpdatedAt, channel, code);
 
   const seen = new Set<number>();
   const roots: CommentView[] = [];
@@ -147,6 +150,8 @@ export function CommentSection({
     channel,
     signedIn: viewerIn,
     canWrite: !!first?.canWrite && writeState === "open",
+    // Hữu ích vẫn bấm được khi host khoá, chỉ tắt khi khu đã đóng (server cũng từ chối).
+    canVote: writeState !== "closed",
     needsCaptcha: first?.needsCaptcha ?? false,
     patch,
     begin,

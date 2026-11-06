@@ -46,6 +46,8 @@ export function useOpenThreads(
   pages: CommentPage[] | undefined,
   dataUpdatedAt: number,
   channel: CommentChannel,
+  /** Mã buổi: server chỉ trả trả lời của bình luận thuộc đúng buổi này. */
+  code: string,
 ) {
   const t = useTranslations("exchange.comments");
   const [patches, setPatches] = useState<Record<number, Partial<CommentView>>>(
@@ -158,9 +160,11 @@ export function useOpenThreads(
       let hasMore = more > 0;
       const acc: CommentView[] = [];
       for (let i = 0; i < MAX_RELOAD_PAGES && hasMore; i++) {
-        const r = await listCommentReplies({ commentId: id, offset }).catch(
-          () => null,
-        );
+        const r = await listCommentReplies({
+          code,
+          commentId: id,
+          offset,
+        }).catch(() => null);
         if (!r || "error" in r) {
           if (r) toast.error(r.error);
           // Không tải lại được gì thì giữ bản đang hiện hơn là làm chủ đề sụp.
@@ -204,12 +208,12 @@ export function useOpenThreads(
       cancelled = true;
     };
     // Chỉ chạy khi có dữ liệu mới; `pages` đọc qua ref đúng bản vừa về.
-  }, [dataUpdatedAt]);
+  }, [dataUpdatedAt, code]);
 
   /** `c` là bản đã gộp (có cả trả lời tải thêm) nên đếm offset từ chính nó. */
   async function loadReplies(c: CommentView) {
     const offset = extra[c.id]?.next ?? visibleCount(c.replies);
-    const r = await listCommentReplies({ commentId: c.id, offset });
+    const r = await listCommentReplies({ code, commentId: c.id, offset });
     // Chỉ ném lỗi: nơi gọi (CommentThread) là chỗ duy nhất hiện toast.
     if ("error" in r) throw new Error(r.error);
     const { replies, nextOffset } = r.data;

@@ -134,6 +134,8 @@ export function CommentComposer({
             return;
           }
           keyRef.current = null;
+          // Server đã cấp vé qua Turnstile: bình luận sau không hiện lại widget.
+          setCaptcha(false);
           setText("");
           if (status === "held") {
             setHeld(true);

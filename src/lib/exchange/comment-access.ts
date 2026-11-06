@@ -124,7 +124,11 @@ export function commentWriteState(
 ): CommentWriteState {
   if (ev.hidden || !hostActive) return "closed";
   const base = Date.parse(ev.cancelledAt ?? ev.endAt);
-  if (now.getTime() > base + COMMENT_OPEN_AFTER_END_DAYS * 86_400_000) {
+  // Ngày hỏng thì so sánh với NaN luôn sai, tức là mở mãi: đóng cho an toàn.
+  if (
+    Number.isNaN(base) ||
+    now.getTime() > base + COMMENT_OPEN_AFTER_END_DAYS * 86_400_000
+  ) {
     return "closed";
   }
   return ev.commentsLocked ? "locked" : "open";

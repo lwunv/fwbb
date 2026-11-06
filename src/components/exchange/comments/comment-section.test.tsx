@@ -260,7 +260,11 @@ describe("CommentSection", () => {
       await screen.findByRole("button", { name: "Xem 3 trả lời" }),
     );
     await screen.findByText("trả lời năm");
-    expect(mocks.replies).toHaveBeenCalledWith({ commentId: 1, offset: 2 });
+    expect(mocks.replies).toHaveBeenCalledWith({
+      code: "ABCD1234",
+      commentId: 1,
+      offset: 2,
+    });
     expect(screen.getAllByText("trả lời một")).toHaveLength(1);
     expect(screen.getByText("trả lời ba")).toBeTruthy();
     expect(
@@ -364,6 +368,66 @@ describe("CommentSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tải bình luận mới" }));
     await waitFor(() => expect(mocks.list).toHaveBeenCalledTimes(2));
     expect(mocks.mark).toHaveBeenCalledTimes(1);
+  });
+
+  it("Tải bình luận mới marks read again when it brings a newer newestAt while still unread", async () => {
+    let newestAt = "2030-01-02T03:04:05.000Z";
+    mocks.list.mockImplementation(async () => ({
+      success: true,
+      data: makePage({ roots: [makeView()], unread: true, newestAt }),
+    }));
+    mocks.mark.mockResolvedValue({ success: true });
+    renderSection();
+    await waitFor(() => expect(mocks.mark).toHaveBeenCalledTimes(1));
+
+    newestAt = "2030-01-02T04:00:00.000Z";
+    fireEvent.click(screen.getByRole("button", { name: "Tải bình luận mới" }));
+    await waitFor(() => expect(mocks.mark).toHaveBeenCalledTimes(2));
+    expect(mocks.mark).toHaveBeenLastCalledWith({
+      code: "ABCD1234",
+      channel: "qa",
+      upTo: "2030-01-02T04:00:00.000Z",
+    });
+  });
+
+  it("Hữu ích is disabled on my own comment and when comments are closed, but not when only locked", async () => {
+    pageFor({
+      roots: [
+        makeView({ id: 1, body: "của tôi", mine: true }),
+        makeView({ id: 2, body: "của người khác" }),
+      ],
+    });
+    const { unmount } = renderSection();
+    await screen.findByText("của tôi");
+    const [own, other] = screen.getAllByRole("button", { name: /Hữu ích/ });
+    expect((own as HTMLButtonElement).disabled).toBe(true);
+    expect((other as HTMLButtonElement).disabled).toBe(false);
+    unmount();
+
+    pageFor({
+      writeState: "closed",
+      canWrite: false,
+      roots: [makeView({ id: 2, body: "của người khác" })],
+    });
+    const closed = renderSection();
+    await screen.findByText("của người khác");
+    expect(
+      (screen.getByRole("button", { name: /Hữu ích/ }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    closed.unmount();
+
+    pageFor({
+      writeState: "locked",
+      canWrite: false,
+      roots: [makeView({ id: 2, body: "của người khác" })],
+    });
+    renderSection();
+    await screen.findByText("của người khác");
+    expect(
+      (screen.getByRole("button", { name: /Hữu ích/ }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false);
   });
 
   it("deleting a loaded reply keeps it gone after the refetch, and a new reply after full expansion is reachable", async () => {
@@ -556,7 +620,11 @@ describe("CommentSection", () => {
     mocks.replies.mockClear();
     fireEvent.click(more);
     await waitFor(() => expect(mocks.replies).toHaveBeenCalled());
-    expect(mocks.replies).toHaveBeenCalledWith({ commentId: 1, offset: 50 });
+    expect(mocks.replies).toHaveBeenCalledWith({
+      code: "ABCD1234",
+      commentId: 1,
+      offset: 50,
+    });
   });
 
   it("a refetch keeps the vote patch while the vote is still in flight", async () => {

@@ -45,12 +45,14 @@ import { grantCommentPass, hasCommentPass } from "@/lib/exchange/comment-pass";
 import {
   applyViewerOverlay,
   getPublicQaPageCached,
+  getPublicQaRepliesCached,
   hasUnreadComments,
   isCommentReader,
   loadReplyRows,
   loadThreadRows,
   loadViewerOverlay,
   markCommentsReadUpTo,
+  newestVisibleCommentAt,
 } from "@/lib/exchange/comment-reads";
 import {
   buildThreads,
@@ -713,7 +715,8 @@ export async function pinComment(input: unknown): Promise<SimpleResult> {
         if (comment.parentId !== null || comment.status !== "visible")
           return { error: t("commentNotFound") };
         if (f.pinned) {
-          // Mỗi khu chỉ một bình luận ghim.
+          // Mỗi khu chỉ một bình luận ghim. Chỉ chạm dòng đang ghim: Turso tính
+          // lượt ghi theo dòng bị UPDATE, kể cả khi giá trị không đổi.
           await tx
             .update(exchangeComments)
             .set({ pinned: false })
@@ -721,6 +724,7 @@ export async function pinComment(input: unknown): Promise<SimpleResult> {
               and(
                 eq(exchangeComments.eventId, comment.eventId),
                 eq(exchangeComments.channel, comment.channel),
+                eq(exchangeComments.pinned, true),
                 ne(exchangeComments.id, comment.id),
               ),
             );
@@ -904,7 +908,10 @@ export type CommentPage = {
   canWrite: boolean;
   needsCaptcha: boolean;
   unread: boolean;
-  /** Mốc mới nhất trong trang, để client gọi `markCommentsRead`. */
+  /**
+   * Mốc của bình luận `visible` mới nhất cả khu (không chỉ trang này), để client
+   * gọi `markCommentsRead`. Chỉ có khi `unread`; còn lại là null.
+   */
   newestAt: string | null;
 };
 type ListResult = { success: true; data: CommentPage } | { error: string };
@@ -931,6 +938,8 @@ const listSchema = z.object({
     .refine((n) => n % COMMENT_PAGE_ROOTS === 0),
 });
 const repliesSchema = z.object({
+  // Thiếu mã buổi trả lỗi chung `commentNotFound` (client cũ), không `invalidInput`.
+  code: z.string().min(1).max(64).optional(),
   commentId: z.number().int().positive(),
   offset: z.number().int().min(0).max(COMMENT_CHANNEL_CAP),
 });
@@ -1017,13 +1026,14 @@ export async function listExchangeComments(
     held = overlay.hostHeld;
   }
   const opts = treeOpts(ctx, viewer, f.channel, f.sort, myVotes, now);
-  const newestAt = rows.reduce<string | null>(
-    (m, r) =>
-      r.status === "visible" && (m === null || r.createdAt > m)
-        ? r.createdAt
-        : m,
-    null,
-  );
+  const unread = viewer
+    ? await hasUnreadComments(db, ctx, viewer.id, f.channel, now)
+    : false;
+  // Mốc lấy cả khu: bình luận mới có thể nằm ngoài trang 1 (gốc mới ít Hữu
+  // ích, trả lời thứ 3 trở đi), lấy theo trang thì không bao giờ đọc hết.
+  const newestAt = unread
+    ? await newestVisibleCommentAt(db, ctx.event.id, f.channel)
+    : null;
 
   return {
     success: true,
@@ -1040,15 +1050,18 @@ export async function listExchangeComments(
       canRead: ctx.canRead,
       canWrite: ctx.canWrite[f.channel],
       needsCaptcha: viewer ? !(await hasCommentPass(viewer.id)) : false,
-      unread: viewer
-        ? await hasUnreadComments(db, ctx, viewer.id, f.channel, now)
-        : false,
+      unread,
       newestAt,
     },
   };
 }
 
-/** "Xem thêm trả lời" của một gốc hoặc một tầng 1, cùng luật thấy như trang. */
+/**
+ * "Xem thêm trả lời" của một gốc hoặc một tầng 1, cùng luật thấy như trang.
+ * Phải kèm mã buổi: bình luận không thuộc buổi đó là `commentNotFound`, nên
+ * không dò được id qua mọi buổi. Khách đọc hoàn toàn qua cache (chỉ Hỏi đáp);
+ * người đã đăng nhập đọc thẳng rồi ghép phần riêng như trang.
+ */
 export async function listCommentReplies(
   input: unknown,
 ): Promise<RepliesResult> {
@@ -1059,15 +1072,37 @@ export async function listCommentReplies(
   const parsed = repliesSchema.safeParse(input);
   if (!parsed.success) return { error: t("invalidInput") };
   const f = parsed.data;
+  if (!f.code) return { error: t("commentNotFound") };
 
   const now = new Date();
   const viewer = await readerOrGuest();
-  // Null cả khi khu không đọc được hoặc là `held` của người khác.
-  const found = await loadCommentWithContext(db, f.commentId, viewer, now);
-  if (!found) return { error: t("commentNotFound") };
-  const { ctx, comment } = found;
+  const ctx = await loadCommentContext(db, { code: f.code }, viewer, now);
+  if (!ctx) return { error: t("commentNotFound") };
 
-  const page = await loadReplyRows(db, comment.id, f.offset);
+  let anchor: { parentId: number | null; channel: CommentRow["channel"] };
+  let anchorCreatedAt: string;
+  let page: { rows: CommentRow[]; hasMore: boolean };
+  if (!viewer) {
+    const cached = await getPublicQaRepliesCached(
+      ctx.event.id,
+      f.commentId,
+      f.offset,
+    );
+    // Khách không bao giờ là tác giả hay host: neo `held` là như không có.
+    if (!cached.anchor || cached.anchor.status === "held")
+      return { error: t("commentNotFound") };
+    anchor = { parentId: cached.anchor.parentId, channel: "qa" };
+    anchorCreatedAt = cached.anchor.createdAt;
+    page = cached;
+  } else {
+    // Null khi thuộc buổi khác, khu không đọc được, hoặc là `held` của người khác.
+    const comment = await loadCommentInEvent(db, f.commentId, ctx, viewer.id);
+    if (!comment) return { error: t("commentNotFound") };
+    anchor = comment;
+    anchorCreatedAt = comment.createdAt;
+    page = await loadReplyRows(db, comment.id, f.offset);
+  }
+
   let rows = page.rows;
   let myVotes = new Set<number>();
   if (viewer) {
@@ -1076,10 +1111,10 @@ export async function listCommentReplies(
     myVotes = overlay.myVotes;
   }
   // Neo giả làm gốc để buildThreads dựng cây con; neo không được trả về.
-  const anchor: CommentRow = {
-    id: comment.id,
+  const root: CommentRow = {
+    id: f.commentId,
     parentId: null,
-    channel: comment.channel,
+    channel: anchor.channel,
     authorMemberId: null,
     authorName: null,
     authorAvatarUrl: null,
@@ -1090,13 +1125,13 @@ export async function listCommentReplies(
     upvotes: 0,
     pinned: false,
     editedAt: null,
-    createdAt: comment.createdAt,
+    createdAt: anchorCreatedAt,
     replyCount: 0,
   };
-  const opts = treeOpts(ctx, viewer, comment.channel, "top", myVotes, now);
-  const [tree] = buildThreads([anchor, ...rows], opts);
+  const opts = treeOpts(ctx, viewer, anchor.channel, "top", myVotes, now);
+  const [tree] = buildThreads([root, ...rows], opts);
   const step =
-    comment.parentId === null ? COMMENT_REPLIES_PAGE : COMMENT_MAX_ROWS;
+    anchor.parentId === null ? COMMENT_REPLIES_PAGE : COMMENT_MAX_ROWS;
   return {
     success: true,
     data: {

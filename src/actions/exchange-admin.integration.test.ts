@@ -434,11 +434,14 @@ describe("admin comment moderation", () => {
 
     const d = await seedComment(ev.id);
     await report(d.id);
+    mocks.updateTag.mockClear();
     expect(
       await adminModerateComment({ commentId: d.id, action: "dismiss" }),
     ).toEqual({ success: true });
     expect((await statusOf(d.id)).s).toBe("visible");
     expect(await reportStatuses(d.id)).toEqual(["dismissed"]);
+    // Bỏ qua báo cáo không đổi gì khách thấy: không làm mới cache bình luận.
+    expect(mocks.updateTag).not.toHaveBeenCalled();
   });
 
   it("admin delete resolves open reports", async () => {
