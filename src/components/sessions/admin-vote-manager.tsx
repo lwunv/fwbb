@@ -595,6 +595,8 @@ export function AdminVoteManager({
       guestPlayCount: gp,
       guestDineAmount,
       totalAmount: playAmount + dineAmount + guestPlayAmount + guestDineAmount,
+      // Phần người đi kèm: sàn thiếu quỹ không được nuốt mất phần này.
+      partnerPlayAmount: willPlay ? playPerHead * Math.max(0, hc - 1) : 0,
     };
   }
 

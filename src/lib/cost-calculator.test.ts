@@ -1076,6 +1076,57 @@ describe("applyMinDeductionFloor", () => {
     expect(r).toEqual(d);
   });
 
+  it("đi 2 người: sàn chỉ áp phần của member, phần người đi kèm vẫn thu thêm", () => {
+    // Bug 6/11/2026: 2 người × 35K = 70K < sàn 80K → cả tổng bị thay bằng 80K,
+    // người đi kèm thành miễn phí. Đúng: 80K (member) + 35K (đi kèm) = 115K.
+    const d = debt({
+      playAmount: 70_000,
+      partnerPlayAmount: 35_000,
+      totalAmount: 70_000,
+    });
+    const r = applyMinDeductionFloor(d, -188_000, 80_000);
+    expect(r.playAmount).toBe(115_000);
+    expect(r.totalAmount).toBe(115_000);
+  });
+
+  it("đi 2 người: phần của member đã ≥ sàn → không đổi", () => {
+    const d = debt({
+      playAmount: 180_000,
+      partnerPlayAmount: 90_000,
+      totalAmount: 180_000,
+    });
+    expect(applyMinDeductionFloor(d, 0, 80_000)).toEqual(d);
+  });
+
+  it("calculateSessionCosts ghi partnerPlayAmount cho member đi 2 người", () => {
+    const r = calculateSessionCosts(
+      { courtPrice: 300_000, diningBill: 0 },
+      [
+        {
+          memberId: 1,
+          isGuest: false,
+          invitedById: null,
+          attendsPlay: true,
+          attendsDine: false,
+          headcount: 2,
+        },
+        {
+          memberId: 2,
+          isGuest: false,
+          invitedById: null,
+          attendsPlay: true,
+          attendsDine: false,
+        },
+      ],
+      [],
+    );
+    const m1 = r.memberDebts.find((m) => m.memberId === 1)!;
+    expect(m1.playAmount).toBe(200_000);
+    expect(m1.partnerPlayAmount).toBe(100_000);
+    const m2 = r.memberDebts.find((m) => m.memberId === 2)!;
+    expect(m2.partnerPlayAmount ?? 0).toBe(0);
+  });
+
   it("balance thiếu, playAmount < floor → override lên 60K", () => {
     const d = debt({ playAmount: 30_000, totalAmount: 30_000 });
     const r = applyMinDeductionFloor(d, 10_000);
@@ -1382,8 +1433,10 @@ describe("calculateSessionCosts — partner headcount", () => {
   });
 });
 
+// Quyết định 6/11/2026 (đổi luật 15/6): sàn chỉ áp phần của CHÍNH member,
+// người đi kèm tính giá bình thường (trước đây cả 2 gộp 1 sàn → đi kèm miễn phí).
 describe("forecast surplus — partner", () => {
-  it("member headcount=2, perHead 25k, broke → playAmount 50k < 60k → surplus 10k", () => {
+  it("member headcount=2, perHead 25k, broke → sàn phần member 60k−25k = surplus 35k", () => {
     const s = computePredictedMinDeductionSurplus({
       playingMemberIds: [1],
       memberBalances: { 1: 0 },
@@ -1391,9 +1444,9 @@ describe("forecast surplus — partner", () => {
       playCostPerHead: 25_000,
       playingMemberHeadcounts: { 1: 2 },
     });
-    expect(s).toBe(10_000);
+    expect(s).toBe(35_000);
   });
-  it("member headcount=2, playAmount 2×40k=80k ≥ 60k → không phạt", () => {
+  it("member headcount=2, perHead 40k, broke → sàn phần member 60k−40k = surplus 20k", () => {
     const s = computePredictedMinDeductionSurplus({
       playingMemberIds: [1],
       memberBalances: { 1: 0 },
@@ -1401,7 +1454,7 @@ describe("forecast surplus — partner", () => {
       playCostPerHead: 40_000,
       playingMemberHeadcounts: { 1: 2 },
     });
-    expect(s).toBe(0);
+    expect(s).toBe(20_000);
   });
 });
 
