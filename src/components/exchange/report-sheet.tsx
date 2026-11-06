@@ -22,12 +22,15 @@ export function ReportSheet({
   onOpenChange,
   code,
   registrationId,
+  commentId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   code: string;
   /** Host báo cáo một người đăng ký: bỏ lựa chọn buổi/host, gửi theo đăng ký. */
   registrationId?: number;
+  /** Báo cáo một bình luận: bỏ lựa chọn buổi/host, gửi theo bình luận. */
+  commentId?: number;
 }) {
   const t = useTranslations("exchange.event");
   const tReason = useTranslations("notifications.reportReasons");
@@ -46,9 +49,11 @@ export function ReportSheet({
       () =>
         reportAbuse({
           target:
-            registrationId !== undefined
-              ? { type: "registration", registrationId }
-              : { type: target, code },
+            commentId !== undefined
+              ? { type: "comment", commentId }
+              : registrationId !== undefined
+                ? { type: "registration", registrationId }
+                : { type: target, code },
           reason,
           note: note.trim() || undefined,
           turnstileToken,
@@ -97,7 +102,7 @@ export function ReportSheet({
         </button>
       }
     >
-      {registrationId === undefined && (
+      {registrationId === undefined && commentId === undefined && (
         <fieldset className="space-y-2">
           <legend className="text-base font-medium">{t("reportTarget")}</legend>
           <div className="flex gap-2" role="radiogroup">

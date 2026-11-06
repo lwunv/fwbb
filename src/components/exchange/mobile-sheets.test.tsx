@@ -35,6 +35,15 @@ const admin = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+vi.mock("@/components/exchange/comments/comment-section", () => ({
+  CommentSection: (p: { code: string; signedIn: boolean }) => (
+    <div
+      data-testid="comments"
+      data-code={p.code}
+      data-signed={String(p.signedIn)}
+    />
+  ),
+}));
 vi.mock("@/lib/use-is-mobile", () => ({ useIsMobile: () => true }));
 vi.mock("@/actions/exchange-registrations", () => ({
   registerForExchange: vi.fn(),

@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import type { ViewerExtras } from "@/actions/exchange-read";
 import { ExchangePayQR } from "@/components/exchange/exchange-pay-qr";
 import { nameSeed, shortMoney } from "@/components/exchange/exchange-card";
+import { CommentSection } from "@/components/exchange/comments/comment-section";
 import { ReportSheet } from "@/components/exchange/report-sheet";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import type { PublicExchangeEvent } from "@/lib/exchange/public-event";
@@ -490,8 +491,13 @@ export function EventPost({
           )}
         </div>
 
-        {/* Chỗ trống cho bình luận (G2c): chưa có giao diện, chỉ giữ vị trí cuối bài. */}
-        <div data-slot="exchange-comments" />
+        <div id="binh-luan">
+          <CommentSection
+            code={event.code}
+            signedIn={viewer.role !== "guest"}
+            eventId={viewer.hostEventId}
+          />
+        </div>
       </motion.article>
 
       <MyRegistrationBar

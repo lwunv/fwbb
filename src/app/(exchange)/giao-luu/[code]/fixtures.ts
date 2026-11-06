@@ -60,6 +60,7 @@ export function makeViewer(over: Partial<ViewerExtras> = {}): ViewerExtras {
     attendees: null,
     blocked: false,
     isNewAccount: false,
+    hostEventId: null,
     ...over,
   };
 }

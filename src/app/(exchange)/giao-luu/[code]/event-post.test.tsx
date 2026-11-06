@@ -21,6 +21,15 @@ vi.mock("@/actions/exchange-registrations", () => ({
   cancelMyRegistration: vi.fn(),
 }));
 vi.mock("@/actions/exchange-reports", () => ({ reportAbuse: vi.fn() }));
+vi.mock("@/components/exchange/comments/comment-section", () => ({
+  CommentSection: (p: { code: string; signedIn: boolean }) => (
+    <div
+      data-testid="comments"
+      data-code={p.code}
+      data-signed={String(p.signedIn)}
+    />
+  ),
+}));
 vi.mock("@/components/security/turnstile-widget", () => ({
   TurnstileWidget: () => <div data-testid="turnstile" />,
 }));
@@ -65,6 +74,14 @@ describe("EventPost", () => {
     expect(text).not.toMatch(/@/);
     expect(text).not.toMatch(/\d{9,}/);
     expect(screen.queryByText("Liên hệ host")).toBeNull();
+  });
+
+  it("mounts the comment section under #binh-luan with the signed-in hint", () => {
+    const { container } = renderPost();
+    const slot = container.querySelector("#binh-luan");
+    const section = slot?.querySelector("[data-testid=comments]");
+    expect(section?.getAttribute("data-code")).toBe("ABCD1234");
+    expect(section?.getAttribute("data-signed")).toBe("false");
   });
 
   it("guest sees login CTA with next back to the event", () => {

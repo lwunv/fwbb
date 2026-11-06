@@ -70,6 +70,8 @@ export type ViewerExtras = {
     | null;
   blocked: boolean;
   isNewAccount: boolean;
+  /** Id buổi, chỉ có khi người xem là host (để khoá bình luận). */
+  hostEventId: number | null;
 };
 
 const OPEN_STATUSES = ["open", "full"] as const;
@@ -177,6 +179,7 @@ function guestExtras(): ViewerExtras {
     attendees: null,
     blocked: false,
     isNewAccount: false,
+    hostEventId: null,
   };
 }
 
@@ -273,6 +276,7 @@ export async function getExchangeEvent(
     attendees: null,
     blocked,
     isNewAccount: limits.isNew,
+    hostEventId: isHost ? pub.eventId : null,
   };
 
   if (reg) {
