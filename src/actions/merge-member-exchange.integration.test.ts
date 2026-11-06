@@ -7,6 +7,9 @@ import { createTestDb } from "@/db/test-db";
 import {
   abuseReports,
   admins as adminsTable,
+  exchangeCommentReads,
+  exchangeCommentVotes,
+  exchangeComments,
   exchangeEvents,
   exchangeRegistrations,
   financialTransactions,
@@ -42,6 +45,9 @@ const NOW = "2026-11-05T00:00:00.000Z";
 
 async function reset() {
   for (const t of [
+    "exchange_comment_votes",
+    "exchange_comment_reads",
+    "exchange_comments",
     "abuse_reports",
     "host_blocks",
     "exchange_registrations",
@@ -113,6 +119,44 @@ async function mkReg(eventId: number, memberId: number, status = "approved") {
     })
     .returning({ id: exchangeRegistrations.id });
   return r.id;
+}
+
+async function mkComment(
+  eventId: number,
+  authorId: number,
+  extra: Partial<typeof exchangeComments.$inferInsert> = {},
+) {
+  const [c] = await testDb
+    .insert(exchangeComments)
+    .values({
+      eventId,
+      channel: "qa",
+      authorMemberId: authorId,
+      body: "xin chao",
+      createdAt: NOW,
+      ...extra,
+    })
+    .returning({ id: exchangeComments.id });
+  return c.id;
+}
+
+async function mkVote(commentId: number, memberId: number) {
+  await testDb
+    .insert(exchangeCommentVotes)
+    .values({ commentId, memberId, createdAt: NOW });
+}
+
+/** Bất biến: upvotes của bình luận luôn bằng số dòng phiếu. */
+async function expectUpvotesMatchVotes(commentId: number, expected: number) {
+  const c = await testDb.query.exchangeComments.findFirst({
+    where: eq(exchangeComments.id, commentId),
+  });
+  const v = await testDb
+    .select()
+    .from(exchangeCommentVotes)
+    .where(eq(exchangeCommentVotes.commentId, commentId));
+  expect(v).toHaveLength(expected);
+  expect(c?.upvotes).toBe(expected);
 }
 
 describe("exchange rows through merge and delete", () => {
@@ -502,5 +546,166 @@ describe("exchange rows through merge and delete", () => {
       where: eq(sessionDebts.memberId, target),
     });
     expect(d?.totalAmount).toBe(30_000);
+  });
+
+  it("merge moves comments, reply targets, votes and reads to the target", async () => {
+    const source = await mk("Nguon");
+    const target = await mk("Dich");
+    const other = await mk("Khac");
+    const ev = await mkEvent(other, "CM1");
+    const own = await mkComment(ev, source, { replyToMemberId: other });
+    const reply = await mkComment(ev, other, { replyToMemberId: source });
+    const othersComment = await mkComment(ev, other, { upvotes: 1 });
+    await mkVote(othersComment, source);
+    await testDb.insert(exchangeCommentReads).values({
+      eventId: ev,
+      memberId: source,
+      lastReadAt: "2026-11-05T01:00:00.000Z",
+    });
+
+    expect(await mergeMember(source, target)).toEqual({ success: true });
+
+    const c1 = await testDb.query.exchangeComments.findFirst({
+      where: eq(exchangeComments.id, own),
+    });
+    const c2 = await testDb.query.exchangeComments.findFirst({
+      where: eq(exchangeComments.id, reply),
+    });
+    expect(c1?.authorMemberId).toBe(target);
+    expect(c2?.replyToMemberId).toBe(target);
+    const [v] = await testDb.select().from(exchangeCommentVotes);
+    expect(v.memberId).toBe(target);
+    await expectUpvotesMatchVotes(othersComment, 1);
+    const [r] = await testDb.select().from(exchangeCommentReads);
+    expect(r.memberId).toBe(target);
+    expect(r.lastReadAt).toBe("2026-11-05T01:00:00.000Z");
+  });
+
+  it("merge drops the duplicate vote and keeps upvotes equal to the vote count", async () => {
+    const source = await mk("Nguon");
+    const target = await mk("Dich");
+    const other = await mk("Khac");
+    const ev = await mkEvent(other, "CM2");
+    const c = await mkComment(ev, other, { upvotes: 2 });
+    await mkVote(c, source);
+    await mkVote(c, target);
+
+    expect(await mergeMember(source, target)).toEqual({ success: true });
+
+    await expectUpvotesMatchVotes(c, 1);
+    const [v] = await testDb.select().from(exchangeCommentVotes);
+    expect(v.memberId).toBe(target);
+  });
+
+  it("merge drops the source's vote on a target comment", async () => {
+    const source = await mk("Nguon");
+    const target = await mk("Dich");
+    const other = await mk("Khac");
+    const ev = await mkEvent(other, "CM3");
+    const c = await mkComment(ev, target, { upvotes: 2 });
+    await mkVote(c, source);
+    await mkVote(c, other);
+
+    expect(await mergeMember(source, target)).toEqual({ success: true });
+
+    await expectUpvotesMatchVotes(c, 1);
+    const [v] = await testDb.select().from(exchangeCommentVotes);
+    expect(v.memberId).toBe(other);
+  });
+
+  it("merge drops the target's vote on a source comment", async () => {
+    const source = await mk("Nguon");
+    const target = await mk("Dich");
+    const other = await mk("Khac");
+    const ev = await mkEvent(other, "CM4");
+    const c = await mkComment(ev, source, { upvotes: 2 });
+    await mkVote(c, target);
+    await mkVote(c, other);
+
+    expect(await mergeMember(source, target)).toEqual({ success: true });
+
+    await expectUpvotesMatchVotes(c, 1);
+    const [v] = await testDb.select().from(exchangeCommentVotes);
+    expect(v.memberId).toBe(other);
+    const row = await testDb.query.exchangeComments.findFirst({
+      where: eq(exchangeComments.id, c),
+    });
+    expect(row?.authorMemberId).toBe(target);
+  });
+
+  it("merge keeps the later read time per channel", async () => {
+    const source = await mk("Nguon");
+    const target = await mk("Dich");
+    const other = await mk("Khac");
+    const ev = await mkEvent(other, "CM5");
+    const ev2 = await mkEvent(other, "CM6");
+    await testDb.insert(exchangeCommentReads).values([
+      {
+        eventId: ev,
+        memberId: source,
+        lastReadAt: "2026-11-05T09:00:00.000Z",
+        lastReadGroupAt: null,
+      },
+      {
+        eventId: ev,
+        memberId: target,
+        lastReadAt: "2026-11-05T08:00:00.000Z",
+        lastReadGroupAt: "2026-11-05T07:00:00.000Z",
+      },
+      {
+        eventId: ev2,
+        memberId: source,
+        lastReadAt: "2026-11-05T03:00:00.000Z",
+      },
+    ]);
+
+    expect(await mergeMember(source, target)).toEqual({ success: true });
+
+    const rows = await testDb.select().from(exchangeCommentReads);
+    expect(rows).toHaveLength(2);
+    const merged = rows.find((r) => r.eventId === ev);
+    expect(merged?.memberId).toBe(target);
+    expect(merged?.lastReadAt).toBe("2026-11-05T09:00:00.000Z");
+    expect(merged?.lastReadGroupAt).toBe("2026-11-05T07:00:00.000Z");
+    const moved = rows.find((r) => r.eventId === ev2);
+    expect(moved?.memberId).toBe(target);
+  });
+
+  it("deleteMember with only a vote is blocked with the exchange ref error", async () => {
+    const m = await mk("Chi bam vote");
+    const other = await mk("Khac");
+    const ev = await mkEvent(other, "CM7");
+    const c = await mkComment(ev, other, { upvotes: 1 });
+    await mkVote(c, m);
+
+    const r = await deleteMember(m);
+    expect(r).toHaveProperty("error");
+    expect(
+      await testDb.query.members.findFirst({ where: eq(members.id, m) }),
+    ).toBeDefined();
+    expect(await testDb.select().from(exchangeCommentVotes)).toHaveLength(1);
+  });
+
+  it("approve-as-merge of a pending account that commented succeeds", async () => {
+    const target = await mk("Dich");
+    const pending = await mk("Cho duyet", {
+      approvalStatus: "pending",
+      googleId: "g-pend-c",
+    });
+    const host = await mk("Host");
+    const ev = await mkEvent(host, "CM8");
+    const c = await mkComment(ev, pending);
+
+    expect(await approveAndMergeMember(pending, target)).toEqual({
+      success: true,
+    });
+
+    const row = await testDb.query.exchangeComments.findFirst({
+      where: eq(exchangeComments.id, c),
+    });
+    expect(row?.authorMemberId).toBe(target);
+    expect(
+      await testDb.query.members.findFirst({ where: eq(members.id, pending) }),
+    ).toBeUndefined();
   });
 });

@@ -1,7 +1,10 @@
 import "server-only";
-import { and, count, eq, inArray, or } from "drizzle-orm";
+import { and, count, eq, inArray, or, sql } from "drizzle-orm";
 import {
   abuseReports,
+  exchangeCommentReads,
+  exchangeCommentVotes,
+  exchangeComments,
   exchangeEvents,
   exchangeRegistrations,
   hostBlocks,
@@ -62,6 +65,13 @@ const moneyCols = {
   refundedAmount: exchangeRegistrations.refundedAmount,
   refundedAt: exchangeRegistrations.refundedAt,
 };
+
+/** Mốc lớn hơn trong hai (ISO UTC so được bằng chuỗi), null nhỏ hơn mọi giá trị. */
+function latest(a: string | null, b: string | null): string | null {
+  if (!a) return b;
+  if (!b) return a;
+  return a >= b ? a : b;
+}
 
 /**
  * Dời mọi dòng giao lưu của member nguồn sang member đích khi gộp tài khoản.
@@ -288,14 +298,129 @@ export async function repointExchangeRows(
         .where(eq(abuseReports.id, r.id));
     }
   }
+
+  await repointCommentRows(tx, sourceId, targetId);
 }
 
-/** Tổng số dòng giao lưu còn trỏ tới member (4 bảng), dùng để chặn xoá cứng. */
+/**
+ * Bình luận, phiếu và mốc đọc của giao lưu (G2c). Giữ bất biến
+ * `upvotes` == số dòng phiếu của từng bình luận; không đụng sổ quỹ hay công nợ.
+ */
+async function repointCommentRows(
+  tx: Tx,
+  sourceId: number,
+  targetId: number,
+): Promise<void> {
+  await tx
+    .update(exchangeComments)
+    .set({ authorMemberId: targetId })
+    .where(eq(exchangeComments.authorMemberId, sourceId));
+  await tx
+    .update(exchangeComments)
+    .set({ replyToMemberId: targetId })
+    .where(eq(exchangeComments.replyToMemberId, sourceId));
+
+  const dropVote = async (voteId: number, commentId: number) => {
+    await tx
+      .delete(exchangeCommentVotes)
+      .where(eq(exchangeCommentVotes.id, voteId));
+    await tx
+      .update(exchangeComments)
+      .set({ upvotes: sql`MAX(${exchangeComments.upvotes} - 1, 0)` })
+      .where(eq(exchangeComments.id, commentId));
+  };
+
+  // Phiếu của nguồn: trùng phiếu đích thì bỏ, còn lại chuyển sang đích.
+  const sourceVotes = await tx
+    .select({
+      id: exchangeCommentVotes.id,
+      commentId: exchangeCommentVotes.commentId,
+    })
+    .from(exchangeCommentVotes)
+    .where(eq(exchangeCommentVotes.memberId, sourceId));
+  if (sourceVotes.length > 0) {
+    const targetVoted = new Set(
+      (
+        await tx
+          .select({ commentId: exchangeCommentVotes.commentId })
+          .from(exchangeCommentVotes)
+          .where(eq(exchangeCommentVotes.memberId, targetId))
+      ).map((v) => v.commentId),
+    );
+    for (const v of sourceVotes) {
+      if (targetVoted.has(v.commentId)) {
+        await dropVote(v.id, v.commentId);
+        continue;
+      }
+      await tx
+        .update(exchangeCommentVotes)
+        .set({ memberId: targetId })
+        .where(eq(exchangeCommentVotes.id, v.id));
+    }
+  }
+
+  // Phiếu thành tự bấm sau khi gộp (cả hai chiều): đích bấm cho bình luận
+  // mà giờ chính đích là tác giả.
+  const selfVotes = await tx
+    .select({
+      id: exchangeCommentVotes.id,
+      commentId: exchangeCommentVotes.commentId,
+    })
+    .from(exchangeCommentVotes)
+    .innerJoin(
+      exchangeComments,
+      eq(exchangeComments.id, exchangeCommentVotes.commentId),
+    )
+    .where(
+      and(
+        eq(exchangeCommentVotes.memberId, targetId),
+        eq(exchangeComments.authorMemberId, targetId),
+      ),
+    );
+  for (const v of selfVotes) await dropVote(v.id, v.commentId);
+
+  // Mốc đọc: trùng (buổi, đích) thì dòng đích lấy mốc lớn hơn từng cột.
+  const sourceReads = await tx
+    .select()
+    .from(exchangeCommentReads)
+    .where(eq(exchangeCommentReads.memberId, sourceId));
+  for (const r of sourceReads) {
+    const [kept] = await tx
+      .select()
+      .from(exchangeCommentReads)
+      .where(
+        and(
+          eq(exchangeCommentReads.eventId, r.eventId),
+          eq(exchangeCommentReads.memberId, targetId),
+        ),
+      )
+      .limit(1);
+    if (kept) {
+      await tx
+        .update(exchangeCommentReads)
+        .set({
+          lastReadAt: latest(kept.lastReadAt, r.lastReadAt),
+          lastReadGroupAt: latest(kept.lastReadGroupAt, r.lastReadGroupAt),
+        })
+        .where(eq(exchangeCommentReads.id, kept.id));
+      await tx
+        .delete(exchangeCommentReads)
+        .where(eq(exchangeCommentReads.id, r.id));
+    } else {
+      await tx
+        .update(exchangeCommentReads)
+        .set({ memberId: targetId })
+        .where(eq(exchangeCommentReads.id, r.id));
+    }
+  }
+}
+
+/** Tổng số dòng giao lưu còn trỏ tới member (7 bảng), dùng để chặn xoá cứng. */
 export async function countExchangeRefs(
   db: DbOrTx,
   memberId: number,
 ): Promise<number> {
-  const [[e], [r], [b], [a]] = await Promise.all([
+  const [[e], [r], [b], [a], [cm], [cv], [cr]] = await Promise.all([
     db
       .select({ n: count() })
       .from(exchangeEvents)
@@ -317,6 +442,31 @@ export async function countExchangeRefs(
       .select({ n: count() })
       .from(abuseReports)
       .where(eq(abuseReports.reporterMemberId, memberId)),
+    db
+      .select({ n: count() })
+      .from(exchangeComments)
+      .where(
+        or(
+          eq(exchangeComments.authorMemberId, memberId),
+          eq(exchangeComments.replyToMemberId, memberId),
+        ),
+      ),
+    db
+      .select({ n: count() })
+      .from(exchangeCommentVotes)
+      .where(eq(exchangeCommentVotes.memberId, memberId)),
+    db
+      .select({ n: count() })
+      .from(exchangeCommentReads)
+      .where(eq(exchangeCommentReads.memberId, memberId)),
   ]);
-  return Number(e.n) + Number(r.n) + Number(b.n) + Number(a.n);
+  return (
+    Number(e.n) +
+    Number(r.n) +
+    Number(b.n) +
+    Number(a.n) +
+    Number(cm.n) +
+    Number(cv.n) +
+    Number(cr.n)
+  );
 }
