@@ -1519,5 +1519,20 @@
     "backToList": "全部场馆",
     "attribution": "地址坐标：© OpenStreetMap contributors",
     "saveFailed": "保存失败。请检查网络连接后重试。"
+  },
+  "adminNotifications": {
+    "bellLabel": "通知",
+    "bellLabelCount": "通知，{count} 位成员欠基金",
+    "owingTitle": "欠基金",
+    "overLimit": "超出限额",
+    "viewAll": "查看全部通知",
+    "empty": "没有人欠基金",
+    "loadError": "无法加载通知，请刷新页面",
+    "pageTitle": "通知",
+    "limitNote": "欠款达到 {limit} 或以上将无法投票",
+    "historyTitle": "欠款记录",
+    "historyEmpty": "还没有人欠过基金",
+    "historyItem": "余额 {before} → {after}",
+    "owingCount": "{count} 位成员"
   }
 }

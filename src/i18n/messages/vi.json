@@ -1519,5 +1519,20 @@
     "backToList": "Danh sách sân",
     "attribution": "Toạ độ địa chỉ: © OpenStreetMap contributors",
     "saveFailed": "Không lưu được. Kiểm tra kết nối mạng rồi thử lại."
+  },
+  "adminNotifications": {
+    "bellLabel": "Thông báo",
+    "bellLabelCount": "Thông báo, {count} thành viên đang âm quỹ",
+    "owingTitle": "Đang âm quỹ",
+    "overLimit": "Quá hạn mức",
+    "viewAll": "Xem tất cả thông báo",
+    "empty": "Không ai đang âm quỹ",
+    "loadError": "Không tải được thông báo, thử tải lại trang",
+    "pageTitle": "Thông báo",
+    "limitNote": "Nợ từ {limit} trở lên thì bị chặn vote",
+    "historyTitle": "Lịch sử âm quỹ",
+    "historyEmpty": "Chưa có ai từng âm quỹ",
+    "historyItem": "Số dư {before} → {after}",
+    "owingCount": "{count} thành viên"
   }
 }

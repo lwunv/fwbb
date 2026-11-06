@@ -24,6 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { logout } from "@/actions/auth";
+import { AdminDebtBell } from "@/components/layout/admin-debt-bell";
 import { LanguageSelector } from "@/components/shared/language-selector";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { NavPendingIcon } from "./nav-pending-icon";
@@ -84,6 +85,8 @@ export function AdminMobileNav({
         <img src="/fwbb-wordmark.svg" alt={appName} className="h-6 w-auto" />
         <h1 className="truncate text-base font-bold">Admin</h1>
       </Link>
+      {/* Chuông cạnh logo; đứng ngoài Link để bấm không bị điều hướng. */}
+      <AdminDebtBell className="mr-auto ml-1" />
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger render={<Button variant="ghost" size="icon" />}>
           <Menu className="h-5 w-5" />
@@ -96,7 +99,11 @@ export function AdminMobileNav({
               className="inline-flex items-center"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/fwbb-wordmark.svg" alt={appName} className="h-8 w-auto" />
+              <img
+                src="/fwbb-wordmark.svg"
+                alt={appName}
+                className="h-8 w-auto"
+              />
             </Link>
             <h2 className="text-lg font-bold">Admin</h2>
           </div>

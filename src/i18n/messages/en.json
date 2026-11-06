@@ -1519,5 +1519,20 @@
     "backToList": "All venues",
     "attribution": "Address coordinates: © OpenStreetMap contributors",
     "saveFailed": "Could not save. Check your connection and try again."
+  },
+  "adminNotifications": {
+    "bellLabel": "Notifications",
+    "bellLabelCount": "Notifications, {count} members owe the fund",
+    "owingTitle": "Owing the fund",
+    "overLimit": "Over limit",
+    "viewAll": "See all notifications",
+    "empty": "Nobody owes the fund",
+    "loadError": "Couldn't load notifications, try reloading the page",
+    "pageTitle": "Notifications",
+    "limitNote": "Members who owe {limit} or more can't vote",
+    "historyTitle": "Debt history",
+    "historyEmpty": "Nobody has owed the fund yet",
+    "historyItem": "Balance {before} → {after}",
+    "owingCount": "{count} members"
   }
 }
