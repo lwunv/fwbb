@@ -1220,6 +1220,7 @@
     "wrongCurrentPassword": "Mật khẩu hiện tại không đúng",
     "fbAppNotConfigured": "Facebook app chưa được cấu hình",
     "voteNotAccepted": "Buổi chơi không còn nhận vote",
+    "partnerNotAllowed": "Bạn chưa được cho đi 2 mình. Liên hệ admin nếu muốn dắt thêm người.",
     "voteBlockedByDebt": "Bạn đang nợ quỹ {debt}. Nợ từ {limit} trở lên thì không vote được, vui lòng nạp quỹ trước.",
     "playSlotsFull": "Hết slot chơi cầu (tối đa {max} người) rồi",
     "sessionNotFound": "Không tìm thấy buổi chơi",

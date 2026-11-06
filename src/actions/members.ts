@@ -355,11 +355,10 @@ export async function updateMyProfile(
     return { error: t("nicknameTooLong") };
   }
   const nickname = nicknameRaw.length === 0 ? null : nicknameRaw;
-  const defaultWithPartner = formData.get("withPartner") === "1";
-
+  // KHÔNG nhận withPartner từ member: "Cho đi 2 mình" là quyền admin cấp
+  // (yêu cầu user 6/11/2026), member tự gửi field này cũng bị bỏ qua.
   const setValues: Partial<typeof members.$inferInsert> = {
     nickname,
-    defaultWithPartner,
   };
 
   // Username (login đa kênh): tùy chọn, lowercase, 3-32 ký tự [a-z0-9._],

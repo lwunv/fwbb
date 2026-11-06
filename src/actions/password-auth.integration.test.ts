@@ -41,6 +41,18 @@ async function memberByEmail(email: string) {
 describe("signupWithPassword", () => {
   beforeEach(reset);
 
+  it("member tự tích đi 2 mình lúc đăng ký → KHÔNG được cấp (chỉ admin cho đi 2 mình)", async () => {
+    const r = await signupWithPassword({
+      name: "Partner",
+      email: "partner@example.com",
+      password: "supersecret123",
+      defaultWithPartner: true,
+    });
+    expect("error" in r).toBe(false);
+    const m = await memberByEmail("partner@example.com");
+    expect(m?.defaultWithPartner).toBe(false);
+  });
+
   it("tạo member 'pending' + set cookie khi hợp lệ", async () => {
     const r = await signupWithPassword({
       name: "Alice",

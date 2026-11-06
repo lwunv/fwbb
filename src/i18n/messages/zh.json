@@ -1220,6 +1220,7 @@
     "wrongCurrentPassword": "当前密码不正确",
     "fbAppNotConfigured": "Facebook 应用未配置",
     "voteNotAccepted": "此活动不再接受投票",
+    "partnerNotAllowed": "你还没有被允许带同伴。如需带人请联系管理员。",
     "voteBlockedByDebt": "你目前欠基金 {debt}。欠款达到 {limit} 或以上时无法投票，请先充值基金。",
     "playSlotsFull": "打球名额已满（最多 {max} 人）",
     "sessionNotFound": "未找到活动",

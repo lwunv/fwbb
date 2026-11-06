@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { votes, sessions } from "@/db/schema";
+import { votes, sessions, members } from "@/db/schema";
 import {
   PUBLIC_MEMBER_COLUMNS,
   type VoteWithMember,
@@ -121,6 +121,19 @@ export async function submitVote(
   );
   const others = countableVotes.filter((v) => v.memberId !== user.memberId);
   const selfVote = allVotes.find((v) => v.memberId === user.memberId);
+
+  // "Cho đi 2 mình" là quyền admin cấp (members.default_with_partner, yêu cầu
+  // user 6/11/2026). Chỉ chặn khi member tự BẬT thêm: phiếu đã đi 2 mình từ
+  // trước (admin bật hộ, hoặc trước khi bị tắt quyền) vẫn sửa tiếp được.
+  if (data.withPartner && !selfVote?.withPartner) {
+    const me = await db.query.members.findFirst({
+      where: eq(members.id, user.memberId),
+      columns: { defaultWithPartner: true },
+    });
+    if (!me?.defaultWithPartner) {
+      return { error: t("partnerNotAllowed") };
+    }
+  }
   const base = playHeadcount(others, session.adminGuestPlayCount ?? 0);
   const existingMine = selfVote ? votePlayContribution(selfVote) : 0;
   const newMine = votePlayContribution({

@@ -1220,6 +1220,7 @@
     "wrongCurrentPassword": "Current password is incorrect",
     "fbAppNotConfigured": "Facebook app not configured",
     "voteNotAccepted": "This session no longer accepts votes",
+    "partnerNotAllowed": "You're not allowed to bring a partner yet. Ask an admin if you'd like to.",
     "voteBlockedByDebt": "You owe the fund {debt}. Members who owe {limit} or more can't vote. Please top up your fund first.",
     "playSlotsFull": "Play slots are full (max {max} players)",
     "sessionNotFound": "Session not found",
