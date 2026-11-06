@@ -16,6 +16,7 @@ import { boundingBox, haversineMeters, snapToGrid } from "@/lib/geo";
 import { registrationSettlement } from "@/lib/exchange-fee";
 import { SKILL_LEVELS, type SkillLevel } from "@/lib/skill-level";
 import { sessionStartInstant } from "@/lib/notifications/time";
+import { isRealDate } from "@/lib/exchange/event-schema";
 import {
   CANDIDATE_LIMIT,
   GRID_MARGIN_M,
@@ -298,7 +299,11 @@ export async function getExchangeEvent(
   const approved = reg?.status === "approved";
   const wantsPayout =
     !!reg && reg.status === "pending" && pub.event.depositAmount > 0;
-  if (isHost || approved || wantsPayout) {
+  // R26: ai còn nợ hay được hoàn (kể cả huỷ muộn, vắng mặt bị tính phí) cần
+  // tài khoản nhận tiền và liên hệ host để trả hoặc nhận lại.
+  const money = extras.myRegistration;
+  const owesOrOwed = !!money && (money.remaining > 0 || money.refundDue > 0);
+  if (isHost || approved || wantsPayout || owesOrOwed) {
     const [priv] = await db
       .select({
         hostContact: exchangeEvents.hostContact,
@@ -328,6 +333,8 @@ export async function getExchangeEvent(
           ),
         )
         .orderBy(asc(exchangeRegistrations.id));
+    } else if (owesOrOwed) {
+      extras.hostContact = priv?.hostContact ?? null;
     }
     if (reg && !isHost) extras.payout = payoutFor(pub.event, reg, priv);
   }
@@ -408,6 +415,7 @@ const nearSchema = z.object({
   date: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .refine(isRealDate)
     .optional(),
   timeOfDay: z.enum(["morning", "afternoon", "evening"]).optional(),
   skill: z.enum(SKILL_LEVELS).optional(),
@@ -443,7 +451,9 @@ export async function listExchangesNear(q: {
   const parsed = nearSchema.safeParse(q);
   if (!parsed.success) {
     const t = await getTranslations("exchange.errors");
-    return { error: t("notFound") };
+    // Ngày không có thật làm `vnDayBounds` ném RangeError trong cache: chặn ở đây.
+    const badDate = parsed.error.issues.some((i) => i.path[0] === "date");
+    return { error: t(badDate ? "invalidSearch" : "notFound") };
   }
   const f = parsed.data;
   const cell = snapToGrid({ lat: f.lat, lng: f.lng });

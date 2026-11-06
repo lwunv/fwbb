@@ -264,6 +264,50 @@ describe("getExchangeEvent", () => {
     });
   });
 
+  it("a charged late canceller or no-show gets payout and host contact, a plain canceller does not (R26)", async () => {
+    // Locked at 100K, then cancelled late: still owes the full 100K.
+    const e = await seedEvent({ status: "locked" });
+    await seedReg(e.id, alice.id, {
+      status: "late_cancelled",
+      feeAmount: 100_000,
+    });
+    asViewer(alice);
+    const late = await getExchangeEvent(e.publicCode);
+    expect(late?.viewer.myRegistration?.remaining).toBe(100_000);
+    expect(late?.viewer.payout?.accountNo).toBe("111222333");
+    expect(late?.viewer.hostContact).toBe("0912345678");
+    // Group link and names stay for approved players only.
+    expect(late?.viewer.zaloGroupLink).toBeNull();
+    expect(late?.viewer.attendees).toBeNull();
+
+    const done = await seedEvent({ status: "done" });
+    await seedReg(done.id, alice.id, { status: "no_show", feeAmount: 100_000 });
+    const noShow = await getExchangeEvent(done.publicCode);
+    expect(noShow?.viewer.payout?.accountNo).toBe("111222333");
+    expect(noShow?.viewer.hostContact).toBe("0912345678");
+
+    // A plain cancel is not charged: no payout, no contact.
+    const plain = await seedEvent({ status: "locked" });
+    await seedReg(plain.id, alice.id, {
+      status: "cancelled",
+      feeAmount: 100_000,
+    });
+    const cancelled = await getExchangeEvent(plain.publicCode);
+    expect(cancelled?.viewer.myRegistration?.remaining).toBe(0);
+    expect(cancelled?.viewer.payout).toBeNull();
+    expect(cancelled?.viewer.hostContact).toBeNull();
+  });
+
+  it("someone owed a refund sees the host contact but no payout", async () => {
+    const e = await seedEvent({ status: "cancelled", depositAmount: 20_000 });
+    await seedReg(e.id, alice.id, { status: "cancelled", depositPaid: true });
+    asViewer(alice);
+    const r = await getExchangeEvent(e.publicCode);
+    expect(r?.viewer.myRegistration?.refundDue).toBe(20_000);
+    expect(r?.viewer.hostContact).toBe("0912345678");
+    expect(r?.viewer.payout).toBeNull();
+  });
+
   it("hidden event null for a stranger, visible to its host", async () => {
     const e = await seedEvent({ hiddenAt: NOW });
     expect(await getExchangeEvent(e.publicCode)).toBeNull();
@@ -417,6 +461,14 @@ describe("listExchangesNear", () => {
     ]);
     const all = await near({ maxFee: 100_000 });
     expect(all.map((c) => c.code)).toContain(split.publicCode);
+  });
+
+  it("an impossible date is a clean error, not a crash inside the cache", async () => {
+    await seedEvent();
+    for (const date of ["2026-13-45", "2026-02-31"])
+      expect(await listExchangesNear({ ...NEAR, date })).toEqual({
+        error: "invalidSearch",
+      });
   });
 
   it("rejects a bad radius or coordinates and respects the flag", async () => {

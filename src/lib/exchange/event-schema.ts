@@ -37,7 +37,7 @@ export const hostContactSchema = z
   .refine((v) => v === "" || PHONE_RE.test(v) || ZALO_LINK_RE.test(v));
 
 /** Ngày có thật (R17): `Date.parse` bù ngày tràn (2026-02-31 thành 03-03), nên dựng lại rồi so. */
-function isRealDate(v: string): boolean {
+export function isRealDate(v: string): boolean {
   const d = new Date(`${v}T00:00:00Z`);
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
 }
