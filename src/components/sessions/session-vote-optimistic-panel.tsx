@@ -294,6 +294,7 @@ export function SessionVoteOptimisticPanel({
                   currentWillPlay={myVote?.willPlay ?? false}
                   currentWillDine={myVote?.willDine ?? false}
                   currentWithPartner={currentWithPartner}
+                  partnerAllowed={me?.defaultWithPartner ?? false}
                   playFull={playFull}
                   optimisticListSync={optimisticListSync}
                 />

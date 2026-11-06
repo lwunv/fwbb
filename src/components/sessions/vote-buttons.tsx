@@ -43,6 +43,9 @@ interface VoteButtonsProps {
   currentWillPlay: boolean;
   currentWillDine: boolean;
   currentWithPartner: boolean;
+  /** Admin đã "Cho đi 2 mình" member này chưa. Chưa thì ẩn switch 👫, trừ khi
+   *  phiếu đang đi 2 mình sẵn (admin bật hộ) để member vẫn tắt được. */
+  partnerAllowed?: boolean;
   disabled?: boolean;
   /** Đủ 16 người chơi cầu → chặn bật vote cầu MỚI (vẫn cho bỏ nếu đang đi). */
   playFull?: boolean;
@@ -68,6 +71,7 @@ export function VoteButtons({
   currentWillPlay,
   currentWillDine,
   currentWithPartner,
+  partnerAllowed = true,
   disabled = false,
   playFull = false,
   title,
@@ -179,7 +183,7 @@ export function VoteButtons({
           )}
         >
           {/* Bên TRÁI: switch "2 mình" (chỉ hiện khi đã đi cầu). */}
-          {willPlay && (
+          {willPlay && (partnerAllowed || withPartner) && (
             <button
               type="button"
               role="switch"
