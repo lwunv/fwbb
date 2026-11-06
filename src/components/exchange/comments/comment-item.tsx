@@ -30,6 +30,9 @@ export type CommentCtx = {
   needsCaptcha: boolean;
   /** Ghi đè tạm lên một bình luận (optimistic); hoàn lại bằng giá trị cũ khi lỗi. */
   patch: (id: number, p: Partial<CommentView>) => void;
+  /** Báo một thao tác của bình luận đang bay, để lần tải lại không xoá patch của nó. */
+  begin: (id: number) => void;
+  end: (id: number) => void;
   /** Tải lại các trang đã mở sau khi server đã nhận thay đổi. */
   changed: () => void;
 };
@@ -80,6 +83,23 @@ export function CommentItem({
   const live = v.state === "visible" || v.state === "held";
   const canReport = ctx.signedIn && !v.mine && v.state === "visible";
 
+  /** Thao tác optimistic: báo "đang bay" để lần tải lại không xoá patch của nó. */
+  function act(
+    action: () => Promise<{ error?: string; success?: boolean }>,
+    rollback: () => void,
+    onSuccess?: () => void,
+  ) {
+    ctx.begin(v.id);
+    fireAction(action, rollback, {
+      retry: false,
+      onSuccess: () => {
+        ctx.end(v.id);
+        onSuccess?.();
+      },
+      onError: () => ctx.end(v.id),
+    });
+  }
+
   function vote() {
     const next = !v.myVote;
     const prev = { myVote: v.myVote, upvotes: v.upvotes };
@@ -87,7 +107,7 @@ export function CommentItem({
       myVote: next,
       upvotes: Math.max(0, v.upvotes + (next ? 1 : -1)),
     });
-    fireAction(
+    act(
       async () => {
         const r = await toggleCommentVote({ commentId: v.id, voted: next });
         // Số thật từ server thay số đoán.
@@ -96,7 +116,6 @@ export function CommentItem({
         return r;
       },
       () => ctx.patch(v.id, prev),
-      { retry: false },
     );
   }
 
@@ -104,29 +123,29 @@ export function CommentItem({
     const prev = { body: v.body, edited: v.edited };
     setEditing(false);
     ctx.patch(v.id, { body, edited: true });
-    fireAction(
+    act(
       () => editComment({ commentId: v.id, body }),
       () => ctx.patch(v.id, prev),
-      { retry: false, onSuccess: ctx.changed },
+      ctx.changed,
     );
   }
 
   function togglePin() {
     const pinned = !v.pinned;
     ctx.patch(v.id, { pinned });
-    fireAction(
+    act(
       () => pinComment({ commentId: v.id, pinned }),
       () => ctx.patch(v.id, { pinned: !pinned }),
-      { retry: false, onSuccess: ctx.changed },
+      ctx.changed,
     );
   }
 
   function approve() {
     ctx.patch(v.id, { state: "visible", canApprove: false });
-    fireAction(
+    act(
       () => approveHeldComment({ commentId: v.id }),
       () => ctx.patch(v.id, { state: "held", canApprove: true }),
-      { retry: false, onSuccess: ctx.changed },
+      ctx.changed,
     );
   }
 
@@ -149,10 +168,10 @@ export function CommentItem({
       canPin: false,
       canApprove: false,
     });
-    fireAction(
+    act(
       () => deleteComment({ commentId: v.id }),
       () => ctx.patch(v.id, prev),
-      { retry: false, onSuccess: ctx.changed },
+      ctx.changed,
     );
   }
 

@@ -14,6 +14,7 @@ import {
   fireEvent,
   waitFor,
   act,
+  configure,
   within,
 } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
@@ -22,6 +23,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import viMessages from "@/i18n/messages/vi.json";
 import enMessages from "@/i18n/messages/en.json";
 import { makePage, makeView } from "./fixtures";
+
+configure({ asyncUtilTimeout: 3000 });
 
 const mocks = vi.hoisted(() => ({
   list: vi.fn(),
@@ -422,7 +425,7 @@ describe("CommentSection", () => {
     expect(screen.queryByText("trả lời 13")).toBeNull();
   });
 
-  it("a new reply after full expansion shows a Xem 1 trả lời button", async () => {
+  it("a new reply after full expansion appears once the open thread is reloaded", async () => {
     let extra = 0;
     mocks.list.mockImplementation(async () => ({
       success: true,
@@ -468,6 +471,147 @@ describe("CommentSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tải bình luận mới" }));
     await screen.findByText("thứ ba mới");
     expect(screen.getByText("thứ hai")).toBeTruthy();
+  });
+
+  it("an expanded second-level thread survives a refetch", async () => {
+    const t2 = (id: number) =>
+      makeView({ id, parentId: 12, body: `tầng hai ${id}` });
+    mocks.list.mockImplementation(async () => ({
+      success: true,
+      data: makePage({
+        roots: [makeView({ id: 1, moreReplies: 1, replies: [] })],
+      }),
+    }));
+    mocks.replies.mockImplementation(async (input: { commentId: number }) => ({
+      success: true,
+      data: {
+        replies:
+          input.commentId === 1
+            ? [
+                makeView({
+                  id: 12,
+                  parentId: 1,
+                  body: "tầng một",
+                  moreReplies: 3,
+                }),
+              ]
+            : [t2(21), t2(22), t2(23)],
+        hasMore: false,
+        nextOffset: null,
+      },
+    }));
+    renderSection();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Xem 1 trả lời" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Xem 3 trả lời" }),
+    );
+    await screen.findByText("tầng hai 23");
+
+    fireEvent.click(screen.getByRole("button", { name: "Tải bình luận mới" }));
+    // Lần tải lại gọi trả lời cho cả hai neo (gốc, rồi tầng một vừa tải về).
+    await waitFor(() => expect(mocks.replies).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(screen.getByText("tầng hai 23")).toBeTruthy());
+    expect(screen.getAllByText("tầng hai 21")).toHaveLength(1);
+    expect(screen.getByText("tầng một")).toBeTruthy();
+  });
+
+  it("a partial reload keeps the real next offset for the next Xem N click", async () => {
+    mocks.list.mockImplementation(async () => ({
+      success: true,
+      data: makePage({
+        roots: [makeView({ id: 1, moreReplies: 7, replies: [] })],
+      }),
+    }));
+    // Server bước 10 mỗi trang, trả 1 trả lời mỗi lần: offset kế tiếp KHÁC số đã tải.
+    mocks.replies.mockImplementation(async (input: { offset: number }) => ({
+      success: true,
+      data: {
+        replies: [
+          makeView({
+            id: 100 + input.offset,
+            parentId: 1,
+            body: `r${input.offset}`,
+          }),
+        ],
+        hasMore: input.offset < 60,
+        nextOffset: input.offset + 10,
+      },
+    }));
+    renderSection();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Xem 7 trả lời" }),
+    );
+    await screen.findByText("r0");
+    fireEvent.click(screen.getByRole("button", { name: "Tải bình luận mới" }));
+    // Tải lại dừng ở trần 5 trang (offset 0..40), còn lại 2.
+    const more = await screen.findByRole("button", { name: "Xem 2 trả lời" });
+    expect(screen.getByText("r40")).toBeTruthy();
+    mocks.replies.mockClear();
+    fireEvent.click(more);
+    await waitFor(() => expect(mocks.replies).toHaveBeenCalled());
+    expect(mocks.replies).toHaveBeenCalledWith({ commentId: 1, offset: 50 });
+  });
+
+  it("a refetch keeps the vote patch while the vote is still in flight", async () => {
+    pageFor({ roots: [makeView({ id: 5, upvotes: 2 })] });
+    let resolve!: (v: unknown) => void;
+    mocks.vote.mockReturnValueOnce(new Promise((r) => (resolve = r)));
+    renderSection();
+    const btn = await screen.findByRole("button", { name: /Hữu ích/ });
+    fireEvent.click(btn);
+    expect(btn.textContent).toContain("3");
+    fireEvent.click(screen.getByRole("button", { name: "Tải bình luận mới" }));
+    await waitFor(() => expect(mocks.list).toHaveBeenCalledTimes(2));
+    await act(async () => {});
+    expect(btn.textContent).toContain("3");
+    await act(async () => resolve({ success: true, data: { upvotes: 3 } }));
+    expect(btn.textContent).toContain("3");
+  });
+
+  it("a thread opened while another reload is in flight is not lost", async () => {
+    pageFor({
+      roots: [
+        makeView({ id: 1, body: "gốc A", moreReplies: 1, replies: [] }),
+        makeView({ id: 2, body: "gốc B", moreReplies: 1, replies: [] }),
+      ],
+    });
+    let aCalls = 0;
+    let releaseA!: () => void;
+    mocks.replies.mockImplementation(async (input: { commentId: number }) => {
+      if (input.commentId === 1 && ++aCalls > 1) {
+        await new Promise<void>((r) => (releaseA = r));
+      }
+      return {
+        success: true,
+        data: {
+          replies: [
+            makeView({
+              id: 50 + input.commentId,
+              parentId: input.commentId,
+              body: `con của ${input.commentId}`,
+            }),
+          ],
+          hasMore: false,
+          nextOffset: null,
+        },
+      };
+    });
+    renderSection();
+    const open = await screen.findAllByRole("button", {
+      name: "Xem 1 trả lời",
+    });
+    fireEvent.click(open[0]);
+    await screen.findByText("con của 1");
+    // Tải lại: chủ đề A bị treo giữa chừng, người dùng mở tiếp chủ đề B.
+    fireEvent.click(screen.getByRole("button", { name: "Tải bình luận mới" }));
+    await waitFor(() => expect(releaseA).toBeTypeOf("function"));
+    fireEvent.click(screen.getByRole("button", { name: "Xem 1 trả lời" }));
+    await screen.findByText("con của 2");
+    await act(async () => releaseA());
+    await waitFor(() => expect(screen.getByText("con của 1")).toBeTruthy());
+    expect(screen.getByText("con của 2")).toBeTruthy();
   });
 
   it("denied group channel falls back to Hỏi đáp at once, without react-query retries", async () => {

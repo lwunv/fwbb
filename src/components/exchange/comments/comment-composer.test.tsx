@@ -12,9 +12,13 @@ import {
   cleanup,
   fireEvent,
   waitFor,
+  configure,
 } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import viMessages from "@/i18n/messages/vi.json";
+
+// Dưới tải song song, 1s mặc định của waitFor không đủ (từng flake).
+configure({ asyncUtilTimeout: 3000 });
 
 const mocks = vi.hoisted(() => ({
   addComment: vi.fn(),

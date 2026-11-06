@@ -5,9 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
-import { toast } from "sonner";
 import {
-  listCommentReplies,
   listExchangeComments,
   markCommentsRead,
   setCommentsLocked,
@@ -20,11 +18,10 @@ import { CommentComposer } from "./comment-composer";
 import { CommentItem, type CommentCtx } from "./comment-item";
 import { CommentSkeleton } from "./comment-skeleton";
 import { CommentThread } from "./comment-thread";
+import { useOpenThreads } from "./use-open-threads";
 
 const KENH = ["qa", "nhom"] as const;
 const SORTS = ["top", "new"] as const;
-
-type Extra = { replies: CommentView[]; next: number | null };
 
 /**
  * Khu bình luận kiểu Reddit của trang buổi. Quyền đọc/ghi lấy từ trang server
@@ -53,10 +50,6 @@ export function CommentSection({
   const channel = kenh === "nhom" && signedIn ? "group" : "qa";
   const sort = bl ?? (channel === "group" ? "new" : "top");
 
-  const [patches, setPatches] = useState<Record<number, Partial<CommentView>>>(
-    {},
-  );
-  const [extra, setExtra] = useState<Record<number, Extra>>({});
   const [lockOverride, setLockOverride] = useState<boolean | null>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const marked = useRef(new Set<string>());
@@ -106,78 +99,10 @@ export function CommentSection({
     setLockOverride(null);
   }
 
-  // Mỗi lần có dữ liệu mới (ghi xong, "Tải bình luận mới", focus lại): số server
-  // thắng bản đoán optimistic, và các chủ đề đã mở "Xem N trả lời" được tải lại
-  // để không giữ bản cũ (bình luận đã xoá/sửa, trả lời mới).
-  const extraRef = useRef(extra);
-  useEffect(() => {
-    extraRef.current = extra;
-  });
-  useEffect(() => {
-    if (!q.dataUpdatedAt) return;
-    const ids = Object.keys(extraRef.current).map(Number);
-    if (ids.length === 0) {
-      setPatches({});
-      return;
-    }
-    let cancelled = false;
-    const fresh = new Map<number, CommentView>();
-    const walk = (v: CommentView) => {
-      fresh.set(v.id, v);
-      v.replies.forEach(walk);
-    };
-    q.data?.pages.forEach((p) => p.roots.forEach(walk));
-    void (async () => {
-      const next: Record<number, Extra> = {};
-      for (const id of ids) {
-        const f = fresh.get(id);
-        if (!f) continue;
-        let offset = f.replies.filter((r) => r.state === "visible").length;
-        let more = f.moreReplies;
-        const acc: CommentView[] = [];
-        for (let i = 0; i < 5 && more > 0; i++) {
-          const r = await listCommentReplies({ commentId: id, offset }).catch(
-            () => null,
-          );
-          if (!r || "error" in r) {
-            if (r) toast.error(r.error);
-            break;
-          }
-          acc.push(...r.data.replies);
-          if (!r.data.hasMore) break;
-          offset = r.data.nextOffset ?? offset + r.data.replies.length;
-          more -= r.data.replies.length;
-        }
-        if (acc.length > 0) next[id] = { replies: acc, next: null };
-      }
-      if (cancelled) return;
-      setExtra(next);
-      setPatches({});
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // Chỉ chạy khi có dữ liệu mới; `q.data` đọc đúng bản vừa về.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q.dataUpdatedAt]);
-
-  function apply(v: CommentView): CommentView {
-    const e = extra[v.id];
-    const merged: CommentView = { ...v, ...patches[v.id] };
-    let replies = v.replies;
-    if (e) {
-      const seen = new Set(v.replies.map((r) => r.id));
-      const added = e.replies.filter((r) => !seen.has(r.id));
-      replies = [...v.replies, ...added];
-      // `moreReplies` của server là gốc; chỉ trừ số trả lời đã tải thêm.
-      merged.moreReplies = Math.max(
-        0,
-        v.moreReplies - added.filter((r) => r.state === "visible").length,
-      );
-    }
-    merged.replies = replies.map(apply);
-    return merged;
-  }
+  const { apply, patch, begin, end, loadReplies } = useOpenThreads(
+    q.data?.pages,
+    q.dataUpdatedAt,
+  );
 
   const seen = new Set<number>();
   const roots: CommentView[] = [];
@@ -191,29 +116,6 @@ export function CommentSection({
   const held = (first?.hostHeld ?? [])
     .map(apply)
     .filter((h) => h.state === "held");
-
-  async function loadReplies(c: CommentView) {
-    const offset =
-      extra[c.id]?.next ??
-      c.replies.filter((r) => r.state === "visible").length;
-    const r = await listCommentReplies({ commentId: c.id, offset }).catch(
-      (e: unknown) => ({
-        error: e instanceof Error ? e.message : t("loadError"),
-      }),
-    );
-    if ("error" in r) {
-      toast.error(r.error);
-      return;
-    }
-    const { replies, nextOffset } = r.data;
-    setExtra((prev) => ({
-      ...prev,
-      [c.id]: {
-        replies: [...(prev[c.id]?.replies ?? []), ...replies],
-        next: nextOffset,
-      },
-    }));
-  }
 
   const writeState = first
     ? lockOverride === null
@@ -240,8 +142,9 @@ export function CommentSection({
     signedIn: viewerIn,
     canWrite: !!first?.canWrite && writeState === "open",
     needsCaptcha: first?.needsCaptcha ?? false,
-    patch: (id, p) =>
-      setPatches((prev) => ({ ...prev, [id]: { ...prev[id], ...p } })),
+    patch,
+    begin,
+    end,
     changed: () => void changed(),
   };
 
