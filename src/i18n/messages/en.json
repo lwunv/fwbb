@@ -1128,7 +1128,8 @@
       "cannotComment": "You can't comment here.",
       "commentNotFound": "This comment is not available.",
       "commentEditExpired": "You can only edit a comment within 10 minutes of posting.",
-      "commentCapReached": "This discussion has reached its comment limit."
+      "commentCapReached": "This discussion has reached its comment limit.",
+      "commentSaveFailed": "Could not save your comment. Please try again later."
     },
     "search": {
       "viewSwitch": "View mode",

@@ -1128,7 +1128,8 @@
       "cannotComment": "Bạn không thể bình luận ở đây.",
       "commentNotFound": "Bình luận này không còn tồn tại.",
       "commentEditExpired": "Bạn chỉ sửa được bình luận trong 10 phút sau khi đăng.",
-      "commentCapReached": "Phần thảo luận này đã đạt giới hạn bình luận."
+      "commentCapReached": "Phần thảo luận này đã đạt giới hạn bình luận.",
+      "commentSaveFailed": "Không lưu được bình luận. Thử lại sau."
     },
     "search": {
       "viewSwitch": "Chế độ xem",

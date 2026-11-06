@@ -384,6 +384,7 @@ describe("addComment", () => {
   });
 
   it("member without group access cannot post or reply in group, also when sending channel group", async () => {
+    await enableNotificationsForTest(testDb);
     const ev = await mkEvent();
     const other = await newMember();
     const m = await newMember();
@@ -405,6 +406,92 @@ describe("addComment", () => {
       error: "commentNotFound",
     });
     expect(await allComments()).toHaveLength(1);
+    expect(await kinds()).toEqual([]);
+  });
+
+  it("replay returns the stored status; a deleted or hidden row is commentNotFound", async () => {
+    const ev = await mkEvent();
+    const m = await newMember();
+    asMember(m);
+    const keys = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
+    const statuses = ["visible", "held", "deleted", "hidden"] as const;
+    const ids: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      const row = await seedComment({
+        eventId: ev.id,
+        authorMemberId: m.id,
+        status: statuses[i],
+        idempotencyKey: keys[i],
+      });
+      ids.push(row.id);
+    }
+    const out = [];
+    for (const k of keys)
+      out.push(await post(ev.publicCode, { idempotencyKey: k }));
+    expect(out).toEqual([
+      { success: true, data: { id: ids[0], status: "visible" } },
+      { success: true, data: { id: ids[1], status: "held" } },
+      { error: "commentNotFound" },
+      { error: "commentNotFound" },
+    ]);
+  });
+
+  it("concurrent double submit with the same idempotencyKey returns one row", async () => {
+    const ev = await mkEvent();
+    asMember(await newMember());
+    const idempotencyKey = randomUUID();
+    const [a, b] = await Promise.all([
+      post(ev.publicCode, { idempotencyKey }),
+      post(ev.publicCode, { idempotencyKey }),
+    ]);
+    if (!("success" in a) || !("success" in b))
+      throw new Error("expected both to succeed");
+    expect(a.data.id).toBe(b.data.id);
+    expect(await allComments()).toHaveLength(1);
+  });
+
+  it("edit and delete reject a group comment without group access and someone else's held comment", async () => {
+    await enableNotificationsForTest(testDb);
+    const ev = await mkEvent();
+    const author = await newMember();
+    const pendingReg = await newMember();
+    await addReg(ev.id, pendingReg.id, "pending");
+    const outsider = await newMember();
+    const grp = await seedComment({
+      eventId: ev.id,
+      authorMemberId: author.id,
+      channel: "group",
+      body: "grp",
+    });
+    const held = await seedComment({
+      eventId: ev.id,
+      authorMemberId: author.id,
+      status: "held",
+      body: "held",
+    });
+    for (const viewer of [pendingReg, outsider]) {
+      asMember(viewer);
+      for (const target of [grp, held]) {
+        expect(
+          await editComment({ commentId: target.id, body: "hack" }),
+        ).toEqual({
+          error: "commentNotFound",
+        });
+        expect(await deleteComment({ commentId: target.id })).toEqual({
+          error: "commentNotFound",
+        });
+      }
+    }
+    expect(await rowOf(grp.id)).toMatchObject({
+      body: "grp",
+      status: "visible",
+    });
+    expect(await rowOf(held.id)).toMatchObject({
+      body: "held",
+      status: "held",
+    });
+    expect(await kinds()).toEqual([]);
+    expect(mocks.updateTag).not.toHaveBeenCalled();
   });
 
   it("blocked member gets the generic error and cannot edit", async () => {
@@ -502,10 +589,17 @@ describe("editComment", () => {
     expect(await editComment({ commentId: old.id, body: "x" })).toEqual({
       error: "commentEditExpired",
     });
+    await enableNotificationsForTest(testDb);
     const fresh = await seedComment({
       eventId: ev.id,
       authorMemberId: m.id,
       pinned: true,
+    });
+    const other = await newMember();
+    const reply = await seedComment({
+      eventId: ev.id,
+      authorMemberId: other.id,
+      parentId: fresh.id,
     });
     expect(
       await editComment({ commentId: fresh.id, body: "xem zalo.me/abc" }),
@@ -513,6 +607,13 @@ describe("editComment", () => {
     const row = await rowOf(fresh.id);
     expect(row.status).toBe("held");
     expect(row.pinned).toBe(false);
+    expect((await rowOf(reply.id)).status).toBe("visible");
+    const rows = await testDb.select().from(notifications);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      kind: "exchange_comment_held",
+      recipientId: host.id,
+    });
   });
 
   it("edit removing the link from a held reply notifies the parent author", async () => {

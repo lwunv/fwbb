@@ -54,6 +54,8 @@ type AddResult =
   | { error: string };
 type SimpleResult = { success: true } | { error: string };
 
+const inflightAdds = new Map<string, Promise<AddResult>>();
+
 const bodySchema = z
   .string()
   .max(COMMENT_MAX_LEN * 4)
@@ -132,202 +134,225 @@ export async function addComment(input: unknown): Promise<AddResult> {
       )
       .limit(1);
     if (!row) return null;
-    return {
-      success: true,
-      data: { id: row.id, status: row.status === "held" ? "held" : "visible" },
-    };
+    if (row.status !== "visible" && row.status !== "held")
+      return { error: t("commentNotFound") };
+    return { success: true, data: { id: row.id, status: row.status } };
   };
   const prior = await replay();
   if (prior) return prior;
 
-  const meta = await getCommentEventMetaCached(f.code);
-  if (!meta) return { error: t("commentNotFound") };
-  const isHostHere = meta.hostMemberId === member.id;
-
-  const rate = isHostHere
-    ? {
-        key: `exchange-comment-host:${member.id}`,
-        limit: RL_COMMENT_HOST.limit,
-        windowMs: RL_COMMENT_HOST.windowMs,
-      }
-    : {
-        key: `exchange-comment-burst:${member.id}`,
-        limit: RL_COMMENT_BURST.limit,
-        windowMs: RL_COMMENT_BURST.windowMs,
-      };
-
-  if (await hasCommentPass(member.id)) {
-    const rl = await checkRateLimit(rate.key, rate.limit, rate.windowMs);
-    if (!rl.ok)
-      return { error: t("rateLimited", { seconds: rl.retryAfter ?? 60 }) };
-  } else {
-    if (!f.turnstileToken) return { needsCaptcha: true };
-    const bot = await checkBotAndRate({
-      token: f.turnstileToken,
-      action: TS_COMMENT,
-      rateKey: rate.key,
-      limit: rate.limit,
-      windowMs: rate.windowMs,
-    });
-    if ("error" in bot) return bot;
-    const pass = await grantCommentPass(member.id);
-    if (!pass.ok) return { error: t("config") };
+  // Hai lần gửi cùng khoá chạy đua trong một instance: lần sau đợi lần trước
+  // xong rồi trả dòng của nó, thay vì dính rate limit chung khoá burst.
+  const flightKey = `${member.id}:${f.idempotencyKey}`;
+  const inFlight = inflightAdds.get(flightKey);
+  if (inFlight) {
+    await inFlight.catch(() => undefined);
+    const again = await replay();
+    if (again) return again;
   }
-
-  if (!isHostHere) {
-    const isNew =
-      member.approvalStatus !== "approved" &&
-      (await attendanceStats(db, member.id)).checkedIn === 0;
-    const day = isNew ? RL_COMMENT_DAY_NEW : RL_COMMENT_DAY;
-    const rl = await checkRateLimit(
-      `exchange-comment-day:${member.id}`,
-      day.limit,
-      day.windowMs,
-    );
-    if (!rl.ok)
-      return { error: t("rateLimited", { seconds: rl.retryAfter ?? 60 }) };
-  }
-
-  let eventId = 0;
-  let result: AddResult;
+  const work = addCommentChecked();
+  inflightAdds.set(flightKey, work);
   try {
-    result = await runSerial(() =>
-      db.transaction(async (tx): Promise<AddResult> => {
-        const now = new Date();
-        const ctx = await loadCommentContext(
-          tx,
-          { code: f.code },
-          member,
-          now,
-          { fresh: true },
+    return await work;
+  } finally {
+    if (inflightAdds.get(flightKey) === work) inflightAdds.delete(flightKey);
+  }
+
+  async function addCommentChecked(): Promise<AddResult> {
+    const meta = await getCommentEventMetaCached(f.code);
+    if (!meta) return { error: t("commentNotFound") };
+    const isHostHere = meta.hostMemberId === member.id;
+
+    const rate = isHostHere
+      ? {
+          key: `exchange-comment-host:${member.id}`,
+          limit: RL_COMMENT_HOST.limit,
+          windowMs: RL_COMMENT_HOST.windowMs,
+        }
+      : {
+          key: `exchange-comment-burst:${member.id}`,
+          limit: RL_COMMENT_BURST.limit,
+          windowMs: RL_COMMENT_BURST.windowMs,
+        };
+
+    if (await hasCommentPass(member.id)) {
+      const rl = await checkRateLimit(rate.key, rate.limit, rate.windowMs);
+      if (!rl.ok)
+        return (
+          (await replay()) ?? {
+            error: t("rateLimited", { seconds: rl.retryAfter ?? 60 }),
+          }
         );
-        if (!ctx) return { error: t("commentNotFound") };
-        const blockMsg = writeBlock(ctx, f.channel, t);
-        if (blockMsg) return { error: blockMsg };
-        const isHost = ctx.role === "host";
+    } else {
+      if (!f.turnstileToken) return { needsCaptcha: true };
+      const bot = await checkBotAndRate({
+        token: f.turnstileToken,
+        action: TS_COMMENT,
+        rateKey: rate.key,
+        limit: rate.limit,
+        windowMs: rate.windowMs,
+      });
+      if ("error" in bot) return (await replay()) ?? bot;
+      const pass = await grantCommentPass(member.id);
+      if (!pass.ok) return { error: t("config") };
+    }
 
-        const [{ n }] = await tx
-          .select({ n: count() })
-          .from(exchangeComments)
-          .where(
-            and(
-              eq(exchangeComments.eventId, ctx.event.id),
-              eq(exchangeComments.channel, f.channel),
-            ),
-          );
-        if (n >= COMMENT_CHANNEL_CAP) return { error: t("commentCapReached") };
+    if (!isHostHere) {
+      const isNew =
+        member.approvalStatus !== "approved" &&
+        (await attendanceStats(db, member.id)).checkedIn === 0;
+      const day = isNew ? RL_COMMENT_DAY_NEW : RL_COMMENT_DAY;
+      const rl = await checkRateLimit(
+        `exchange-comment-day:${member.id}`,
+        day.limit,
+        day.windowMs,
+      );
+      if (!rl.ok)
+        return { error: t("rateLimited", { seconds: rl.retryAfter ?? 60 }) };
+    }
 
-        let storedParentId: number | null = null;
-        let parentAuthorId: number | null = null;
-        let replyToMemberId: number | null = null;
-        if (f.parentId !== undefined) {
-          const parent = await loadCommentInEvent(
+    let eventId = 0;
+    let result: AddResult;
+    try {
+      result = await runSerial(() =>
+        db.transaction(async (tx): Promise<AddResult> => {
+          const now = new Date();
+          const ctx = await loadCommentContext(
             tx,
-            f.parentId,
-            ctx,
-            member.id,
+            { code: f.code },
+            member,
+            now,
+            { fresh: true },
           );
-          if (
-            !parent ||
-            parent.channel !== f.channel ||
-            !(
-              parent.status === "visible" ||
-              (parent.status === "held" && isHost)
+          if (!ctx) return { error: t("commentNotFound") };
+          const blockMsg = writeBlock(ctx, f.channel, t);
+          if (blockMsg) return { error: blockMsg };
+          const isHost = ctx.role === "host";
+
+          const [{ n }] = await tx
+            .select({ n: count() })
+            .from(exchangeComments)
+            .where(
+              and(
+                eq(exchangeComments.eventId, ctx.event.id),
+                eq(exchangeComments.channel, f.channel),
+              ),
+            );
+          if (n >= COMMENT_CHANNEL_CAP)
+            return { error: t("commentCapReached") };
+
+          let storedParentId: number | null = null;
+          let parentAuthorId: number | null = null;
+          let replyToMemberId: number | null = null;
+          if (f.parentId !== undefined) {
+            const parent = await loadCommentInEvent(
+              tx,
+              f.parentId,
+              ctx,
+              member.id,
+            );
+            if (
+              !parent ||
+              parent.channel !== f.channel ||
+              !(
+                parent.status === "visible" ||
+                (parent.status === "held" && isHost)
+              )
             )
-          )
-            return { error: t("commentNotFound") };
-          replyToMemberId = parent.authorMemberId;
-          storedParentId = parent.id;
-          parentAuthorId = parent.authorMemberId;
-          if (parent.parentId !== null) {
-            const [up] = await tx
-              .select({
-                parentId: exchangeComments.parentId,
-                authorMemberId: exchangeComments.authorMemberId,
-              })
-              .from(exchangeComments)
-              .where(eq(exchangeComments.id, parent.parentId))
-              .limit(1);
-            // Cha đã ở tầng 2: trả lời được lưu dưới cha tầng 1 của nó.
-            if (up && up.parentId !== null) {
-              storedParentId = parent.parentId;
-              parentAuthorId = up.authorMemberId;
+              return { error: t("commentNotFound") };
+            replyToMemberId = parent.authorMemberId;
+            storedParentId = parent.id;
+            parentAuthorId = parent.authorMemberId;
+            if (parent.parentId !== null) {
+              const [up] = await tx
+                .select({
+                  parentId: exchangeComments.parentId,
+                  authorMemberId: exchangeComments.authorMemberId,
+                })
+                .from(exchangeComments)
+                .where(eq(exchangeComments.id, parent.parentId))
+                .limit(1);
+              // Cha đã ở tầng 2: trả lời được lưu dưới cha tầng 1 của nó.
+              if (up && up.parentId !== null) {
+                storedParentId = parent.parentId;
+                parentAuthorId = up.authorMemberId;
+              }
             }
           }
-        }
 
-        const contact = detectContact(f.body);
-        const held =
-          f.channel === "qa" && !isHost && (contact.phone || contact.link);
-        const status = held ? "held" : "visible";
+          const contact = detectContact(f.body);
+          const held =
+            f.channel === "qa" && !isHost && (contact.phone || contact.link);
+          const status = held ? "held" : "visible";
 
-        const [row] = await tx
-          .insert(exchangeComments)
-          .values({
-            eventId: ctx.event.id,
-            channel: f.channel,
-            parentId: storedParentId,
-            replyToMemberId,
-            authorMemberId: member.id,
-            body: f.body,
-            status,
-            idempotencyKey: f.idempotencyKey,
-            createdAt: now.toISOString(),
-          })
-          .returning({ id: exchangeComments.id });
-
-        const notifyOn = await isNotificationsEnabled(tx);
-        const evRef = {
-          id: ctx.event.id,
-          publicCode: ctx.event.publicCode,
-          title: ctx.event.title,
-          hostMemberId: ctx.event.hostMemberId,
-        };
-        if (held) {
-          await notifyCommentHeld(
-            tx,
-            { event: evRef, commentId: row.id },
-            notifyOn,
-            now,
-          );
-        } else {
-          await notifyCommentVisible(
-            tx,
-            {
-              event: evRef,
-              comment: {
-                id: row.id,
-                channel: f.channel,
-                parentId: storedParentId,
-                authorMemberId: member.id,
-              },
-              parentAuthorId,
+          const [row] = await tx
+            .insert(exchangeComments)
+            .values({
+              eventId: ctx.event.id,
+              channel: f.channel,
+              parentId: storedParentId,
               replyToMemberId,
-              groupMemberIds:
-                notifyOn && f.channel === "group"
-                  ? await groupMemberIdsOf(tx, ctx.event.id)
-                  : [],
-            },
-            notifyOn,
-            now,
-          );
-        }
-        eventId = ctx.event.id;
-        return { success: true, data: { id: row.id, status } };
-      }),
-    );
-  } catch (e) {
-    if (isUniqueViolation(e)) {
-      // Hai lần gửi cùng khoá chạy đua: dòng thắng cuộc là kết quả.
-      const again = await replay();
-      if (again) return again;
-    }
-    console.error("[Exchange] comment-add-failed", { id: member.id });
-    return { error: t("saveFailed") };
-  }
+              authorMemberId: member.id,
+              body: f.body,
+              status,
+              idempotencyKey: f.idempotencyKey,
+              createdAt: now.toISOString(),
+            })
+            .returning({ id: exchangeComments.id });
 
-  if ("success" in result) updateTag(commentTag(eventId));
-  return result;
+          const notifyOn = await isNotificationsEnabled(tx);
+          const evRef = {
+            id: ctx.event.id,
+            publicCode: ctx.event.publicCode,
+            title: ctx.event.title,
+            hostMemberId: ctx.event.hostMemberId,
+          };
+          if (held) {
+            await notifyCommentHeld(
+              tx,
+              { event: evRef, commentId: row.id },
+              notifyOn,
+              now,
+            );
+          } else {
+            await notifyCommentVisible(
+              tx,
+              {
+                event: evRef,
+                comment: {
+                  id: row.id,
+                  channel: f.channel,
+                  parentId: storedParentId,
+                  authorMemberId: member.id,
+                },
+                parentAuthorId,
+                replyToMemberId,
+                groupMemberIds:
+                  notifyOn && f.channel === "group"
+                    ? await groupMemberIdsOf(tx, ctx.event.id)
+                    : [],
+              },
+              notifyOn,
+              now,
+            );
+          }
+          eventId = ctx.event.id;
+          return { success: true, data: { id: row.id, status } };
+        }),
+      );
+    } catch (e) {
+      if (isUniqueViolation(e)) {
+        // Hai lần gửi cùng khoá chạy đua: dòng thắng cuộc là kết quả.
+        const again = await replay();
+        if (again) return again;
+      }
+      console.error("[Exchange] comment-add-failed", { id: member.id });
+      return { error: t("commentSaveFailed") };
+    }
+
+    if ("success" in result) updateTag(commentTag(eventId));
+    return result;
+  }
 }
 
 export async function editComment(input: unknown): Promise<SimpleResult> {
@@ -455,7 +480,7 @@ export async function editComment(input: unknown): Promise<SimpleResult> {
     );
   } catch {
     console.error("[Exchange] comment-edit-failed", { id: f.commentId });
-    return { error: t("saveFailed") };
+    return { error: t("commentSaveFailed") };
   }
 
   if ("success" in result) updateTag(commentTag(eventId));
@@ -512,7 +537,7 @@ export async function deleteComment(input: unknown): Promise<SimpleResult> {
     );
   } catch {
     console.error("[Exchange] comment-delete-failed", { id: f.commentId });
-    return { error: t("saveFailed") };
+    return { error: t("commentSaveFailed") };
   }
 
   if ("success" in result) updateTag(commentTag(eventId));
