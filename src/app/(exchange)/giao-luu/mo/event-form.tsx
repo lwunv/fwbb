@@ -110,6 +110,7 @@ function Field({
   label,
   htmlFor,
   error,
+  errorId,
   hint,
   children,
   className,
@@ -117,6 +118,8 @@ function Field({
   label: string;
   htmlFor?: string;
   error?: string;
+  /** Id cho dòng lỗi, để control không phải input nối vào bằng aria-describedby. */
+  errorId?: string;
   hint?: string;
   children: React.ReactNode;
   className?: string;
@@ -134,7 +137,7 @@ function Field({
       {children}
       {hint && <p className="text-muted-foreground text-sm">{hint}</p>}
       {error && (
-        <p role="alert" className="text-destructive text-sm">
+        <p id={errorId} role="alert" className="text-destructive text-sm">
           {error}
         </p>
       )}
@@ -314,10 +317,12 @@ export function EventForm({ initialPayout }: { initialPayout: Payout | null }) {
         <Field
           label={t("venue")}
           error={errors.venueId ? t("fieldVenue") : undefined}
+          errorId={id("venue-error")}
         >
           <VenuePicker
             value={venue}
             invalid={!!errors.venueId}
+            errorId={id("venue-error")}
             onChange={(picked) => {
               setVenue(picked);
               setValue("venueId", picked.id, {

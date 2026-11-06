@@ -105,3 +105,60 @@ describe("MyRegistrationBar cancel", () => {
     });
   });
 });
+
+describe("MyRegistrationBar states", () => {
+  function renderWith(
+    reg: { status: string; waitlistPos: number | null },
+    event: Parameters<typeof makeEvent>[0] = {},
+  ) {
+    render(
+      <NextIntlClientProvider locale="vi" messages={viMessages}>
+        <MyRegistrationBar
+          event={makeEvent(event)}
+          viewer={makeViewer({ role: "member", myRegistration: makeReg() })}
+          reg={reg}
+          onChange={() => {}}
+          onRegister={() => {}}
+        />
+      </NextIntlClientProvider>,
+    );
+  }
+
+  it("a pending registration past the cancel deadline cancels without the late-fee warning", async () => {
+    actions.cancelMyRegistration.mockResolvedValue({ success: true });
+    renderWith(
+      { status: "pending", waitlistPos: null },
+      { cancelDeadline: "2020-01-15T08:00:00.000Z" },
+    );
+    fireEvent.click(cancelBtn());
+    expect(screen.queryByText(/vẫn bị tính phí/)).toBeNull();
+    await waitFor(() =>
+      expect(actions.cancelMyRegistration).toHaveBeenCalledTimes(1),
+    );
+  });
+
+  it("checks the deadline when tapped, not when the page opened", () => {
+    const deadline = Date.now() + 60_000;
+    renderWith(approved, { cancelDeadline: new Date(deadline).toISOString() });
+    const later = vi.spyOn(Date, "now").mockReturnValue(deadline + 1_000);
+    try {
+      fireEvent.click(cancelBtn());
+      expect(screen.getByText(/vẫn bị tính phí/)).toBeTruthy();
+      expect(actions.cancelMyRegistration).not.toHaveBeenCalled();
+    } finally {
+      later.mockRestore();
+    }
+  });
+
+  it("a cancelled event says so instead of showing the active registration", () => {
+    renderWith(approved, { status: "cancelled" });
+    expect(screen.getByText("Buổi đã huỷ")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Huỷ" })).toBeNull();
+  });
+
+  it("a waitlisted member on a finished event sees the closed label", () => {
+    renderWith({ status: "waitlist", waitlistPos: 2 }, { status: "done" });
+    expect(screen.getByText("Buổi đã kết thúc")).toBeTruthy();
+    expect(screen.queryByText(/Danh sách chờ/)).toBeNull();
+  });
+});

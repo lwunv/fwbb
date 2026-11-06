@@ -17,8 +17,9 @@ const ACTIVE = ["pending", "approved", "waitlist"];
 
 /**
  * Thanh dính đáy: một nút chính theo vai trò và trạng thái. Hủy trước hạn đi
- * thẳng, sau hạn hỏi lại vì vẫn bị tính phí. Hủy là lạc quan: đổi ngay, lỗi
- * thì hoàn lại và `fireAction` hiện toast.
+ * thẳng; người đã duyệt huỷ sau hạn thì hỏi lại vì vẫn bị tính phí (cùng quy
+ * tắc với server, xét lúc bấm). Hủy là lạc quan: đổi ngay, lỗi thì hoàn lại
+ * và `fireAction` hiện toast.
  */
 export function MyRegistrationBar({
   event,
@@ -36,9 +37,16 @@ export function MyRegistrationBar({
   const t = useTranslations("exchange.event");
   const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
-  // Chụp giờ một lần lúc mount: bar chỉ là gợi ý hiển thị, server mới là nơi chặn.
+  // Chụp giờ một lần lúc mount: chỉ để ẩn nút đăng ký, server mới là nơi chặn.
   const [now] = useState(() => Date.now());
-  const late = now > new Date(event.cancelDeadline).getTime();
+
+  /** Huỷ muộn chỉ tính với người đã duyệt, và xét theo giờ lúc bấm. */
+  function isLateCancel(): boolean {
+    return (
+      reg?.status === "approved" &&
+      Date.now() > new Date(event.cancelDeadline).getTime()
+    );
+  }
 
   function cancel() {
     const prev = reg;
@@ -87,6 +95,12 @@ export function MyRegistrationBar({
         {t("sending")}
       </button>
     );
+  } else if (
+    event.status === "cancelled" ||
+    (event.status === "done" && reg?.status === "waitlist")
+  ) {
+    // Buổi đã huỷ, hoặc đã xong mà vẫn còn chờ: không còn gì để làm ở đây.
+    body = <p className={note}>{t(closedKey ?? "closedCancelled")}</p>;
   } else if (reg && ACTIVE.includes(reg.status)) {
     const label =
       reg.status === "approved"
@@ -94,14 +108,14 @@ export function MyRegistrationBar({
         : reg.status === "waitlist"
           ? t("statusWaitlist", { pos: reg.waitlistPos ?? "?" })
           : t("statusPending");
-    const canCancel = event.status !== "done" && event.status !== "cancelled";
+    const canCancel = event.status !== "done";
     body = (
       <div className="flex items-center gap-3">
         <p className="min-w-0 flex-1 text-base font-semibold">{label}</p>
         {canCancel && (
           <button
             type="button"
-            onClick={() => (late ? setConfirmOpen(true) : cancel())}
+            onClick={() => (isLateCancel() ? setConfirmOpen(true) : cancel())}
             className="border-destructive/40 text-destructive min-h-12 shrink-0 rounded-xl border px-5 text-base font-medium"
           >
             {t("cancelReg")}

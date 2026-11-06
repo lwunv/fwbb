@@ -182,6 +182,38 @@ describe("MyExchanges", () => {
     expect(await screen.findByText("Bad Guy")).toBeTruthy();
   });
 
+  it("shows the fee only for a chargeable status on an event that still runs", () => {
+    const row = (code: string, myStatus: string, status = "locked") => ({
+      ...baseCard,
+      code,
+      status,
+      myStatus,
+      feeAmount: 70000,
+      paid: false,
+      waitlistPos: null,
+      remaining: 0,
+      refundDue: 0,
+    });
+    render(
+      withIntl(
+        <MyExchanges
+          registrations={
+            [
+              row("charged", "late_cancelled"),
+              row("plain", "cancelled"),
+              row("rejected", "rejected"),
+              row("evcancel", "approved", "cancelled"),
+            ] as never
+          }
+          hosting={[]}
+          blocks={[]}
+        />,
+      ),
+    );
+    // Only the late canceller still carries the 70K fee.
+    expect(screen.getAllByText(/^Phí /)).toHaveLength(1);
+  });
+
   it("shows an empty state with a link to browse", () => {
     render(
       withIntl(<MyExchanges registrations={[]} hosting={[]} blocks={[]} />),

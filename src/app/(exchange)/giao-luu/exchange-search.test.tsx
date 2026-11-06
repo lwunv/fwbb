@@ -148,6 +148,19 @@ describe("ExchangeSearch", () => {
     expect(listExchangesNear).toHaveBeenCalledTimes(1);
   });
 
+  it("drops an impossible date from the URL instead of sending it to the server", async () => {
+    renderSearch("?d=2026-13-45");
+    await screen.findByText("Giao lưu tối T6");
+    expect(listExchangesNear.mock.calls[0][0].date).toBeUndefined();
+    cleanup();
+    listExchangesNear.mockClear();
+    renderSearch("?d=2099-06-02");
+    await screen.findByText("Giao lưu tối T6");
+    expect(listExchangesNear.mock.calls[0][0]).toMatchObject({
+      date: "2099-06-02",
+    });
+  });
+
   it("renders the card with VN time, distance, fee cap and slots", async () => {
     renderSearch();
     const link = (await screen.findByText("Giao lưu tối T6")).closest("a");

@@ -31,10 +31,13 @@ export function VenuePicker({
   value,
   onChange,
   invalid,
+  errorId,
 }: {
   value: PickedVenue | null;
   onChange: (v: PickedVenue) => void;
   invalid?: boolean;
+  /** Id của dòng lỗi bên ngoài; `button` không hỗ trợ `aria-invalid`. */
+  errorId?: string;
 }) {
   const t = useTranslations("exchange.form");
   const locale = useLocale() as "vi" | "en" | "zh";
@@ -73,7 +76,7 @@ export function VenuePicker({
       <button
         type="button"
         onClick={() => handleOpen(true)}
-        aria-invalid={invalid || undefined}
+        aria-describedby={invalid ? errorId : undefined}
         className={cn(
           "bg-background flex min-h-12 w-full items-center gap-3 rounded-xl border px-3 text-left text-base",
           invalid && "border-destructive",

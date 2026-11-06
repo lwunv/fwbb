@@ -9,6 +9,7 @@ import { unblockMember } from "@/actions/exchange-host";
 import type { MyExchanges as MyExchangesData } from "@/actions/exchange-mine";
 import { ExchangeCard } from "@/components/exchange/exchange-card";
 import { Card, CardContent } from "@/components/ui/card";
+import { CHARGEABLE_STATUSES } from "@/lib/exchange/constants";
 import { fireAction } from "@/lib/optimistic-action";
 import { formatVND } from "@/lib/utils";
 
@@ -23,6 +24,8 @@ type StatusKey =
   | "statusCancelled"
   | "statusLateCancelled"
   | "statusNoShow";
+
+const CHARGEABLE = new Set<string>(CHARGEABLE_STATUSES);
 
 const STATUS_KEY: Record<string, StatusKey> = {
   pending: "statusPending",
@@ -87,11 +90,14 @@ export function MyExchanges({
                     <p className="font-medium">
                       {key ? t(key, { pos: r.waitlistPos ?? 0 }) : r.myStatus}
                     </p>
-                    {r.feeAmount !== null && r.feeAmount > 0 && (
-                      <p className="text-muted-foreground">
-                        {t("feeLine", { amount: formatVND(r.feeAmount) })}
-                      </p>
-                    )}
+                    {r.feeAmount !== null &&
+                      r.feeAmount > 0 &&
+                      CHARGEABLE.has(r.myStatus) &&
+                      r.status !== "cancelled" && (
+                        <p className="text-muted-foreground">
+                          {t("feeLine", { amount: formatVND(r.feeAmount) })}
+                        </p>
+                      )}
                     {r.remaining > 0 && (
                       <p className="text-destructive font-medium">
                         {t("remainingLine", {

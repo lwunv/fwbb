@@ -12,6 +12,7 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import { SlidersHorizontal } from "lucide-react";
 import { SKILL_LEVELS } from "@/lib/skill-level";
+import { isRealDate } from "@/lib/exchange/event-schema";
 import { cn } from "@/lib/utils";
 import { shortMoney } from "@/components/exchange/exchange-card";
 
@@ -35,7 +36,8 @@ const filterParsers = {
 export function useExchangeFilters() {
   const [raw, setRaw] = useQueryStates(filterParsers);
   const filters = {
-    date: raw.d && DATE_RE.test(raw.d) ? raw.d : undefined,
+    // Ngày không có thật (2026-13-45) cũng bị bỏ, cùng quy tắc với server.
+    date: raw.d && DATE_RE.test(raw.d) && isRealDate(raw.d) ? raw.d : undefined,
     timeOfDay: raw.t ?? undefined,
     skill: raw.skill ?? undefined,
     hasSlot: raw.slot === true ? true : undefined,
