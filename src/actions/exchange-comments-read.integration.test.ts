@@ -8,7 +8,7 @@ import {
   vi,
 } from "vitest";
 import { randomUUID } from "crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { createTestDb } from "@/db/test-db";
 import {
   exchangeCommentReads,
@@ -1032,6 +1032,37 @@ describe("unread and markCommentsRead", () => {
     expect(await testDb.select().from(exchangeCommentReads)).toHaveLength(1);
     expect(mocks.updateTag).not.toHaveBeenCalled();
     expect(mocks.cookies.size).toBe(0);
+  });
+
+  it("markCommentsRead with an upTo that does not move the mark forward writes no row", async () => {
+    const ev = await mkEvent();
+    const m1 = await newMember();
+    await addReg(ev.id, m1.id);
+    asMember(m1);
+    // total_changes() đếm mọi dòng bị INSERT/UPDATE/DELETE trên kết nối này;
+    // upsert không chạy trong transaction nên đi cùng kết nối với câu đọc.
+    const totalChanges = async () =>
+      Number(
+        (await testDb.all<{ n: number }>(sql`SELECT total_changes() AS n`))[0]
+          .n,
+      );
+    const mark = (channel: "qa" | "group", upTo: string) =>
+      markCommentsRead({ code: ev.publicCode, channel, upTo });
+
+    const at = iso(-1_000);
+    await mark("qa", at);
+    await mark("group", at);
+    const before = await totalChanges();
+    expect(await mark("qa", at)).toEqual({ success: true });
+    expect(await mark("qa", iso(-2_000))).toEqual({ success: true });
+    expect(await mark("group", at)).toEqual({ success: true });
+    expect(await totalChanges()).toBe(before);
+
+    // Tiến lên thì vẫn ghi đúng một dòng.
+    await mark("qa", iso(0));
+    expect(await totalChanges()).toBe(before + 1);
+    const [row] = await testDb.select().from(exchangeCommentReads);
+    expect(row).toMatchObject({ lastReadAt: iso(0), lastReadGroupAt: at });
   });
 
   it("markCommentsRead by a stranger writes nothing", async () => {

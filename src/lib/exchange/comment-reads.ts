@@ -287,9 +287,12 @@ export type NewCommentEvent = {
 };
 
 /**
- * Câu đếm bình luận mới của người khác kể từ mốc đọc của từng khu. Không alias
- * `exchange_comments` để EXPLAIN QUERY PLAN báo đúng tên bảng; cả hai nhánh
- * đi index (event_id, channel, created_at). Cần ít nhất một danh sách khác rỗng.
+ * Câu đếm bình luận mới của người khác kể từ mốc đọc của từng khu. Mốc đọc
+ * được lấy trước (buổi rồi `exchange_comment_reads`), `CROSS JOIN` giữ thứ tự
+ * đó, nên `created_at > mốc` là cận dưới thật của index (event_id, channel,
+ * created_at): chỉ đọc bình luận mới, không đọc cả khu (quota Turso tính theo
+ * số dòng đọc). Không alias `exchange_comments` để EXPLAIN QUERY PLAN báo đúng
+ * tên bảng. Cần ít nhất một danh sách khác rỗng.
  */
 export function newCommentsQuery(
   memberId: number,
@@ -297,14 +300,16 @@ export function newCommentsQuery(
   groupIds: number[],
 ): SQL {
   const branch = (channel: CommentChannel, ids: number[], mark: SQL): SQL =>
-    sql`SELECT exchange_comments.event_id AS event_id FROM exchange_comments
+    sql`SELECT e.id AS event_id FROM exchange_events e
       LEFT JOIN exchange_comment_reads r
-        ON r.event_id = exchange_comments.event_id AND r.member_id = ${memberId}
-      WHERE exchange_comments.event_id IN ${inList(ids)}
+        ON r.event_id = e.id AND r.member_id = ${memberId}
+      CROSS JOIN exchange_comments
+      WHERE e.id IN ${inList(ids)}
+        AND exchange_comments.event_id = e.id
         AND exchange_comments.channel = ${channel}
+        AND exchange_comments.created_at > COALESCE(${mark}, '')
         AND exchange_comments.status = 'visible'
-        AND exchange_comments.author_member_id <> ${memberId}
-        AND exchange_comments.created_at > COALESCE(${mark}, '')`;
+        AND exchange_comments.author_member_id <> ${memberId}`;
   const parts: SQL[] = [];
   if (qaIds.length > 0) parts.push(branch("qa", qaIds, sql`r.last_read_at`));
   if (groupIds.length > 0)
@@ -389,7 +394,10 @@ export async function hasUnreadComments(
   return n > 0;
 }
 
-/** Upsert mốc đọc của một khu; chỉ tiến lên, không bao giờ lùi. */
+/**
+ * Upsert mốc đọc của một khu; chỉ tiến lên, không bao giờ lùi. Mốc không tiến
+ * thì không UPDATE gì (mở lại trang là chuyện thường, không tốn lượt ghi).
+ */
 export async function markCommentsReadUpTo(
   tx: DbOrTx,
   eventId: number,
@@ -397,23 +405,23 @@ export async function markCommentsReadUpTo(
   channel: CommentChannel,
   at: string,
 ): Promise<void> {
-  const set =
-    channel === "qa"
-      ? {
-          lastReadAt: sql`MAX(COALESCE(${exchangeCommentReads.lastReadAt}, ''), excluded.last_read_at)`,
-        }
-      : {
-          lastReadGroupAt: sql`MAX(COALESCE(${exchangeCommentReads.lastReadGroupAt}, ''), excluded.last_read_group_at)`,
-        };
+  const qa = channel === "qa";
+  const col = qa
+    ? exchangeCommentReads.lastReadAt
+    : exchangeCommentReads.lastReadGroupAt;
+  const incoming = qa
+    ? sql`excluded.last_read_at`
+    : sql`excluded.last_read_group_at`;
   await tx
     .insert(exchangeCommentReads)
     .values({
       eventId,
       memberId,
-      ...(channel === "qa" ? { lastReadAt: at } : { lastReadGroupAt: at }),
+      ...(qa ? { lastReadAt: at } : { lastReadGroupAt: at }),
     })
     .onConflictDoUpdate({
       target: [exchangeCommentReads.eventId, exchangeCommentReads.memberId],
-      set,
+      set: qa ? { lastReadAt: incoming } : { lastReadGroupAt: incoming },
+      setWhere: sql`${incoming} > COALESCE(${col}, '')`,
     });
 }

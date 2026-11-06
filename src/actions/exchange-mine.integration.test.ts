@@ -305,11 +305,12 @@ describe("getMyExchanges: new comments", () => {
       sql`EXPLAIN QUERY PLAN ${newCommentsQuery(me.id, [ev1.id, ev2.id], [ev1.id])}`,
     );
     const details = plan.map((p) => p.detail);
-    expect(details.some((d) => /SCAN exchange_comments/.test(d))).toBe(false);
-    expect(
-      details.filter((d) =>
-        d.includes("exchange_comments_event_channel_created_idx"),
-      ),
-    ).toHaveLength(2);
+    expect(details.some((d) => /SCAN exchange_comments\b/.test(d))).toBe(false);
+    const comments = details.filter((d) =>
+      d.includes("exchange_comments_event_channel_created_idx"),
+    );
+    expect(comments).toHaveLength(2);
+    // Mốc đọc phải là cận dưới thật của index, không chỉ lọc sau khi đọc cả khu.
+    for (const d of comments) expect(d).toContain("created_at>?");
   });
 });
