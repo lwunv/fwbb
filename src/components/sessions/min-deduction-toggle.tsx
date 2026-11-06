@@ -6,12 +6,13 @@ import { Shield, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fireAction } from "@/lib/optimistic-action";
 import { setSessionUseMinDeduction } from "@/actions/sessions";
+import { useSettings } from "@/components/settings-provider";
 
 /**
- * Toggle per-session bật rule "min 60K khi member thiếu quỹ".
+ * Toggle per-session bật rule "min (setting minDeductionAmount) khi member thiếu quỹ".
  *
  * Khi ON, `finalizeSession` sẽ override `playAmount` của member nào balance
- * không đủ trả share AND share < 60K → trừ 60K. Admin có thể miễn từng
+ * không đủ trả share AND share < sàn → trừ bằng sàn. Admin có thể miễn từng
  * member qua icon shield trong AdminVoteManager.
  *
  * Compact 1-line layout — render bên trong AdminVoteManager body. Optimistic
@@ -31,6 +32,9 @@ export function MinDeductionToggle({
   disabled?: boolean;
 }) {
   const t = useTranslations("adminMisc");
+  // Số sàn lấy từ settings (admin có thể đổi), không hardcode 60K.
+  const { minDeductionAmount } = useSettings();
+  const amountLabel = `${minDeductionAmount / 1000}K`;
   const [localEnabled, setLocalEnabled] = useState(enabled);
   // Resync local state CHỈ khi server prop đổi (prev-prop tracking).
   const [prevEnabled, setPrevEnabled] = useState(enabled);
@@ -63,7 +67,7 @@ export function MinDeductionToggle({
         disabled && "cursor-not-allowed opacity-60",
       )}
       aria-pressed={localEnabled}
-      aria-label={t("minDeductionAria")}
+      aria-label={t("minDeductionAria", { amount: amountLabel })}
     >
       {localEnabled ? (
         <ShieldCheck className="text-primary h-4 w-4 shrink-0" />
@@ -76,7 +80,7 @@ export function MinDeductionToggle({
           localEnabled ? "text-primary" : "text-foreground/80",
         )}
       >
-        {t("minDeductionLabel")}
+        {t("minDeductionLabel", { amount: amountLabel })}
         {localEnabled && exemptCount > 0 && (
           <span className="text-muted-foreground ml-1 font-normal">
             {t("minDeductionExempt", { count: exemptCount })}

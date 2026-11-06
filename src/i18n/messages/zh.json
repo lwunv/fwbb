@@ -88,8 +88,8 @@
     "genderGroupsTitle": "女性分组的单独金额"
   },
   "adminMisc": {
-    "minDeductionAria": "为资金不足的成员开启/关闭 60K 最低扣费规则",
-    "minDeductionLabel": "资金不足时最低 60K",
+    "minDeductionAria": "为资金不足的成员开启/关闭 {amount} 最低扣费规则",
+    "minDeductionLabel": "资金不足时最低 {amount}",
     "minDeductionExempt": "· 豁免 {count}",
     "addGuest": "添加嘉宾",
     "guestCountSummary": "({count} 位嘉宾)",
@@ -1375,13 +1375,13 @@
     "adminGuests": "管理员的客人：",
     "paid": "已付款",
     "unpaid": "未付款",
-    "exemptOn": "已豁免 60K 下限 — 点击重新应用",
-    "exemptOff": "正在应用 60K 下限 — 点击豁免此成员",
+    "exemptOn": "已豁免 {amount} 下限 — 点击重新应用",
+    "exemptOff": "正在应用 {amount} 下限 — 点击豁免此成员",
     "guests": "客人：",
     "guestUnit": "位客人",
     "removeTitle": "移除 {name}？",
     "removeDesc": "从本场名单中移除？",
-    "min60k": "下限 60K：{from} → {to}",
+    "min60k": "下限 {amount}：{from} → {to}",
     "ofWhichFemale": "其中女性"
   },
   "tour": {

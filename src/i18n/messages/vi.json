@@ -88,8 +88,8 @@
     "genderGroupsTitle": "Mức riêng cho nhóm nữ"
   },
   "adminMisc": {
-    "minDeductionAria": "Bật/tắt rule tối thiểu 60K cho member thiếu quỹ",
-    "minDeductionLabel": "Tối thiểu 60K khi thiếu quỹ",
+    "minDeductionAria": "Bật/tắt rule tối thiểu {amount} cho member thiếu quỹ",
+    "minDeductionLabel": "Tối thiểu {amount} khi thiếu quỹ",
     "minDeductionExempt": "· miễn {count}",
     "addGuest": "Thêm khách",
     "guestCountSummary": "({count} khách)",
@@ -1375,13 +1375,13 @@
     "adminGuests": "Khách của admin:",
     "paid": "Đã thanh toán",
     "unpaid": "Chưa thanh toán",
-    "exemptOn": "Đã miễn 60K min — click để áp dụng lại",
-    "exemptOff": "Đang áp dụng 60K min — click để miễn member này",
+    "exemptOn": "Đã miễn {amount} min — click để áp dụng lại",
+    "exemptOff": "Đang áp dụng {amount} min — click để miễn member này",
     "guests": "Khách:",
     "guestUnit": "khách",
     "removeTitle": "Xóa {name}?",
     "removeDesc": "Xóa khỏi danh sách buổi chơi này?",
-    "min60k": "Min 60K: {from} → {to}",
+    "min60k": "Min {amount}: {from} → {to}",
     "ofWhichFemale": "trong đó nữ"
   },
   "tour": {

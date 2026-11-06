@@ -88,8 +88,8 @@
     "genderGroupsTitle": "Separate rates for female groups"
   },
   "adminMisc": {
-    "minDeductionAria": "Toggle 60K minimum rule for members with low fund",
-    "minDeductionLabel": "60K minimum when fund is low",
+    "minDeductionAria": "Toggle {amount} minimum rule for members with low fund",
+    "minDeductionLabel": "{amount} minimum when fund is low",
     "minDeductionExempt": "· {count} exempt",
     "addGuest": "Add guest",
     "guestCountSummary": "({count} guests)",
@@ -1375,13 +1375,13 @@
     "adminGuests": "Admin's guests:",
     "paid": "Paid",
     "unpaid": "Unpaid",
-    "exemptOn": "Exempted from 60K min — click to re-apply",
-    "exemptOff": "60K min applied — click to exempt this member",
+    "exemptOn": "Exempted from {amount} min — click to re-apply",
+    "exemptOff": "{amount} min applied — click to exempt this member",
     "guests": "Guests:",
     "guestUnit": "guests",
     "removeTitle": "Remove {name}?",
     "removeDesc": "Remove from this session's list?",
-    "min60k": "Min 60K: {from} → {to}",
+    "min60k": "Min {amount}: {from} → {to}",
     "ofWhichFemale": "of which female"
   },
   "tour": {

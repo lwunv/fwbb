@@ -789,7 +789,7 @@ export async function unlockSession(
             memberId: ptx.memberId,
             sessionId: ptx.sessionId,
             reversalOfId: ptx.id,
-            description: `Hoàn lại phần dư min-60K khi mở lại buổi ${session.date}`,
+            description: `Hoàn lại phần dư sàn tối thiểu khi mở lại buổi ${session.date}`,
             metadata: { source: "session_unlocked", sessionId },
             idempotencyKey: `unlock-reverse-penalty-${ptx.id}`,
           },

@@ -905,6 +905,7 @@ export function AdminVoteManager({
                               <span
                                 className="text-xs text-orange-500 dark:text-orange-400"
                                 title={tA("min60k", {
+                                  amount: `${minDeductionAmount / 1000}K`,
                                   from: formatK(raw.totalAmount),
                                   to: formatK(after.totalAmount),
                                 })}
@@ -1077,8 +1078,12 @@ export function AdminVoteManager({
                         onClick={() => handleToggleExempt(member.id)}
                         title={
                           getExempt(member.id)
-                            ? tA("exemptOn")
-                            : tA("exemptOff")
+                            ? tA("exemptOn", {
+                                amount: `${minDeductionAmount / 1000}K`,
+                              })
+                            : tA("exemptOff", {
+                                amount: `${minDeductionAmount / 1000}K`,
+                              })
                         }
                         className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors ${
                           getExempt(member.id)
