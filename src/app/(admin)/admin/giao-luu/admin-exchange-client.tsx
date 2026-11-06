@@ -5,13 +5,25 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
-import { CheckCheck, Eye, EyeOff, Flag, Handshake, X } from "lucide-react";
+import {
+  CheckCheck,
+  Eye,
+  EyeOff,
+  Flag,
+  Handshake,
+  MessageSquare,
+  Trash2,
+  X,
+} from "lucide-react";
 import {
   adminCancelExchange,
+  adminListComments,
   adminListExchanges,
   adminListReports,
+  adminModerateComment,
   adminResolveReport,
   adminSetExchangeHidden,
+  type AdminCommentRow,
   type AdminExchangeFilter,
   type AdminExchangeRow,
   type AdminReportRow,
@@ -25,7 +37,10 @@ import { ConfirmSheet } from "@/components/exchange/confirm-sheet";
 import { EmptyState } from "@/components/shared/empty-state";
 import { TabSegment } from "@/components/shared/tab-segment";
 
-type Tab = "events" | "reports";
+type Tab = "events" | "reports" | "comments";
+type CommentFilter = "held" | "hidden" | "reported";
+type CommentAction = "approve" | "unhide" | "delete" | "dismiss";
+const COMMENT_FILTERS: CommentFilter[] = ["held", "hidden", "reported"];
 const FILTERS: AdminExchangeFilter[] = ["upcoming", "hidden", "all"];
 const VN_TZ = "Asia/Ho_Chi_Minh";
 const LIVE = ["open", "full", "locked"];
@@ -64,6 +79,11 @@ export function AdminExchangeClient({
   const [reportPatch, setReportPatch] = useState<Record<number, ReportStatus>>(
     {},
   );
+  const [commentFilter, setCommentFilter] = useState<CommentFilter>("held");
+  // Bình luận đã xử lý (ẩn khỏi danh sách) hoặc đổi trạng thái, rollback khi lỗi.
+  const [commentPatch, setCommentPatch] = useState<
+    Record<number, Partial<AdminCommentRow> | "removed">
+  >({});
   const [confirmCancelId, setConfirmCancelId] = useState<number | null>(null);
 
   // staleTime 60s, không tự làm mới theo giờ (quota Turso).
@@ -85,6 +105,18 @@ export function AdminExchangeClient({
       return r.data;
     },
     initialData: reportStatus === "open" ? initialReports : undefined,
+    staleTime: 60_000,
+  });
+
+  // Chỉ tải khi mở tab Bình luận, không tự làm mới (quota Turso).
+  const comments = useQuery({
+    queryKey: ["admin-exchange-comments", commentFilter],
+    queryFn: async () => {
+      const r = await adminListComments(commentFilter);
+      if ("error" in r) throw new Error(r.error);
+      return r.data;
+    },
+    enabled: tab === "comments",
     staleTime: 60_000,
   });
 
@@ -130,6 +162,40 @@ export function AdminExchangeClient({
     });
   }
 
+  function moderate(row: AdminCommentRow, action: CommentAction) {
+    const prev = commentPatch[row.id];
+    // Duyệt ở tab "Bị báo cáo" chỉ đổi trạng thái; còn lại bình luận rời danh sách.
+    const next: Partial<AdminCommentRow> | "removed" =
+      action === "approve" && commentFilter === "reported"
+        ? { status: "visible" }
+        : "removed";
+    setCommentPatch((m) => ({ ...m, [row.id]: next }));
+    fireAction(
+      () => adminModerateComment({ commentId: row.id, action }),
+      () =>
+        setCommentPatch((m) => {
+          const n = { ...m };
+          if (prev === undefined) delete n[row.id];
+          else n[row.id] = prev;
+          return n;
+        }),
+      {
+        retry: false,
+        successMsg: {
+          approve: t("commentApprovedToast"),
+          unhide: t("commentUnhiddenToast"),
+          dismiss: t("commentDismissedToast"),
+          delete: t("commentDeletedToast"),
+        }[action],
+        onSuccess: () => {
+          qc.invalidateQueries({ queryKey: ["admin-exchange-comments"] });
+          if (action !== "approve")
+            qc.invalidateQueries({ queryKey: ["admin-exchange-reports"] });
+        },
+      },
+    );
+  }
+
   function resolve(row: AdminReportRow, status: "resolved" | "dismissed") {
     const prev = reportPatch[row.id];
     setReportPatch((m) => ({ ...m, [row.id]: status }));
@@ -157,6 +223,12 @@ export function AdminExchangeClient({
     (r) => (reportPatch[r.id] ?? r.status) === reportStatus,
   );
 
+  const commentRows = (comments.data ?? []).flatMap((r) => {
+    const p = commentPatch[r.id];
+    if (p === "removed") return [];
+    return [{ ...r, ...p }];
+  });
+
   const confirmRow =
     confirmCancelId === null
       ? undefined
@@ -173,6 +245,12 @@ export function AdminExchangeClient({
     dismissed: t("reportDismissed"),
   };
 
+  const commentLabel: Record<CommentFilter, string> = {
+    held: t("commentHeld"),
+    hidden: t("commentHidden"),
+    reported: t("commentReported"),
+  };
+
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4">
       <h2 className="text-xl font-bold">{t("title")}</h2>
@@ -183,6 +261,7 @@ export function AdminExchangeClient({
         options={[
           { value: "events", label: t("tabEvents"), icon: Handshake },
           { value: "reports", label: t("tabReports"), icon: Flag },
+          { value: "comments", label: t("tabComments"), icon: MessageSquare },
         ]}
       />
 
@@ -206,6 +285,36 @@ export function AdminExchangeClient({
                     row={r}
                     onHide={(h) => setHidden(r, h)}
                     onAskCancel={() => setConfirmCancelId(r.id)}
+                  />
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+        </>
+      ) : tab === "comments" ? (
+        <>
+          <TabSegment
+            value={commentFilter}
+            onChange={setCommentFilter}
+            options={COMMENT_FILTERS.map((f) => ({
+              value: f,
+              label: commentLabel[f],
+            }))}
+          />
+          {comments.isPending ? (
+            <ListSkeleton />
+          ) : comments.isError ? (
+            <EmptyState icon={MessageSquare} title={t("loadError")} />
+          ) : commentRows.length === 0 ? (
+            <EmptyState icon={MessageSquare} title={t("emptyComments")} />
+          ) : (
+            <div className="grid gap-3">
+              <AnimatePresence initial={false}>
+                {commentRows.map((r) => (
+                  <CommentCard
+                    key={r.id}
+                    row={r}
+                    onModerate={(a) => moderate(r, a)}
                   />
                 ))}
               </AnimatePresence>
@@ -375,11 +484,15 @@ function ReportCard({
       <div className="space-y-1">
         <p className="text-base font-semibold">{tReason(row.reason)}</p>
         <p className="text-sm">
-          {row.targetType === "event" ? t("targetEvent") : t("targetMember")}
+          {row.targetType === "event"
+            ? t("targetEvent")
+            : row.targetType === "comment"
+              ? t("targetComment")
+              : t("targetMember")}
           {": "}
           {row.eventCode ? (
             <Link
-              href={`/giao-luu/${row.eventCode}`}
+              href={`/giao-luu/${row.eventCode}${row.targetType === "comment" ? "#binh-luan" : ""}`}
               className="underline underline-offset-2"
             >
               {row.targetName}
@@ -388,6 +501,11 @@ function ReportCard({
             row.targetName
           )}
         </p>
+        {row.commentExcerpt !== null && (
+          <p className="bg-muted rounded-lg px-3 py-2 text-base break-words whitespace-pre-wrap">
+            {row.commentExcerpt}
+          </p>
+        )}
         <p className="text-muted-foreground text-sm">
           {t("reporter")}: {row.reporterName} ·{" "}
           {formatWhen(row.createdAt, locale)}
@@ -411,6 +529,96 @@ function ReportCard({
           </Button>
         </div>
       )}
+    </motion.div>
+  );
+}
+
+function CommentCard({
+  row,
+  onModerate,
+}: {
+  row: AdminCommentRow;
+  onModerate: (action: CommentAction) => void;
+}) {
+  const t = useTranslations("exchange.admin");
+  const locale = useLocale();
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      className="border-border bg-card/80 space-y-3 rounded-xl border p-4 backdrop-blur"
+    >
+      <div className="space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={`/giao-luu/${row.eventCode}#binh-luan`}
+            className="min-w-0 truncate text-base font-semibold hover:underline"
+          >
+            {row.eventTitle}
+          </Link>
+          <span className="bg-muted rounded-full px-2 py-0.5 text-sm">
+            {row.channel === "group" ? t("channelGroup") : t("channelQa")}
+          </span>
+          {row.openReports > 0 && (
+            <span className="bg-destructive/10 text-destructive rounded-full px-2 py-0.5 text-sm">
+              {t("commentReports", { count: row.openReports })}
+            </span>
+          )}
+        </div>
+        <p className="text-sm">
+          <span className="font-medium">{row.authorName}</span>
+          {row.authorIsHost && (
+            <span className="bg-primary/10 text-primary ml-2 rounded-full px-2 py-0.5">
+              {t("commentHostBadge")}
+            </span>
+          )}
+          <span className="text-muted-foreground">
+            {" · "}
+            {formatWhen(row.createdAt, locale)}
+          </span>
+        </p>
+        <p className="text-base break-words whitespace-pre-wrap">{row.body}</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {row.status === "held" && (
+          <Button className="min-h-11" onClick={() => onModerate("approve")}>
+            <CheckCheck className="mr-1.5 h-4 w-4" />
+            {t("commentApprove")}
+          </Button>
+        )}
+        {row.status === "hidden" && (
+          <Button
+            variant="outline"
+            className="min-h-11"
+            onClick={() => onModerate("unhide")}
+          >
+            <Eye className="mr-1.5 h-4 w-4" />
+            {t("commentUnhide")}
+          </Button>
+        )}
+        {row.openReports > 0 && (
+          <Button
+            variant="outline"
+            className="min-h-11"
+            onClick={() => onModerate("dismiss")}
+          >
+            {t("commentDismiss")}
+          </Button>
+        )}
+        {row.status !== "deleted" && (
+          <Button
+            variant="outline"
+            className="text-destructive min-h-11"
+            onClick={() => onModerate("delete")}
+          >
+            <Trash2 className="mr-1.5 h-4 w-4" />
+            {t("commentDelete")}
+          </Button>
+        )}
+      </div>
     </motion.div>
   );
 }

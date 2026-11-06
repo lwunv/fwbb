@@ -4,7 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { AnimatePresence, motion } from "framer-motion";
-import { CalendarSearch, Settings2, UserRoundX } from "lucide-react";
+import {
+  CalendarSearch,
+  MessageCircle,
+  Settings2,
+  UserRoundX,
+} from "lucide-react";
 import { unblockMember } from "@/actions/exchange-host";
 import type { MyExchanges as MyExchangesData } from "@/actions/exchange-mine";
 import { ExchangeCard } from "@/components/exchange/exchange-card";
@@ -24,6 +29,21 @@ type StatusKey =
   | "statusCancelled"
   | "statusLateCancelled"
   | "statusNoShow";
+
+/** Huy hiệu dẫn thẳng tới khu bình luận; chỉ hiện khi có bình luận chưa đọc. */
+function NewCommentsBadge({ code, count }: { code: string; count: number }) {
+  const t = useTranslations("exchange.mine");
+  if (count <= 0) return null;
+  return (
+    <Link
+      href={`/giao-luu/${code}#binh-luan`}
+      className="bg-primary/10 text-primary flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-4 text-base font-medium"
+    >
+      <MessageCircle className="h-5 w-5" aria-hidden />
+      {t("newComments", { count })}
+    </Link>
+  );
+}
 
 const CHARGEABLE = new Set<string>(CHARGEABLE_STATUSES);
 
@@ -86,6 +106,7 @@ export function MyExchanges({
               return (
                 <div key={r.code} className="space-y-2">
                   <ExchangeCard event={r} />
+                  <NewCommentsBadge code={r.code} count={r.newComments} />
                   <div className="bg-card/80 space-y-1 rounded-xl border px-3 py-2 text-base backdrop-blur">
                     <p className="font-medium">
                       {key ? t(key, { pos: r.waitlistPos ?? 0 }) : r.myStatus}
@@ -132,6 +153,7 @@ export function MyExchanges({
             {hosting.map((h) => (
               <div key={h.code} className="space-y-2">
                 <ExchangeCard event={h} />
+                <NewCommentsBadge code={h.code} count={h.newComments} />
                 <Link
                   href={`/giao-luu/${h.code}/quan-ly`}
                   className="bg-muted flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-4 text-base font-medium"

@@ -224,4 +224,48 @@ describe("MyExchanges", () => {
         .getAttribute("href"),
     ).toBe("/giao-luu");
   });
+  it("my exchanges shows the new comment badge only when newComments > 0", () => {
+    const card = (code: string, newComments: number) => ({
+      ...baseCard,
+      code,
+      newComments,
+    });
+    render(
+      withIntl(
+        <MyExchanges
+          registrations={
+            [
+              {
+                ...card("r1", 3),
+                myStatus: "approved",
+                feeAmount: null,
+                paid: false,
+                waitlistPos: null,
+                remaining: 0,
+                refundDue: 0,
+              },
+              {
+                ...card("r2", 0),
+                myStatus: "approved",
+                feeAmount: null,
+                paid: false,
+                waitlistPos: null,
+                remaining: 0,
+                refundDue: 0,
+              },
+            ] as never
+          }
+          hosting={[card("h1", 1)] as never}
+          blocks={[]}
+        />,
+      ),
+    );
+    const badges = screen.getAllByRole("link", { name: /bình luận mới/ });
+    expect(badges.map((b) => b.textContent)).toEqual([
+      "3 bình luận mới",
+      "1 bình luận mới",
+    ]);
+    expect(badges[0].getAttribute("href")).toBe("/giao-luu/r1#binh-luan");
+    expect(badges[1].getAttribute("href")).toBe("/giao-luu/h1#binh-luan");
+  });
 });
