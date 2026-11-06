@@ -8,6 +8,10 @@ import { revalidatePath } from "next/cache";
 import { getAllFundBalances, isFundMember } from "@/lib/fund-calculator";
 import { computeBalanceFromTransactions } from "@/lib/fund-core";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
+import {
+  afterMemberMoneyChange,
+  snapshotBalances,
+} from "@/lib/debt-vote-block";
 import { requireAdmin, getAdminFromCookie } from "@/lib/auth";
 import { getUserFromCookie } from "@/lib/user-identity";
 import { formatVND } from "@/lib/utils";
@@ -80,6 +84,7 @@ export async function recordContribution(
   let replayed = false;
   try {
     await db.transaction(async (tx) => {
+      const moneyChanges = await snapshotBalances(tx, [parsed.data.memberId]);
       const r = await recordFinancialTransaction(
         {
           memberId: parsed.data.memberId,
@@ -93,6 +98,7 @@ export async function recordContribution(
       );
       if ("error" in r) throw new Error(r.error);
       replayed = r.replayed === true;
+      await afterMemberMoneyChange(tx, moneyChanges);
     });
   } catch (err) {
     return {
@@ -166,6 +172,9 @@ export async function recordRefund(
       if (parsed.data.amount > bal) {
         throw new Error(`Số dư không đủ (hiện có: ${formatVND(bal)})`);
       }
+      const moneyChanges = [
+        { memberId: parsed.data.memberId, balanceBefore: bal },
+      ];
 
       const r = await recordFinancialTransaction(
         {
@@ -180,6 +189,7 @@ export async function recordRefund(
       );
       if ("error" in r) throw new Error(r.error);
       inserted = { id: r.id, replayed: r.replayed };
+      await afterMemberMoneyChange(tx, moneyChanges);
     });
   } catch (err) {
     return {
@@ -474,6 +484,7 @@ export async function reverseFinancialTransaction(
         replayed = true;
         return;
       }
+      const moneyChanges = await snapshotBalances(tx, [original.memberId]);
 
       // SAFETY GUARD: nếu reverse 1 fund_contribution mà sau đó
       // autoApplyFundToDebts đã trừ tiền cho debt → balance hiện tại có thể
@@ -514,6 +525,7 @@ export async function reverseFinancialTransaction(
       );
       if ("error" in r) throw new Error(r.error);
       replayed = r.replayed === true;
+      await afterMemberMoneyChange(tx, moneyChanges);
     });
   } catch (err) {
     return {
@@ -976,6 +988,7 @@ export async function confirmFundClaim(notificationId: number) {
   let replayed = false;
   try {
     await db.transaction(async (tx) => {
+      const moneyChanges = await snapshotBalances(tx, [memberId]);
       const r = await recordFinancialTransaction(
         {
           type: "fund_contribution",
@@ -996,6 +1009,7 @@ export async function confirmFundClaim(notificationId: number) {
         .update(paymentNotifications)
         .set({ status: "matched", matchedTransactionId: r.id })
         .where(eq(paymentNotifications.id, notif.id));
+      await afterMemberMoneyChange(tx, moneyChanges);
     });
   } catch (err) {
     return {

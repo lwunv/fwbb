@@ -131,3 +131,28 @@ describe("enforceDebtVoteBlock", () => {
     expect(r.removed).toEqual([]);
   });
 });
+
+describe("afterMemberMoneyChange — chạy được khi đang dựng trang", () => {
+  beforeEach(async () => {
+    await reset();
+    dayCounter = 20;
+  });
+
+  it("xoá phiếu mà không gọi revalidatePath (Next cấm gọi lúc render)", async () => {
+    // mergeLegacyDebtsIntoFund chạy trong lúc render trang admin; ở đó
+    // revalidatePath ném lỗi và làm rollback cả thao tác tiền.
+    const { revalidatePath } = await import("next/cache");
+    vi.mocked(revalidatePath).mockImplementation(() => {
+      throw new Error("revalidatePath during render");
+    });
+    const { afterMemberMoneyChange } = await import("./debt-vote-block");
+    const s = await seedSession("voting", 1);
+    const id = await seedMember("Thanh", -188_000);
+    await vote(s, id);
+    const r = await afterMemberMoneyChange(testDb, [
+      { memberId: id, balanceBefore: -188_000 },
+    ]);
+    expect(r.removed).toEqual([{ memberId: id, sessionId: s }]);
+    vi.mocked(revalidatePath).mockReset();
+  });
+});

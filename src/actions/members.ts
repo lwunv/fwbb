@@ -31,6 +31,10 @@ import { AVATAR_EMOJI_COUNT } from "@/lib/member-avatar-emoji";
 import { computeBalanceFromTransactions } from "@/lib/fund-core";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
 import {
+  afterMemberMoneyChange,
+  snapshotBalances,
+} from "@/lib/debt-vote-block";
+import {
   foldOAuthIntoTarget,
   countLoginMethods,
   isUsablePassword,
@@ -954,6 +958,7 @@ export async function mergeMember(sourceId: number, targetId: number) {
   }
 
   await db.transaction(async (tx) => {
+    const moneyChanges = await snapshotBalances(tx, [sourceId, targetId]);
     // 1. votes — UNIQUE (sessionId, memberId). Lấy danh sách session mà target
     //    đã có vote → xóa source ở các session đó (giữ target). Còn lại update.
     const targetVoteSessionIds = (
@@ -1175,6 +1180,7 @@ export async function mergeMember(sourceId: number, targetId: number) {
 
     // 7. Xóa member nguồn.
     await tx.delete(members).where(eq(members.id, sourceId));
+    await afterMemberMoneyChange(tx, moneyChanges);
   });
 
   revalidatePath("/admin/members");

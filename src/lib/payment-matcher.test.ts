@@ -73,6 +73,14 @@ vi.mock("./fund-calculator", () => ({
   isFundMember: vi.fn(),
 }));
 
+// DB giả ở trên chỉ có phần API matcher dùng. Bước chặn vote khi nợ (đọc sổ +
+// xoá phiếu) có test tích hợp riêng trên DB thật (debt-vote-block.*), nên ở
+// unit test này cho nó thành no-op.
+vi.mock("./debt-vote-block", () => ({
+  snapshotBalances: vi.fn(async () => []),
+  afterMemberMoneyChange: vi.fn(async () => ({ removed: [] })),
+}));
+
 import { isFundMember } from "./fund-calculator";
 
 const mockPayment = {

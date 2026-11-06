@@ -4,6 +4,10 @@ import { db } from "@/db";
 import { sessionDebts, sessions } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
+import {
+  afterMemberMoneyChange,
+  snapshotBalances,
+} from "@/lib/debt-vote-block";
 import { requireAdmin } from "@/lib/auth";
 
 /**
@@ -97,6 +101,10 @@ export async function mergeLegacyDebtsIntoFund(): Promise<
 
   try {
     await db.transaction(async (tx) => {
+      const moneyChanges = await snapshotBalances(
+        tx,
+        unpaid.map((d) => d.memberId),
+      );
       for (const debt of unpaid) {
         if (debt.totalAmount <= 0) continue;
 
@@ -180,6 +188,7 @@ export async function mergeLegacyDebtsIntoFund(): Promise<
         migratedCount++;
         totalAmount += debt.totalAmount;
       }
+      await afterMemberMoneyChange(tx, moneyChanges);
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
