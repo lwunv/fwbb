@@ -7,6 +7,7 @@ import {
   eq,
   gte,
   inArray,
+  sql,
   isNotNull,
   isNull,
 } from "drizzle-orm";
@@ -16,6 +17,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import {
   abuseReports,
+  exchangeComments,
   exchangeEvents,
   exchangeRegistrations,
   members,
@@ -23,6 +25,8 @@ import {
 } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
 import {
+  type CommentChannel,
+  type CommentStatus,
   HOLDING_STATUSES,
   LIST_LIMIT,
   REPORT_STATUSES,
@@ -30,9 +34,12 @@ import {
   type ReportStatus,
   type ReportTargetType,
 } from "@/lib/exchange/constants";
+import { commentTag } from "@/lib/exchange/comment-access";
+import { groupMemberIdsOf } from "@/lib/exchange/comment-group";
 import { cancelEventCore } from "@/lib/exchange/cancel";
 import { exchangeGate } from "@/lib/exchange/guards";
 import { runSerial } from "@/lib/exchange/serial";
+import { notifyCommentVisible } from "@/lib/notifications/exchange-comments";
 import { notifyEventHidden } from "@/lib/notifications/exchange-events";
 import { isNotificationsEnabled } from "@/lib/notifications/notify";
 
@@ -62,10 +69,12 @@ export type AdminExchangeRow = {
 export type AdminReportRow = {
   id: number;
   targetType: ReportTargetType;
-  /** Tên buổi (target event) hoặc tên member (target member). */
+  /** Tên buổi (target event, comment) hoặc tên member (target member). */
   targetName: string;
   /** Mã buổi để dẫn link /giao-luu/{code}; `null` khi đối tượng là member. */
   eventCode: string | null;
+  /** 120 ký tự đầu của bình luận bị báo (cả khi đã xoá); null với target khác. */
+  commentExcerpt: string | null;
   reason: ReportReason;
   note: string | null;
   status: ReportStatus;
@@ -73,6 +82,26 @@ export type AdminReportRow = {
   createdAt: string;
   resolvedAt: string | null;
 };
+
+export type AdminCommentRow = {
+  id: number;
+  eventCode: string;
+  eventTitle: string;
+  channel: CommentChannel;
+  authorName: string;
+  authorIsHost: boolean;
+  body: string;
+  status: CommentStatus;
+  openReports: number;
+  createdAt: string;
+};
+
+const COMMENT_EXCERPT_LEN = 120;
+const commentFilterSchema = z.enum(["held", "hidden", "reported"]);
+const moderateSchema = z.object({
+  commentId: z.number().int().positive(),
+  action: z.enum(["approve", "unhide", "delete", "dismiss"]),
+});
 
 const filterSchema = z.enum(["upcoming", "hidden", "all"]);
 const eventIdSchema = z.object({ eventId: z.number().int().positive() });
@@ -284,7 +313,10 @@ export async function adminListReports(
   const memberIds = reports
     .filter((r) => r.targetType === "member")
     .map((r) => r.targetId);
-  const [evs, mems] = await Promise.all([
+  const commentIds = reports
+    .filter((r) => r.targetType === "comment")
+    .map((r) => r.targetId);
+  const [evs, mems, comments] = await Promise.all([
     eventIds.length
       ? db
           .select({
@@ -301,13 +333,39 @@ export async function adminListReports(
           .from(members)
           .where(inArray(members.id, memberIds))
       : [],
+    // Một truy vấn cho mọi bình luận bị báo: buổi chứa nó và đoạn đầu nội dung.
+    commentIds.length
+      ? db
+          .select({
+            id: exchangeComments.id,
+            body: exchangeComments.body,
+            code: exchangeEvents.publicCode,
+            title: exchangeEvents.title,
+          })
+          .from(exchangeComments)
+          .innerJoin(
+            exchangeEvents,
+            eq(exchangeEvents.id, exchangeComments.eventId),
+          )
+          .where(inArray(exchangeComments.id, commentIds))
+      : [],
   ]);
+  const commentById = new Map(comments.map((c) => [c.id, c]));
   const evById = new Map(evs.map((e) => [e.id, e]));
   const memById = new Map(mems.map((m) => [m.id, m.name]));
 
   return {
     success: true,
     data: reports.map(({ targetId, ...r }) => {
+      if (r.targetType === "comment") {
+        const c = commentById.get(targetId);
+        return {
+          ...r,
+          targetName: c?.title ?? "",
+          eventCode: c?.code ?? null,
+          commentExcerpt: c ? c.body.slice(0, COMMENT_EXCERPT_LEN) : null,
+        };
+      }
       const ev = r.targetType === "event" ? evById.get(targetId) : undefined;
       return {
         ...r,
@@ -316,6 +374,7 @@ export async function adminListReports(
             ? (ev?.title ?? "")
             : (memById.get(targetId) ?? ""),
         eventCode: ev?.code ?? null,
+        commentExcerpt: null,
       };
     }),
   };
@@ -332,4 +391,218 @@ export async function adminResolveReport(input: unknown): Promise<Result> {
     .returning({ id: abuseReports.id });
   if (updated.length === 0) return { error: t("notFound") };
   return { success: true };
+}
+
+export async function adminListComments(
+  filter: unknown,
+): Promise<Result<AdminCommentRow[]>> {
+  const g = await guard(commentFilterSchema, filter);
+  if ("error" in g) return g;
+
+  // Số báo cáo `open` theo bình luận: một truy vấn GROUP BY, không N+1.
+  const countQuery = (ids?: number[]) =>
+    db
+      .select({
+        id: abuseReports.targetId,
+        n: sql<number>`count(*)`,
+      })
+      .from(abuseReports)
+      .where(
+        and(
+          eq(abuseReports.targetType, "comment"),
+          eq(abuseReports.status, "open"),
+          ids ? inArray(abuseReports.targetId, ids) : undefined,
+        ),
+      )
+      .groupBy(abuseReports.targetId);
+
+  const select = () =>
+    db
+      .select({
+        id: exchangeComments.id,
+        eventCode: exchangeEvents.publicCode,
+        eventTitle: exchangeEvents.title,
+        channel: exchangeComments.channel,
+        authorName: members.name,
+        authorMemberId: exchangeComments.authorMemberId,
+        hostMemberId: exchangeEvents.hostMemberId,
+        body: exchangeComments.body,
+        status: exchangeComments.status,
+        createdAt: exchangeComments.createdAt,
+      })
+      .from(exchangeComments)
+      .innerJoin(
+        exchangeEvents,
+        eq(exchangeEvents.id, exchangeComments.eventId),
+      )
+      .innerJoin(members, eq(members.id, exchangeComments.authorMemberId));
+
+  let rows: Awaited<ReturnType<typeof select>>;
+  let counts: { id: number; n: number }[];
+  if (g.data === "reported") {
+    counts = (await countQuery())
+      .map((c) => ({ id: c.id, n: Number(c.n) }))
+      .sort((a, b) => b.n - a.n || b.id - a.id)
+      .slice(0, LIST_LIMIT);
+    rows = counts.length
+      ? await select().where(
+          inArray(
+            exchangeComments.id,
+            counts.map((c) => c.id),
+          ),
+        )
+      : [];
+  } else {
+    rows = await select()
+      .where(eq(exchangeComments.status, g.data))
+      .orderBy(desc(exchangeComments.createdAt))
+      .limit(LIST_LIMIT);
+    counts = rows.length
+      ? (await countQuery(rows.map((r) => r.id))).map((c) => ({
+          id: c.id,
+          n: Number(c.n),
+        }))
+      : [];
+  }
+  const nById = new Map(counts.map((c) => [c.id, c.n]));
+  const mapped = rows.map(
+    ({ authorMemberId, hostMemberId, ...r }): AdminCommentRow => ({
+      ...r,
+      authorIsHost: authorMemberId === hostMemberId,
+      openReports: nById.get(r.id) ?? 0,
+    }),
+  );
+  if (g.data === "reported")
+    mapped.sort((a, b) => b.openReports - a.openReports || b.id - a.id);
+  return { success: true, data: mapped };
+}
+
+/**
+ * Admin kiểm duyệt một bình luận. Mỗi hành động đòi đúng trạng thái xuất phát
+ * (approve: held, unhide: hidden, delete: chưa xoá) để bấm lặp không gửi tin hai lần.
+ */
+export async function adminModerateComment(input: unknown): Promise<Result> {
+  const g = await guard(moderateSchema, input);
+  if ("error" in g) return g;
+  const t = await getTranslations("exchange.errors");
+  const { commentId, action } = g.data;
+
+  let eventId = 0;
+  let outcome: Result;
+  try {
+    outcome = await runSerial(() =>
+      db.transaction(async (tx): Promise<Result> => {
+        const [c] = await tx
+          .select({
+            id: exchangeComments.id,
+            eventId: exchangeComments.eventId,
+            channel: exchangeComments.channel,
+            parentId: exchangeComments.parentId,
+            replyToMemberId: exchangeComments.replyToMemberId,
+            authorMemberId: exchangeComments.authorMemberId,
+            status: exchangeComments.status,
+          })
+          .from(exchangeComments)
+          .where(eq(exchangeComments.id, commentId))
+          .limit(1);
+        if (!c) return { error: t("commentNotFound") };
+        const nowIso = new Date().toISOString();
+        const closeReports = (status: "dismissed" | "resolved") =>
+          tx
+            .update(abuseReports)
+            .set({ status, resolvedAt: nowIso })
+            .where(
+              and(
+                eq(abuseReports.targetType, "comment"),
+                eq(abuseReports.targetId, commentId),
+                eq(abuseReports.status, "open"),
+              ),
+            );
+        const setStatus = async (
+          from: CommentStatus[],
+          set: { status: CommentStatus; pinned?: boolean },
+        ) => {
+          const changed = await tx
+            .update(exchangeComments)
+            .set(set)
+            .where(
+              and(
+                eq(exchangeComments.id, commentId),
+                inArray(exchangeComments.status, from),
+              ),
+            )
+            .returning({ id: exchangeComments.id });
+          return changed.length > 0;
+        };
+
+        if (action === "dismiss") {
+          await closeReports("dismissed");
+        } else if (action === "unhide") {
+          if (!(await setStatus(["hidden"], { status: "visible" })))
+            return { error: t("commentNotFound") };
+          await closeReports("dismissed");
+        } else if (action === "delete") {
+          if (
+            !(await setStatus(["visible", "held", "hidden"], {
+              status: "deleted",
+              pinned: false,
+            }))
+          )
+            return { error: t("commentNotFound") };
+          await closeReports("resolved");
+        } else {
+          if (!(await setStatus(["held"], { status: "visible" })))
+            return { error: t("commentNotFound") };
+          const [ev] = await tx
+            .select({
+              id: exchangeEvents.id,
+              publicCode: exchangeEvents.publicCode,
+              title: exchangeEvents.title,
+              hostMemberId: exchangeEvents.hostMemberId,
+            })
+            .from(exchangeEvents)
+            .where(eq(exchangeEvents.id, c.eventId))
+            .limit(1);
+          let parentAuthorId: number | null = null;
+          if (c.parentId !== null) {
+            const [p] = await tx
+              .select({ a: exchangeComments.authorMemberId })
+              .from(exchangeComments)
+              .where(eq(exchangeComments.id, c.parentId))
+              .limit(1);
+            parentAuthorId = p?.a ?? null;
+          }
+          const now = new Date();
+          const notifyOn = await isNotificationsEnabled(tx);
+          await notifyCommentVisible(
+            tx,
+            {
+              event: ev,
+              comment: {
+                id: c.id,
+                channel: c.channel,
+                parentId: c.parentId,
+                authorMemberId: c.authorMemberId,
+              },
+              parentAuthorId,
+              replyToMemberId: c.replyToMemberId,
+              groupMemberIds:
+                notifyOn && c.channel === "group"
+                  ? await groupMemberIdsOf(tx, c.eventId)
+                  : [],
+            },
+            notifyOn,
+            now,
+          );
+        }
+        eventId = c.eventId;
+        return { success: true };
+      }),
+    );
+  } catch {
+    console.error("[Exchange] comment_moderate_failed", { id: commentId });
+    return { error: t("saveFailed") };
+  }
+  if ("success" in outcome) updateTag(commentTag(eventId));
+  return outcome;
 }

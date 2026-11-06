@@ -2,6 +2,9 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
 import {
   abuseReports,
+  exchangeCommentReads,
+  exchangeCommentVotes,
+  exchangeComments,
   exchangeEvents,
   exchangeRegistrations,
   members,
@@ -35,6 +38,8 @@ const {
   adminCancelExchange,
   adminListReports,
   adminResolveReport,
+  adminListComments,
+  adminModerateComment,
 } = await import("./exchange-admin");
 const { enableNotificationsForTest } =
   await import("@/lib/notifications/test-helpers");
@@ -103,6 +108,9 @@ beforeEach(async () => {
   await testDb.delete(notifications);
   await testDb.delete(abuseReports);
   await testDb.delete(exchangeRegistrations);
+  await testDb.delete(exchangeCommentVotes);
+  await testDb.delete(exchangeCommentReads);
+  await testDb.delete(exchangeComments);
   await testDb.delete(exchangeEvents);
   await enableNotificationsForTest(testDb);
   mocks.flag.mockReset().mockResolvedValue(true);
@@ -271,5 +279,178 @@ describe("exchange admin actions", () => {
     expect(
       await adminResolveReport({ reportId: r1.id, status: "open" }),
     ).toEqual({ error: "invalidInput" });
+  });
+});
+
+describe("admin comment moderation", () => {
+  async function seedComment(
+    eventId: number,
+    over: Partial<typeof exchangeComments.$inferInsert> = {},
+  ) {
+    const [c] = await testDb
+      .insert(exchangeComments)
+      .values({
+        eventId,
+        authorMemberId: guest.id,
+        channel: "qa",
+        body: "noi dung binh luan",
+        status: "visible",
+        createdAt: iso(0),
+        ...over,
+      })
+      .returning();
+    return c;
+  }
+  let reporterSeq = 0;
+  async function report(
+    commentId: number,
+    status: "open" | "resolved" = "open",
+  ) {
+    reporterSeq += 1;
+    const [m] = await testDb
+      .insert(members)
+      .values({ name: `Rep${reporterSeq}`, approvalStatus: "approved" })
+      .returning();
+    await testDb.insert(abuseReports).values({
+      reporterMemberId: m.id,
+      targetType: "comment",
+      targetId: commentId,
+      reason: "spam",
+      status,
+      createdAt: iso(0),
+    });
+  }
+  const reportStatuses = async (commentId: number) =>
+    (
+      await testDb
+        .select({ s: abuseReports.status })
+        .from(abuseReports)
+        .where(eq(abuseReports.targetId, commentId))
+    ).map((r) => r.s);
+  const statusOf = async (id: number) =>
+    (
+      await testDb
+        .select({ s: exchangeComments.status, p: exchangeComments.pinned })
+        .from(exchangeComments)
+        .where(eq(exchangeComments.id, id))
+    )[0];
+
+  it("admin comment actions refuse a member cookie", async () => {
+    const ev = await mkEvent();
+    const c = await seedComment(ev.id, { status: "held" });
+    mocks.admin.mockResolvedValue({ error: "Không có quyền admin" });
+    expect(await adminListComments("held")).toEqual({
+      error: "Không có quyền admin",
+    });
+    expect(
+      await adminModerateComment({ commentId: c.id, action: "approve" }),
+    ).toHaveProperty("error");
+    expect((await statusOf(c.id)).s).toBe("held");
+  });
+
+  it("admin lists held, hidden and reported comments with counts", async () => {
+    const ev = await mkEvent();
+    const held = await seedComment(ev.id, { status: "held" });
+    const hidden = await seedComment(ev.id, { status: "hidden" });
+    const rep1 = await seedComment(ev.id, { body: "x".repeat(10) });
+    const rep2 = await seedComment(ev.id, { authorMemberId: host.id });
+    await seedComment(ev.id);
+    await report(rep1.id);
+    await report(rep2.id);
+    await report(rep2.id);
+    await report(rep2.id, "resolved");
+
+    const h = await adminListComments("held");
+    expect(h).toMatchObject({ success: true });
+    if (!("data" in h)) throw new Error("no data");
+    expect(h.data.map((r) => r.id)).toEqual([held.id]);
+    expect(h.data[0]).toMatchObject({
+      eventCode: ev.publicCode,
+      eventTitle: ev.title,
+      channel: "qa",
+      authorName: "Guest B",
+      authorIsHost: false,
+      status: "held",
+      openReports: 0,
+    });
+
+    const hd = await adminListComments("hidden");
+    if (!("data" in hd)) throw new Error("no data");
+    expect(hd.data.map((r) => r.id)).toEqual([hidden.id]);
+
+    const rp = await adminListComments("reported");
+    if (!("data" in rp)) throw new Error("no data");
+    expect(rp.data.map((r) => [r.id, r.openReports, r.authorIsHost])).toEqual([
+      [rep2.id, 2, true],
+      [rep1.id, 1, false],
+    ]);
+    expect(JSON.stringify(rp)).not.toContain("0900000001");
+    expect(await adminListComments("bogus")).toHaveProperty("error");
+  });
+
+  it("report list shows the event title, code and excerpt for a comment target", async () => {
+    const ev = await mkEvent();
+    const long = "a".repeat(200);
+    const c = await seedComment(ev.id, { body: long, status: "deleted" });
+    await report(c.id);
+    const res = await adminListReports("open");
+    if (!("data" in res)) throw new Error("no data");
+    expect(res.data).toHaveLength(1);
+    expect(res.data[0]).toMatchObject({
+      targetType: "comment",
+      targetName: ev.title,
+      eventCode: ev.publicCode,
+      commentExcerpt: "a".repeat(120),
+    });
+  });
+
+  it("admin approve publishes a held comment", async () => {
+    const ev = await mkEvent();
+    const c = await seedComment(ev.id, { status: "held" });
+    expect(
+      await adminModerateComment({ commentId: c.id, action: "approve" }),
+    ).toEqual({ success: true });
+    expect((await statusOf(c.id)).s).toBe("visible");
+    expect(mocks.updateTag).toHaveBeenCalledWith(`xcmt:e${ev.id}`);
+    expect(mocks.updateTag).not.toHaveBeenCalledWith("exchange");
+    expect(
+      await adminModerateComment({ commentId: c.id, action: "approve" }),
+    ).toEqual({ error: "commentNotFound" });
+  });
+
+  it("admin unhide restores the comment and dismisses open reports; dismiss keeps it", async () => {
+    const ev = await mkEvent();
+    const c = await seedComment(ev.id, { status: "hidden" });
+    await report(c.id);
+    await report(c.id, "resolved");
+    expect(
+      await adminModerateComment({ commentId: c.id, action: "unhide" }),
+    ).toEqual({ success: true });
+    expect((await statusOf(c.id)).s).toBe("visible");
+    expect((await reportStatuses(c.id)).sort()).toEqual([
+      "dismissed",
+      "resolved",
+    ]);
+
+    const d = await seedComment(ev.id);
+    await report(d.id);
+    expect(
+      await adminModerateComment({ commentId: d.id, action: "dismiss" }),
+    ).toEqual({ success: true });
+    expect((await statusOf(d.id)).s).toBe("visible");
+    expect(await reportStatuses(d.id)).toEqual(["dismissed"]);
+  });
+
+  it("admin delete resolves open reports", async () => {
+    const ev = await mkEvent();
+    const c = await seedComment(ev.id, { pinned: true });
+    await report(c.id);
+    await report(c.id);
+    expect(
+      await adminModerateComment({ commentId: c.id, action: "delete" }),
+    ).toEqual({ success: true });
+    expect(await statusOf(c.id)).toEqual({ s: "deleted", p: false });
+    expect(await reportStatuses(c.id)).toEqual(["resolved", "resolved"]);
+    expect(mocks.updateTag).toHaveBeenCalledWith(`xcmt:e${ev.id}`);
   });
 });

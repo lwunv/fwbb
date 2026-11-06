@@ -9,9 +9,7 @@ import {
   exchangeCommentVotes,
   exchangeComments,
   exchangeEvents,
-  exchangeRegistrations,
 } from "@/db/schema";
-import type { Tx } from "@/db/tx";
 import { attendanceStats } from "@/lib/exchange/attendance";
 import {
   COMMENT_CHANNELS,
@@ -42,6 +40,7 @@ import {
   type CommentRole,
   type CommentWriteState,
 } from "@/lib/exchange/comment-access";
+import { groupMemberIdsOf } from "@/lib/exchange/comment-group";
 import { grantCommentPass, hasCommentPass } from "@/lib/exchange/comment-pass";
 import {
   applyViewerOverlay,
@@ -126,19 +125,6 @@ function writeBlock(
   if (ctx.writeState === "locked") return t("commentsLocked");
   if (ctx.writeState === "closed") return t("commentsClosed");
   return ctx.canWrite[channel] ? null : t("cannotComment");
-}
-
-async function groupMemberIdsOf(tx: Tx, eventId: number): Promise<number[]> {
-  const rows = await tx
-    .select({ id: exchangeRegistrations.memberId })
-    .from(exchangeRegistrations)
-    .where(
-      and(
-        eq(exchangeRegistrations.eventId, eventId),
-        eq(exchangeRegistrations.status, "approved"),
-      ),
-    );
-  return rows.map((r) => r.id);
 }
 
 export async function addComment(input: unknown): Promise<AddResult> {
