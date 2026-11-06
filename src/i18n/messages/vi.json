@@ -1412,6 +1412,7 @@
       "commentUnhide": "Bỏ ẩn",
       "commentDismiss": "Bỏ qua báo cáo",
       "commentDelete": "Xoá",
+      "commentDeleteConfirm": "Xoá bình luận này? Không hoàn tác được.",
       "commentReports": "{count} báo cáo",
       "channelQa": "Hỏi đáp",
       "channelGroup": "Nhóm buổi",
@@ -1502,6 +1503,7 @@
       "send": "Gửi",
       "save": "Lưu",
       "sending": "Đang gửi…",
+      "you": "Bạn",
       "heldToast": "Bình luận có số điện thoại hoặc link nên chờ host duyệt"
     }
   },

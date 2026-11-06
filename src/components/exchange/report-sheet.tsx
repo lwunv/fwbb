@@ -147,7 +147,7 @@ export function ReportSheet({
           maxLength={500}
           rows={3}
           onChange={(e) => setNote(e.target.value)}
-          className="bg-background w-full rounded-xl border p-3 text-base"
+          className="bg-background focus-visible:ring-ring/50 focus-visible:border-ring w-full rounded-xl border p-3 text-base outline-none focus-visible:ring-3"
         />
       </label>
 

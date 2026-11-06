@@ -675,7 +675,8 @@ describe("CommentSection", () => {
     await screen.findByText("bản cũ");
     fireEvent.click(screen.getByRole("button", { name: "Thêm" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Sửa" }));
-    fireEvent.change(screen.getAllByRole("textbox")[0], {
+    // Ô viết gốc nay nằm đầu danh sách (không còn dính đáy), nên chọn ô sửa theo nội dung.
+    fireEvent.change(screen.getByDisplayValue("bản cũ"), {
       target: { value: "bản mới" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
@@ -706,6 +707,64 @@ describe("CommentSection", () => {
     expect(
       await screen.findByRole("button", { name: "View 1 reply" }),
     ).toBeTruthy();
+  });
+
+  it("sending shows a temporary row at once and removes it with the text kept on error", async () => {
+    pageFor({ roots: [makeView({ id: 1, body: "Câu hỏi một" })] });
+    let rejectAdd: (v: unknown) => void = () => {};
+    mocks.add.mockReturnValue(new Promise((r) => (rejectAdd = r)));
+    renderSection({ search: "?bl=new" });
+    await screen.findByText("Câu hỏi một");
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "Gửi thử nè" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+    // Dòng tạm hiện ngay trong danh sách (không đợi server), có nhãn đang gửi.
+    const temp = (await screen.findAllByText("Gửi thử nè")).find((el) =>
+      el.closest("article"),
+    );
+    expect(temp).toBeTruthy();
+    expect(
+      within(temp!.closest("article")!).getByText("Đang gửi…"),
+    ).toBeTruthy();
+    await act(async () => rejectAdd({ error: "Bạn gửi quá nhanh" }));
+    await waitFor(() =>
+      expect(mocks.toast.error).toHaveBeenCalledWith("Bạn gửi quá nhanh"),
+    );
+    await waitFor(() =>
+      expect(
+        screen
+          .queryAllByText("Gửi thử nè")
+          .filter((el) => el.closest("article")),
+      ).toHaveLength(0),
+    );
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe(
+      "Gửi thử nè",
+    );
+  });
+
+  it("a failing reply load toasts exactly once", async () => {
+    pageFor({ roots: [makeView({ id: 1, moreReplies: 2, replies: [] })] });
+    mocks.replies.mockResolvedValue({ error: "máy chủ bận" });
+    renderSection();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Xem 2 trả lời" }),
+    );
+    await waitFor(() => expect(mocks.toast.error).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mocks.toast.error).toHaveBeenCalledTimes(1);
+    expect(mocks.toast.error).toHaveBeenCalledWith("máy chủ bận");
+  });
+
+  it("Escape closes the kebab menu and returns focus to its trigger", async () => {
+    pageFor({ roots: [makeView({ id: 1, canDelete: true })] });
+    renderSection();
+    const trigger = await screen.findByRole("button", { name: "Thêm" });
+    fireEvent.click(trigger);
+    expect(screen.getByRole("menu")).toBeTruthy();
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    expect(document.activeElement).toBe(trigger);
   });
 
   it("report sheet with commentId sends a comment target", async () => {

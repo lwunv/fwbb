@@ -81,9 +81,13 @@ export function AdminExchangeClient({
   );
   const [commentFilter, setCommentFilter] = useState<CommentFilter>("held");
   // Bình luận đã xử lý (ẩn khỏi danh sách) hoặc đổi trạng thái, rollback khi lỗi.
+  // Khoá `${bộ lọc}:${id}`: cùng một bình luận có thể nằm ở nhiều tab con
+  // (Bị báo cáo gồm cả bình luận tự ẩn), xử lý ở tab này không được làm nó mất ở tab kia.
   const [commentPatch, setCommentPatch] = useState<
-    Record<number, Partial<AdminCommentRow> | "removed">
+    Record<string, Partial<AdminCommentRow> | "removed">
   >({});
+  const [confirmDeleteRow, setConfirmDeleteRow] =
+    useState<AdminCommentRow | null>(null);
   const [confirmCancelId, setConfirmCancelId] = useState<number | null>(null);
 
   // staleTime 60s, không tự làm mới theo giờ (quota Turso).
@@ -163,20 +167,21 @@ export function AdminExchangeClient({
   }
 
   function moderate(row: AdminCommentRow, action: CommentAction) {
-    const prev = commentPatch[row.id];
+    const pk = `${commentFilter}:${row.id}`;
+    const prev = commentPatch[pk];
     // Duyệt ở tab "Bị báo cáo" chỉ đổi trạng thái; còn lại bình luận rời danh sách.
     const next: Partial<AdminCommentRow> | "removed" =
       action === "approve" && commentFilter === "reported"
         ? { status: "visible" }
         : "removed";
-    setCommentPatch((m) => ({ ...m, [row.id]: next }));
+    setCommentPatch((m) => ({ ...m, [pk]: next }));
     fireAction(
       () => adminModerateComment({ commentId: row.id, action }),
       () =>
         setCommentPatch((m) => {
           const n = { ...m };
-          if (prev === undefined) delete n[row.id];
-          else n[row.id] = prev;
+          if (prev === undefined) delete n[pk];
+          else n[pk] = prev;
           return n;
         }),
       {
@@ -187,10 +192,24 @@ export function AdminExchangeClient({
           dismiss: t("commentDismissedToast"),
           delete: t("commentDeletedToast"),
         }[action],
+        // Bỏ patch sau khi danh sách tải lại xong, không thì dòng đã xử lý hiện lại
+        // một nhịp giữa lúc patch mất và dữ liệu mới về.
         onSuccess: () => {
-          qc.invalidateQueries({ queryKey: ["admin-exchange-comments"] });
-          if (action !== "approve")
-            qc.invalidateQueries({ queryKey: ["admin-exchange-reports"] });
+          void (async () => {
+            await Promise.all([
+              qc.invalidateQueries({ queryKey: ["admin-exchange-comments"] }),
+              action !== "approve"
+                ? qc.invalidateQueries({
+                    queryKey: ["admin-exchange-reports"],
+                  })
+                : undefined,
+            ]);
+            setCommentPatch((m) => {
+              const n = { ...m };
+              delete n[pk];
+              return n;
+            });
+          })();
         },
       },
     );
@@ -224,7 +243,7 @@ export function AdminExchangeClient({
   );
 
   const commentRows = (comments.data ?? []).flatMap((r) => {
-    const p = commentPatch[r.id];
+    const p = commentPatch[`${commentFilter}:${r.id}`];
     if (p === "removed") return [];
     return [{ ...r, ...p }];
   });
@@ -314,7 +333,9 @@ export function AdminExchangeClient({
                   <CommentCard
                     key={r.id}
                     row={r}
-                    onModerate={(a) => moderate(r, a)}
+                    onModerate={(a) =>
+                      a === "delete" ? setConfirmDeleteRow(r) : moderate(r, a)
+                    }
                   />
                 ))}
               </AnimatePresence>
@@ -362,6 +383,19 @@ export function AdminExchangeClient({
         cancelLabel={t("cancelNo")}
         onConfirm={() => {
           if (confirmRow) cancelEvent(confirmRow);
+        }}
+      />
+      <ConfirmSheet
+        open={confirmDeleteRow !== null}
+        onOpenChange={(o) => {
+          if (!o) setConfirmDeleteRow(null);
+        }}
+        title={t("commentDelete")}
+        description={t("commentDeleteConfirm")}
+        confirmLabel={t("commentDelete")}
+        cancelLabel={t("cancelNo")}
+        onConfirm={() => {
+          if (confirmDeleteRow) moderate(confirmDeleteRow, "delete");
         }}
       />
     </div>

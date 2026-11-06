@@ -14,6 +14,15 @@ type Extra = { replies: CommentView[]; next: number | null };
 
 const MAX_RELOAD_PAGES = 5;
 
+/** Bình luận vừa gửi, hiện tạm (id âm) cho tới khi server nhận và tải lại. */
+type PendingSend = {
+  tempId: number;
+  /** Bình luận được trả lời; null = bình luận gốc. */
+  parentId: number | null;
+  body: string;
+  createdAt: string;
+};
+
 const visibleCount = (list: CommentView[]) =>
   list.filter((r) => r.state === "visible").length;
 
@@ -32,6 +41,8 @@ export function useOpenThreads(
     {},
   );
   const [extra, setExtra] = useState<Record<number, Extra>>({});
+  const [sends, setSends] = useState<PendingSend[]>([]);
+  const tempSeq = useRef(0);
   const extraRef = useRef(extra);
   const pagesRef = useRef(pages);
   const pending = useRef(new Map<number, number>());
@@ -42,6 +53,15 @@ export function useOpenThreads(
 
   const patch = useCallback((id: number, p: Partial<CommentView>) => {
     setPatches((prev) => ({ ...prev, [id]: { ...prev[id], ...p } }));
+  }, []);
+  /** Chèn dòng tạm; trả về hàm gỡ nó (gọi khi lỗi, hoặc khi dữ liệu thật đã về). */
+  const addTemp = useCallback((parentId: number | null, body: string) => {
+    const tempId = -(tempSeq.current += 1);
+    setSends((prev) => [
+      ...prev,
+      { tempId, parentId, body, createdAt: new Date().toISOString() },
+    ]);
+    return () => setSends((prev) => prev.filter((s) => s.tempId !== tempId));
   }, []);
   const begin = useCallback((id: number) => {
     pending.current.set(id, (pending.current.get(id) ?? 0) + 1);
@@ -138,15 +158,9 @@ export function useOpenThreads(
   /** `c` là bản đã gộp (có cả trả lời tải thêm) nên đếm offset từ chính nó. */
   async function loadReplies(c: CommentView) {
     const offset = extra[c.id]?.next ?? visibleCount(c.replies);
-    const r = await listCommentReplies({ commentId: c.id, offset }).catch(
-      (e: unknown) => ({
-        error: e instanceof Error ? e.message : t("loadError"),
-      }),
-    );
-    if ("error" in r) {
-      toast.error(r.error);
-      return;
-    }
+    const r = await listCommentReplies({ commentId: c.id, offset });
+    // Chỉ ném lỗi: nơi gọi (CommentThread) là chỗ duy nhất hiện toast.
+    if ("error" in r) throw new Error(r.error);
     const { replies, nextOffset } = r.data;
     setExtra((prev) => {
       const old = prev[c.id]?.replies ?? [];
@@ -161,7 +175,33 @@ export function useOpenThreads(
     });
   }
 
-  function apply(v: CommentView): CommentView {
+  /** Dòng tạm hiển thị như bình luận của chính người xem, chưa có thao tác nào. */
+  const tempView = (s: PendingSend): CommentView => ({
+    id: s.tempId,
+    parentId: s.parentId,
+    author: { name: t("you"), avatarUrl: null, avatarKey: null, isHost: false },
+    replyToName: null,
+    body: s.body,
+    state: "visible",
+    upvotes: 0,
+    pinned: false,
+    edited: false,
+    createdAt: s.createdAt,
+    mine: true,
+    myVote: false,
+    canEdit: false,
+    canDelete: false,
+    canApprove: false,
+    canPin: false,
+    moreReplies: 0,
+    replies: [],
+  });
+
+  /** Gốc đang chờ gửi, theo thứ tự gửi. */
+  const rootTemps = () =>
+    sends.filter((s) => s.parentId === null).map(tempView);
+
+  function build(v: CommentView, depth: number): CommentView {
     const e = extra[v.id];
     const merged: CommentView = { ...v, ...patches[v.id] };
     let replies = v.replies;
@@ -172,9 +212,20 @@ export function useOpenThreads(
       // `moreReplies` của server là gốc; chỉ trừ số trả lời đã tải thêm.
       merged.moreReplies = Math.max(0, v.moreReplies - visibleCount(added));
     }
-    merged.replies = replies.map(apply);
+    // Server gộp trả lời tầng 2 về tầng 1, nên trả lời một tầng 2 cũng hiện ở đây.
+    const temps = sends.filter(
+      (s) =>
+        s.parentId !== null &&
+        depth < 2 &&
+        (s.parentId === v.id ||
+          (depth === 1 && replies.some((r) => r.id === s.parentId))),
+    );
+    merged.replies = [...replies, ...temps.map(tempView)].map((r) =>
+      build(r, depth + 1),
+    );
     return merged;
   }
+  const apply = (v: CommentView) => build(v, 0);
 
-  return { apply, patch, begin, end, loadReplies };
+  return { apply, patch, begin, end, loadReplies, addTemp, rootTemps };
 }

@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Send } from "lucide-react";
+import { motion } from "framer-motion";
+import { Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { addComment } from "@/actions/exchange-comments";
 import { TurnstileWidget } from "@/components/security/turnstile-widget";
@@ -23,12 +24,16 @@ export type CommentComposerProps = {
   onEditSubmit?: (body: string) => void;
   initialText?: string;
   needsCaptcha: boolean;
-  onSent: (status: "visible" | "held") => void;
+  /**
+   * Gọi khi server đã nhận. Trả Promise (tải lại danh sách) thì dòng tạm chỉ gỡ
+   * sau khi dữ liệu thật về, để bình luận không chớp tắt.
+   */
+  onSent: (status: "visible" | "held") => void | Promise<unknown>;
+  /** Chèn dòng "Đang gửi…" vào danh sách; trả về hàm gỡ dòng đó. */
+  onPending?: (body: string) => () => void;
   onCancel?: () => void;
   placeholder?: string;
   autoFocus?: boolean;
-  /** Dính đáy màn hình trên mobile (ô viết gốc). */
-  sticky?: boolean;
 };
 
 /**
@@ -45,15 +50,14 @@ export function CommentComposer({
   initialText = "",
   needsCaptcha,
   onSent,
+  onPending,
   onCancel,
   placeholder,
   autoFocus,
-  sticky,
 }: CommentComposerProps) {
   const t = useTranslations("exchange.comments");
   const [text, setText] = useState(initialText);
   const [sending, setSending] = useState(false);
-  const [sentText, setSentText] = useState("");
   const [held, setHeld] = useState(false);
   const [captcha, setCaptcha] = useState(false);
   const [token, setToken] = useState<string | null>(null);
@@ -94,8 +98,8 @@ export function CommentComposer({
     let outcome: "ok" | "captcha" = "ok";
     let status: "visible" | "held" = "visible";
     setSending(true);
-    setSentText(body);
     setHeld(false);
+    const dropTemp = onPending?.(body);
 
     const settle = () => {
       setSending(false);
@@ -126,6 +130,7 @@ export function CommentComposer({
         onSuccess: () => {
           settle();
           if (outcome === "captcha") {
+            dropTemp?.();
             awaitingToken.current = true;
             setCaptcha(true);
             return;
@@ -136,10 +141,14 @@ export function CommentComposer({
             setHeld(true);
             toast.info(t("heldToast"));
           }
-          onSent(status);
+          // Dòng tạm ở lại tới khi danh sách tải lại xong (nếu cha trả Promise).
+          void Promise.resolve(onSent(status)).finally(() => dropTemp?.());
         },
-        // Lỗi: giữ nguyên chữ, bỏ dòng "Đang gửi…"; toast đã do fireAction hiện.
-        onError: settle,
+        // Lỗi: giữ nguyên chữ, gỡ dòng tạm; toast đã do fireAction hiện.
+        onError: () => {
+          dropTemp?.();
+          settle();
+        },
       },
     );
   }
@@ -157,21 +166,9 @@ export function CommentComposer({
   }
 
   return (
-    <div
-      className={cn(
-        "space-y-2",
-        sticky &&
-          "bg-background/95 sticky bottom-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] z-20 -mx-4 border-t px-4 py-3 backdrop-blur sm:bottom-0 sm:mx-0 sm:rounded-2xl sm:border sm:px-3",
-      )}
-    >
-      {sending && !onEditSubmit && (
-        <div className="bg-muted/60 space-y-1 rounded-xl p-3 text-base">
-          <p className="break-words whitespace-pre-wrap">{sentText}</p>
-          <p className="text-muted-foreground text-sm">{t("sending")}</p>
-        </div>
-      )}
+    <div className="space-y-2">
       {held && (
-        <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+        <p className="text-warning-foreground text-sm font-medium">
           {t("waitingApproval")}
         </p>
       )}
@@ -186,7 +183,7 @@ export function CommentComposer({
           setText(e.target.value);
           setHeld(false);
         }}
-        className="bg-background w-full resize-none rounded-xl border p-3 text-base"
+        className="bg-background focus-visible:ring-ring/50 focus-visible:border-ring w-full resize-none rounded-xl border p-3 text-base outline-none focus-visible:ring-3"
       />
       {showCaptcha && (
         <TurnstileWidget
@@ -214,15 +211,20 @@ export function CommentComposer({
               {t("cancel")}
             </button>
           )}
-          <button
+          <motion.button
             type="button"
+            whileTap={{ scale: 0.96 }}
             onClick={() => send(token)}
             disabled={sending || !body || tooLong}
-            className="bg-primary text-primary-foreground inline-flex min-h-11 items-center gap-2 rounded-xl px-5 text-base font-semibold disabled:opacity-50"
+            className="bg-primary text-primary-foreground inline-flex min-h-11 min-w-11 items-center gap-2 rounded-xl px-5 text-base font-semibold disabled:opacity-50"
           >
-            <Send className="h-4 w-4" aria-hidden />
+            {sending ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <Send className="h-4 w-4" aria-hidden />
+            )}
             {onEditSubmit ? t("save") : t("send")}
-          </button>
+          </motion.button>
         </div>
       </div>
     </div>

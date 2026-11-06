@@ -1412,6 +1412,7 @@
       "commentUnhide": "Unhide",
       "commentDismiss": "Dismiss reports",
       "commentDelete": "Delete",
+      "commentDeleteConfirm": "Delete this comment? This cannot be undone.",
       "commentReports": "{count, plural, one {# report} other {# reports}}",
       "channelQa": "Q&A",
       "channelGroup": "Event group",
@@ -1502,6 +1503,7 @@
       "send": "Send",
       "save": "Save",
       "sending": "Sending…",
+      "you": "You",
       "heldToast": "This comment has a phone number or link, so it is waiting for the host to approve it"
     }
   },

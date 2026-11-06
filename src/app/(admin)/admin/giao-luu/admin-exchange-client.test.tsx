@@ -136,6 +136,49 @@ describe("admin comments tab", () => {
   });
 });
 
+describe("admin comment safeguards", () => {
+  it("delete asks for confirmation first and only then moderates", async () => {
+    admin.adminListComments.mockImplementation(async (f: string) => ({
+      success: true,
+      data: listBy(f),
+    }));
+    admin.adminModerateComment.mockResolvedValue({ success: true });
+    mount();
+    fireEvent.click(screen.getByRole("tab", { name: /Bình luận/ }));
+    fireEvent.click((await screen.findAllByRole("button", { name: "Xoá" }))[0]);
+    expect(
+      await screen.findByText("Xoá bình luận này? Không hoàn tác được."),
+    ).toBeTruthy();
+    expect(admin.adminModerateComment).not.toHaveBeenCalled();
+    const sheetButtons = screen.getAllByRole("button", { name: "Xoá" });
+    fireEvent.click(sheetButtons[sheetButtons.length - 1]);
+    await waitFor(() =>
+      expect(admin.adminModerateComment).toHaveBeenCalledWith({
+        commentId: 1,
+        action: "delete",
+      }),
+    );
+  });
+
+  it("a row handled in one sub-tab stays in the others", async () => {
+    // Cùng bình luận #1 nằm ở cả "Chờ duyệt" và "Bị báo cáo".
+    admin.adminListComments.mockImplementation(async (f: string) => ({
+      success: true,
+      data:
+        f === "hidden"
+          ? []
+          : [comment({ id: 1, status: "held", openReports: 1 })],
+    }));
+    admin.adminModerateComment.mockReturnValue(new Promise(() => {}));
+    mount();
+    fireEvent.click(screen.getByRole("tab", { name: /Bình luận/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Duyệt" }));
+    await waitFor(() => expect(screen.queryByText("Lan")).toBeNull());
+    fireEvent.click(screen.getByRole("tab", { name: "Bị báo cáo" }));
+    expect(await screen.findByText("Lan")).toBeTruthy();
+  });
+});
+
 describe("admin reports tab", () => {
   it("comment report shows its excerpt and event title", () => {
     mount([

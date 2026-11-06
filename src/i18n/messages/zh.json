@@ -1412,6 +1412,7 @@
       "commentUnhide": "取消隐藏",
       "commentDismiss": "忽略举报",
       "commentDelete": "删除",
+      "commentDeleteConfirm": "删除这条评论？此操作无法撤销。",
       "commentReports": "{count} 条举报",
       "channelQa": "问答",
       "channelGroup": "活动群",
@@ -1502,6 +1503,7 @@
       "send": "发送",
       "save": "保存",
       "sending": "发送中…",
+      "you": "你",
       "heldToast": "评论含有电话号码或链接，需等待主办人审核"
     }
   },

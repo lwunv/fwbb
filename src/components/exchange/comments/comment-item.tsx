@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { MoreHorizontal, Pin, ThumbsUp } from "lucide-react";
 import {
   approveHeldComment,
@@ -33,8 +33,10 @@ export type CommentCtx = {
   /** Báo một thao tác của bình luận đang bay, để lần tải lại không xoá patch của nó. */
   begin: (id: number) => void;
   end: (id: number) => void;
-  /** Tải lại các trang đã mở sau khi server đã nhận thay đổi. */
-  changed: () => void;
+  /** Tải lại các trang đã mở sau khi server đã nhận thay đổi; xong khi dữ liệu mới về. */
+  changed: () => Promise<void>;
+  /** Chèn dòng tạm "Đang gửi…" cho một trả lời (cha = id bình luận); trả về hàm gỡ. */
+  addTemp: (parentId: number | null, body: string) => () => void;
 };
 
 function agoLabel(iso: string, locale: string): string {
@@ -64,7 +66,31 @@ export function CommentItem({
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const v = view;
+
+  // Menu: Escape đóng và trả focus về nút ba chấm; chạm ra ngoài cũng đóng.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setMenuOpen(false);
+      menuTriggerRef.current?.focus();
+    };
+    const onPointer = (e: PointerEvent) => {
+      const el = e.target as Node;
+      if (menuRef.current?.contains(el) || menuTriggerRef.current?.contains(el))
+        return;
+      setMenuOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointer);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointer);
+    };
+  }, [menuOpen]);
 
   if (v.state === "deleted" || v.state === "hidden" || !v.author) {
     const key =
@@ -73,15 +99,18 @@ export function CommentItem({
         : v.state === "hidden"
           ? "placeholderHidden"
           : "placeholderHeld";
+    // Cùng loại phần tử gốc với bản đầy đủ để đổi trạng thái được animate, không nhảy.
     return (
-      <article className="py-2">
+      <motion.article layout="position" className="py-2">
         <p className="text-muted-foreground text-base italic">{t(key)}</p>
-      </article>
+      </motion.article>
     );
   }
 
   const live = v.state === "visible" || v.state === "held";
   const canReport = ctx.signedIn && !v.mine && v.state === "visible";
+  /** Dòng tạm đang gửi (id âm): chưa có trên server nên chưa có thao tác nào. */
+  const sending = v.id < 0;
 
   /** Thao tác optimistic: báo "đang bay" để lần tải lại không xoá patch của nó. */
   function act(
@@ -220,6 +249,9 @@ export function CommentItem({
           className="text-muted-foreground text-sm"
           suppressHydrationWarning
         >{`· ${agoLabel(v.createdAt, locale)}`}</span>
+        {sending && (
+          <span className="text-muted-foreground text-sm">{t("sending")}</span>
+        )}
         {v.edited && (
           <span className="text-muted-foreground text-sm">{t("edited")}</span>
         )}
@@ -254,7 +286,7 @@ export function CommentItem({
       )}
 
       {v.state === "held" && (
-        <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+        <p className="text-warning-foreground text-sm font-medium">
           {t("waitingApproval")}
         </p>
       )}
@@ -264,7 +296,7 @@ export function CommentItem({
           type="button"
           whileTap={{ scale: 0.92 }}
           onClick={vote}
-          disabled={!ctx.signedIn || v.state !== "visible"}
+          disabled={!ctx.signedIn || v.state !== "visible" || sending}
           aria-pressed={v.myVote}
           className={cn(actionBtn, v.myVote && "text-primary")}
         >
@@ -274,7 +306,7 @@ export function CommentItem({
           />
           {`${t("helpful")} ${v.upvotes}`}
         </motion.button>
-        {ctx.canWrite && live && (
+        {ctx.canWrite && live && !sending && (
           <button
             type="button"
             onClick={() => setReplying((r) => !r)}
@@ -283,9 +315,10 @@ export function CommentItem({
             {t("reply")}
           </button>
         )}
-        {menu.length > 0 && (
+        {menu.length > 0 && !sending && (
           <>
             <button
+              ref={menuTriggerRef}
               type="button"
               aria-label={t("menu")}
               aria-expanded={menuOpen}
@@ -294,18 +327,17 @@ export function CommentItem({
             >
               <MoreHorizontal className="h-5 w-5" aria-hidden />
             </button>
-            {menuOpen && (
-              <>
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  aria-hidden
-                  className="fixed inset-0 z-10 cursor-default"
-                  onClick={() => setMenuOpen(false)}
-                />
-                <div
+            <AnimatePresence>
+              {menuOpen && (
+                <motion.div
+                  ref={menuRef}
                   role="menu"
-                  className="bg-popover absolute top-full right-0 z-20 min-w-40 rounded-xl border p-1 shadow-lg"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.12 }}
+                  style={{ transformOrigin: "top right" }}
+                  className="bg-popover absolute top-full right-0 z-20 max-w-[calc(100vw-2rem)] min-w-40 rounded-xl border p-1 shadow-lg"
                 >
                   {menu.map((m) => (
                     <button
@@ -321,9 +353,9 @@ export function CommentItem({
                       {m.label}
                     </button>
                   ))}
-                </div>
-              </>
-            )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </>
         )}
       </div>
@@ -337,9 +369,10 @@ export function CommentItem({
           placeholder={t("placeholderReply", { name: v.author.name })}
           autoFocus
           onCancel={() => setReplying(false)}
+          onPending={(body) => ctx.addTemp(v.id, body)}
           onSent={() => {
             setReplying(false);
-            ctx.changed();
+            return ctx.changed();
           }}
         />
       )}

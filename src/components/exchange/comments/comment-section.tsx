@@ -4,16 +4,19 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "framer-motion";
+import { MessageSquare } from "lucide-react";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
 import {
   listExchangeComments,
   markCommentsRead,
   setCommentsLocked,
 } from "@/actions/exchange-comments";
+import { EmptyState } from "@/components/shared/empty-state";
 import { TabSegment } from "@/components/shared/tab-segment";
 import type { CommentView } from "@/lib/exchange/comment-tree";
+import { Switch } from "@/components/ui/switch";
 import { fireAction } from "@/lib/optimistic-action";
-import { cn } from "@/lib/utils";
 import { CommentComposer } from "./comment-composer";
 import { CommentItem, type CommentCtx } from "./comment-item";
 import { CommentSkeleton } from "./comment-skeleton";
@@ -94,15 +97,13 @@ export function CommentSection({
     void markCommentsRead({ code, channel, upTo: newestAt }).catch(() => {});
   }, [viewerIn, unread, newestAt, channel, code]);
 
-  async function changed() {
+  async function changed(): Promise<void> {
     await qc.invalidateQueries({ queryKey: ["exchange-comments", code] });
     setLockOverride(null);
   }
 
-  const { apply, patch, begin, end, loadReplies } = useOpenThreads(
-    q.data?.pages,
-    q.dataUpdatedAt,
-  );
+  const { apply, patch, begin, end, loadReplies, addTemp, rootTemps } =
+    useOpenThreads(q.data?.pages, q.dataUpdatedAt);
 
   const seen = new Set<number>();
   const roots: CommentView[] = [];
@@ -113,6 +114,10 @@ export function CommentSection({
       roots.push(apply(r));
     }
   }
+  // Gốc vừa gửi: mới nhất ở đầu khi sắp "Mới nhất", cuối danh sách khi "Hữu ích".
+  const temps = rootTemps();
+  if (sort === "new") roots.unshift(...temps.reverse());
+  else roots.push(...temps);
   const held = (first?.hostHeld ?? [])
     .map(apply)
     .filter((h) => h.state === "held");
@@ -145,7 +150,8 @@ export function CommentSection({
     patch,
     begin,
     end,
-    changed: () => void changed(),
+    changed,
+    addTemp,
   };
 
   const showGroupTab = viewerIn && !!first?.canRead.group;
@@ -174,8 +180,8 @@ export function CommentSection({
           code={code}
           channel={channel}
           needsCaptcha={first.needsCaptcha}
-          sticky
-          onSent={() => void changed()}
+          onPending={(body) => addTemp(null, body)}
+          onSent={changed}
         />
       </div>
     );
@@ -190,29 +196,14 @@ export function CommentSection({
         {first?.role === "host" &&
           eventId !== null &&
           writeState !== "closed" && (
-            <button
-              type="button"
-              role="switch"
-              aria-checked={locked}
-              aria-label={t("lockToggle")}
-              onClick={toggleLock}
-              className="inline-flex min-h-11 items-center gap-2 text-base"
-            >
-              {t("lockToggle")}
-              <span
-                className={cn(
-                  "inline-flex h-6 w-11 items-center rounded-full p-0.5 transition-colors",
-                  locked ? "bg-primary" : "bg-muted",
-                )}
-              >
-                <span
-                  className={cn(
-                    "bg-background h-5 w-5 rounded-full transition-transform",
-                    locked && "translate-x-5",
-                  )}
-                />
-              </span>
-            </button>
+            <div className="flex items-center gap-1 text-base">
+              <span>{t("lockToggle")}</span>
+              <Switch
+                checked={locked}
+                onCheckedChange={() => toggleLock()}
+                aria-label={t("lockToggle")}
+              />
+            </div>
           )}
       </div>
 
@@ -243,7 +234,7 @@ export function CommentSection({
           type="button"
           onClick={() => void q.refetch()}
           disabled={q.isFetching}
-          className="text-primary min-h-11 shrink-0 px-2 text-base font-medium disabled:opacity-50"
+          className="text-primary min-h-11 min-w-11 shrink-0 px-2 text-base font-medium disabled:opacity-50"
         >
           {t("loadNew")}
         </button>
@@ -264,8 +255,9 @@ export function CommentSection({
         </div>
       ) : (
         <>
+          {writeArea()}
           {held.length > 0 && (
-            <div className="space-y-1 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-2">
+            <div className="border-warning/40 bg-warning/10 space-y-1 rounded-2xl border px-4 py-2">
               <h3 className="text-base font-semibold">
                 {t("heldQueue", { count: held.length })}
               </h3>
@@ -275,32 +267,42 @@ export function CommentSection({
             </div>
           )}
           {roots.length === 0 && held.length === 0 ? (
-            <div className="space-y-3 py-6 text-center">
-              <p className="text-base">
-                {channel === "group" ? t("emptyGroup") : t("empty")}
-              </p>
-              {ctx.canWrite && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    composerRef.current?.querySelector("textarea")?.focus()
-                  }
-                  className="bg-secondary text-secondary-foreground min-h-11 rounded-xl px-4 text-base font-medium"
-                >
-                  {t("writeCta")}
-                </button>
-              )}
-            </div>
+            <EmptyState
+              icon={MessageSquare}
+              title={channel === "group" ? t("emptyGroup") : t("empty")}
+              action={
+                ctx.canWrite ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      composerRef.current?.querySelector("textarea")?.focus()
+                    }
+                    className="bg-secondary text-secondary-foreground min-h-11 min-w-11 rounded-xl px-4 text-base font-medium"
+                  >
+                    {t("writeCta")}
+                  </button>
+                ) : undefined
+              }
+            />
           ) : (
             <div className="space-y-3">
-              {roots.map((r) => (
-                <CommentThread
-                  key={r.id}
-                  root={r}
-                  ctx={ctx}
-                  onLoadReplies={loadReplies}
-                />
-              ))}
+              <AnimatePresence initial={false}>
+                {roots.map((r) => (
+                  <motion.div
+                    key={r.id}
+                    layout
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.97 }}
+                  >
+                    <CommentThread
+                      root={r}
+                      ctx={ctx}
+                      onLoadReplies={loadReplies}
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
           )}
           {q.hasNextPage && (
@@ -313,7 +315,6 @@ export function CommentSection({
               {t("loadMore")}
             </button>
           )}
-          {writeArea()}
         </>
       )}
     </section>
