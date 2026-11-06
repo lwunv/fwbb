@@ -1,3 +1,4 @@
+import { isVoteBlockedByDebt } from "@/lib/fund-core";
 import {
   getNextSession,
   getLatestCompletedSession,
@@ -39,7 +40,10 @@ export default async function HomePage() {
   // Nợ dưới ngưỡng voteBlockDebtThreshold (mặc định 100K) vẫn cho vote bình
   // thường — chỉ chặn vote, ưu tiên màn thanh toán khi nợ đủ lớn (quyết định
   // 2026-07-06). Ngưỡng giờ đọc từ setting.
-  const hasBlockingDebt = userFundBalance <= -settings.voteBlockDebtThreshold;
+  const hasBlockingDebt = isVoteBlockedByDebt(
+    userFundBalance,
+    settings.voteBlockDebtThreshold,
+  );
 
   // Còn nợ đủ lớn → ưu tiên buổi đã chơi gần đây + thanh toán (không vote)
   if (nextSession && user && hasBlockingDebt) {

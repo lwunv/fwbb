@@ -144,6 +144,19 @@ export const LOW_FUND_THRESHOLD = 100_000;
  */
 export const VOTE_BLOCK_DEBT_THRESHOLD = 100_000;
 
+/**
+ * Member có bị chặn vote vì nợ không. Nguồn sự thật DUY NHẤT cho phép so sánh
+ * này: trang chủ, trang /vote/[id], submitVote, chip admin và bước tự bỏ phiếu
+ * đều gọi hàm này (spec 2026-11-06-debt-vote-block-design.md mục 4.1).
+ * Nợ đúng bằng hạn mức là bị chặn; hạn mức 0 thì số dư 0 cũng bị chặn.
+ */
+export function isVoteBlockedByDebt(
+  balance: number,
+  threshold: number,
+): boolean {
+  return balance <= -threshold;
+}
+
 export type FundStatus = "owing" | "depleted" | "lowFund" | "hasFund";
 
 /**
