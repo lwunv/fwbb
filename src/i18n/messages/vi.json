@@ -1522,7 +1522,7 @@
   },
   "adminNotifications": {
     "bellLabel": "Thông báo",
-    "bellLabelCount": "Thông báo, {count} thành viên đang âm quỹ",
+    "bellLabelCount": "Thông báo, {count} chưa đọc",
     "owingTitle": "Đang âm quỹ",
     "overLimit": "Quá hạn mức",
     "viewAll": "Xem tất cả thông báo",

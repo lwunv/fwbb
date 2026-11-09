@@ -36,8 +36,8 @@ const STALE_MS = 5 * 60_000;
 export const ADMIN_DEBT_QUERY_KEY = ["admin-debt-notifications"] as const;
 
 /**
- * Chuông cạnh logo Admin (yêu cầu user 6/11/2026). Số đỏ = mọi member trong
- * quỹ đang âm. Bấm mở danh sách nhanh (ngăn trượt ngang từ trái, phía sidebar), link sang trang thông
+ * Chuông cạnh logo Admin (yêu cầu user 6/11/2026). Số đỏ = số thông báo âm
+ * quỹ chưa đọc (đổi 9/11/2026). Bấm mở danh sách nhanh (ngăn trượt ngang từ trái, phía sidebar), link sang trang thông
  * báo đầy đủ có lịch sử. Khi N1 (thông báo đầy đủ) lên prod thì chuông N1 thay
  * chỗ này.
  */
@@ -60,7 +60,12 @@ export function AdminDebtBell({ className }: { className?: string }) {
     () => latestCrossingByMember(result?.history ?? []),
     [result],
   );
-  const count = owing.length;
+  // Số trên chuông = số thông báo âm quỹ CHƯA ĐỌC, kiểu Facebook (quyết định
+  // user 9/11/2026, thay cho "số người đang âm"). Cùng nguồn trạng thái đã đọc
+  // với trang /admin/notifications nên hai nơi luôn khớp.
+  const count = (result?.history ?? []).filter((h) =>
+    isNotificationUnread(readState, notificationKey(h), h.at, now),
+  ).length;
 
   return (
     <>

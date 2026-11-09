@@ -1522,7 +1522,7 @@
   },
   "adminNotifications": {
     "bellLabel": "Notifications",
-    "bellLabelCount": "Notifications, {count} members owe the fund",
+    "bellLabelCount": "Notifications, {count} unread",
     "owingTitle": "Owing the fund",
     "overLimit": "Over limit",
     "viewAll": "See all notifications",

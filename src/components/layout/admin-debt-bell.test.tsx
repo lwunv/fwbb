@@ -40,7 +40,10 @@ describe("AdminDebtBell", () => {
     action.getAdminDebtNotifications.mockReset();
   });
 
-  it("hiện số member đang âm quỹ, bấm mở danh sách tên + link xem tất cả", async () => {
+  // Quyết định user 9/11/2026: số trên chuông = số thông báo CHƯA ĐỌC (kiểu
+  // Facebook), không còn là số người đang âm. Ca này không có lịch sử nên
+  // chuông không có số; tìm chuông theo nhãn không số.
+  it("bấm mở danh sách tên + link xem tất cả", async () => {
     action.getAdminDebtNotifications.mockResolvedValue({
       owing: [
         {
@@ -62,8 +65,11 @@ describe("AdminDebtBell", () => {
       voteBlockDebtThreshold: 100_000,
     });
     renderBell();
-    const bell = await screen.findByRole("button", {
-      name: /Thông báo.*2/,
+    await waitFor(() =>
+      expect(action.getAdminDebtNotifications).toHaveBeenCalled(),
+    );
+    const bell = screen.getByRole("button", {
+      name: viMessages.adminNotifications.bellLabel,
     });
     fireEvent.click(bell);
     await waitFor(() => expect(screen.getByText("Nguyen Thanh")).toBeTruthy());
@@ -102,7 +108,10 @@ describe("AdminDebtBell", () => {
       voteBlockDebtThreshold: 100_000,
     });
     renderBell();
-    const bell = await screen.findByRole("button", { name: /Thông báo.*1/ });
+    // Không có lịch sử → chuông không có số (số = tin chưa đọc từ 9/11/2026).
+    const bell = await screen.findByRole("button", {
+      name: viMessages.adminNotifications.bellLabel,
+    });
     // Trước đây onClick luôn mở, nên bấm lần 2 ngăn vẫn mở (user 6/11/2026).
     fireEvent.pointerDown(bell);
     fireEvent.mouseDown(bell);
@@ -133,5 +142,54 @@ describe("AdminDebtBell", () => {
       }),
     ).toBeTruthy();
     expect(screen.queryByTestId("admin-bell-badge")).toBeNull();
+  });
+
+  it("số trên chuông = số thông báo chưa đọc; đã xem hết thì không còn số", async () => {
+    const recent = (minutesAgo: number) =>
+      new Date(Date.now() - minutesAgo * 60_000)
+        .toISOString()
+        .slice(0, 19)
+        .replace("T", " ");
+    action.getAdminDebtNotifications.mockResolvedValue({
+      owing: [
+        {
+          memberId: 56,
+          name: "Nguyen Thanh",
+          nickname: null,
+          balance: -188_000,
+          overLimit: true,
+        },
+      ],
+      history: [1, 2, 3].map((i) => ({
+        memberId: 50 + i,
+        txId: i,
+        at: recent(i * 5),
+        balanceBefore: 0,
+        balanceAfter: -1_000,
+        description: null,
+        name: `M${i}`,
+        nickname: null,
+      })),
+      voteBlockDebtThreshold: 100_000,
+    });
+    renderBell();
+    const badge = await screen.findByTestId("admin-bell-badge");
+    expect(badge.textContent).toBe("3");
+    expect(
+      screen.getByRole("button", { name: /Thông báo, 3 chưa đọc/ }),
+    ).toBeTruthy();
+    cleanup();
+    window.localStorage.setItem(
+      "fwbb.adminNotifications.lastSeenAt",
+      new Date().toISOString(),
+    );
+    renderBell();
+    await waitFor(() =>
+      expect(action.getAdminDebtNotifications).toHaveBeenCalled(),
+    );
+    await waitFor(() =>
+      expect(screen.queryByTestId("admin-bell-badge")).toBeNull(),
+    );
+    window.localStorage.clear();
   });
 });

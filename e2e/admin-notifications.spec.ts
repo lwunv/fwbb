@@ -50,7 +50,9 @@ test("chuông cạnh logo có số, mở ra thấy member nợ, sang trang thôn
   await page.goto("/admin/dashboard", { waitUntil: "domcontentloaded" });
   // Desktop: chuông trong sidebar (mobile nav ẩn ở lg).
   const bell = page
-    .getByRole("button", { name: /^Thông báo, \d+ thành viên đang âm quỹ$/ })
+    // Số trên chuông = số tin chưa đọc (9/11/2026); member e2e vừa âm quỹ nên
+    // ít nhất có 1 tin chưa đọc.
+    .getByRole("button", { name: /^Thông báo, \d+ chưa đọc$/ })
     .last();
   await expect(bell).toBeVisible({ timeout: 20_000 });
   await bell.click();

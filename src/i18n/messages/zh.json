@@ -1522,7 +1522,7 @@
   },
   "adminNotifications": {
     "bellLabel": "通知",
-    "bellLabelCount": "通知，{count} 位成员欠基金",
+    "bellLabelCount": "通知，{count} 条未读",
     "owingTitle": "欠基金",
     "overLimit": "超出限额",
     "viewAll": "查看全部通知",
