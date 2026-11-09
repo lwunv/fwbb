@@ -2103,6 +2103,7 @@
     "loadingVenues": "Loading venues...",
     "pinHint": "Tap a pin to see the venue",
     "mapTilesFailed": "The map background could not load. Venue pins are still shown.",
+    "pinWithExchanges": "{label}, {count, plural, one {# upcoming exchange} other {# upcoming exchanges}}",
     "pickerUnsupported": "This browser can't display the map. Please enter the coordinates by hand."
   },
   "notifications": {

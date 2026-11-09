@@ -12,7 +12,15 @@ export const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
  * luôn là `pointKey`, không phải `id`.
  */
 export type MapPoint =
-  | { kind: "venue"; id: number; lat: number; lng: number; label: string }
+  | {
+      kind: "venue";
+      id: number;
+      lat: number;
+      lng: number;
+      label: string;
+      /** Số buổi giao lưu sắp tới tại sân; chỉ có khi > 0. */
+      exchangeCount?: number;
+    }
   | {
       kind: "exchange";
       id: number;
@@ -57,6 +65,17 @@ export function venuesToPoints(
     lng: v.lng,
     label: v.name,
   }));
+}
+
+/** Như `venuesToPoints`, gắn thêm số buổi giao lưu (chỉ khi > 0). */
+export function venuesToPointsWithExchanges(
+  venues: Pick<PublicVenue, "id" | "lat" | "lng" | "name">[],
+  counts: Map<number, number> | undefined,
+): MapPoint[] {
+  return venuesToPoints(venues).map((p) => {
+    const n = counts?.get(p.id) ?? 0;
+    return n > 0 ? { ...p, exchangeCount: n } : p;
+  });
 }
 
 /** Zoom vừa khít vòng bán kính trên màn hình điện thoại. */

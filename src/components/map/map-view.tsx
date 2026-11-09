@@ -52,6 +52,12 @@ export type MapViewProps = {
    * nhỏ không cần.
    */
   cooperativeGestures?: boolean;
+  /** Bay tới điểm (đổi `seq` để bay lại). Không đụng vòng bán kính, không gọi `onMoveEnd`. */
+  focus?: { lat: number; lng: number; seq: number } | null;
+  /** Chiều cao (px) phần đáy bị ngăn kéo che; tâm bản đồ lệch lên theo. */
+  bottomInset?: number;
+  /** Vị trí khối "Không tải được nền bản đồ"; mặc định `top-16`. */
+  noticeClassName?: string;
   className?: string;
   onUnsupported?: () => void;
 };
@@ -94,7 +100,7 @@ function radiusData(center: LatLng, km: number | undefined): FeatureCollection {
 // Biểu tượng ghim (lucide map-pin). Chuỗi tĩnh, không chứa dữ liệu người
 // dùng; tên sân chỉ đi qua setAttribute.
 const PIN_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" class="size-8 fill-primary stroke-background drop-shadow-md" stroke-width="1.5" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3" class="fill-background stroke-none"/></svg>';
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" class="size-8 fill-primary group-data-[exchange=true]:fill-warning stroke-background drop-shadow-md" stroke-width="1.5" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3" class="fill-background stroke-none"/></svg>';
 
 type PinEntry = { point: MapPoint; el: HTMLButtonElement; marker: Marker };
 
@@ -102,7 +108,7 @@ function createPin(onClick: () => void): HTMLButtonElement {
   const el = document.createElement("button");
   el.type = "button";
   el.className =
-    "group relative flex size-11 cursor-pointer items-end justify-center rounded-full pb-0.5 focus-visible:outline-2 focus-visible:outline-ring data-[selected=true]:z-10";
+    "group relative flex size-11 cursor-pointer items-end justify-center rounded-full pb-0.5 focus-visible:outline-2 focus-visible:outline-ring data-[exchange=true]:z-[5] data-[selected=true]:z-10";
   // maplibre ghi `transform` của chính phần tử marker mỗi khung hình để bám
   // toạ độ, nên hiệu ứng phóng to nằm ở span con, không ở nút.
   el.innerHTML = `<span class="origin-bottom transition-[scale] duration-200 group-data-[selected=true]:scale-125">${PIN_SVG}</span>`;
@@ -111,7 +117,7 @@ function createPin(onClick: () => void): HTMLButtonElement {
   badge.hidden = true;
   badge.setAttribute("aria-hidden", "true");
   badge.className =
-    "bg-background text-foreground border-primary pointer-events-none absolute top-0 right-0 flex size-5 items-center justify-center rounded-full border text-sm leading-none font-bold";
+    "bg-background text-foreground border-primary group-data-[exchange=true]:border-warning pointer-events-none absolute top-0 right-0 flex size-5 items-center justify-center rounded-full border text-sm leading-none font-bold";
   el.appendChild(badge);
   el.addEventListener("click", (e) => {
     // Không để cú bấm ghim lọt xuống bản đồ.
@@ -190,6 +196,9 @@ export function MapView({
   onMoveEnd,
   interactive = true,
   cooperativeGestures = false,
+  focus,
+  bottomInset,
+  noticeClassName,
   className,
   onUnsupported,
 }: MapViewProps) {
@@ -204,6 +213,12 @@ export function MapView({
   const mapRef = useRef<MapLibreMap | null>(null);
   const markersRef = useRef(new Map<string, PinEntry>());
   const userMarkerRef = useRef<Marker | null>(null);
+  // Cú bay tới ghim đang chạy (xoá ở moveend); đổi padding giữa chừng sẽ cắt
+  // cú bay nên hoãn tới khi nó xong.
+  const flyingRef = useRef(false);
+  const focusTargetRef = useRef<{ lat: number; lng: number } | null>(null);
+  const appliedInsetRef = useRef<number | undefined>(undefined);
+  const lastFocusSeqRef = useRef<number | undefined>(undefined);
   const lastViewRef = useRef({ lat: center.lat, lng: center.lng, radiusKm });
 
   // Handler của maplibre đăng ký một lần lúc tạo map, nên đọc props mới
@@ -218,6 +233,7 @@ export function MapView({
     cooperativeGestures,
     locale,
     t,
+    bottomInset,
     onPointClick,
     onMoveEnd,
     onUnsupported,
@@ -233,6 +249,7 @@ export function MapView({
       cooperativeGestures,
       locale,
       t,
+      bottomInset,
       onPointClick,
       onMoveEnd,
       onUnsupported,
@@ -303,6 +320,24 @@ export function MapView({
       }
     });
     map.on("moveend", (e) => {
+      if (flyingRef.current) {
+        flyingRef.current = false;
+        const want = latest.current.bottomInset;
+        const target = focusTargetRef.current;
+        if (want !== undefined && want !== appliedInsetRef.current) {
+          appliedInsetRef.current = want;
+          if (target) {
+            // Padding mới làm lệch tâm; bay lại để ghim vẫn ở giữa phần thấy được.
+            flyingRef.current = true;
+            map.easeTo({
+              center: [target.lng, target.lat],
+              padding: { bottom: want },
+            });
+          } else {
+            map.setPadding({ bottom: want });
+          }
+        }
+      }
       // Có originalEvent mới là người dùng kéo/zoom; easeTo/jumpTo của code
       // thì không có.
       if (!e.originalEvent) return;
@@ -318,6 +353,9 @@ export function MapView({
       userMarkerRef.current = null;
       map.remove();
       mapRef.current = null;
+      flyingRef.current = false;
+      appliedInsetRef.current = undefined;
+      lastFocusSeqRef.current = undefined;
     };
   }, [unsupported]);
 
@@ -351,17 +389,26 @@ export function MapView({
       }
       entry.point = p;
       entry.marker.setLngLat([p.lng, p.lat]);
+      const venueEx = p.kind === "venue" ? (p.exchangeCount ?? 0) : 0;
+      const hasEx = venueEx > 0;
       const count = p.kind === "exchange" ? p.count : 1;
       entry.el.setAttribute(
         "aria-label",
-        p.kind === "exchange" && count > 1
-          ? tx("pinLabel", { label: p.label, count })
-          : p.label,
+        hasEx
+          ? t("pinWithExchanges", { label: p.label, count: venueEx })
+          : p.kind === "exchange" && count > 1
+            ? tx("pinLabel", { label: p.label, count })
+            : p.label,
       );
+      entry.el.dataset.exchange = String(hasEx);
       const badge = entry.el.querySelector<HTMLElement>("[data-role=count]");
       if (badge) {
-        badge.hidden = count <= 1;
-        badge.textContent = count > 1 ? String(count) : "";
+        badge.hidden = !hasEx && count <= 1;
+        badge.textContent = hasEx
+          ? String(venueEx)
+          : count > 1
+            ? String(count)
+            : "";
       }
       const selected =
         selectedKey !== undefined
@@ -375,7 +422,7 @@ export function MapView({
       if (interactive) entry.el.removeAttribute("aria-hidden");
       else entry.el.setAttribute("aria-hidden", "true");
     }
-  }, [points, selectedId, selectedKey, unsupported, interactive, tx]);
+  }, [points, selectedId, selectedKey, unsupported, interactive, tx, t]);
 
   // Màn cha đổi tâm/bán kính (vd "Tìm ở khu vực này", đổi bán kính).
   useEffect(() => {
@@ -400,6 +447,36 @@ export function MapView({
     });
   }, [center.lat, center.lng, radiusKm]);
 
+  // Chừa chỗ cho ngăn kéo. Chỉ gọi API khi màn cha truyền prop.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || bottomInset === undefined) return;
+    if (flyingRef.current) return; // moveend sẽ áp giá trị mới nhất
+    if (appliedInsetRef.current === bottomInset) return;
+    appliedInsetRef.current = bottomInset;
+    map.setPadding({ bottom: bottomInset });
+  }, [bottomInset, unsupported]);
+
+  const focusSeq = focus?.seq;
+  const focusLat = focus?.lat;
+  const focusLng = focus?.lng;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || focusSeq === undefined) return;
+    if (focusLat === undefined || focusLng === undefined) return;
+    if (lastFocusSeqRef.current === focusSeq) return;
+    lastFocusSeqRef.current = focusSeq;
+    focusTargetRef.current = { lat: focusLat, lng: focusLng };
+    const inset = latest.current.bottomInset ?? 0;
+    appliedInsetRef.current = inset;
+    flyingRef.current = true;
+    map.easeTo({
+      center: [focusLng, focusLat],
+      zoom: Math.max(map.getZoom(), 14),
+      padding: { bottom: inset },
+    });
+  }, [focusSeq, focusLat, focusLng, unsupported]);
+
   const userLat = userPosition?.lat;
   const userLng = userPosition?.lng;
   useEffect(() => {
@@ -420,7 +497,7 @@ export function MapView({
   }, [userLat, userLng, unsupported]);
 
   const box = cn(
-    "relative h-[60dvh] w-full overflow-hidden rounded-2xl border bg-muted/40",
+    "relative isolate h-[60dvh] w-full overflow-hidden rounded-2xl border bg-muted/40",
     className,
   );
 
@@ -450,7 +527,10 @@ export function MapView({
       {styleFailed && (
         <div
           role="status"
-          className="bg-card/80 pointer-events-none absolute inset-x-3 top-16 z-10 flex items-center gap-2 rounded-xl border p-3 text-sm backdrop-blur"
+          className={cn(
+            "bg-card/80 pointer-events-none absolute inset-x-3 z-10 flex items-center gap-2 rounded-xl border p-3 text-sm backdrop-blur",
+            noticeClassName ?? "top-16",
+          )}
         >
           <MapPinOff
             className="text-muted-foreground size-5 shrink-0"

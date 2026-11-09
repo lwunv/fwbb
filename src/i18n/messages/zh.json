@@ -2103,6 +2103,7 @@
     "loadingVenues": "正在加载场馆...",
     "pinHint": "点按图钉查看场馆",
     "mapTilesFailed": "无法加载地图底图，场馆图钉仍会显示。",
+    "pinWithExchanges": "{label}，{count} 场即将举行的交流",
     "pickerUnsupported": "此浏览器无法显示地图，请手动输入坐标。"
   },
   "notifications": {

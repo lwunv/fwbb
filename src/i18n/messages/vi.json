@@ -2103,6 +2103,7 @@
     "loadingVenues": "Đang tải sân...",
     "pinHint": "Bấm một ghim để xem sân",
     "mapTilesFailed": "Không tải được nền bản đồ. Các ghim sân vẫn hiển thị.",
+    "pinWithExchanges": "{label}, {count} buổi giao lưu sắp tới",
     "pickerUnsupported": "Trình duyệt không hiển thị được bản đồ. Bạn nhập toạ độ bằng tay nhé."
   },
   "notifications": {
