@@ -15,7 +15,7 @@ export type ZaloLoginError =
   | "blocked"
   | "server";
 
-const LOGIN_PAGE = "/giao-luu/dang-nhap";
+const LOGIN_PAGE = "/exchanges/login";
 
 /** Cửa sổ rate limit theo IP của cả hai route: 10 lần / 5 phút. */
 export const ZALO_RATE_LIMIT = 10;

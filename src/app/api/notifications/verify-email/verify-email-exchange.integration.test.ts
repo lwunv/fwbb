@@ -36,11 +36,11 @@ async function verifyAs(o: Partial<typeof members.$inferInsert>) {
 }
 
 describe("verify-email redirect for exchange accounts", () => {
-  it("verify-email sends an exchange account back to /giao-luu/cua-toi when the flag is on", async () => {
+  it("verify-email sends an exchange account back to /exchanges/mine when the flag is on", async () => {
     mocks.flag.mockResolvedValue(true);
     expect(
       await verifyAs({ approvalStatus: "pending", signupIntent: "exchange" }),
-    ).toBe("http://localhost:3101/giao-luu/cua-toi?email=verified");
+    ).toBe("http://localhost:3101/exchanges/mine?email=verified");
   });
 
   it("verify-email keeps /me for an exchange account when the flag is off and for group members", async () => {

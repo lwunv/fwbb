@@ -41,7 +41,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // Chỉ đọc cờ với tài khoản giao lưu để các trường hợp khác không tốn truy vấn.
     const base =
       m && isExchangeAccount(m) && (await isExchangeEnabled())
-        ? "/giao-luu/cua-toi"
+        ? "/exchanges/mine"
         : "/me";
     const email = m?.email?.trim();
     if (!email || emailHash(email) !== opened.eh) {

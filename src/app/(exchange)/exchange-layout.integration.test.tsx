@@ -1,6 +1,6 @@
 /**
  * Cổng của (exchange)/layout.tsx (g2a, Task 10): mỗi ô cột "mode exchange"
- * của bảng hành vi là một test. Layout này bọc /san, mà /san phải chạy y như
+ * của bảng hành vi là một test. Layout này bọc /venues, mà /venues phải chạy y như
  * cũ khi cờ tắt, nên phần lớn test là "như (public)".
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -80,7 +80,7 @@ function expectChildWithExchangeNav(tree: ReactNode) {
     appName: "FWBB",
     showMenu: true,
     navItems: "exchange",
-    homeHref: "/giao-luu",
+    homeHref: "/exchanges",
   });
 }
 
@@ -108,14 +108,14 @@ describe("(exchange)/layout: khách", () => {
     });
   });
 
-  it("cờ bật → Header đăng nhập trỏ /giao-luu/dang-nhap", async () => {
+  it("cờ bật → Header đăng nhập trỏ /exchanges/login", async () => {
     flag.on = true;
     const tree = await renderLayout();
     expect(hasText(tree, "CHILD")).toBe(true);
     expect(findByType(tree, Header)?.props).toEqual({
       appName: "FWBB",
       showLogin: true,
-      loginHref: "/giao-luu/dang-nhap",
+      loginHref: "/exchanges/login",
     });
   });
 });

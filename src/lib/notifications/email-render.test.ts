@@ -144,7 +144,7 @@ describe("email-render exchange", () => {
     );
     expect(out.html).not.toContain("vietqr.io");
     expect(out.text).not.toContain("FWBB NO");
-    expect(out.html).toContain("https://fwbb.test/giao-luu/ab12");
+    expect(out.html).toContain("https://fwbb.test/exchanges/ab12");
     expect(`${out.subject}${out.text}${out.html}`).not.toMatch(
       /[\u2013\u2014]/,
     );

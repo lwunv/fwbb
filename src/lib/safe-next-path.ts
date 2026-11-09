@@ -1,4 +1,4 @@
-const FALLBACK = "/giao-luu";
+const FALLBACK = "/exchanges";
 const PLACEHOLDER_ORIGIN = "https://x.invalid";
 
 /**

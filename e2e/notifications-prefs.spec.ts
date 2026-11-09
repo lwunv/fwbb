@@ -6,7 +6,7 @@ import bcrypt from "bcryptjs";
  * Tuỳ chọn thông báo (N1b). Hai bài:
  *  1. Member tắt nhóm "Buổi chơi" ở /me, công tắc giữ nguyên sau khi tải lại và
  *     DB ghi đúng nhóm đã tắt.
- *  2. Trang /huy-nhan-thong-bao: GET chỉ hiện nút và không đổi gì, bấm nút mới
+ *  2. Trang /unsubscribe: GET chỉ hiện nút và không đổi gì, bấm nút mới
  *     tắt email.
  *
  * Fixture bằng SQL thô trên e2e/local.db. Công tắc `notificationsEnabled` chỉ
@@ -238,7 +238,7 @@ test("unsubscribe page GET shows a button and changes nothing until pressed", as
     }
   };
   try {
-    await page.goto(`/huy-nhan-thong-bao?token=${UNSUB_TOKEN}`, {
+    await page.goto(`/unsubscribe?token=${UNSUB_TOKEN}`, {
       waitUntil: "domcontentloaded",
     });
     const button = page.getByRole("button", { name: "Ngừng nhận email" });
@@ -255,7 +255,7 @@ test("unsubscribe page GET shows a button and changes nothing until pressed", as
     );
     expect(get.status()).toBe(303);
     expect(get.headers()["location"]).toContain(
-      `/huy-nhan-thong-bao?token=${UNSUB_TOKEN}`,
+      `/unsubscribe?token=${UNSUB_TOKEN}`,
     );
     expect(await emailEnabled()).toBe(1);
 

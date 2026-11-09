@@ -95,7 +95,7 @@ export function ExchangeCard({ event }: { event: ExchangeCardData }) {
 
   return (
     <Link
-      href={`/giao-luu/${event.code}`}
+      href={`/exchanges/${event.code}`}
       className="bg-card/80 hover:bg-accent/40 focus-visible:outline-ring block min-h-11 space-y-3 rounded-2xl border p-4 shadow-sm backdrop-blur transition-colors focus-visible:outline-2"
     >
       <div className="flex items-start justify-between gap-3">

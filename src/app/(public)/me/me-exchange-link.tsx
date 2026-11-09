@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 function LinkCard() {
   const t = useTranslations("exchange.mine");
   return (
-    <Link href="/giao-luu/cua-toi" className="block">
+    <Link href="/exchanges/mine" className="block">
       <Card className="bg-card/80 hover:bg-muted/60 backdrop-blur transition-colors">
         <CardContent className="flex min-h-14 items-center gap-3 p-4">
           <Handshake className="text-primary h-6 w-6 shrink-0" aria-hidden />

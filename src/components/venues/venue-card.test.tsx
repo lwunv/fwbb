@@ -67,7 +67,7 @@ describe("VenueCard", () => {
     renderCard(base);
     expect(
       screen.getByRole("link", { name: "Sân Cầu Giấy" }).getAttribute("href"),
-    ).toBe("/san/7");
+    ).toBe("/venues/7");
   });
 
   it("hiện tiện ích theo bản dịch", () => {

@@ -305,7 +305,7 @@ describe("href", () => {
       "/my-fund",
     );
     expect(notificationHref(view("password_changed"), "member")).toBe("/me");
-    expect(notificationHref(view("venue_approved"), "member")).toBe("/san");
+    expect(notificationHref(view("venue_approved"), "member")).toBe("/venues");
     expect(notificationHref(view("signup_pending"), "admin")).toBe(
       "/admin/members",
     );

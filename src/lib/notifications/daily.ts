@@ -649,7 +649,7 @@ async function sendDigests(db: DbOrTx, now: Date): Promise<number> {
       let headers: Record<string, string> | undefined;
       if (items.some((item) => !item.mandatory)) {
         const token = encodeURIComponent(await ensureUnsubToken(db, recipient));
-        unsubscribeUrl = `${appUrl}/huy-nhan-thong-bao?token=${token}`;
+        unsubscribeUrl = `${appUrl}/unsubscribe?token=${token}`;
         headers = {
           "List-Unsubscribe": `<${appUrl}/api/notifications/unsubscribe?token=${token}>`,
           "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",

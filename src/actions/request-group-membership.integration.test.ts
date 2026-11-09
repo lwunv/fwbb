@@ -64,7 +64,7 @@ describe("requestGroupMembership", () => {
     expect(await row(id)).toEqual({ intent: "group", status: "pending" });
     const paths = revalidate.revalidatePath.mock.calls.map((c) => c[0]);
     expect(paths).toEqual(
-      expect.arrayContaining(["/admin/members", "/giao-luu", "/"]),
+      expect.arrayContaining(["/admin/members", "/exchanges", "/"]),
     );
   });
 

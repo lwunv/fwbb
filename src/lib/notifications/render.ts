@@ -197,28 +197,28 @@ export function notificationHref(
   const { group } = NOTIFICATION_CATALOG[item.kind];
   const id = item.entityId;
   if (scope === "admin" && item.kind === "exchange_reported") {
-    return "/admin/giao-luu";
+    return "/admin/exchanges";
   }
   if (scope === "member" && group === "exchange_comments") {
     const code = item.payload?.eventCode;
-    if (typeof code !== "string" || !code) return "/giao-luu";
-    // `qa` là khu công khai; `nhom` là Nhóm buổi. Tin chờ duyệt luôn về khu hỏi đáp.
+    if (typeof code !== "string" || !code) return "/exchanges";
+    // `qa` là khu công khai; `group` là Nhóm buổi. Tin chờ duyệt luôn về khu hỏi đáp.
     const channel =
       item.kind === "exchange_comment_host_post"
-        ? "nhom"
+        ? "group"
         : item.kind === "exchange_comment_held"
           ? "qa"
           : item.payload?.channel === "group"
-            ? "nhom"
+            ? "group"
             : "qa";
-    return `/giao-luu/${code}?kenh=${channel}#binh-luan`;
+    return `/exchanges/${code}?channel=${channel}#comments`;
   }
   if (scope === "member" && group === "exchange") {
     const code = item.payload?.eventCode;
-    if (typeof code !== "string" || !code) return "/giao-luu";
+    if (typeof code !== "string" || !code) return "/exchanges";
     return EXCHANGE_HOST_KINDS.has(item.kind)
-      ? `/giao-luu/${code}/quan-ly`
-      : `/giao-luu/${code}`;
+      ? `/exchanges/${code}/manage`
+      : `/exchanges/${code}`;
   }
   if (scope === "member") {
     switch (group) {
@@ -229,7 +229,7 @@ export function notificationHref(
       case "account":
         return "/me";
       case "venue":
-        return "/san";
+        return "/venues";
       default:
         return "/";
     }

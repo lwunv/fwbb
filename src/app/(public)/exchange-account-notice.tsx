@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { Handshake, LogOut } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { JoinGroupButton } from "@/app/(exchange)/giao-luu/join-group-button";
+import { JoinGroupButton } from "@/app/(exchange)/exchanges/join-group-button";
 
 /**
  * Màn của tài khoản giao lưu (đăng ký để đi giao lưu, chưa vào nhóm) khi mở
@@ -37,7 +37,7 @@ export function ExchangeAccountNotice({ memberName }: { memberName: string }) {
           <Button
             variant="outline"
             className="min-h-11 w-full text-base"
-            render={<Link href="/giao-luu" />}
+            render={<Link href="/exchanges" />}
           >
             {t("goExchange")}
           </Button>

@@ -156,7 +156,7 @@ function sealedState(over: Partial<ZaloOAuthState> = {}) {
     state: "state-0123456789abcdef",
     verifier: "V".repeat(43),
     intent: "exchange",
-    next: "/giao-luu/lich",
+    next: "/exchanges/lich",
     iat: Date.now(),
     ...over,
   };
@@ -165,11 +165,11 @@ function sealedState(over: Partial<ZaloOAuthState> = {}) {
 
 // --- kiểm response --------------------------------------------------------
 
-function expectLoginError(res: Response, code: string, next = "/giao-luu") {
+function expectLoginError(res: Response, code: string, next = "/exchanges") {
   expect(res.status).toBe(303);
   const loc = new URL(res.headers.get("location") ?? "");
   expect(loc.origin).toBe(ORIGIN);
-  expect(loc.pathname).toBe("/giao-luu/dang-nhap");
+  expect(loc.pathname).toBe("/exchanges/login");
   expect(loc.searchParams.get("error")).toBe(code);
   expect(loc.searchParams.get("next")).toBe(next);
 }
@@ -261,9 +261,9 @@ describe("cờ exchangeEnabled tắt", () => {
 describe("POST /api/auth/zalo/start", () => {
   it("Origin https://evil.com → error=origin, không gọi fetch, không cookie, không ghi DB", async () => {
     const res = await POST(
-      startRequest({ origin: "https://evil.com", next: "/giao-luu/lich" }),
+      startRequest({ origin: "https://evil.com", next: "/exchanges/lich" }),
     );
-    expectLoginError(res, "origin", "/giao-luu/lich");
+    expectLoginError(res, "origin", "/exchanges/lich");
     expect(fetchMock).not.toHaveBeenCalled();
     expect(stateSetCookies(res)).toEqual([]);
     expect(await bucketKeys()).toEqual([]);
@@ -330,7 +330,7 @@ describe("POST /api/auth/zalo/start", () => {
   });
 
   it("hợp lệ → 303 tới Zalo với redirect_uri đúng ZALO_REDIRECT_URI; cookie state đúng thuộc tính", async () => {
-    const res = await POST(startRequest({ next: "/giao-luu/lich" }));
+    const res = await POST(startRequest({ next: "/exchanges/lich" }));
 
     expect(res.status).toBe(303);
     const loc = new URL(res.headers.get("location") ?? "");
@@ -351,7 +351,7 @@ describe("POST /api/auth/zalo/start", () => {
     const st = openZaloState(c?.value);
     expect(st).not.toBeNull();
     expect(st?.intent).toBe("exchange");
-    expect(st?.next).toBe("/giao-luu/lich");
+    expect(st?.next).toBe("/exchanges/lich");
     expect(loc.searchParams.get("state")).toBe(st?.state);
     expect(loc.searchParams.get("code_challenge")).toBe(
       pkceChallenge(st?.verifier ?? ""),
@@ -376,10 +376,10 @@ describe("POST /api/auth/zalo/start", () => {
     expect(stateSetCookies(res)).toEqual([]);
   });
 
-  it("next=//evil.com → state lưu next=/giao-luu", async () => {
+  it("next=//evil.com → state lưu next=/exchanges", async () => {
     const res = await POST(startRequest({ next: "//evil.com" }));
     const c = (res as NextResponseLike).cookies.get(ZALO_STATE_COOKIE);
-    expect(openZaloState(c?.value)?.next).toBe("/giao-luu");
+    expect(openZaloState(c?.value)?.next).toBe("/exchanges");
   });
 });
 
@@ -463,9 +463,9 @@ describe("GET /api/auth/zalo/callback", () => {
 
     expect(first.status).toBe(303);
     expect(new URL(first.headers.get("location") ?? "").pathname).toBe(
-      "/giao-luu/lich",
+      "/exchanges/lich",
     );
-    expectLoginError(second, "state", "/giao-luu/lich");
+    expectLoginError(second, "state", "/exchanges/lich");
     expectStateCookieCleared(second);
     expect(callsTo(TOKEN_URL)).toBe(1);
     expect(await memberCount()).toBe(1);
@@ -475,7 +475,7 @@ describe("GET /api/auth/zalo/callback", () => {
   it("không có code → error=denied", async () => {
     const { st, cookie } = sealedState();
     const res = await GET(callbackRequest({ state: st.state }, cookie));
-    expectLoginError(res, "denied", "/giao-luu/lich");
+    expectLoginError(res, "denied", "/exchanges/lich");
     expectStateCookieCleared(res);
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -488,7 +488,7 @@ describe("GET /api/auth/zalo/callback", () => {
         cookie,
       ),
     );
-    expectLoginError(res, "denied", "/giao-luu/lich");
+    expectLoginError(res, "denied", "/exchanges/lich");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -502,7 +502,7 @@ describe("GET /api/auth/zalo/callback", () => {
     const res = await GET(
       callbackRequest({ code: "c", state: st.state }, cookie),
     );
-    expectLoginError(res, "rate", "/giao-luu/lich");
+    expectLoginError(res, "rate", "/exchanges/lich");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -512,7 +512,7 @@ describe("GET /api/auth/zalo/callback", () => {
     const res = await GET(
       callbackRequest({ code: "c", state: st.state }, cookie),
     );
-    expectLoginError(res, "exchange", "/giao-luu/lich");
+    expectLoginError(res, "exchange", "/exchanges/lich");
     expectStateCookieCleared(res);
     expect(userCookieSets()).toEqual([]);
   });
@@ -523,7 +523,7 @@ describe("GET /api/auth/zalo/callback", () => {
     const res = await GET(
       callbackRequest({ code: "c", state: st.state }, cookie),
     );
-    expectLoginError(res, "region", "/giao-luu/lich");
+    expectLoginError(res, "region", "/exchanges/lich");
     expect(await memberCount()).toBe(0);
   });
 
@@ -533,7 +533,7 @@ describe("GET /api/auth/zalo/callback", () => {
     const res = await GET(
       callbackRequest({ code: "c", state: st.state }, cookie),
     );
-    expectLoginError(res, "profile", "/giao-luu/lich");
+    expectLoginError(res, "profile", "/exchanges/lich");
   });
 
   it("loginOrCreateZaloMember ném lỗi → error=server, không setUserCookie, log không lộ dữ liệu Zalo", async () => {
@@ -545,7 +545,7 @@ describe("GET /api/auth/zalo/callback", () => {
       callbackRequest({ code: "c", state: st.state }, cookie),
     );
 
-    expectLoginError(res, "server", "/giao-luu/lich");
+    expectLoginError(res, "server", "/exchanges/lich");
     expectStateCookieCleared(res);
     expect(userCookieSets()).toEqual([]);
     expect(consoleError).toHaveBeenCalledWith("[ZaloAuth] server");
@@ -568,7 +568,7 @@ describe("GET /api/auth/zalo/callback", () => {
     const res = await GET(
       callbackRequest({ code: "c", state: st.state }, cookie),
     );
-    expectLoginError(res, "blocked", "/giao-luu/lich");
+    expectLoginError(res, "blocked", "/exchanges/lich");
     expectStateCookieCleared(res);
     expect(userCookieSets()).toEqual([]);
   });
@@ -580,7 +580,7 @@ describe("GET /api/auth/zalo/callback", () => {
     );
 
     expect(res.status).toBe(303);
-    expect(res.headers.get("location")).toBe(`${ORIGIN}/giao-luu/lich`);
+    expect(res.headers.get("location")).toBe(`${ORIGIN}/exchanges/lich`);
     expectStateCookieCleared(res);
 
     const sets = userCookieSets();
@@ -606,13 +606,13 @@ describe("GET /api/auth/zalo/callback", () => {
     const res = await GET(
       callbackRequest({ code: "c", state: st.state }, cookie),
     );
-    expect(res.headers.get("location")).toBe(`${ORIGIN}/giao-luu`);
+    expect(res.headers.get("location")).toBe(`${ORIGIN}/exchanges`);
   });
 });
 
 describe("start → callback trọn vòng", () => {
   it("cookie và state từ start dùng được ở callback, verifier PKCE gửi đúng", async () => {
-    const s = await POST(startRequest({ next: "/giao-luu/lich" }));
+    const s = await POST(startRequest({ next: "/exchanges/lich" }));
     const c = (s as NextResponseLike).cookies.get(ZALO_STATE_COOKIE);
     const state = new URL(s.headers.get("location") ?? "").searchParams.get(
       "state",
@@ -625,7 +625,7 @@ describe("start → callback trọn vòng", () => {
         c?.value ?? null,
       ),
     );
-    expect(res.headers.get("location")).toBe(`${ORIGIN}/giao-luu/lich`);
+    expect(res.headers.get("location")).toBe(`${ORIGIN}/exchanges/lich`);
 
     const tokenCall = fetchMock.mock.calls.find(([input]) =>
       String(input).startsWith(TOKEN_URL),

@@ -34,7 +34,7 @@ export function Header({
    * đứng ngay trang đăng nhập đó.
    */
   loginHref?: string;
-  /** Đích của logo. Vùng giao lưu dùng "/giao-luu" thay trang chủ nhóm. */
+  /** Đích của logo. Vùng giao lưu dùng "/exchanges" thay trang chủ nhóm. */
   homeHref?: string;
   /** Bộ mục menu của ngăn kéo (xem NavDrawer). */
   navItems?: "group" | "exchange";

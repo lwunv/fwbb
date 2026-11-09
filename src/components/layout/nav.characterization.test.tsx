@@ -73,7 +73,7 @@ describe("navigation links", () => {
       ["/history", "Lịch sử"],
       ["/my-fund", "Quỹ"],
       ["/stats", "Thống kê"],
-      ["/san", "Sân"],
+      ["/venues", "Sân"],
       ["/me", "Cá nhân"],
     ]);
     group.unmount();
@@ -84,10 +84,10 @@ describe("navigation links", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mở menu" }));
     await screen.findByRole("navigation");
     expect(navLinks()).toEqual([
-      ["/giao-luu", "Giao lưu"],
-      ["/san", "Sân"],
+      ["/exchanges", "Giao lưu"],
+      ["/venues", "Sân"],
       // Ruling R18 (spec 4.6b): tài khoản giao lưu có thêm "Cá nhân".
-      ["/giao-luu/cua-toi", "Cá nhân"],
+      ["/exchanges/mine", "Cá nhân"],
     ]);
     exchange.unmount();
     cleanup();
@@ -109,7 +109,7 @@ describe("navigation links", () => {
 describe("admin nav exchange entry", () => {
   const withExchange = [
     ...ADMIN_LINKS.slice(0, 5),
-    ["/admin/giao-luu", "Giao lưu"],
+    ["/admin/exchanges", "Giao lưu"],
     ...ADMIN_LINKS.slice(5),
   ];
 

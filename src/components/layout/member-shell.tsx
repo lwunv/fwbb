@@ -18,10 +18,10 @@ const bellProps = (on: boolean) => (on ? { showBell: true } : {});
 /**
  * Khung chung cho layout của member: chọn màn theo người xem (khách, bị khoá,
  * chờ duyệt, phải đổi mật khẩu, đã duyệt). `mode="group"` bọc trang của nhóm
- * ((public)), `mode="exchange"` bọc vùng giao lưu ((exchange), gồm /san).
+ * ((public)), `mode="exchange"` bọc vùng giao lưu ((exchange), gồm /venues).
  *
  * Khi cờ giao lưu tắt, hai mode cho ra cùng một màn cho mọi người xem, nên
- * /san chạy y như lúc còn nằm trong (public). Cờ chỉ được đọc khi nó có thể
+ * /venues chạy y như lúc còn nằm trong (public). Cờ chỉ được đọc khi nó có thể
  * đổi kết quả (khách ở mode exchange, member đang chờ duyệt), để member đã
  * duyệt không tốn thêm lần đọc settings.
  */
@@ -49,7 +49,7 @@ export async function MemberShell({
     return (
       <div className="flex min-h-screen flex-col">
         {exchangeLogin ? (
-          <Header appName={appName} showLogin loginHref="/giao-luu/dang-nhap" />
+          <Header appName={appName} showLogin loginHref="/exchanges/login" />
         ) : (
           <Header appName={appName} showLogin />
         )}
@@ -157,7 +157,7 @@ export async function MemberShell({
           appName={appName}
           showMenu
           navItems="exchange"
-          homeHref="/giao-luu"
+          homeHref="/exchanges"
           {...bellProps(showBell)}
         />
         <main className="flex-1 px-4 py-4 pb-6">{children}</main>

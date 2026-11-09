@@ -582,7 +582,7 @@ export async function declineGroupRequest(
   }
 
   revalidatePath("/admin/members");
-  revalidatePath("/giao-luu");
+  revalidatePath("/exchanges");
   return { success: true };
 }
 
@@ -635,7 +635,7 @@ export async function requestGroupMembership(): Promise<
   });
 
   revalidatePath("/admin/members");
-  revalidatePath("/giao-luu");
+  revalidatePath("/exchanges");
   revalidatePath("/");
   return { success: true };
 }

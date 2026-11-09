@@ -30,7 +30,7 @@ export function VenueCard({
           </div>
           <div className="min-w-0 flex-1 space-y-0.5">
             <Link
-              href={`/san/${venue.id}`}
+              href={`/venues/${venue.id}`}
               className="block truncate text-base font-semibold hover:underline"
             >
               {venue.name}
@@ -69,7 +69,7 @@ export function VenueCard({
 
         {upcomingExchangeCount !== undefined && upcomingExchangeCount > 0 && (
           <Link
-            href={`/san/${venue.id}`}
+            href={`/venues/${venue.id}`}
             className="bg-primary/15 text-primary inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-medium"
           >
             {t("upcomingExchangeCount", { count: upcomingExchangeCount })}

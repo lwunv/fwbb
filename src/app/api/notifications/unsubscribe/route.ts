@@ -7,7 +7,7 @@ import { notificationPrefs } from "@/db/schema";
 const TOKEN_SHAPE = /^[A-Za-z0-9_-]{43}$/;
 
 /**
- * Huỷ nhận email một chạm (RFC 8058) và nút trên trang /huy-nhan-thong-bao.
+ * Huỷ nhận email một chạm (RFC 8058) và nút trên trang /unsubscribe.
  * Mail client gọi thẳng nên không có cookie đăng nhập và không kiểm Origin:
  * quyền nằm ở chính token ngẫu nhiên trong URL. Chỉ tắt email, thông báo
  * trên chuông giữ nguyên. Lặp lại an toàn (đặt cờ về false). Không log token.
@@ -36,10 +36,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 /**
  * GET không đổi gì (máy quét link trong mail hay mở trước). Mail client không
  * làm POST một chạm thì mở link này trong trình duyệt: chuyển (303) sang trang
- * xác nhận /huy-nhan-thong-bao, ở đó người nhận tự bấm nút.
+ * xác nhận /unsubscribe, ở đó người nhận tự bấm nút.
  */
 export function GET(request: NextRequest): NextResponse {
-  const target = new URL("/huy-nhan-thong-bao", request.nextUrl.origin);
+  const target = new URL("/unsubscribe", request.nextUrl.origin);
   const token = request.nextUrl.searchParams.get("token");
   if (token) target.searchParams.set("token", token);
   return NextResponse.redirect(target, 303);

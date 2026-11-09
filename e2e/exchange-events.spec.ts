@@ -336,7 +336,7 @@ test("host opens a split-fee event and sees the estimate preview", async ({
 }) => {
   const ctx = await newCtx(browser);
   const page = await loginAs(ctx, "host");
-  await page.goto("/giao-luu/mo");
+  await page.goto("/exchanges/new");
 
   await page.getByRole("button", { name: "Chọn sân" }).click();
   await page.getByRole("button", { name: new RegExp(VENUE) }).click();
@@ -359,7 +359,7 @@ test("host opens a split-fee event and sees the estimate preview", async ({
   await expect(submit).toBeEnabled({ timeout: 30_000 });
   await submit.click();
 
-  await expect(page).toHaveURL(/\/giao-luu\/[a-z0-9]{10}$/, {
+  await expect(page).toHaveURL(/\/exchanges\/[a-z0-9]{10}$/, {
     timeout: 20_000,
   });
   await expect(
@@ -388,11 +388,11 @@ test("guest sees the event on the list and as a pin, and is sent to login on Đ�
   listedCode = ev.code;
   const ctx = await newCtx(browser);
   const page = await ctx.newPage();
-  await page.goto("/giao-luu");
+  await page.goto("/exchanges");
 
   const card = page.getByRole("link", { name: new RegExp(title) });
   await expect(card).toBeVisible({ timeout: 20_000 });
-  await expect(card).toHaveAttribute("href", `/giao-luu/${ev.code}`);
+  await expect(card).toHaveAttribute("href", `/exchanges/${ev.code}`);
   await noHorizontalScroll(page);
 
   await page.getByRole("button", { name: "Bản đồ", exact: true }).click();
@@ -400,14 +400,14 @@ test("guest sees the event on the list and as a pin, and is sent to login on Đ�
     page.getByRole("button", { name: new RegExp(`^${VENUE}`) }),
   ).toBeVisible({ timeout: 20_000 });
 
-  await page.goto(`/giao-luu/${ev.code}`);
+  await page.goto(`/exchanges/${ev.code}`);
   await expect(page.getByRole("heading", { name: title })).toBeVisible({
     timeout: 15_000,
   });
   await page.getByRole("link", { name: "Đăng nhập để đăng ký" }).click();
   await expect(page).toHaveURL(
     new RegExp(
-      `/giao-luu/dang-nhap\\?next=${encodeURIComponent(`/giao-luu/${ev.code}`)}`,
+      `/exchanges/login\\?next=${encodeURIComponent(`/exchanges/${ev.code}`)}`,
     ),
   );
   await ctx.close();
@@ -425,7 +425,7 @@ test("pending exchange account registers; host approves; registrant sees approve
   });
   const guestCtx = await newCtx(browser);
   const guest = await loginAs(guestCtx, "ex");
-  await guest.goto(`/giao-luu/${ev.code}`);
+  await guest.goto(`/exchanges/${ev.code}`);
   await guest.getByRole("button", { name: "Đăng ký", exact: true }).click();
   const send = guest.getByRole("button", { name: "Gửi đăng ký" });
   await expect(send).toBeEnabled({ timeout: 30_000 });
@@ -439,7 +439,7 @@ test("pending exchange account registers; host approves; registrant sees approve
 
   const hostCtx = await newCtx(browser);
   const host = await loginAs(hostCtx, "host");
-  await host.goto(`/giao-luu/${ev.code}/quan-ly`);
+  await host.goto(`/exchanges/${ev.code}/manage`);
   await expect(host.getByText(USERS.ex.name)).toBeVisible({ timeout: 15_000 });
   await host.getByRole("button", { name: "Duyệt", exact: true }).click();
   await expect
@@ -475,7 +475,7 @@ test("last slot: second registrant waitlisted, promoted when the first cancels",
   });
   const firstCtx = await newCtx(browser);
   const first = await loginAs(firstCtx, "ex");
-  await first.goto(`/giao-luu/${ev.code}`);
+  await first.goto(`/exchanges/${ev.code}`);
   await first.getByRole("button", { name: "Đăng ký", exact: true }).click();
   const send1 = first.getByRole("button", { name: "Gửi đăng ký" });
   await expect(send1).toBeEnabled({ timeout: 30_000 });
@@ -486,7 +486,7 @@ test("last slot: second registrant waitlisted, promoted when the first cancels",
 
   const secondCtx = await newCtx(browser);
   const second = await loginAs(secondCtx, "other");
-  await second.goto(`/giao-luu/${ev.code}`);
+  await second.goto(`/exchanges/${ev.code}`);
   await second.getByRole("button", { name: "Đăng ký", exact: true }).click();
   const send2 = second.getByRole("button", { name: "Gửi đăng ký" });
   await expect(send2).toBeEnabled({ timeout: 30_000 });
@@ -534,7 +534,7 @@ test("host locks below minHeads after confirming; participant sees amount and QR
 
   const hostCtx = await newCtx(browser);
   const host = await loginAs(hostCtx, "host");
-  await host.goto(`/giao-luu/${ev.code}/quan-ly`);
+  await host.goto(`/exchanges/${ev.code}/manage`);
   await expect(host.getByText(USERS.other.name)).toBeVisible({
     timeout: 15_000,
   });
@@ -554,7 +554,7 @@ test("host locks below minHeads after confirming; participant sees amount and QR
 
   const memberCtx = await newCtx(browser);
   const member = await loginAs(memberCtx, "other");
-  await member.goto(`/giao-luu/${ev.code}`);
+  await member.goto(`/exchanges/${ev.code}`);
   await expect(member.getByText(/Cần chuyển 300[.,\s]000/)).toBeVisible({
     timeout: 15_000,
   });
@@ -585,7 +585,7 @@ test("host checks in a participant", async ({ browser }) => {
 
   const ctx = await newCtx(browser);
   const host = await loginAs(ctx, "host");
-  await host.goto(`/giao-luu/${ev.code}/quan-ly`);
+  await host.goto(`/exchanges/${ev.code}/manage`);
   const checkIn = host.getByRole("button", { name: "Điểm danh", exact: true });
   await expect(checkIn).toBeEnabled({ timeout: 15_000 });
   await checkIn.click();
@@ -598,13 +598,13 @@ test("host checks in a participant", async ({ browser }) => {
   await ctx.close();
 });
 
-test("exchange account cannot open /giao-luu/mo or any group page", async ({
+test("exchange account cannot open /exchanges/new or any group page", async ({
   browser,
 }) => {
   const ctx = await newCtx(browser);
   const page = await loginAs(ctx, "ex");
 
-  await page.goto("/giao-luu/mo");
+  await page.goto("/exchanges/new");
   await expect(
     page.getByText("Chỉ thành viên nhóm mới mở được buổi"),
   ).toBeVisible({ timeout: 15_000 });
@@ -622,14 +622,14 @@ test("exchange account cannot open /giao-luu/mo or any group page", async ({
   await ctx.close();
 });
 
-test("flag off: /giao-luu, /giao-luu/<code>, /admin/giao-luu return 404 and /san shows no exchange count", async ({
+test("flag off: /exchanges, /exchanges/<code>, /admin/exchanges return 404 and /venues shows no exchange count", async ({
   browser,
   request,
 }) => {
   // Với cờ bật, thẻ sân đếm buổi sắp tới (bước kiểm đối chứng).
   const on = await newCtx(browser);
   const onPage = await on.newPage();
-  await onPage.goto("/san");
+  await onPage.goto("/venues");
   await expect(onPage.getByText(VENUE).first()).toBeVisible({
     timeout: 20_000,
   });
@@ -637,7 +637,7 @@ test("flag off: /giao-luu, /giao-luu/<code>, /admin/giao-luu return 404 and /san
   await on.close();
 
   await setFlag(false);
-  for (const path of ["/giao-luu", `/giao-luu/${listedCode}`]) {
+  for (const path of ["/exchanges", `/exchanges/${listedCode}`]) {
     const res = await request.get(path);
     expect(res.status(), path).toBe(404);
   }
@@ -645,7 +645,7 @@ test("flag off: /giao-luu, /giao-luu/<code>, /admin/giao-luu return 404 and /san
     storageState: "e2e/.auth/admin.json",
   });
   try {
-    const res = await adminCtx.request.get("/admin/giao-luu");
+    const res = await adminCtx.request.get("/admin/exchanges");
     expect(res.status()).toBe(404);
   } finally {
     await adminCtx.close();
@@ -653,7 +653,7 @@ test("flag off: /giao-luu, /giao-luu/<code>, /admin/giao-luu return 404 and /san
 
   const off = await newCtx(browser);
   const offPage = await off.newPage();
-  await offPage.goto("/san");
+  await offPage.goto("/venues");
   await expect(offPage.getByText(VENUE).first()).toBeVisible({
     timeout: 20_000,
   });

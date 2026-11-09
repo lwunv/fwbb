@@ -218,9 +218,9 @@ test("chạm ra ngoài khung (vùng tối) thì đóng tour", async ({ page }) =
   await expectTourClosed(page);
 });
 
-// /san nằm ở route group (exchange), trang chủ ở (public): đi /san → / là đổi
+// /venues nằm ở route group (exchange), trang chủ ở (public): đi /venues → / là đổi
 // layout nên ngăn kéo menu bị dựng lại, ý định mở tour phải sống qua lần đó.
-test("từ /san mở menu, bấm Hướng dẫn → về / và thấy bước tour đầu tiên", async ({
+test("từ /venues mở menu, bấm Hướng dẫn → về / và thấy bước tour đầu tiên", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -234,7 +234,7 @@ test("từ /san mở menu, bấm Hướng dẫn → về / và thấy bước to
     timeout: 15_000,
   });
 
-  await page.goto("/san", { waitUntil: "domcontentloaded" });
+  await page.goto("/venues", { waitUntil: "domcontentloaded" });
   await page.locator('[data-tour="nav-menu"]').click();
   await page.locator('[data-tour="nav-guide"]').click();
 

@@ -5,7 +5,7 @@ import { NextIntlClientProvider } from "next-intl";
 import viMessages from "@/i18n/messages/vi.json";
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/giao-luu/cua-toi",
+  usePathname: () => "/exchanges/mine",
   useRouter: () => ({ push: vi.fn() }),
 }));
 vi.mock("@/components/tour/use-product-tour", () => ({
@@ -38,29 +38,29 @@ describe("nav entries for the exchange feature", () => {
       ["/history", "Lịch sử"],
       ["/my-fund", "Quỹ"],
       ["/stats", "Thống kê"],
-      ["/san", "Sân"],
-      ["/giao-luu", "Giao lưu"],
+      ["/venues", "Sân"],
+      ["/exchanges", "Giao lưu"],
       ["/me", "Cá nhân"],
     ]);
     cleanup();
     const off = await links(<NavDrawer />);
-    expect(off.map((l) => l[0])).not.toContain("/giao-luu");
+    expect(off.map((l) => l[0])).not.toContain("/exchanges");
   });
 
   it("exchange nav shows Cá nhân", async () => {
     expect(await links(<NavDrawer navItems="exchange" />)).toEqual([
-      ["/giao-luu", "Giao lưu"],
-      ["/san", "Sân"],
-      ["/giao-luu/cua-toi", "Cá nhân"],
+      ["/exchanges", "Giao lưu"],
+      ["/venues", "Sân"],
+      ["/exchanges/mine", "Cá nhân"],
     ]);
   });
 
-  it("only the matching exchange entry is active on /giao-luu/cua-toi", async () => {
+  it("only the matching exchange entry is active on /exchanges/mine", async () => {
     await links(<NavDrawer navItems="exchange" />);
     const nav = screen.getByRole("navigation");
     const active = Array.from(nav.querySelectorAll("a"))
       .filter((a) => a.className.includes("text-primary"))
       .map((a) => a.getAttribute("href"));
-    expect(active).toEqual(["/giao-luu/cua-toi"]);
+    expect(active).toEqual(["/exchanges/mine"]);
   });
 });

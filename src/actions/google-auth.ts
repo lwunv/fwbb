@@ -135,7 +135,7 @@ export async function googleLogin(idToken: string, opts?: GoogleLoginOptions) {
 
     await setUserCookie(existing.id, `g:${claims.sub}`);
     revalidatePath("/");
-    if (isExchange) revalidatePath("/giao-luu");
+    if (isExchange) revalidatePath("/exchanges");
     return { success: true, memberName: existing.name };
   }
 
@@ -194,7 +194,7 @@ export async function googleLogin(idToken: string, opts?: GoogleLoginOptions) {
   });
   await setUserCookie(newMember.id, `g:${claims.sub}`);
   revalidatePath("/");
-  if (isExchange) revalidatePath("/giao-luu");
+  if (isExchange) revalidatePath("/exchanges");
   return { success: true, memberName: newMember.name };
 }
 

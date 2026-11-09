@@ -53,8 +53,8 @@ const HREFS: Record<NotificationKind, [string, string]> = {
   password_changed: ["/me", "/admin/dashboard"],
   login_method_linked: ["/me", "/admin/dashboard"],
   login_method_unlinked: ["/me", "/admin/dashboard"],
-  venue_approved: ["/san", "/admin/dashboard"],
-  venue_hidden: ["/san", "/admin/dashboard"],
+  venue_approved: ["/venues", "/admin/dashboard"],
+  venue_hidden: ["/venues", "/admin/dashboard"],
   capacity_alert: ["/", "/admin/sessions/7"],
   low_attendance: ["/", "/admin/sessions/7"],
   member_dropped_late: ["/", "/admin/sessions/7"],
@@ -67,23 +67,23 @@ const HREFS: Record<NotificationKind, [string, string]> = {
   group_join_request: ["/", "/admin/members"],
   venue_pending: ["/", "/admin/venues"],
   low_stock: ["/", "/admin/inventory"],
-  // Thêm ở G2b Task 6 (payload rỗng nên thiếu eventCode, rơi về /giao-luu; link theo mã ở test riêng).
-  exchange_registration_received: ["/giao-luu", "/admin/dashboard"],
-  exchange_registration_cancelled: ["/giao-luu", "/admin/dashboard"],
-  exchange_cancelled_after_lock: ["/giao-luu", "/admin/dashboard"],
-  exchange_event_hidden: ["/giao-luu", "/admin/dashboard"],
-  exchange_registration_approved: ["/giao-luu", "/admin/dashboard"],
-  exchange_registration_rejected: ["/giao-luu", "/admin/dashboard"],
-  exchange_waitlist_promoted: ["/giao-luu", "/admin/dashboard"],
-  exchange_fee_locked: ["/giao-luu", "/admin/dashboard"],
-  exchange_fee_changed: ["/giao-luu", "/admin/dashboard"],
-  exchange_event_cancelled: ["/giao-luu", "/admin/dashboard"],
-  exchange_reported: ["/", "/admin/giao-luu"],
-  // Thêm ở G2c Task 4 (thiếu eventCode nên về /giao-luu; link đầy đủ ở test riêng).
-  exchange_comment_new: ["/giao-luu", "/admin/dashboard"],
-  exchange_comment_reply: ["/giao-luu", "/admin/dashboard"],
-  exchange_comment_host_post: ["/giao-luu", "/admin/dashboard"],
-  exchange_comment_held: ["/giao-luu", "/admin/dashboard"],
+  // Thêm ở G2b Task 6 (payload rỗng nên thiếu eventCode, rơi về /exchanges; link theo mã ở test riêng).
+  exchange_registration_received: ["/exchanges", "/admin/dashboard"],
+  exchange_registration_cancelled: ["/exchanges", "/admin/dashboard"],
+  exchange_cancelled_after_lock: ["/exchanges", "/admin/dashboard"],
+  exchange_event_hidden: ["/exchanges", "/admin/dashboard"],
+  exchange_registration_approved: ["/exchanges", "/admin/dashboard"],
+  exchange_registration_rejected: ["/exchanges", "/admin/dashboard"],
+  exchange_waitlist_promoted: ["/exchanges", "/admin/dashboard"],
+  exchange_fee_locked: ["/exchanges", "/admin/dashboard"],
+  exchange_fee_changed: ["/exchanges", "/admin/dashboard"],
+  exchange_event_cancelled: ["/exchanges", "/admin/dashboard"],
+  exchange_reported: ["/", "/admin/exchanges"],
+  // Thêm ở G2c Task 4 (thiếu eventCode nên về /exchanges; link đầy đủ ở test riêng).
+  exchange_comment_new: ["/exchanges", "/admin/dashboard"],
+  exchange_comment_reply: ["/exchanges", "/admin/dashboard"],
+  exchange_comment_host_post: ["/exchanges", "/admin/dashboard"],
+  exchange_comment_held: ["/exchanges", "/admin/dashboard"],
 };
 
 describe("notificationHref", () => {
@@ -111,7 +111,7 @@ describe("notificationHref exchange", () => {
       "exchange_cancelled_after_lock",
       "exchange_event_hidden",
     ] as const) {
-      expect(withCode(kind), kind).toBe("/giao-luu/ab12/quan-ly");
+      expect(withCode(kind), kind).toBe("/exchanges/ab12/manage");
     }
     for (const kind of [
       "exchange_registration_approved",
@@ -121,10 +121,10 @@ describe("notificationHref exchange", () => {
       "exchange_fee_changed",
       "exchange_event_cancelled",
     ] as const) {
-      expect(withCode(kind), kind).toBe("/giao-luu/ab12");
+      expect(withCode(kind), kind).toBe("/exchanges/ab12");
     }
     expect(notificationHref(view("exchange_reported"), "admin")).toBe(
-      "/admin/giao-luu",
+      "/admin/exchanges",
     );
   });
 });
@@ -134,32 +134,32 @@ describe("notificationHref exchange comments", () => {
     const href = (kind: NotificationKind, payload: Record<string, unknown>) =>
       notificationHref(view(kind, { eventCode: "ab12", ...payload }), "member");
     expect(href("exchange_comment_new", { channel: "qa" })).toBe(
-      "/giao-luu/ab12?kenh=qa#binh-luan",
+      "/exchanges/ab12?channel=qa#comments",
     );
     expect(href("exchange_comment_new", { channel: "group" })).toBe(
-      "/giao-luu/ab12?kenh=nhom#binh-luan",
+      "/exchanges/ab12?channel=group#comments",
     );
     expect(href("exchange_comment_reply", { channel: "group" })).toBe(
-      "/giao-luu/ab12?kenh=nhom#binh-luan",
+      "/exchanges/ab12?channel=group#comments",
     );
     expect(href("exchange_comment_reply", { channel: "qa" })).toBe(
-      "/giao-luu/ab12?kenh=qa#binh-luan",
+      "/exchanges/ab12?channel=qa#comments",
     );
     expect(href("exchange_comment_held", {})).toBe(
-      "/giao-luu/ab12?kenh=qa#binh-luan",
+      "/exchanges/ab12?channel=qa#comments",
     );
     expect(href("exchange_comment_host_post", {})).toBe(
-      "/giao-luu/ab12?kenh=nhom#binh-luan",
+      "/exchanges/ab12?channel=group#comments",
     );
     expect(notificationHref(view("exchange_comment_new"), "member")).toBe(
-      "/giao-luu",
+      "/exchanges",
     );
     expect(
       notificationHref(
         view("exchange_reported", { targetType: "comment" }),
         "admin",
       ),
-    ).toBe("/admin/giao-luu");
+    ).toBe("/admin/exchanges");
   });
 });
 

@@ -413,7 +413,7 @@ export async function geocodeAddress(
 function afterAdminVenueChange() {
   updateTag("venues");
   revalidatePath("/admin", "layout");
-  revalidatePath("/san");
+  revalidatePath("/venues");
 }
 
 /** Danh sách sân theo trạng thái cho trang admin, kèm tên người đề xuất. */

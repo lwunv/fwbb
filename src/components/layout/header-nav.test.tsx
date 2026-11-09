@@ -2,7 +2,7 @@
 /**
  * Header + NavDrawer sau g2a Task 10: mặc định giữ nguyên hành vi cũ, vùng
  * giao lưu có trang đăng nhập riêng (kèm ?next=), menu giao lưu chỉ 2 mục, và
- * ý định mở tour sống qua sessionStorage khi đổi layout /san → /.
+ * ý định mở tour sống qua sessionStorage khi đổi layout /venues → /.
  */
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import {
@@ -63,35 +63,31 @@ afterEach(() => {
 
 describe("Header", () => {
   it("mặc định: nút đăng nhập trỏ /login (không ?next), logo về /", () => {
-    nav.pathname = "/san";
+    nav.pathname = "/venues";
     renderVi(<Header appName="FWBB" showLogin />);
     expect(hrefOf(new RegExp(loginName))).toBe("/login");
     expect(hrefOf(/FWBB/)).toBe("/");
   });
 
   it("loginHref riêng: gắn ?next=<trang hiện tại>", () => {
-    nav.pathname = "/san/12";
-    renderVi(
-      <Header appName="FWBB" showLogin loginHref="/giao-luu/dang-nhap" />,
-    );
+    nav.pathname = "/venues/12";
+    renderVi(<Header appName="FWBB" showLogin loginHref="/exchanges/login" />);
     expect(hrefOf(new RegExp(loginName))).toBe(
-      "/giao-luu/dang-nhap?next=%2Fsan%2F12",
+      "/exchanges/login?next=%2Fvenues%2F12",
     );
   });
 
   it("loginHref riêng: đang ở chính trang đăng nhập thì ẩn nút", () => {
-    nav.pathname = "/giao-luu/dang-nhap";
-    renderVi(
-      <Header appName="FWBB" showLogin loginHref="/giao-luu/dang-nhap" />,
-    );
+    nav.pathname = "/exchanges/login";
+    renderVi(<Header appName="FWBB" showLogin loginHref="/exchanges/login" />);
     expect(
       screen.queryByRole("link", { name: new RegExp(loginName) }),
     ).toBeNull();
   });
 
   it("homeHref đổi đích của logo", () => {
-    renderVi(<Header appName="FWBB" homeHref="/giao-luu" />);
-    expect(hrefOf(/FWBB/)).toBe("/giao-luu");
+    renderVi(<Header appName="FWBB" homeHref="/exchanges" />);
+    expect(hrefOf(/FWBB/)).toBe("/exchanges");
   });
 });
 
@@ -101,14 +97,14 @@ describe("NavDrawer", () => {
   }
 
   it("exchange: chỉ Giao lưu và Sân, không có Hướng dẫn", () => {
-    nav.pathname = "/san";
+    nav.pathname = "/venues";
     renderVi(<NavDrawer navItems="exchange" />);
     openMenu();
     const hrefs = screen
       .getAllByRole("link")
       .map((a) => a.getAttribute("href"));
     // Ruling R18 (spec 4.6b): tài khoản giao lưu có thêm "Cá nhân".
-    expect(hrefs).toEqual(["/giao-luu", "/san", "/giao-luu/cua-toi"]);
+    expect(hrefs).toEqual(["/exchanges", "/venues", "/exchanges/mine"]);
     expect(screen.getByText(viMessages.nav.exchange)).not.toBeNull();
     expect(screen.queryByText(viMessages.tour.open)).toBeNull();
   });
@@ -124,14 +120,14 @@ describe("NavDrawer", () => {
       "/history",
       "/my-fund",
       "/stats",
-      "/san",
+      "/venues",
       "/me",
     ]);
     expect(screen.getByText(viMessages.tour.open)).not.toBeNull();
   });
 
-  it("bấm Hướng dẫn ở /san → ghi cờ sessionStorage và về /", () => {
-    nav.pathname = "/san";
+  it("bấm Hướng dẫn ở /venues → ghi cờ sessionStorage và về /", () => {
+    nav.pathname = "/venues";
     renderVi(<NavDrawer />);
     openMenu();
     fireEvent.click(screen.getByText(viMessages.tour.open));
@@ -160,7 +156,7 @@ describe("NavDrawer", () => {
   });
 
   it("sessionStorage ném lỗi → vẫn về / và không vỡ", () => {
-    nav.pathname = "/san";
+    nav.pathname = "/venues";
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new Error("blocked");
     });

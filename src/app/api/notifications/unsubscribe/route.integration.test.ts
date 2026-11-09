@@ -76,7 +76,7 @@ describe("one-click email unsubscribe", () => {
     expect(res.status).toBe(303);
     const loc = new URL(res.headers.get("location")!);
     expect(loc.origin).toBe(ORIGIN);
-    expect(loc.pathname).toBe("/huy-nhan-thong-bao");
+    expect(loc.pathname).toBe("/unsubscribe");
     expect(loc.searchParams.get("token")).toBe(token);
     expect(await emailEnabled(a)).toBe(true);
 
@@ -87,7 +87,7 @@ describe("one-click email unsubscribe", () => {
     expect(bare.status).toBe(303);
     expect(new URL(bare.headers.get("location")!).search).toBe("");
 
-    const { default: Page } = await import("../../../huy-nhan-thong-bao/page");
+    const { default: Page } = await import("../../../unsubscribe/page");
     await Page({ searchParams: Promise.resolve({ token }) });
     expect(await emailEnabled(a)).toBe(true);
   });

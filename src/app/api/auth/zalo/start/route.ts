@@ -74,7 +74,7 @@ function formString(form: FormData, name: string): string | null {
 }
 
 /**
- * Bắt đầu đăng nhập Zalo từ form trên `/giao-luu/dang-nhap`. Luôn là tài khoản
+ * Bắt đầu đăng nhập Zalo từ form trên `/exchanges/login`. Luôn là tài khoản
  * `exchange`: không nhận `intent` từ client, để người lạ không tự xếp mình vào
  * hàng chờ duyệt của nhóm.
  *

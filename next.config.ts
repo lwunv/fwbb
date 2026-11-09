@@ -11,6 +11,19 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "**.fbcdn.net" },
     ],
   },
+  // G1 đã lên prod với /san; giữ link cũ sống bằng 308 vĩnh viễn (query string
+  // được Next tự giữ). /san/de-xuat phải đứng trước /san/:id.
+  async redirects() {
+    return [
+      { source: "/san", destination: "/venues", permanent: true },
+      {
+        source: "/san/de-xuat",
+        destination: "/venues/suggest",
+        permanent: true,
+      },
+      { source: "/san/:id", destination: "/venues/:id", permanent: true },
+    ];
+  },
   async headers() {
     return [
       {
@@ -40,7 +53,7 @@ const nextConfig: NextConfig = {
             value: "strict-origin-when-cross-origin",
           },
           // Tắt camera/mic. Định vị chỉ cho chính app (`self`) dùng ở trang
-          // "sân quanh đây" (/san); iframe bên ngoài vẫn bị chặn.
+          // "sân quanh đây" (/venues); iframe bên ngoài vẫn bị chặn.
           {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=(self)",

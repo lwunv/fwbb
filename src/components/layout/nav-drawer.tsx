@@ -48,7 +48,7 @@ const groupNavItems = [
     tour: "nav-stats",
   },
   {
-    href: "/san",
+    href: "/venues",
     labelKey: "venues" as const,
     icon: MapPinned,
     tour: "nav-venues",
@@ -59,7 +59,7 @@ const groupNavItems = [
 // Chỉ chèn khi cờ giao lưu bật (prop do server đọc 1 lần); cờ tắt thì danh
 // sách y như trước G2.
 const groupExchangeItem = {
-  href: "/giao-luu",
+  href: "/exchanges",
   labelKey: "exchange" as const,
   icon: Handshake,
   tour: "nav-exchange",
@@ -68,28 +68,28 @@ const groupExchangeItem = {
 // Tài khoản giao lưu chưa vào nhóm: chỉ thấy các trang không chứa dữ liệu nhóm.
 const exchangeNavItems = [
   {
-    href: "/giao-luu",
+    href: "/exchanges",
     labelKey: "exchange" as const,
     icon: Handshake,
     tour: "nav-exchange",
   },
   {
-    href: "/san",
+    href: "/venues",
     labelKey: "venues" as const,
     icon: MapPinned,
     tour: "nav-venues",
   },
   // Spec 4.6b: tài khoản giao lưu cần lối vào "Giao lưu của tôi".
   {
-    href: "/giao-luu/cua-toi",
+    href: "/exchanges/mine",
     labelKey: "me" as const,
     icon: User,
     tour: "nav-me",
   },
 ];
 
-// Ý định "mở tour" phải sống qua lần đổi layout: /san nằm ở (exchange), trang
-// chủ ở (public), nên đi /san → / thì NavDrawer bị unmount và mất state.
+// Ý định "mở tour" phải sống qua lần đổi layout: /venues nằm ở (exchange), trang
+// chủ ở (public), nên đi /venues → / thì NavDrawer bị unmount và mất state.
 const TOUR_PENDING_KEY = "fwbb:tourPending";
 
 // sessionStorage có thể ném lỗi (chế độ riêng tư, bị chặn site data). Mất cờ
@@ -216,13 +216,13 @@ export function NavDrawer({
           </SheetHeader>
           <nav className="space-y-1 px-3 pb-4">
             {items.map((item) => {
-              // "/giao-luu" là tiền tố của "/giao-luu/cua-toi": chỉ sáng một mục.
+              // "/exchanges" là tiền tố của "/exchanges/mine": chỉ sáng một mục.
               const isActive =
                 item.href === "/"
                   ? pathname === "/" || pathname.startsWith("/vote")
-                  : item.href === "/giao-luu"
+                  : item.href === "/exchanges"
                     ? pathname.startsWith(item.href) &&
-                      !pathname.startsWith("/giao-luu/cua-toi")
+                      !pathname.startsWith("/exchanges/mine")
                     : pathname.startsWith(item.href);
               return (
                 <Link

@@ -392,11 +392,9 @@ describe("email outbox", () => {
     expect(optional?.headers?.["List-Unsubscribe"]).toMatch(
       /^<https:\/\/fwbb\.test\/api\/notifications\/unsubscribe\?token=[\w-]+>$/,
     );
-    expect(optional?.text).toContain(
-      "https://fwbb.test/huy-nhan-thong-bao?token=",
-    );
+    expect(optional?.text).toContain("https://fwbb.test/unsubscribe?token=");
     expect(mandatory).toBeDefined();
-    expect(mandatory?.text).not.toContain("huy-nhan-thong-bao");
+    expect(mandatory?.text).not.toContain("unsubscribe");
     expect(mandatory?.text).toContain("https://fwbb.test/me");
   });
 

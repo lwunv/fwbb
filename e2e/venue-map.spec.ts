@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@libsql/client";
 
-// Trang /san công khai: chạy như khách chưa đăng nhập.
+// Trang /venues công khai: chạy như khách chưa đăng nhập.
 test.use({ storageState: { cookies: [], origins: [] } });
 
 // `listVenuesNear` cache theo ô lưới 0,01 độ và còn sống 60 giây (kể cả stale
@@ -79,7 +79,7 @@ async function openDirectory(
 test("switching to map shows a marker per seeded venue at 390px", async ({
   browser,
 }) => {
-  const { ctx, page } = await openDirectory(browser, "/san");
+  const { ctx, page } = await openDirectory(browser, "/venues");
   await expect(page.getByRole("link", { name: NEAR })).toBeVisible({
     timeout: 15_000,
   });
@@ -113,7 +113,7 @@ test("switching to map shows a marker per seeded venue at 390px", async ({
 test("tapping a marker opens the venue card sheet with a details link", async ({
   browser,
 }) => {
-  const { ctx, page } = await openDirectory(browser, "/san?view=map");
+  const { ctx, page } = await openDirectory(browser, "/venues?view=map");
   const pin = page.getByRole("button", { name: NEAR });
   await expect(pin).toBeVisible({ timeout: 20_000 });
   await pin.click();
@@ -121,23 +121,26 @@ test("tapping a marker opens the venue card sheet with a details link", async ({
   const sheet = page.getByRole("dialog");
   await expect(sheet).toBeVisible();
   const details = sheet.getByRole("link", { name: NEAR });
-  await expect(details).toHaveAttribute("href", /^\/san\/\d+$/);
+  await expect(details).toHaveAttribute("href", /^\/venues\/\d+$/);
   await details.click();
-  await expect(page).toHaveURL(/\/san\/\d+$/);
+  await expect(page).toHaveURL(/\/venues\/\d+$/);
   await ctx.close();
 });
 
 test("the map worker loads from the same origin without map errors", async ({
   browser,
 }) => {
-  const { ctx, page, consoleMessages } = await openDirectory(browser, "/san");
+  const { ctx, page, consoleMessages } = await openDirectory(
+    browser,
+    "/venues",
+  );
   // Turbopack làm import.meta.url của maplibre không phải http(s), nên nó
   // từng tạo worker bằng chính URL trang và báo "Worker failed to load".
   const worker = page.waitForEvent("worker", {
     predicate: (w) => /maplibre-gl-worker[^/]*\.mjs/.test(w.url()),
     timeout: 20_000,
   });
-  await page.goto("/san?view=map");
+  await page.goto("/venues?view=map");
   const w = await worker;
   expect(new URL(w.url()).origin).toBe(new URL(page.url()).origin);
   await expect(page.getByRole("button", { name: NEAR })).toBeVisible({
@@ -153,7 +156,7 @@ test("the map worker loads from the same origin without map errors", async ({
 test("list view still works and does not request the map style", async ({
   browser,
 }) => {
-  const { ctx, page, mapRequests } = await openDirectory(browser, "/san");
+  const { ctx, page, mapRequests } = await openDirectory(browser, "/venues");
   const names = page.getByRole("link", { name: new RegExp(`^${PREFIX}`) });
   await expect(names).toHaveText([NEAR, FAR], { timeout: 15_000 });
   // Cho bản đồ (nếu lỡ nạp) có thời gian gọi mạng trước khi đếm.

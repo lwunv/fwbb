@@ -19,7 +19,7 @@ export type VenueFormInput = z.input<typeof venueSubmitSchema>;
 export type VenueFormValues = z.output<typeof venueSubmitSchema>;
 
 /**
- * Form sân dùng chung: member đề xuất (`/san/de-xuat`) và admin sửa
+ * Form sân dùng chung: member đề xuất (`/venues/suggest`) và admin sửa
  * (`/admin/venues`). Không tự gọi server — `onSubmit` của trang quyết định
  * gọi action nào và xử lý kết quả (trùng sân, lỗi toạ độ).
  */

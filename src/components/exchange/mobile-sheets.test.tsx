@@ -22,7 +22,7 @@ import {
   makeEvent,
   makeReg,
   makeViewer,
-} from "@/app/(exchange)/giao-luu/[code]/fixtures";
+} from "@/app/(exchange)/exchanges/[code]/fixtures";
 
 const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
 const admin = vi.hoisted(() => ({
@@ -62,18 +62,18 @@ vi.mock("@/components/security/turnstile-widget", () => ({
 
 const { ResponsiveSheet } = await import("./responsive-sheet");
 const { RegisterSheet } =
-  await import("@/app/(exchange)/giao-luu/[code]/register-sheet");
+  await import("@/app/(exchange)/exchanges/[code]/register-sheet");
 const { ReportSheet } = await import("./report-sheet");
 const { EditEventSheet } =
-  await import("@/app/(exchange)/giao-luu/[code]/quan-ly/edit-event-sheet");
+  await import("@/app/(exchange)/exchanges/[code]/manage/edit-event-sheet");
 const { LockFeeSheet } =
-  await import("@/app/(exchange)/giao-luu/[code]/quan-ly/lock-fee-sheet");
+  await import("@/app/(exchange)/exchanges/[code]/manage/lock-fee-sheet");
 const { MyRegistrationBar } =
-  await import("@/app/(exchange)/giao-luu/[code]/my-registration-bar");
+  await import("@/app/(exchange)/exchanges/[code]/my-registration-bar");
 const { AdminExchangeClient } =
-  await import("@/app/(admin)/admin/giao-luu/admin-exchange-client");
+  await import("@/app/(admin)/admin/exchanges/admin-exchange-client");
 const { EventPost } =
-  await import("@/app/(exchange)/giao-luu/[code]/event-post");
+  await import("@/app/(exchange)/exchanges/[code]/event-post");
 const { ExchangeCard } = await import("./exchange-card");
 
 afterEach(cleanup);

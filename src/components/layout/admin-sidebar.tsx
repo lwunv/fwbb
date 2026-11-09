@@ -37,7 +37,7 @@ const navItems = [
   { href: "/admin/courts", labelKey: "courts" as const, icon: MapPin },
   { href: "/admin/venues", labelKey: "venues" as const, icon: MapPinned },
   {
-    href: "/admin/giao-luu",
+    href: "/admin/exchanges",
     labelKey: "exchange" as const,
     icon: Handshake,
   },

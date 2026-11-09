@@ -1,7 +1,7 @@
 import { MemberShell } from "@/components/layout/member-shell";
 
 /**
- * Vùng giao lưu (/san, sau này /giao-luu). Cố tình KHÔNG kiểm cờ ở đây: /san
+ * Vùng giao lưu (/venues, sau này /exchanges). Cố tình KHÔNG kiểm cờ ở đây: /venues
  * đã chạy cho mọi người trước g2a và phải chạy y như vậy khi cờ tắt. Các trang
  * mới của vùng này tự trả 404 khi cờ tắt.
  */

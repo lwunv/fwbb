@@ -23,7 +23,7 @@ import { CommentSkeleton } from "./comment-skeleton";
 import { CommentThread } from "./comment-thread";
 import { useOpenThreads } from "./use-open-threads";
 
-const KENH = ["qa", "nhom"] as const;
+const CHANNELS = ["qa", "group"] as const;
 const SORTS = ["top", "new"] as const;
 
 /**
@@ -43,15 +43,18 @@ export function CommentSection({
 }) {
   const t = useTranslations("exchange.comments");
   const qc = useQueryClient();
-  const [kenh, setKenh] = useQueryState(
-    "kenh",
-    parseAsStringLiteral(KENH).withDefault("qa"),
+  const [channelParam, setChannelParam] = useQueryState(
+    "channel",
+    parseAsStringLiteral(CHANNELS).withDefault("qa"),
   );
-  const [bl, setBl] = useQueryState("bl", parseAsStringLiteral(SORTS));
+  const [sortParam, setSortParam] = useQueryState(
+    "sort",
+    parseAsStringLiteral(SORTS),
+  );
   // `signedIn` chỉ là gợi ý ban đầu; khi trang đầu về thì vai trò thật của server thắng.
   // Khách không bao giờ có Nhóm buổi: về Hỏi đáp ngay, không gọi server.
-  const channel = kenh === "nhom" && signedIn ? "group" : "qa";
-  const sort = bl ?? (channel === "group" ? "new" : "top");
+  const channel = channelParam === "group" && signedIn ? "group" : "qa";
+  const sort = sortParam ?? (channel === "group" ? "new" : "top");
 
   const [lockOverride, setLockOverride] = useState<boolean | null>(null);
   const composerRef = useRef<HTMLDivElement>(null);
@@ -81,12 +84,13 @@ export function CommentSection({
   const first = q.data?.pages[0];
   const viewerIn = first ? first.role !== "guest" : signedIn;
 
-  // Vào ?kenh=nhom mà không đọc được: về Hỏi đáp, không báo lỗi.
+  // Vào ?channel=group mà không đọc được: về Hỏi đáp, không báo lỗi.
   const groupDenied =
     channel === "group" && (q.isError || first?.canRead.group === false);
   useEffect(() => {
-    if (groupDenied || (kenh === "nhom" && !signedIn)) void setKenh("qa");
-  }, [groupDenied, kenh, signedIn, setKenh]);
+    if (groupDenied || (channelParam === "group" && !signedIn))
+      void setChannelParam("qa");
+  }, [groupDenied, channelParam, signedIn, setChannelParam]);
 
   // Đánh dấu đã đọc mỗi khi trang về còn `unread` với mốc mới (lần đầu, "Tải
   // bình luận mới", focus lại); cùng mốc thì không gửi lại. Lỗi ở đây không
@@ -161,7 +165,7 @@ export function CommentSection({
   };
 
   const showGroupTab = viewerIn && !!first?.canRead.group;
-  const loginHref = `/giao-luu/dang-nhap?next=${encodeURIComponent(`/giao-luu/${code}`)}`;
+  const loginHref = `/exchanges/login?next=${encodeURIComponent(`/exchanges/${code}`)}`;
   const line = "text-muted-foreground text-base";
 
   function writeArea() {
@@ -216,12 +220,12 @@ export function CommentSection({
       <TabSegment
         variant="rounded"
         ariaLabel={t("tabsLabel")}
-        value={channel === "group" ? "nhom" : "qa"}
-        onChange={(v) => void setKenh(v)}
+        value={channel === "group" ? "group" : "qa"}
+        onChange={(v) => void setChannelParam(v)}
         options={[
           { value: "qa", label: t("tabQa") },
           ...(showGroupTab
-            ? [{ value: "nhom" as const, label: t("tabGroup") }]
+            ? [{ value: "group" as const, label: t("tabGroup") }]
             : []),
         ]}
       />
@@ -230,7 +234,7 @@ export function CommentSection({
         <TabSegment
           ariaLabel={t("sortLabel")}
           value={sort}
-          onChange={(v) => void setBl(v)}
+          onChange={(v) => void setSortParam(v)}
           options={[
             { value: "top", label: t("sortTop") },
             { value: "new", label: t("sortNew") },

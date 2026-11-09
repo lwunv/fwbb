@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { createClient } from "@libsql/client";
 
-// Trang /san công khai: chạy như khách chưa đăng nhập.
+// Trang /venues công khai: chạy như khách chưa đăng nhập.
 test.use({ storageState: { cookies: [], origins: [] } });
 
 const HERE = { latitude: 21.03, longitude: 105.85 };
@@ -51,7 +51,7 @@ test("có GPS: thấy sân đã duyệt theo thứ tự khoảng cách, không t
     storageState: { cookies: [], origins: [] },
   });
   const page = await ctx.newPage();
-  await page.goto("/san");
+  await page.goto("/venues");
 
   const names = page.getByRole("link", { name: new RegExp(`^${PREFIX}`) });
   await expect(names.first()).toBeVisible({ timeout: 15_000 });
@@ -74,9 +74,24 @@ test("từ chối GPS: hiện ô nhập địa chỉ, không quay mãi", async (
     storageState: { cookies: [], origins: [] },
   });
   const page = await ctx.newPage();
-  await page.goto("/san");
+  await page.goto("/venues");
   await expect(
     page.getByRole("textbox", { name: /Cầu Giấy/ }).first(),
   ).toBeVisible({ timeout: 15_000 });
   await ctx.close();
+});
+
+test("legacy /san URLs redirect permanently to /venues, keeping the query", async ({
+  request,
+}) => {
+  for (const [from, to] of [
+    ["/san", "/venues"],
+    ["/san?r=10", "/venues?r=10"],
+    ["/san/de-xuat", "/venues/suggest"],
+    ["/san/12", "/venues/12"],
+  ]) {
+    const res = await request.get(from, { maxRedirects: 0 });
+    expect(res.status(), from).toBe(308);
+    expect(res.headers().location, from).toBe(to);
+  }
 });

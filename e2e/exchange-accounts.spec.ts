@@ -163,10 +163,10 @@ test.describe("cờ tắt", () => {
     await insertMember("exchange", "pending", "exchange");
   });
 
-  test("/giao-luu và /giao-luu/dang-nhap trả 404; POST zalo/start trả 404", async ({
+  test("/exchanges và /exchanges/login trả 404; POST zalo/start trả 404", async ({
     request,
   }) => {
-    for (const path of ["/giao-luu", "/giao-luu/dang-nhap"]) {
+    for (const path of ["/exchanges", "/exchanges/login"]) {
       const res = await request.get(path);
       expect(res.status(), path).toBe(404);
     }
@@ -177,7 +177,7 @@ test.describe("cờ tắt", () => {
     expect(start.status()).toBe(404);
   });
 
-  test("member pending vẫn thấy màn chờ duyệt ở / và /san mở được", async ({
+  test("member pending vẫn thấy màn chờ duyệt ở / và /venues mở được", async ({
     page,
   }) => {
     await loginWithPassword(page, USERNAMES.exchange);
@@ -189,7 +189,7 @@ test.describe("cờ tắt", () => {
       page.getByText("Tài khoản này dùng để đi giao lưu"),
     ).toHaveCount(0);
 
-    const res = await page.goto("/san");
+    const res = await page.goto("/venues");
     expect(res?.status()).toBe(200);
   });
 });
@@ -199,33 +199,33 @@ test.describe("cờ bật, khách", () => {
     await setFlag(true);
   });
 
-  test("/giao-luu có nút đăng nhập, không cuộn ngang", async ({ page }) => {
-    const res = await page.goto("/giao-luu");
+  test("/exchanges có nút đăng nhập, không cuộn ngang", async ({ page }) => {
+    const res = await page.goto("/exchanges");
     expect(res?.status()).toBe(200);
     const cta = page.getByRole("link", { name: "Đăng nhập để giao lưu" });
     await expect(cta).toBeVisible({ timeout: 15_000 });
     await expect(cta).toHaveAttribute(
       "href",
-      "/giao-luu/dang-nhap?next=%2Fgiao-luu",
+      "/exchanges/login?next=%2Fexchanges",
     );
     await noHorizontalScroll(page);
   });
 
-  test("nút Đăng nhập ở header /san trỏ /giao-luu/dang-nhap?next=/san", async ({
+  test("nút Đăng nhập ở header /venues trỏ /exchanges/login?next=/venues", async ({
     page,
   }) => {
-    await page.goto("/san");
+    await page.goto("/venues");
     const login = page.getByRole("link", { name: "Đăng nhập" }).first();
     await expect(login).toBeVisible({ timeout: 15_000 });
     const href = await login.getAttribute("href");
-    expect(href).toContain("/giao-luu/dang-nhap");
-    expect(decodeURIComponent(href ?? "")).toContain("next=/san");
+    expect(href).toContain("/exchanges/login");
+    expect(decodeURIComponent(href ?? "")).toContain("next=/venues");
   });
 
-  test("/giao-luu/dang-nhap có widget Turnstile và nút Zalo mở sau khi có token", async ({
+  test("/exchanges/login có widget Turnstile và nút Zalo mở sau khi có token", async ({
     page,
   }) => {
-    const res = await page.goto("/giao-luu/dang-nhap");
+    const res = await page.goto("/exchanges/login");
     expect(res?.status()).toBe(200);
     const zalo = page.getByRole("button", { name: "Đăng nhập bằng Zalo" });
     await expect(zalo).toBeVisible({ timeout: 15_000 });
@@ -261,12 +261,12 @@ test.describe("cờ bật, tài khoản giao lưu", () => {
     await insertMember("exchange", "pending", "exchange");
   });
 
-  test("/giao-luu có thẻ tài khoản, /san xem được, trang nhóm thấy màn tài khoản giao lưu", async ({
+  test("/exchanges có thẻ tài khoản, /venues xem được, trang nhóm thấy màn tài khoản giao lưu", async ({
     page,
   }) => {
     await loginWithPassword(page, USERNAMES.exchange);
 
-    await page.goto("/giao-luu");
+    await page.goto("/exchanges");
     await expect(
       page.getByRole("heading", { name: `Chào ${NAMES.exchange}` }),
     ).toBeVisible({ timeout: 15_000 });
@@ -274,7 +274,7 @@ test.describe("cờ bật, tài khoản giao lưu", () => {
       page.getByRole("button", { name: "Xin vào nhóm" }),
     ).toBeVisible();
 
-    const san = await page.goto("/san");
+    const san = await page.goto("/venues");
     expect(san?.status()).toBe(200);
     await expect(
       page.getByRole("heading", { name: "Đang chờ admin duyệt" }),
@@ -305,7 +305,7 @@ test.describe("cờ bật, xin vào nhóm", () => {
     browser,
   }) => {
     await loginWithPassword(page, USERNAMES.group);
-    await page.goto("/giao-luu");
+    await page.goto("/exchanges");
     await page.getByRole("button", { name: "Xin vào nhóm" }).click();
     await expect(page.getByText("Đã gửi, chờ admin duyệt")).toBeVisible();
     await expect
@@ -357,7 +357,7 @@ test.describe("cờ bật, xin vào nhóm", () => {
     }
 
     expect((await memberRow(ids.group)).approval_status).toBe("pending");
-    await page.goto("/giao-luu");
+    await page.goto("/exchanges");
     await expect(
       page.getByRole("button", { name: "Xin vào nhóm" }),
     ).toBeVisible({
@@ -372,10 +372,10 @@ test.describe("cờ bật, member đã duyệt", () => {
     await insertMember("approved", "approved", "group");
   });
 
-  test("/, /history, /san như cũ và menu đủ mục", async ({ page }) => {
+  test("/, /history, /venues như cũ và menu đủ mục", async ({ page }) => {
     await loginWithPassword(page, USERNAMES.approved);
 
-    for (const path of ["/", "/history", "/san"]) {
+    for (const path of ["/", "/history", "/venues"]) {
       const res = await page.goto(path);
       expect(res?.status(), path).toBe(200);
       await expect(
@@ -394,7 +394,14 @@ test.describe("cờ bật, member đã duyệt", () => {
     const drawer = page.locator("nav").filter({
       has: page.locator('a[href="/history"]'),
     });
-    for (const href of ["/", "/history", "/my-fund", "/stats", "/san", "/me"]) {
+    for (const href of [
+      "/",
+      "/history",
+      "/my-fund",
+      "/stats",
+      "/venues",
+      "/me",
+    ]) {
       await expect(
         drawer.locator(`a[href="${href}"]`).first(),
         href,

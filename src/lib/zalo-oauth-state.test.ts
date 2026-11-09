@@ -15,7 +15,7 @@ const sample: ZaloOAuthState = {
   state: "st4te",
   verifier: "v".repeat(43),
   intent: "exchange",
-  next: "/giao-luu/abc?x=1",
+  next: "/exchanges/abc?x=1",
   iat: NOW,
 };
 

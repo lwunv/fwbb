@@ -34,7 +34,7 @@ export type MapViewProps = {
   /** Zoom lúc tạo map; bỏ trống thì suy ra từ `radiusKm`. */
   zoom?: number;
   userPosition?: LatLng | null;
-  /** Chỉ chọn được ghim `kind: "venue"` có id này (đường cũ của /san). */
+  /** Chỉ chọn được ghim `kind: "venue"` có id này (đường cũ của /venues). */
   selectedId?: number | null;
   /**
    * Chọn theo `pointKey`. Có prop này (kể cả null) thì nó thắng `selectedId`,

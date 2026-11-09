@@ -355,9 +355,9 @@ const sendBtn = (page: Page) =>
 async function openEvent(
   page: Page,
   code: string,
-  channel: "qa" | "nhom" = "qa",
+  channel: "qa" | "group" = "qa",
 ) {
-  await page.goto(`/giao-luu/${code}?kenh=${channel}`, {
+  await page.goto(`/exchanges/${code}?channel=${channel}`, {
     waitUntil: "domcontentloaded",
   });
   await expect(page.getByRole("heading", { name: "Bình luận" })).toBeVisible({
@@ -548,13 +548,13 @@ test("guest and pending account see no Nhóm buổi tab; approved registrant pos
 
   const guestCtx = await newCtx(browser);
   const guest = await guestCtx.newPage();
-  await openEvent(guest, ev.code, "nhom");
+  await openEvent(guest, ev.code, "group");
   await expect(guest.getByRole("tab", { name: "Nhóm buổi" })).toHaveCount(0);
   await expect(guest.getByText(hostNote)).toHaveCount(0);
   await guestCtx.close();
 
   const pend = await exCtx!.newPage();
-  await openEvent(pend, ev.code, "nhom");
+  await openEvent(pend, ev.code, "group");
   await expect(pend.getByRole("tab", { name: "Nhóm buổi" })).toHaveCount(0);
   await expect(pend.getByText(hostNote)).toHaveCount(0);
   await pend.close();
@@ -583,7 +583,7 @@ test("guest and pending account see no Nhóm buổi tab; approved registrant pos
   await memCtx.close();
 });
 
-test("three reports hide a comment; admin unhides it in /admin/giao-luu", async ({
+test("three reports hide a comment; admin unhides it in /admin/exchanges", async ({
   browser,
 }) => {
   // Ba lần đăng nhập, mỗi lần một Turnstile: bài này chậm hơn các bài khác.
@@ -628,7 +628,7 @@ test("three reports hide a comment; admin unhides it in /admin/giao-luu", async 
     viewport: { width: 390, height: 844 },
   });
   const admin = await adminCtx.newPage();
-  await admin.goto("/admin/giao-luu", { waitUntil: "domcontentloaded" });
+  await admin.goto("/admin/exchanges", { waitUntil: "domcontentloaded" });
   await admin.getByRole("tab", { name: "Bình luận", exact: true }).click();
   await admin.getByRole("tab", { name: "Đang ẩn", exact: true }).click();
   await expect(admin.getByText(text)).toBeVisible({ timeout: 20_000 });
@@ -781,7 +781,7 @@ test("Giao lưu của tôi shows 1 new comment, then 0 after opening the event",
 
   const ctx = await newCtx(browser);
   const page = await loginAs(ctx, "mem");
-  await page.goto("/giao-luu/cua-toi", { waitUntil: "domcontentloaded" });
+  await page.goto("/exchanges/mine", { waitUntil: "domcontentloaded" });
   const badge = page.getByRole("link", { name: "1 bình luận mới" });
   await expect(badge).toBeVisible({ timeout: 20_000 });
   await badge.click();
@@ -803,7 +803,7 @@ test("Giao lưu của tôi shows 1 new comment, then 0 after opening the event",
     )
     .toBe(1);
 
-  await page.goto("/giao-luu/cua-toi", { waitUntil: "domcontentloaded" });
+  await page.goto("/exchanges/mine", { waitUntil: "domcontentloaded" });
   await expect(page.getByText(`${PREFIX}Da xong`).first()).toBeVisible({
     timeout: 20_000,
   });

@@ -205,7 +205,13 @@ export const SETTINGS = {
     schema: z.boolean(),
     default: false,
     perSession: false,
-    revalidate: ["/giao-luu", "/san", "/", "/admin/members", "/admin/settings"],
+    revalidate: [
+      "/exchanges",
+      "/venues",
+      "/",
+      "/admin/members",
+      "/admin/settings",
+    ],
   }),
 
   // ─── Tài khoản nhận tiền (QR chuyển khoản) ───

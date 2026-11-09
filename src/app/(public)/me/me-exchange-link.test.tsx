@@ -22,7 +22,7 @@ describe("MeExchangeLink enabled", () => {
       </NextIntlClientProvider>,
     );
     const a = container.querySelector("a");
-    expect(a?.getAttribute("href")).toBe("/giao-luu/cua-toi");
+    expect(a?.getAttribute("href")).toBe("/exchanges/mine");
     expect(a?.textContent).toContain("Giao lưu của tôi");
   });
 });

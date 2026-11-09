@@ -71,7 +71,7 @@ export type AdminReportRow = {
   targetType: ReportTargetType;
   /** Tên buổi (target event, comment) hoặc tên member (target member). */
   targetName: string;
-  /** Mã buổi để dẫn link /giao-luu/{code}; `null` khi đối tượng là member. */
+  /** Mã buổi để dẫn link /exchanges/{code}; `null` khi đối tượng là member. */
   eventCode: string | null;
   /** 120 ký tự đầu của bình luận bị báo (cả khi đã xoá); null với target khác. */
   commentExcerpt: string | null;

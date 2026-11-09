@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * Khu bình luận trên trang buổi (g2c, Task 10). Các điều dễ hỏng im lặng:
- * 1. Khách chỉ thấy Hỏi đáp; vào ?kenh=nhom thì về Hỏi đáp, không báo lỗi.
+ * 1. Khách chỉ thấy Hỏi đáp; vào ?channel=group thì về Hỏi đáp, không báo lỗi.
  * 2. Body là chữ thuần: `<script>` và link không thành thẻ.
  * 3. Hữu ích dùng số server trả về, rollback khi lỗi và không bị gửi lại.
  * 4. Không polling: chỉ nút "Tải bình luận mới" mới tải lại.
@@ -139,13 +139,13 @@ describe("CommentSection", () => {
     expect(screen.queryByRole("textbox")).toBeNull();
     const login = screen.getByRole("link", { name: "Đăng nhập để bình luận" });
     expect(login.getAttribute("href")).toBe(
-      `/giao-luu/dang-nhap?next=${encodeURIComponent("/giao-luu/ABCD1234")}`,
+      `/exchanges/login?next=${encodeURIComponent("/exchanges/ABCD1234")}`,
     );
   });
 
-  it("guest opening ?kenh=nhom lands on Hỏi đáp", async () => {
+  it("guest opening ?channel=group lands on Hỏi đáp", async () => {
     pageFor({ role: "guest", canWrite: false, roots: [makeView()] });
-    renderSection({ signedIn: false, search: "?kenh=nhom" });
+    renderSection({ signedIn: false, search: "?channel=group" });
     await screen.findByText("Sân có điều hòa không?");
     expect(
       screen
@@ -695,7 +695,7 @@ describe("CommentSection", () => {
     );
     const urls: string[] = [];
     renderSection({
-      search: "?kenh=nhom",
+      search: "?channel=group",
       defaultRetry: true,
       memory: true,
       onUrlUpdate: (u) => urls.push(u.searchParams.toString()),
@@ -706,20 +706,20 @@ describe("CommentSection", () => {
     );
     expect(groupCalls).toHaveLength(1);
     expect(mocks.toast.error).not.toHaveBeenCalled();
-    expect(urls.at(-1)).not.toContain("kenh=nhom");
+    expect(urls.at(-1)).not.toContain("channel=group");
   });
 
-  it("guest opening ?kenh=nhom also corrects the URL back to qa", async () => {
+  it("guest opening ?channel=group also corrects the URL back to qa", async () => {
     pageFor({ role: "guest", canWrite: false, roots: [makeView()] });
     const urls: string[] = [];
     renderSection({
       signedIn: false,
-      search: "?kenh=nhom",
+      search: "?channel=group",
       onUrlUpdate: (u) => urls.push(u.searchParams.toString()),
     });
     await screen.findByText("Sân có điều hòa không?");
     await waitFor(() => expect(urls.length).toBeGreaterThan(0));
-    expect(urls.at(-1)).not.toContain("kenh=nhom");
+    expect(urls.at(-1)).not.toContain("channel=group");
     expect(mocks.toast.error).not.toHaveBeenCalled();
   });
 
@@ -786,7 +786,7 @@ describe("CommentSection", () => {
     pageFor({ roots: [makeView({ id: 1, body: "Câu hỏi một" })] });
     let failSend: (v: unknown) => void = () => {};
     mocks.add.mockReturnValue(new Promise((r) => (failSend = r)));
-    renderSection({ search: "?bl=new" });
+    renderSection({ search: "?sort=new" });
     await screen.findByText("Câu hỏi một");
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: "Gửi thử nè" },
@@ -872,7 +872,7 @@ describe("CommentSection", () => {
       sent = true;
       return { success: true, data: { id: 50, status: "visible" } };
     });
-    const { container } = renderSection({ search: "?bl=new" });
+    const { container } = renderSection({ search: "?sort=new" });
     await screen.findByText("Câu hỏi một");
     const count = () =>
       screen.queryAllByText("Chốt nhé").filter((el) => el.closest("article"))
