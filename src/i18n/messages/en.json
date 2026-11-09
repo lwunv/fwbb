@@ -2109,6 +2109,15 @@
     "pinHint": "Tap a pin to see the venue",
     "mapTilesFailed": "The map background could not load. Venue pins are still shown.",
     "pinWithExchanges": "{label}, {count, plural, one {# upcoming exchange} other {# upcoming exchanges}}",
+    "call": "Call",
+    "share": "Share",
+    "shareCopied": "Link copied",
+    "shareFailed": "Could not share. Please try again.",
+    "viewDetails": "View details",
+    "closeQuickView": "Close",
+    "slotsLeftCount": "{count, plural, one {# spot left} other {# spots left}}",
+    "slotsFull": "Full",
+    "upcomingLoadError": "Could not load upcoming exchanges.",
     "pickerUnsupported": "This browser can't display the map. Please enter the coordinates by hand."
   },
   "notifications": {

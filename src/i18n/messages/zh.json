@@ -2109,6 +2109,15 @@
     "pinHint": "点按图钉查看场馆",
     "mapTilesFailed": "无法加载地图底图，场馆图钉仍会显示。",
     "pinWithExchanges": "{label}，{count} 场即将举行的交流",
+    "call": "拨打",
+    "share": "分享",
+    "shareCopied": "链接已复制",
+    "shareFailed": "无法分享，请重试。",
+    "viewDetails": "查看详情",
+    "closeQuickView": "关闭",
+    "slotsLeftCount": "还剩 {count} 个名额",
+    "slotsFull": "已满",
+    "upcomingLoadError": "无法加载即将举行的交流。",
     "pickerUnsupported": "此浏览器无法显示地图，请手动输入坐标。"
   },
   "notifications": {

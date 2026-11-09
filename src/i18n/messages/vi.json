@@ -2109,6 +2109,15 @@
     "pinHint": "Bấm một ghim để xem sân",
     "mapTilesFailed": "Không tải được nền bản đồ. Các ghim sân vẫn hiển thị.",
     "pinWithExchanges": "{label}, {count} buổi giao lưu sắp tới",
+    "call": "Gọi",
+    "share": "Chia sẻ",
+    "shareCopied": "Đã chép link",
+    "shareFailed": "Không chia sẻ được. Bạn thử lại nhé.",
+    "viewDetails": "Xem chi tiết",
+    "closeQuickView": "Đóng",
+    "slotsLeftCount": "Còn {count} chỗ",
+    "slotsFull": "Hết chỗ",
+    "upcomingLoadError": "Không tải được giao lưu sắp tới.",
     "pickerUnsupported": "Trình duyệt không hiển thị được bản đồ. Bạn nhập toạ độ bằng tay nhé."
   },
   "notifications": {
