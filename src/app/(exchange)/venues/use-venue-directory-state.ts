@@ -169,8 +169,12 @@ export function useVenueDirectoryState({
   const exchange = exchangeEnabled && url.exchange;
   // Đếm lỗi thì bỏ lọc, hiện đủ danh sách thay vì báo "không có sân".
   const filterOn = exchange && !!loadExchangeCounts && !countsFailed;
+  // Vùng mới: số đếm đang giữ là của vùng cũ (placeholder), lọc theo nó thì
+  // ra sai, nên coi như đang chờ giống lần đếm đầu.
   const exchangeFilterPending =
-    filterOn && countsQuery.isPending && venueIds.length > 0;
+    filterOn &&
+    venueIds.length > 0 &&
+    (countsQuery.isPending || countsQuery.isPlaceholderData);
 
   // Mốc "đang mở": lấy lúc mở trang, làm mới khi bật/tắt chip. Không hẹn giờ
   // lặp để tự cập nhật (quy tắc không polling).
@@ -200,33 +204,50 @@ export function useVenueDirectoryState({
       ? null
       : (venues.find((v) => v.id === selectedId) ?? null);
 
-  // `?venue=` bậy (≤ 0) hoặc không còn trong kết quả đã lọc: bỏ khỏi URL, không
-  // đọc thêm DB để tìm sân đó.
-  const venueMissing = settled && selectedId !== null && !selectedVenue;
-  useEffect(() => {
-    if (venueParam === null) return;
-    if (venueParam > 0 && !venueMissing) return;
-    void setUrl({ venue: null });
-  }, [venueParam, venueMissing, setUrl]);
-
   const [focus, setFocus] = useState<{
     lat: number;
     lng: number;
     seq: number;
   } | null>(null);
   const [openedFromLink, setOpenedFromLink] = useState(false);
-  // Link có `?venue=`: chỉ xét ở lần dữ liệu đầu tiên. Đặt trong lúc render
-  // (cùng kiểu dashboard-client) để khỏi set state trong effect.
+  // Sân của link lúc mở trang, và đã xét nó xong chưa.
+  const [linkVenueId] = useState(() =>
+    url.venue !== null && url.venue > 0 ? url.venue : null,
+  );
   const [linkChecked, setLinkChecked] = useState(false);
+  // Đang xem vùng dự phòng trong lúc GPS chưa trả lời: vùng GPS sắp tải có thể
+  // chứa sân của link, nên chưa được kết luận là không có. Chờ có hạn vì
+  // useUserLocation tự hết giờ về "denied".
+  const fallbackAwaitingGps =
+    (source === "stored" || source === "default") && gpsPending;
+  const linkPending =
+    !linkChecked && linkVenueId !== null && selectedId === linkVenueId;
+  const holdLink = linkPending && fallbackAwaitingGps;
+
+  // `?venue=` bậy (≤ 0) hoặc không còn trong kết quả đã lọc: bỏ khỏi URL, không
+  // đọc thêm DB để tìm sân đó.
+  const venueMissing =
+    settled && selectedId !== null && !selectedVenue && !holdLink;
+  useEffect(() => {
+    if (venueParam === null) return;
+    if (venueParam > 0 && !venueMissing) return;
+    void setUrl({ venue: null });
+  }, [venueParam, venueMissing, setUrl]);
+
+  // Link có `?venue=`: xét ở lần dữ liệu thật đầu tiên (hoặc vùng GPS nếu vùng
+  // dự phòng không có sân đó). Đặt trong lúc render (cùng kiểu
+  // dashboard-client) để khỏi set state trong effect.
   if (!linkChecked && settled) {
-    setLinkChecked(true);
-    if (selectedVenue) {
+    if (linkPending && selectedVenue) {
+      setLinkChecked(true);
       setOpenedFromLink(true);
       setFocus((f) => ({
         lat: selectedVenue.lat,
         lng: selectedVenue.lng,
         seq: (f?.seq ?? 0) + 1,
       }));
+    } else if (!holdLink) {
+      setLinkChecked(true);
     }
   }
 

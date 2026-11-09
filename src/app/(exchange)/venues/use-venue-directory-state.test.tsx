@@ -567,6 +567,9 @@ describe("useVenueDirectoryState: selection", () => {
   });
 
   it("?venue= not in the result is cleared without another server call", async () => {
+    // GPS đã trả lời (từ chối): vùng dự phòng là kết quả cuối, không còn chờ
+    // vùng GPS có thể chứa sân của link.
+    geo.request.mockImplementation(() => geo.set({ status: "denied" }));
     const { result, lastUrl } = setup({ search: "?venue=99" });
     await waitFor(() => expect(listVenuesNear).toHaveBeenCalledTimes(1));
     await waitFor(() =>
@@ -599,5 +602,112 @@ describe("useVenueDirectoryState: selection", () => {
     );
     expect(result.current.focus?.seq).toBe(1);
     expect(result.current.selectedId).toBe(2);
+  });
+  it("a linked ?venue= survives the fallback area while GPS is pending and opens once the GPS area has it", async () => {
+    listVenuesNear.mockImplementation(async (q: { lat: number }) => ({
+      venues:
+        q.lat < 15
+          ? [venue(12, { lat: 10.771, lng: 106.7 }), venue(1)]
+          : [venue(1)],
+    }));
+    const { result, onUrlUpdate } = setup({ search: "?venue=12" });
+    await waitFor(() => expect(result.current.query.isSuccess).toBe(true));
+    expect(lastQuery()).toMatchObject(HN);
+    await act(async () => {
+      await sleep(30);
+    });
+    expect(result.current.selectedId).toBe(12);
+    expect(onUrlUpdate).not.toHaveBeenCalled();
+    expect(result.current.openedFromLink).toBe(false);
+
+    act(() => geo.set({ status: "ok", position: { lat: 10.77, lng: 106.7 } }));
+    await waitFor(() => expect(result.current.openedFromLink).toBe(true));
+    expect(result.current.selectedVenue?.id).toBe(12);
+    expect(result.current.focus).toEqual({ lat: 10.771, lng: 106.7, seq: 1 });
+    expect(onUrlUpdate).not.toHaveBeenCalled();
+    expect(listVenuesNear).toHaveBeenCalledTimes(2);
+  });
+
+  it("a linked ?venue= missing from the fallback area is cleared once GPS is denied", async () => {
+    listVenuesNear.mockResolvedValue({ venues: [venue(1)] });
+    const { result, lastUrl } = setup({ search: "?venue=12" });
+    await waitFor(() => expect(result.current.query.isSuccess).toBe(true));
+    await act(async () => {
+      await sleep(30);
+    });
+    expect(result.current.selectedId).toBe(12);
+
+    act(() => geo.set({ status: "denied" }));
+    await waitFor(() => expect(result.current.selectedId).toBeNull());
+    expect(lastUrl()?.searchParams.has("venue")).toBe(false);
+    expect(result.current.openedFromLink).toBe(false);
+    expect(listVenuesNear).toHaveBeenCalledTimes(1);
+  });
+
+  it("placeholder data from the previous area never clears ?venue=", async () => {
+    const second = deferred<{ venues: DirectoryVenue[] }>();
+    listVenuesNear
+      .mockResolvedValueOnce({ venues: [venue(1), venue(2)] })
+      .mockReturnValueOnce(second.promise);
+    const { result, lastUrl } = setup();
+    await waitFor(() => expect(result.current.venues).toHaveLength(2));
+
+    act(() => result.current.setRadius(10));
+    await waitFor(() => expect(listVenuesNear).toHaveBeenCalledTimes(2));
+    expect(result.current.query.isPlaceholderData).toBe(true);
+    act(() => result.current.select(7));
+    await waitFor(() => expect(lastUrl()?.searchParams.get("venue")).toBe("7"));
+    await act(async () => {
+      await sleep(30);
+    });
+    expect(result.current.selectedId).toBe(7);
+    expect(lastUrl()?.searchParams.get("venue")).toBe("7");
+
+    await act(async () => {
+      second.resolve({ venues: [venue(1), venue(7)] });
+    });
+    await waitFor(() => expect(result.current.selectedVenue?.id).toBe(7));
+  });
+
+  it("with the exchange chip on, a new area waits for its own counts instead of filtering by the old ones", async () => {
+    listVenuesNear.mockImplementation(async (q: { radiusKm: number }) => ({
+      venues: q.radiusKm === 5 ? [venue(1), venue(2)] : [venue(4), venue(5)],
+    }));
+    const second = deferred<[number, number][]>();
+    const loadExchangeCounts = vi
+      .fn<(ids: number[]) => Promise<[number, number][]>>()
+      .mockResolvedValueOnce([[1, 1]])
+      .mockReturnValueOnce(second.promise);
+    const { result, lastUrl } = setup({
+      search: "?exchange=true",
+      exchangeEnabled: true,
+      loadExchangeCounts,
+    });
+    await waitFor(() =>
+      expect(result.current.venues.map((v) => v.id)).toEqual([1]),
+    );
+
+    act(() => result.current.setRadius(10));
+    await waitFor(() => expect(loadExchangeCounts).toHaveBeenCalledTimes(2));
+    expect(loadExchangeCounts).toHaveBeenLastCalledWith([4, 5]);
+    expect(result.current.query.isPlaceholderData).toBe(false);
+    expect(result.current.exchangeFilterPending).toBe(true);
+    expect(result.current.venues).toEqual([]);
+
+    act(() => result.current.select(5));
+    await waitFor(() => expect(lastUrl()?.searchParams.get("venue")).toBe("5"));
+    await act(async () => {
+      await sleep(30);
+    });
+    expect(result.current.selectedId).toBe(5);
+
+    await act(async () => {
+      second.resolve([[5, 2]]);
+    });
+    await waitFor(() =>
+      expect(result.current.exchangeFilterPending).toBe(false),
+    );
+    expect(result.current.venues.map((v) => v.id)).toEqual([5]);
+    expect(result.current.selectedVenue?.id).toBe(5);
   });
 });
