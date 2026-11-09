@@ -171,6 +171,11 @@ describe("venue detail page", () => {
     ]) {
       expect(fontSizeOf(screen.getByText(value))).toBe("text-base");
     }
+    // Địa chỉ dài phải xuống dòng được, không đẩy trang tràn ngang.
+    const address = screen
+      .getByText("1 Trần Thái Tông, Dịch Vọng Hậu")
+      .closest("strong");
+    expect(address && hasClass(address, "wrap-anywhere")).toBe(true);
 
     const tel = screen.getByRole("link", { name: /0912 345-678/ });
     expect(tel.getAttribute("href")).toBe("tel:0912345678");
@@ -181,6 +186,14 @@ describe("venue detail page", () => {
     expect(photo.getAttribute("target")).toBe("_blank");
     expect(photo.getAttribute("rel")).toContain("nofollow");
     expect(screen.queryByText(/Đề xuất sửa/)).toBeNull();
+  });
+
+  it("at 23:30 VN the same hours show Đã đóng", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-09T16:30:00Z")); // 23:30 giờ Việt Nam
+    await renderPage();
+    expect(screen.getByText("Đã đóng (5:00 - 23:00)")).toBeTruthy();
+    expect(screen.queryByText(/Đang mở/)).toBeNull();
   });
 
   it("unparseable hours show Chưa rõ giờ", async () => {
@@ -200,10 +213,13 @@ describe("venue detail page", () => {
     for (const a of calls)
       expect(a.getAttribute("href")).toBe("tel:0912345678");
 
-    cleanup();
-    await renderPage({ phone: null });
-    expect(screen.queryAllByRole("link", { name: "Gọi" })).toHaveLength(0);
-    expect(document.querySelector('a[href^="tel:"]')).toBeNull();
+    // Không có số nào để gọi (rỗng, chỉ dấu "+"): không có link tel: nào.
+    for (const phone of [null, "+", " + "]) {
+      cleanup();
+      await renderPage({ phone });
+      expect(screen.queryAllByRole("link", { name: "Gọi" })).toHaveLength(0);
+      expect(document.querySelector('a[href^="tel:"]')).toBeNull();
+    }
   });
 
   it("shows the reviews coming soon block", async () => {

@@ -15,25 +15,14 @@ import { listUpcomingAtVenue } from "@/actions/exchange-read";
 import { isExchangeEnabled } from "@/lib/exchange-flag";
 import { directionsUrl } from "@/lib/maps-link";
 import { formatK } from "@/lib/utils";
-import { openStatus, type OpenStatus } from "@/lib/venues/open-hours";
+import { openStatus } from "@/lib/venues/open-hours";
+import { toTelNumber } from "@/lib/venues/phone";
 import { ExchangeCard } from "@/components/exchange/exchange-card";
 import { InfoRow } from "@/components/shared/info-row";
 import { AMENITY_ICONS } from "@/components/venues/amenity-icons";
 import { VenueMiniMap } from "@/components/venues/venue-mini-map";
+import { VenueOpenStatus } from "@/components/venues/venue-open-status";
 import { VenueShareButton } from "@/components/venues/venue-share-button";
-
-const STATUS_KEY = {
-  open: "openNow",
-  closed: "closedNow",
-  unknown: "hoursUnknown",
-} as const satisfies Record<OpenStatus, string>;
-
-// Chấm màu chỉ giúp nhìn nhanh; chữ "Đang mở/Đã đóng" mới là thông tin.
-const STATUS_DOT: Record<OpenStatus, string | null> = {
-  open: "bg-accent",
-  closed: "bg-destructive",
-  unknown: null,
-};
 
 const ACTION =
   "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-base font-medium active:scale-95";
@@ -42,8 +31,8 @@ const INFO_ROW = "py-3";
 /**
  * Trang chi tiết sân. Dữ liệu vẫn chỉ gồm sân, cờ giao lưu và các buổi sắp tới
  * như trước, không thêm truy vấn. Trạng thái mở cửa tính theo giờ Việt Nam lúc
- * render ở server: layout đọc cookie nên trang render theo từng request, không
- * bị đóng băng ở bản build.
+ * render ở server (layout đọc cookie nên trang render theo từng request), rồi
+ * `VenueOpenStatus` tự tính lại ở máy khi tab mở lại sau nhiều giờ.
  */
 export default async function VenueDetailPage({
   params,
@@ -65,13 +54,14 @@ export default async function VenueDetailPage({
   const hours = venue.openHours?.trim() || null;
   const status = hours ? openStatus(hours, new Date()) : null;
   const phoneText = venue.phone?.trim() ?? "";
-  const tel = phoneText.replace(/[^0-9+]/g, "");
+  // Không có chữ số nào ("+", "không có") thì không có gì để gọi.
+  const tel = toTelNumber(phoneText);
   const hasInfo =
     address !== null ||
     status !== null ||
     venue.courtCount != null ||
     venue.refPricePerHour != null ||
-    tel !== "";
+    tel !== null;
   const directions = directionsUrl(venue);
 
   return (
@@ -120,18 +110,7 @@ export default async function VenueDetailPage({
               value={
                 // Giờ không đọc được vẫn hiện chữ gốc, nhưng không bao giờ
                 // đoán thành "Đang mở".
-                <span>
-                  {STATUS_DOT[status] && (
-                    <span
-                      aria-hidden
-                      className={`mr-2 inline-block size-2 rounded-full align-middle ${STATUS_DOT[status]}`}
-                    />
-                  )}
-                  {t("openStatusWithHours", {
-                    status: t(STATUS_KEY[status]),
-                    hours,
-                  })}
-                </span>
+                <VenueOpenStatus hours={hours} initialStatus={status} />
               }
             />
           )}

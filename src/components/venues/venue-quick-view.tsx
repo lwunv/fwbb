@@ -17,6 +17,7 @@ import { directionsUrl } from "@/lib/maps-link";
 import { formatDistance } from "@/lib/geo";
 import { formatK } from "@/lib/utils";
 import { openStatus } from "@/lib/venues/open-hours";
+import { toTelNumber } from "@/lib/venues/phone";
 import { shareOrCopy } from "@/lib/share-link";
 import { exchangeFeeText, exchangeWhenLabel } from "@/lib/exchange/format";
 import type { ExchangeCard } from "@/lib/exchange/public-event";
@@ -145,7 +146,7 @@ export function VenueQuickView({
   const activeLocale = useLocale();
 
   const status = venue.openHours ? openStatus(venue.openHours, now) : null;
-  const phone = venue.phone ? venue.phone.replace(/[^0-9+]/g, "") : "";
+  const phone = toTelNumber(venue.phone);
 
   async function handleShare() {
     const result = await shareOrCopy({
