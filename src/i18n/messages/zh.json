@@ -2010,6 +2010,8 @@
     "directionsTo": "导航到 {name}",
     "upcomingExchangesTitle": "即将举行的交流",
     "upcomingExchangesEmpty": "此场馆暂无即将举行的交流。",
+    "reviewsTitle": "场馆评价",
+    "reviewsSoon": "场馆评价：即将推出",
     "name": "场馆名称",
     "mapLink": "Google 地图链接",
     "mapLinkHint": "打开 Google 地图，选择场馆，点击“分享”并复制链接，然后粘贴到这里。",

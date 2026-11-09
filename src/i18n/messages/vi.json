@@ -2010,6 +2010,8 @@
     "directionsTo": "Chỉ đường tới {name}",
     "upcomingExchangesTitle": "Giao lưu sắp tới",
     "upcomingExchangesEmpty": "Chưa có buổi giao lưu nào sắp tới ở sân này.",
+    "reviewsTitle": "Đánh giá sân",
+    "reviewsSoon": "Đánh giá sân: sắp có",
     "name": "Tên sân",
     "mapLink": "Link Google Maps",
     "mapLinkHint": "Mở Google Maps, chọn sân, bấm Chia sẻ rồi Sao chép liên kết và dán vào đây.",
