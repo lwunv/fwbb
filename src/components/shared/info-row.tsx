@@ -12,6 +12,13 @@ interface InfoRowProps {
    * `bare` — no surface, just label/value flex-row, for inline use inside a Card.
    */
   variant?: "card" | "bare";
+  /**
+   * Let a long value (an address, free-typed opening hours) wrap and align
+   * right instead of pushing the row wider than a phone screen. The label
+   * keeps its width, capped at 60% of the row. Off by default, so existing
+   * rows stay on one line.
+   */
+  wrapValue?: boolean;
   className?: string;
 }
 
@@ -27,19 +34,42 @@ export function InfoRow({
   valueClassName,
   badge,
   variant = "card",
+  wrapValue = false,
   className,
 }: InfoRowProps) {
   return (
     <div
       className={cn(
         "flex items-center justify-between gap-3 text-sm",
+        // Label sits on the first line of a wrapped value.
+        wrapValue && "items-baseline",
         variant === "card" && "bg-muted/30 rounded-lg border px-3 py-2",
         className,
       )}
     >
-      <span className="text-muted-foreground truncate">{label}</span>
-      <div className="flex shrink-0 items-center gap-2">
-        <strong className={cn("tabular-nums", valueClassName)}>{value}</strong>
+      <span
+        className={cn(
+          "text-muted-foreground truncate",
+          wrapValue && "max-w-[60%] shrink-0",
+        )}
+      >
+        {label}
+      </span>
+      <div
+        className={cn(
+          "flex items-center gap-2",
+          wrapValue ? "min-w-0 flex-1 justify-end" : "shrink-0",
+        )}
+      >
+        <strong
+          className={cn(
+            "tabular-nums",
+            wrapValue && "text-right wrap-anywhere",
+            valueClassName,
+          )}
+        >
+          {value}
+        </strong>
         {badge}
       </div>
     </div>

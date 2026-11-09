@@ -111,8 +111,13 @@ describe("VenueQuickView", () => {
   });
 
   it("no phone hides the call button", () => {
-    renderQv({ venue: { ...venue, phone: null } });
-    expect(screen.queryByRole("link", { name: "Gọi" })).toBeNull();
+    // Chuỗi không có chữ số nào ("+") cũng không phải số để gọi.
+    for (const phone of [null, "+", " + "]) {
+      cleanup();
+      renderQv({ venue: { ...venue, phone } });
+      expect(screen.queryByRole("link", { name: "Gọi" })).toBeNull();
+      expect(document.querySelector('a[href^="tel:"]')).toBeNull();
+    }
   });
 
   it("count 0 or no loader never calls loadUpcoming", () => {

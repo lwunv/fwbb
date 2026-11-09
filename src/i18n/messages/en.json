@@ -2010,6 +2010,8 @@
     "directionsTo": "Directions to {name}",
     "upcomingExchangesTitle": "Upcoming exchanges",
     "upcomingExchangesEmpty": "No upcoming exchanges at this venue yet.",
+    "reviewsTitle": "Venue reviews",
+    "reviewsSoon": "Venue reviews: coming soon",
     "name": "Venue name",
     "mapLink": "Google Maps link",
     "mapLinkHint": "Open Google Maps, pick the venue, tap Share, copy the link and paste it here.",
