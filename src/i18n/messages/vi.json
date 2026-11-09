@@ -2119,6 +2119,15 @@
     "slotsFull": "Hết chỗ",
     "upcomingLoadError": "Không tải được giao lưu sắp tới.",
     "pickerUnsupported": "Trình duyệt không hiển thị được bản đồ. Bạn nhập toạ độ bằng tay nhé.",
+    "searchPlaceholder": "Tìm khu vực, địa chỉ, tên sân",
+    "searchPlace": "Tìm địa điểm \"{q}\"",
+    "searchFailed": "Không tìm được lúc này. Thử lại sau.",
+    "chipExchange": "Có giao lưu",
+    "chipRadius": "Bán kính {km} km",
+    "chipAmenities": "Tiện ích",
+    "chipAmenitiesCount": "Tiện ích ({count})",
+    "chipOpenNow": "Đang mở cửa",
+    "done": "Xong",
     "sheetHandle": "Mở rộng hoặc thu gọn danh sách"
   },
   "notifications": {

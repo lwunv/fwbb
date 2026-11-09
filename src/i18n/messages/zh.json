@@ -2119,6 +2119,15 @@
     "slotsFull": "已满",
     "upcomingLoadError": "无法加载即将举行的交流。",
     "pickerUnsupported": "此浏览器无法显示地图，请手动输入坐标。",
+    "searchPlaceholder": "搜索区域、地址、球场名称",
+    "searchPlace": "搜索地点\"{q}\"",
+    "searchFailed": "暂时无法搜索，请稍后再试。",
+    "chipExchange": "有交流活动",
+    "chipRadius": "半径 {km} 公里",
+    "chipAmenities": "设施",
+    "chipAmenitiesCount": "设施（{count}）",
+    "chipOpenNow": "营业中",
+    "done": "完成",
     "sheetHandle": "展开或收起列表"
   },
   "notifications": {

@@ -2119,6 +2119,15 @@
     "slotsFull": "Full",
     "upcomingLoadError": "Could not load upcoming exchanges.",
     "pickerUnsupported": "This browser can't display the map. Please enter the coordinates by hand.",
+    "searchPlaceholder": "Search area, address, venue name",
+    "searchPlace": "Search for \"{q}\"",
+    "searchFailed": "Couldn't search right now. Try again later.",
+    "chipExchange": "Has exchanges",
+    "chipRadius": "Radius {km} km",
+    "chipAmenities": "Amenities",
+    "chipAmenitiesCount": "Amenities ({count})",
+    "chipOpenNow": "Open now",
+    "done": "Done",
     "sheetHandle": "Expand or collapse the list"
   },
   "notifications": {
