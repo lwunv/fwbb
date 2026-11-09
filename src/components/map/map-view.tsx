@@ -108,7 +108,7 @@ function createPin(onClick: () => void): HTMLButtonElement {
   const el = document.createElement("button");
   el.type = "button";
   el.className =
-    "group relative flex size-11 cursor-pointer items-end justify-center rounded-full pb-0.5 focus-visible:outline-2 focus-visible:outline-ring data-[exchange=true]:z-[5] data-[selected=true]:z-10";
+    "group relative flex size-11 cursor-pointer items-end justify-center rounded-full pb-0.5 focus-visible:outline-2 focus-visible:outline-ring";
   // maplibre ghi `transform` của chính phần tử marker mỗi khung hình để bám
   // toạ độ, nên hiệu ứng phóng to nằm ở span con, không ở nút.
   el.innerHTML = `<span class="origin-bottom transition-[scale] duration-200 group-data-[selected=true]:scale-125">${PIN_SVG}</span>`;
@@ -324,11 +324,14 @@ export function MapView({
         flyingRef.current = false;
         const want = latest.current.bottomInset;
         const target = focusTargetRef.current;
+        // Cú bay đã xong: quên đích để lần kéo sau không bị kéo ngược về ghim.
+        focusTargetRef.current = null;
         if (want !== undefined && want !== appliedInsetRef.current) {
           appliedInsetRef.current = want;
-          if (target) {
+          if (target && !e.originalEvent) {
             // Padding mới làm lệch tâm; bay lại để ghim vẫn ở giữa phần thấy được.
             flyingRef.current = true;
+            focusTargetRef.current = target;
             map.easeTo({
               center: [target.lng, target.lat],
               padding: { bottom: want },
@@ -415,6 +418,8 @@ export function MapView({
           ? key === selectedKey
           : p.kind === "venue" && p.id === selectedId;
       entry.el.dataset.selected = String(selected);
+      // Inline: hai class z cùng độ ưu tiên sẽ phụ thuộc thứ tự CSS phát ra.
+      entry.el.style.zIndex = selected ? "10" : hasEx ? "5" : "";
       // Bản đồ không tương tác (bản đồ nhỏ): ghim chỉ để nhìn. Bỏ khỏi thứ
       // tự Tab/trình đọc màn hình và nhường cú chạm cho lớp phủ của màn cha.
       entry.el.tabIndex = interactive ? 0 : -1;

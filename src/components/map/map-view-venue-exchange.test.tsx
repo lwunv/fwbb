@@ -230,4 +230,43 @@ describe("MapView venue exchange pins", () => {
     expect(notice.className).not.toContain("top-16");
     rerenderWith({});
   });
+
+  it("pin zIndex: plain, exchange, selected plain, selected exchange", () => {
+    const pts: MapPoint[] = [
+      { kind: "venue", id: 1, lat: 1, lng: 1, label: "P" },
+      { kind: "venue", id: 2, lat: 1, lng: 1, label: "E", exchangeCount: 1 },
+      { kind: "venue", id: 3, lat: 1, lng: 1, label: "SP" },
+      { kind: "venue", id: 4, lat: 1, lng: 1, label: "SE", exchangeCount: 1 },
+    ];
+    const z = (name: RegExp) =>
+      screen.getByRole("button", { name }).style.zIndex;
+    const { rerenderWith } = renderMap({ points: pts, selectedId: 3 });
+    expect(z(/^P$/)).toBe("");
+    expect(z(/^E,/)).toBe("5");
+    expect(z(/^SP$/)).toBe("10");
+    expect(z(/^SE,/)).toBe("5");
+    rerenderWith({ points: pts, selectedId: 4 });
+    expect(z(/^SE,/)).toBe("10");
+    expect(z(/^SP$/)).toBe("");
+  });
+
+  it("after a focus flight completes, a later moveend with a different center does not ease again", () => {
+    const { rerenderWith } = renderMap({
+      bottomInset: 72,
+      focus: { lat: 21.1, lng: 105.9, seq: 1 },
+    });
+    const map = maps[0];
+    act(() => map.fire("moveend", {}));
+    const n = map.easeTo.mock.calls.length;
+    rerenderWith({
+      bottomInset: 300,
+      focus: { lat: 21.1, lng: 105.9, seq: 1 },
+    });
+    map.center = { lng: 106, lat: 22 };
+    act(() =>
+      map.fire("moveend", { originalEvent: new MouseEvent("mouseup") }),
+    );
+    expect(map.easeTo.mock.calls.length).toBe(n);
+    expect(map.setPadding).toHaveBeenLastCalledWith({ bottom: 300 });
+  });
 });
