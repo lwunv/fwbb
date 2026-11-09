@@ -31,8 +31,13 @@ const PILL =
  */
 const FRAME =
   "fixed inset-x-0 top-14 bottom-0 overflow-hidden md:grid md:grid-cols-[400px_minmax(0,1fr)]";
+/**
+ * Ô nguồn bản đồ (bắt buộc nhìn thấy) đẩy lên trên phần ngăn đang che. Cần `!`:
+ * maplibre-gl.css không nằm trong layer nào nên luôn thắng utility của
+ * Tailwind (nằm trong `@layer utilities`), bất kể độ đặc hiệu.
+ */
 const MAP_WRAPPER =
-  "relative isolate h-full md:col-start-2 md:row-start-1 [&_.maplibregl-ctrl-bottom-right]:bottom-[var(--venues-map-inset)]";
+  "relative isolate h-full md:col-start-2 md:row-start-1 [&_.maplibregl-ctrl-bottom-right]:bottom-[var(--venues-map-inset)]!";
 
 /** Ô tìm, hàng chip và ngăn ở nấc thấp, giữ chỗ trước khi biết bề rộng máy. */
 function PanelSkeleton() {
@@ -126,7 +131,8 @@ export function VenueDirectory({
   const snapBeforeFocus = useRef<SheetSnap | null>(null);
 
   const frameRef = useRef<HTMLDivElement>(null);
-  const overlayRef = useRef<HTMLDivElement>(null);
+  /** Khối ô tìm + hàng chip: đáy của nó là chỗ ngăn dừng ở nấc cao. */
+  const controlsRef = useRef<HTMLDivElement>(null);
   const [frameH, setFrameH] = useState(0);
   const [topReserve, setTopReserve] = useState(OVERLAY_GAP_PX);
   const [visibleH, setVisibleH] = useState(0);
@@ -136,15 +142,19 @@ export function VenueDirectory({
     if (!frame) return;
     const measure = () => {
       setFrameH(frame.clientHeight || window.innerHeight);
-      const ov = overlayRef.current;
+      // offsetParent của khối là lớp nổi, mà lớp nổi nằm sát đỉnh khung, nên
+      // offsetTop cũng là khoảng cách tới đỉnh khung.
+      const block = controlsRef.current;
       setTopReserve(
-        ov ? ov.offsetTop + ov.offsetHeight + OVERLAY_GAP_PX : OVERLAY_GAP_PX,
+        block
+          ? block.offsetTop + block.offsetHeight + OVERLAY_GAP_PX
+          : OVERLAY_GAP_PX,
       );
     };
     if (typeof ResizeObserver !== "undefined") {
       const ro = new ResizeObserver(measure);
       ro.observe(frame);
-      if (overlayRef.current) ro.observe(overlayRef.current);
+      if (controlsRef.current) ro.observe(controlsRef.current);
       return () => ro.disconnect();
     }
     const raf = requestAnimationFrame(measure);
@@ -193,6 +203,16 @@ export function VenueDirectory({
     // cần trả về thay vì đổi nấc ngay.
     if (searchFocused) snapBeforeFocus.current = "mid";
     else setSnap("mid");
+  }
+
+  /**
+   * Nấc do người dùng chọn (kéo, bấm tiêu đề). Ô tìm có thể vẫn giữ focus khi
+   * bàn phím đã ẩn (nút Back của Android), nên nấc này cũng là nấc trả về lúc
+   * rời ô, thay vì nấc trước khi focus.
+   */
+  function userSnap(next: SheetSnap) {
+    if (searchFocused) snapBeforeFocus.current = next;
+    setSnap(next);
   }
 
   function onSearchFocus(focused: boolean) {
@@ -344,100 +364,115 @@ export function VenueDirectory({
       {mobile && (
         <>
           <div
-            ref={overlayRef}
             data-testid="venues-overlay"
-            className="pointer-events-none absolute inset-x-0 top-0 z-20 space-y-2 px-3 pt-3"
+            className="pointer-events-none absolute inset-x-0 top-0 z-20 px-3 pt-3"
           >
-            <div className="pointer-events-auto">
-              <VenueSearchBar
-                venues={s.venues}
-                locale={locale}
-                onPickVenue={selectVenue}
-                onPlace={s.placeSearched}
-                onLocate={s.locate}
-                locating={s.locating || s.gpsWaiting}
-                onFocusChange={onSearchFocus}
-              />
-            </div>
-            {/* Hàng chip phủ cả bề ngang: chỗ trống giữa các chip vẫn kéo được bản đồ. */}
-            <div
-              data-testid="venues-chip-row"
-              className="pointer-events-none [&_button]:pointer-events-auto"
-            >
-              <VenueFilterChips
-                radius={s.radius}
-                onRadius={s.setRadius}
-                amenities={s.amenities}
-                onAmenities={s.setAmenities}
-                exchange={s.exchange}
-                onExchange={s.setExchange}
-                showExchange={exchangeEnabled}
-                openNow={s.openNow}
-                onOpenNow={s.setOpenNow}
-              />
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              {query.isFetching ? (
-                <motion.div
-                  key="loading"
-                  role="status"
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`${PILL} pointer-events-none`}
-                >
-                  <Loader2 className="size-4 animate-spin" aria-hidden />
-                  {t("loadingVenues")}
-                </motion.div>
-              ) : (
-                s.showSearchHere && (
-                  <motion.button
-                    key="search-here"
-                    type="button"
-                    onClick={s.searchHere}
-                    initial={{ opacity: 0, y: -8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    whileTap={{ scale: 0.97 }}
-                    className="bg-primary text-primary-foreground pointer-events-auto inline-flex min-h-11 items-center gap-2 rounded-full px-5 text-base font-medium shadow-lg"
-                  >
-                    <Search className="size-4" aria-hidden />
-                    {t("searchThisArea")}
-                  </motion.button>
-                )
-              )}
-              {(s.gpsWaiting || s.locating) && (
-                <p role="status" className={`${PILL} pointer-events-none`}>
-                  <LocateFixed className="size-4 animate-pulse" aria-hidden />
-                  {t("locating")}
-                </p>
-              )}
-              {viewingLine && (
-                <p className="bg-card/85 text-muted-foreground pointer-events-none max-w-full rounded-xl border px-3 py-1.5 text-center text-sm shadow-sm backdrop-blur">
-                  {viewingLine}
-                </p>
-              )}
-              {s.locateFailed && (
-                <p
-                  role="status"
-                  className="bg-card/90 pointer-events-none max-w-full rounded-xl border px-3 py-1.5 text-center text-sm shadow-sm backdrop-blur"
-                >
-                  {t("locationUnavailable")}
-                </p>
-              )}
-              {s.countsFailed && s.exchange && (
+            {/* Chỉ ô tìm và hàng chip được đo cho nấc cao. Hàng trạng thái nằm
+                tuyệt đối ngay dưới khối này (không chiếm chỗ, flex gap bỏ qua
+                phần tử tuyệt đối), nên viên "Đang tải" hiện/ẩn không làm mép
+                ngăn nhảy. */}
+            <div ref={controlsRef} className="relative flex flex-col gap-2">
+              <div className="pointer-events-auto">
+                <VenueSearchBar
+                  venues={s.venues}
+                  locale={locale}
+                  onPickVenue={selectVenue}
+                  onPlace={s.placeSearched}
+                  onLocate={s.locate}
+                  locating={s.locating || s.gpsWaiting}
+                  onFocusChange={onSearchFocus}
+                />
+              </div>
+              {/* Hàng chip phủ cả bề ngang: chỗ trống giữa các chip vẫn kéo được bản đồ. */}
+              <div
+                data-testid="venues-chip-row"
+                className="pointer-events-none [&_button]:pointer-events-auto"
+              >
+                <VenueFilterChips
+                  radius={s.radius}
+                  onRadius={s.setRadius}
+                  amenities={s.amenities}
+                  onAmenities={s.setAmenities}
+                  exchange={s.exchange}
+                  onExchange={s.setExchange}
+                  showExchange={exchangeEnabled}
+                  openNow={s.openNow}
+                  onOpenNow={s.setOpenNow}
+                />
+              </div>
+              {/* Ở nấc cao ngăn che gần hết bản đồ: các dòng này không còn gì để
+                chú thích và không được đè lên danh sách. */}
+              {snap !== "high" && (
                 <div
-                  role="status"
-                  className="bg-card/90 pointer-events-none flex max-w-full items-center gap-2 rounded-xl border py-1 pr-1 pl-3 text-sm shadow-sm backdrop-blur"
+                  data-testid="venues-status-row"
+                  className="absolute inset-x-0 top-full mt-2 flex flex-col items-center gap-2"
                 >
-                  <span className="text-muted-foreground">
-                    {t("exchangeFilterUnavailable")}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={s.retryCounts}
-                    className="text-primary pointer-events-auto min-h-11 shrink-0 rounded-lg px-3 font-medium"
-                  >
-                    {t("retry")}
-                  </button>
+                  {query.isFetching ? (
+                    <motion.div
+                      key="loading"
+                      role="status"
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`${PILL} pointer-events-none`}
+                    >
+                      <Loader2 className="size-4 animate-spin" aria-hidden />
+                      {t("loadingVenues")}
+                    </motion.div>
+                  ) : (
+                    s.showSearchHere && (
+                      <motion.button
+                        key="search-here"
+                        type="button"
+                        onClick={s.searchHere}
+                        initial={{ opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        whileTap={{ scale: 0.97 }}
+                        className="bg-primary text-primary-foreground pointer-events-auto inline-flex min-h-11 items-center gap-2 rounded-full px-5 text-base font-medium shadow-lg"
+                      >
+                        <Search className="size-4" aria-hidden />
+                        {t("searchThisArea")}
+                      </motion.button>
+                    )
+                  )}
+                  {(s.gpsWaiting || s.locating) && (
+                    <p role="status" className={`${PILL} pointer-events-none`}>
+                      <LocateFixed
+                        className="size-4 animate-pulse"
+                        aria-hidden
+                      />
+                      {t("locating")}
+                    </p>
+                  )}
+                  {viewingLine && (
+                    <p className="bg-card/85 text-muted-foreground pointer-events-none max-w-full rounded-xl border px-3 py-1.5 text-center text-sm shadow-sm backdrop-blur">
+                      {viewingLine}
+                    </p>
+                  )}
+                  {s.locateFailed && (
+                    <p
+                      role="status"
+                      className="bg-card/90 pointer-events-none max-w-full rounded-xl border px-3 py-1.5 text-center text-sm shadow-sm backdrop-blur"
+                    >
+                      {t("locationUnavailable")}
+                    </p>
+                  )}
+                  {s.countsFailed && s.exchange && (
+                    <div
+                      role="status"
+                      className="bg-card/90 pointer-events-none flex max-w-full items-center gap-2 rounded-xl border py-1 pr-1 pl-3 text-sm shadow-sm backdrop-blur"
+                    >
+                      <span className="text-muted-foreground">
+                        {t("exchangeFilterUnavailable")}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={s.retryCounts}
+                        className="text-primary pointer-events-auto min-h-11 shrink-0 rounded-lg px-3 font-medium"
+                      >
+                        {t("retry")}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -445,7 +480,7 @@ export function VenueDirectory({
 
           <VenueSheet
             snap={snap}
-            onSnapChange={setSnap}
+            onSnapChange={userSnap}
             title={sheetTitle}
             topReserve={topReserve}
             frozen={searchFocused}
@@ -454,7 +489,7 @@ export function VenueDirectory({
               selected
                 ? () => {
                     s.clearSelection();
-                    setSnap("low");
+                    userSnap("low");
                   }
                 : undefined
             }

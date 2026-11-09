@@ -84,8 +84,10 @@ describe("VenueMiniMap", () => {
   it("keeps the attribution control above the overlay link", () => {
     const { container } = renderMini();
     const wrapper = container.firstElementChild as HTMLElement;
-    expect(wrapper.className).toContain(
-      "[&_.maplibregl-ctrl-bottom-right]:z-20",
+    // maplibre-gl.css is unlayered (`z-index: 2` on the control) and beats any
+    // utility inside @layer utilities, so the class needs the ! modifier.
+    expect(wrapper.className.split(/\s+/)).toContain(
+      "[&_.maplibregl-ctrl-bottom-right]:z-20!",
     );
   });
 });

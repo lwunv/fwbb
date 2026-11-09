@@ -17,6 +17,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import viMessages from "@/i18n/messages/vi.json";
 import type { MapViewProps } from "@/components/map/map-view";
 import type { VenueSheet as RealVenueSheet } from "@/components/venues/venue-sheet";
+import { SHEET_PEEK_PX, snapOffsets } from "@/lib/venues/sheet-snap";
 
 type GeoState = {
   status: "idle" | "asking" | "ok" | "denied" | "unsupported";
@@ -52,7 +53,11 @@ const { listVenuesNear, geocodeAddress, geo, mapProps, sheetProps, viewport } =
         request: vi.fn(),
       },
       mapProps: { last: null as MapViewProps | null },
-      sheetProps: { last: null as SheetProps | null },
+      sheetProps: {
+        last: null as SheetProps | null,
+        /** Chiều cao lộ ra mà ngăn thật báo lần gần nhất. */
+        visible: null as number | null,
+      },
       viewport: { width: 390 },
     };
   });
@@ -101,7 +106,13 @@ vi.mock("@/components/venues/venue-sheet", async (importOriginal) => {
           data-snap={p.snap}
           data-frozen={String(!!p.frozen)}
         >
-          <mod.VenueSheet {...p} />
+          <mod.VenueSheet
+            {...p}
+            onVisibleHeight={(px) => {
+              sheetProps.visible = px;
+              p.onVisibleHeight?.(px);
+            }}
+          />
         </div>
       );
     },
@@ -155,6 +166,91 @@ function setPermissions(state: string) {
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * jsdom không dàn trang. Giả lập vừa đủ: `offsetHeight` của một khối tăng theo
+ * số phần tử con nằm trong dòng (nhánh `absolute`/`fixed` không đẩy khối cao
+ * lên, như CSS thật), và ResizeObserver chỉ báo khi test gọi `fireAll`.
+ */
+const ROW_PX = 4;
+function inFlowCount(el: Element): number {
+  let n = 0;
+  for (const child of Array.from(el.children)) {
+    if (
+      child.classList.contains("absolute") ||
+      child.classList.contains("fixed")
+    ) {
+      continue;
+    }
+    n += 1 + inFlowCount(child);
+  }
+  return n;
+}
+class FakeResizeObserver {
+  static all = new Set<FakeResizeObserver>();
+  private targets: Element[] = [];
+  constructor(private cb: ResizeObserverCallback) {
+    FakeResizeObserver.all.add(this);
+  }
+  observe(target: Element) {
+    this.targets.push(target);
+  }
+  unobserve() {}
+  disconnect() {
+    FakeResizeObserver.all.delete(this);
+  }
+  fire() {
+    this.cb(
+      this.targets.map((target) => ({
+        target,
+        contentRect: { height: window.innerHeight },
+      })) as unknown as ResizeObserverEntry[],
+      this as unknown as ResizeObserver,
+    );
+  }
+}
+let restoreLayout: (() => void) | null = null;
+function installLayoutFake() {
+  vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+  const original = Object.getOwnPropertyDescriptor(
+    HTMLElement.prototype,
+    "offsetHeight",
+  );
+  Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
+    configurable: true,
+    get(this: HTMLElement) {
+      return inFlowCount(this) * ROW_PX;
+    },
+  });
+  restoreLayout = () => {
+    if (original) {
+      Object.defineProperty(HTMLElement.prototype, "offsetHeight", original);
+    } else {
+      Reflect.deleteProperty(HTMLElement.prototype, "offsetHeight");
+    }
+    vi.unstubAllGlobals();
+    FakeResizeObserver.all.clear();
+  };
+  return {
+    fireAll: () =>
+      act(() => {
+        FakeResizeObserver.all.forEach((o) => o.fire());
+      }),
+  };
+}
+
+/** Mở chip bán kính và chọn một giá trị, giữ lần tải mới ở trạng thái chờ. */
+async function pickRadiusPending(km: number) {
+  let resolve!: (v: unknown) => void;
+  listVenuesNear.mockReturnValueOnce(new Promise((r) => (resolve = r)));
+  fireEvent.click(screen.getByRole("button", { name: /Bán kính \d+ km/ }));
+  fireEvent.click(await screen.findByRole("radio", { name: `${km} km` }));
+  return async (venues: unknown[]) => {
+    await act(async () => {
+      resolve({ venues });
+    });
+  };
+}
 
 type Opts = {
   search?: string;
@@ -217,6 +313,7 @@ beforeEach(() => {
   });
   mapProps.last = null;
   sheetProps.last = null;
+  sheetProps.visible = null;
   listVenuesNear.mockReset();
   listVenuesNear.mockResolvedValue({
     venues: [venue(1, "Sân Một"), venue(2, "Sân Hai")],
@@ -230,6 +327,8 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  restoreLayout?.();
+  restoreLayout = null;
   vi.restoreAllMocks();
   // Hàng đợi URL của nuqs dùng chung: chờ xả xong để lần ghi cuối không lọt
   // sang test sau (resetUrlUpdateQueueOnMount tắt, xem test của hook).
@@ -356,6 +455,53 @@ describe("VenueDirectory: map-first layout", () => {
   });
 });
 
+describe("VenueDirectory: map insets", () => {
+  it("the attribution and the tile notice use values that beat maplibre's own stylesheet", async () => {
+    renderDir();
+    await screen.findByText("Sân Một");
+    const wrapper = screen
+      .getByTestId("map")
+      .closest(".isolate") as HTMLElement;
+    // maplibre-gl.css is unlayered and Tailwind utilities live in
+    // @layer utilities, so only an !important utility can move the control.
+    expect(wrapper.className.split(/\s+/)).toContain(
+      "[&_.maplibregl-ctrl-bottom-right]:bottom-[var(--venues-map-inset)]!",
+    );
+    expect(mapProps.last?.noticeClassName).toBe(
+      "top-[var(--venues-top-reserve)]",
+    );
+    const frame = wrapper.closest(".fixed") as HTMLElement;
+    expect(frame.style.getPropertyValue("--venues-top-reserve")).toBe(
+      `${sheetProps.last!.topReserve}px`,
+    );
+    expect(frame.style.getPropertyValue("--venues-map-inset")).toBe(
+      `${mapProps.last!.bottomInset}px`,
+    );
+  });
+
+  it("passes the visible sheet height to the map as bottomInset, capped at mid", async () => {
+    renderDir();
+    await screen.findByText("Sân Một");
+    await waitFor(() => expect(mapProps.last?.bottomInset).toBe(SHEET_PEEK_PX));
+    const frameH = window.innerHeight;
+    const offsets = snapOffsets(frameH, sheetProps.last!.topReserve);
+    const midVisible = frameH - offsets.mid;
+
+    fireEvent.click(sheetTitle());
+    await waitFor(() => expect(mapProps.last?.bottomInset).toBe(midVisible));
+
+    fireEvent.click(sheetTitle());
+    await waitFor(() => expect(snap()).toBe("high"));
+    await waitFor(() => expect(sheetProps.visible).toBe(frameH - offsets.high));
+    expect(sheetProps.visible).toBeGreaterThan(midVisible);
+    expect(mapProps.last?.bottomInset).toBe(midVisible);
+    const frame = screen.getByTestId("map").closest(".fixed") as HTMLElement;
+    expect(frame.style.getPropertyValue("--venues-map-inset")).toBe(
+      `${midVisible}px`,
+    );
+  });
+});
+
 describe("VenueDirectory: sheet", () => {
   it("tapping a pin shows the quick view in the sheet at mid and passes focus to the map", async () => {
     renderDir();
@@ -444,6 +590,39 @@ describe("VenueDirectory: sheet", () => {
     expect(screen.getByTestId("sheet-probe").getAttribute("data-frozen")).toBe(
       "false",
     );
+  });
+
+  it("a snap the user picks while the search box keeps focus survives blur", async () => {
+    renderDir();
+    await screen.findByText("Sân Một");
+    const input = screen.getByRole("combobox");
+    act(() => input.focus());
+    expect(snap()).toBe("low");
+    // Android Back hides the keyboard but keeps focus; the user pulls the
+    // sheet up, then taps the map, which blurs the box.
+    fireEvent.click(sheetTitle());
+    fireEvent.click(sheetTitle());
+    await waitFor(() => expect(snap()).toBe("high"));
+    act(() => input.blur());
+    expect(snap()).toBe("high");
+  });
+
+  it("the suggest link renders at the end of a non-empty list when canSuggest", async () => {
+    renderDir({ canSuggest: true });
+    await screen.findByText("Sân Một");
+    fireEvent.click(sheetTitle());
+    await waitFor(() => expect(snap()).toBe("mid"));
+    const link = within(sheet()).getByRole("link", {
+      name: viMessages.venues.suggestVenue,
+    });
+    expect(link.getAttribute("href")).toBe("/venues/suggest");
+    const cards = within(sheet()).getAllByRole("button", {
+      name: /^Sân (Một|Hai)$/,
+    });
+    expect(cards).toHaveLength(2);
+    expect(
+      cards[1].compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("X returns to the list at the same snap; drag close returns to low", async () => {
@@ -541,11 +720,62 @@ describe("VenueDirectory: status row", () => {
     expect(screen.queryByText(/Bật vị trí hoặc gõ khu vực để đổi/)).toBeNull();
   });
 
+  it("the status row sits under the chips without moving the sheet's high edge", async () => {
+    const layout = installLayoutFake();
+    renderDir();
+    await screen.findByText("Sân Một");
+    layout.fireAll();
+    const before = sheetProps.last!.topReserve;
+    // Ô tìm và hàng chip có chiều cao thật trong khối được đo.
+    expect(before).toBeGreaterThan(8);
+
+    const finish = await pickRadiusPending(10);
+    const pill = await screen.findByText("Đang tải sân...");
+    const row = screen.getByTestId("venues-status-row");
+    expect(row.contains(pill)).toBe(true);
+    expect(row.className).toContain("absolute");
+    expect(row.className).toContain("top-full");
+    layout.fireAll();
+    expect(sheetProps.last!.topReserve).toBe(before);
+
+    await finish([venue(1, "Sân Một")]);
+    layout.fireAll();
+    expect(sheetProps.last!.topReserve).toBe(before);
+  });
+
+  it("toggling isFetching at high does not move the sheet's top and the status row is hidden", async () => {
+    const layout = installLayoutFake();
+    renderDir();
+    await screen.findByText("Sân Một");
+    layout.fireAll();
+    fireEvent.click(sheetTitle());
+    fireEvent.click(sheetTitle());
+    await waitFor(() => expect(snap()).toBe("high"));
+    layout.fireAll();
+    const before = sheetProps.last!.topReserve;
+    // Ở nấc cao ngăn che bản đồ: các dòng trạng thái không được đè lên danh sách.
+    expect(screen.queryByTestId("venues-status-row")).toBeNull();
+    expect(screen.queryByText(/Đang xem quanh/)).toBeNull();
+
+    const finish = await pickRadiusPending(10);
+    await waitFor(() => expect(listVenuesNear).toHaveBeenCalledTimes(2));
+    layout.fireAll();
+    expect(screen.queryByText("Đang tải sân...")).toBeNull();
+    expect(sheetProps.last!.topReserve).toBe(before);
+
+    await finish([venue(1, "Sân Một")]);
+    layout.fireAll();
+    expect(sheetProps.last!.topReserve).toBe(before);
+    expect(snap()).toBe("high");
+  });
+
   it("shows the locating pill while a granted GPS is answering", async () => {
     setPermissions("granted");
     renderDir();
     expect(await screen.findByText(viMessages.venues.locating)).toBeTruthy();
     expect(listVenuesNear).not.toHaveBeenCalled();
+    // Không tải vùng dự phòng trong lúc chờ GPS, nên không báo "đang xem quanh".
+    expect(screen.queryByText(/Đang xem quanh/)).toBeNull();
     act(() => geo.set({ status: "ok", position: { lat: 21.0, lng: 105.8 } }));
     await waitFor(() => expect(listVenuesNear).toHaveBeenCalledTimes(1));
     await waitFor(() =>
