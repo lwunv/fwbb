@@ -2119,7 +2119,7 @@
     "slotsFull": "Full",
     "upcomingLoadError": "Could not load upcoming exchanges.",
     "pickerUnsupported": "This browser can't display the map. Please enter the coordinates by hand.",
-    "sheetHandle": "Drag to see more venues"
+    "sheetHandle": "Expand or collapse the list"
   },
   "notifications": {
     "retry": "Try again",

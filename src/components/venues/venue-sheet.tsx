@@ -3,6 +3,7 @@
 import {
   useEffect,
   useEffectEvent,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -16,6 +17,7 @@ import {
   motion,
   useDragControls,
   useMotionValue,
+  useReducedMotion,
   type PanInfo,
 } from "framer-motion";
 import { useTranslations } from "next-intl";
@@ -28,6 +30,7 @@ import {
 } from "@/lib/venues/sheet-snap";
 
 const SHEET_SPRING = { type: "spring", stiffness: 420, damping: 42 } as const;
+const SHEET_INSTANT = { duration: 0 } as const;
 
 /** Same distance framer-motion needs before a pointer counts as a drag. */
 const DRAG_SLOP_PX = 3;
@@ -63,7 +66,10 @@ export function VenueSheet({
   const t = useTranslations("venues");
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const listId = useId();
   const controls = useDragControls();
+  const reduceMotion = useReducedMotion();
+  const transition = reduceMotion ? SHEET_INSTANT : SHEET_SPRING;
 
   const [rawH, setRawH] = useState(0);
   // While frozen, keep laying out against the height from the moment it froze
@@ -82,6 +88,10 @@ export function VenueSheet({
   const y = useMotionValue(target);
   /** Offset the sheet was last sent to; null until it is first placed. */
   const targetRef = useRef<number | null>(null);
+  /** Target of the latest render, kept even while a drag defers it. */
+  const latestTargetRef = useRef(target);
+  /** True from pointerdown that starts a drag session until that pointer is released. */
+  const draggingRef = useRef(false);
   const gestureRef = useRef<Gesture | null>(null);
   const pullRef = useRef<{ startY: number } | null>(null);
 
@@ -108,15 +118,27 @@ export function VenueSheet({
   // Snap changes from the parent and frame resizes both end here. The drag
   // release animates on its own (see handleDragEnd) and records its target,
   // so the parent echoing that snap back does not restart the spring.
+  // A change that lands mid-drag (e.g. topReserve moving when a status pill
+  // appears) is left to the release, which settles against the latest offsets.
   useLayoutEffect(() => {
-    if (!measured || targetRef.current === target) return;
+    latestTargetRef.current = target;
+    if (!measured || draggingRef.current || targetRef.current === target) {
+      return;
+    }
     if (targetRef.current === null) {
       y.set(target);
     } else {
-      animate(y, target, SHEET_SPRING);
+      animate(y, target, transition);
     }
     targetRef.current = target;
-  }, [measured, target, y]);
+  }, [measured, target, y, transition]);
+
+  // Below `high` the list cannot scroll, so a kept offset would strand the
+  // user mid-list with no way back up.
+  useLayoutEffect(() => {
+    const el = listRef.current;
+    if (el && snap !== "high") el.scrollTop = 0;
+  }, [snap]);
 
   const reportVisible = useEffectEvent((px: number) => onVisibleHeight?.(px));
   const visible = measured ? containerH - target : null;
@@ -151,6 +173,7 @@ export function VenueSheet({
   function beginDrag(e: ReactPointerEvent, alreadyMoved = false) {
     const g: Gesture = { x: e.clientX, y: e.clientY, moved: alreadyMoved };
     gestureRef.current = g;
+    draggingRef.current = true;
     controls.start(e);
     const onMove = (ev: PointerEvent) => {
       if (Math.hypot(ev.clientX - g.x, ev.clientY - g.y) >= DRAG_SLOP_PX) {
@@ -161,11 +184,16 @@ export function VenueSheet({
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onEnd);
       window.removeEventListener("pointercancel", onEnd);
+      draggingRef.current = false;
       // Starting a drag session stops any running snap spring. A plain tap
-      // never reaches onDragEnd, so put the sheet back on its snap here.
-      const to = targetRef.current;
-      if (!g.moved && to !== null && y.get() !== to) {
-        animate(y, to, SHEET_SPRING);
+      // never reaches onDragEnd, so put the sheet back on its snap here, using
+      // the latest target in case it changed while the pointer was down.
+      // A real drag is settled by handleDragEnd, which runs after this.
+      if (g.moved || targetRef.current === null) return;
+      const to = latestTargetRef.current;
+      if (y.get() !== to || targetRef.current !== to) {
+        targetRef.current = to;
+        animate(y, to, transition);
       }
     };
     window.addEventListener("pointermove", onMove);
@@ -178,7 +206,7 @@ export function VenueSheet({
     // Always animate, even back to the snap it started from: a declarative
     // target that did not change would leave the sheet where it was dropped.
     targetRef.current = offsets[next];
-    animate(y, offsets[next], SHEET_SPRING);
+    animate(y, offsets[next], transition);
     if (next === "low" && onDragClose) onDragClose();
     else onSnapChange(next);
   }
@@ -188,8 +216,13 @@ export function VenueSheet({
     return e.detail !== 0 && gestureRef.current?.moved === true;
   }
 
-  function onListPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
-    if (snap !== "high") {
+  // One listener on the whole panel: at low and mid a swipe anywhere on the
+  // visible sheet drags it, including the strip of inert list under the handle
+  // (inert content is not a hit target, so the event lands on the panel).
+  function onPanelPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
+    const inList =
+      e.target instanceof Node && listRef.current?.contains(e.target) === true;
+    if (snap !== "high" || !inList) {
       beginDrag(e);
       return;
     }
@@ -237,7 +270,10 @@ export function VenueSheet({
           y,
           height: panelH,
           visibility: measured ? undefined : "hidden",
+          // At high the list owns its pan-y; elsewhere nothing on the sheet scrolls.
+          touchAction: snap === "high" ? undefined : "none",
         }}
+        onPointerDown={onPanelPointerDown}
         drag="y"
         dragListener={false}
         dragControls={controls}
@@ -250,7 +286,6 @@ export function VenueSheet({
           data-testid="venue-sheet-handle"
           className="flex min-h-14 shrink-0 cursor-grab flex-col items-center select-none active:cursor-grabbing"
           style={{ touchAction: "none" }}
-          onPointerDown={(e) => beginDrag(e)}
         >
           <span
             aria-hidden="true"
@@ -259,6 +294,7 @@ export function VenueSheet({
           <button
             type="button"
             aria-expanded={snap !== "low"}
+            aria-controls={listId}
             className="text-foreground focus-visible:ring-ring/50 flex min-h-11 w-full items-center justify-center rounded-xl px-4 pb-1 text-base font-semibold outline-none focus-visible:ring-2"
             onClick={(e) => {
               if (isDragClick(e)) return;
@@ -266,11 +302,13 @@ export function VenueSheet({
             }}
           >
             {title}
-            <span className="sr-only">{t("sheetHandle")}</span>
+            {/* The comma keeps screen readers from running the title into the action. */}
+            <span className="sr-only">, {t("sheetHandle")}</span>
           </button>
         </div>
         <div
           ref={listRef}
+          id={listId}
           data-testid="venue-sheet-list"
           inert={collapsed}
           aria-hidden={collapsed ? true : undefined}
@@ -282,7 +320,6 @@ export function VenueSheet({
             touchAction: snap === "high" ? "pan-y" : "none",
             paddingBottom: `calc(${hiddenPx}px + env(safe-area-inset-bottom))`,
           }}
-          onPointerDown={onListPointerDown}
           onPointerMove={onListPointerMove}
           onClickCapture={(e) => {
             if (!isDragClick(e)) return;

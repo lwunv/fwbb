@@ -2119,7 +2119,7 @@
     "slotsFull": "已满",
     "upcomingLoadError": "无法加载即将举行的交流。",
     "pickerUnsupported": "此浏览器无法显示地图，请手动输入坐标。",
-    "sheetHandle": "拖动查看更多场馆"
+    "sheetHandle": "展开或收起列表"
   },
   "notifications": {
     "retry": "重试",

@@ -26,6 +26,7 @@ const fm = vi.hoisted(() => ({
   animate: vi.fn(),
   start: vi.fn(),
   panel: { current: null as PanelProps | null },
+  reducedMotion: false,
 }));
 
 vi.mock("framer-motion", async (importOriginal) => {
@@ -58,6 +59,7 @@ vi.mock("framer-motion", async (importOriginal) => {
     ...actual,
     motion: { div: MotionDiv },
     useDragControls: () => ({ start: fm.start }),
+    useReducedMotion: () => fm.reducedMotion,
     animate: (mv: MotionValue<number>, to: number, opts: unknown) => {
       fm.animate(mv, to, opts);
       mv.set(to);
@@ -92,6 +94,7 @@ function resize(height: number) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  fm.reducedMotion = false;
   FakeResizeObserver.all = [];
   vi.stubGlobal("ResizeObserver", FakeResizeObserver);
 });
@@ -106,6 +109,7 @@ type Props = {
   frozen?: boolean;
   onVisibleHeight?: (px: number) => void;
   onDragClose?: () => void;
+  topReserve?: number;
 };
 
 function ui(p: Props): ReactNode {
@@ -115,7 +119,7 @@ function ui(p: Props): ReactNode {
         snap={p.snap}
         onSnapChange={p.onSnapChange ?? (() => {})}
         title={<span>12 sân</span>}
-        topReserve={150}
+        topReserve={p.topReserve ?? 150}
         frozen={p.frozen}
         onVisibleHeight={p.onVisibleHeight}
         onDragClose={p.onDragClose}
@@ -459,5 +463,92 @@ describe("VenueSheet", () => {
     // a container resize does
     resize(700);
     expect(onVisibleHeight).toHaveBeenCalledTimes(3);
+  });
+
+  describe("fix round 1", () => {
+    it("at low a pointerdown anywhere on the visible panel starts a drag", () => {
+      setup({ snap: "low" });
+      // the strip of inert list below the handle is not a hit target in a
+      // browser, so the event lands on the panel itself
+      fireEvent.pointerDown(panel(), { clientY: 790 });
+      expect(fm.start).toHaveBeenCalledTimes(1);
+      expect(panel().style.touchAction).toBe("none");
+    });
+
+    it("at mid a pointerdown on the panel outside the list starts a drag", () => {
+      setup({ snap: "mid" });
+      fireEvent.pointerDown(panel(), { clientY: 450 });
+      expect(fm.start).toHaveBeenCalledTimes(1);
+    });
+
+    it("at high the panel leaves touch-action to the list", () => {
+      setup({ snap: "high" });
+      expect(panel().style.touchAction).toBe("");
+      fireEvent.pointerDown(list(), { clientY: 300 });
+      expect(fm.start).not.toHaveBeenCalled();
+    });
+
+    it("a target change during a drag does not animate until release", () => {
+      const onSnapChange = vi.fn();
+      const { rerender } = setup({ snap: "high", onSnapChange });
+      fireEvent.pointerDown(screen.getByTestId("venue-sheet-handle"), {
+        clientX: 10,
+        clientY: 160,
+      });
+      fireEvent.pointerMove(window, { clientX: 10, clientY: 220 });
+      act(() => y().set(210));
+      rerender(ui({ snap: "high", onSnapChange, topReserve: 200 }));
+      expect(fm.animate).not.toHaveBeenCalled();
+      fireEvent.pointerUp(window, { clientX: 10, clientY: 220 });
+      release(210);
+      expect(fm.animate).toHaveBeenCalledTimes(1);
+      expect(fm.animate).toHaveBeenCalledWith(y(), 200, expect.anything());
+    });
+
+    it("a tap that spans a target change snaps to the new target", () => {
+      const { rerender } = setup({ snap: "high" });
+      fireEvent.pointerDown(screen.getByTestId("venue-sheet-handle"), {
+        clientX: 10,
+        clientY: 160,
+      });
+      rerender(ui({ snap: "high", topReserve: 200 }));
+      expect(fm.animate).not.toHaveBeenCalled();
+      fireEvent.pointerUp(window, { clientX: 10, clientY: 160 });
+      expect(fm.animate).toHaveBeenCalledWith(y(), 200, expect.anything());
+    });
+
+    it("with reduced motion every snap is instant instead of a spring", () => {
+      fm.reducedMotion = true;
+      const { rerender } = setup({ snap: "low" });
+      rerender(ui({ snap: "high" }));
+      expect(fm.animate).toHaveBeenLastCalledWith(y(), 150, { duration: 0 });
+      release(470);
+      expect(fm.animate).toHaveBeenLastCalledWith(y(), 440, { duration: 0 });
+    });
+
+    it("without reduced motion the snap uses a spring", () => {
+      const { rerender } = setup({ snap: "low" });
+      rerender(ui({ snap: "high" }));
+      expect(fm.animate).toHaveBeenLastCalledWith(
+        y(),
+        150,
+        expect.objectContaining({ type: "spring" }),
+      );
+    });
+
+    it("the title button names its action and controls the list", () => {
+      setup({ snap: "mid" });
+      const title = screen.getByRole("button", { expanded: true });
+      expect(title.getAttribute("aria-controls")).toBe(list().id);
+      expect(list().id).not.toBe("");
+      expect(title.textContent).toBe("12 sân, Mở rộng hoặc thu gọn danh sách");
+    });
+
+    it("leaving high scrolls the list back to the top", () => {
+      const { rerender } = setup({ snap: "high" });
+      list().scrollTop = 240;
+      rerender(ui({ snap: "mid" }));
+      expect(list().scrollTop).toBe(0);
+    });
   });
 });

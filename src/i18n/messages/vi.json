@@ -2119,7 +2119,7 @@
     "slotsFull": "Hết chỗ",
     "upcomingLoadError": "Không tải được giao lưu sắp tới.",
     "pickerUnsupported": "Trình duyệt không hiển thị được bản đồ. Bạn nhập toạ độ bằng tay nhé.",
-    "sheetHandle": "Kéo để xem thêm sân"
+    "sheetHandle": "Mở rộng hoặc thu gọn danh sách"
   },
   "notifications": {
     "retry": "Thử lại",
