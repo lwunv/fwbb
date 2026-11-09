@@ -252,6 +252,70 @@ describe("VenueSearchBar", () => {
     expect(props.onLocate).toHaveBeenCalledTimes(1);
   });
 
+  it("Enter during IME composition does not geocode or pick", () => {
+    const { input, props } = setup();
+    type(input, "Sân cầu lông Cầu Giấy");
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+    expect(geocodeMock).not.toHaveBeenCalled();
+    expect(props.onPickVenue).not.toHaveBeenCalled();
+  });
+
+  it("a stale geocode result is cached but does not fly after the text changed", async () => {
+    let resolve: (v: unknown) => void = () => {};
+    geocodeMock.mockImplementation(() => new Promise((r) => (resolve = r)));
+    const { input, props } = setup();
+    type(input, "Cầu Giấy");
+    enter(input);
+    await waitFor(() => expect(geocodeMock).toHaveBeenCalledTimes(1));
+    fireEvent.change(input, { target: { value: "Hà Đông" } });
+    await act(async () => resolve({ lat: 21, lng: 105, label: "Cầu Giấy" }));
+    expect(props.onPlace).not.toHaveBeenCalled();
+    // Gõ lại chuỗi cũ: dùng cache, không gọi server.
+    fireEvent.change(input, { target: { value: "Cầu Giấy" } });
+    enter(input);
+    expect(props.onPlace).toHaveBeenCalledTimes(1);
+    expect(geocodeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("a result arriving after a venue was picked does not fly", async () => {
+    let resolve: (v: unknown) => void = () => {};
+    geocodeMock.mockImplementation(() => new Promise((r) => (resolve = r)));
+    const { input, props } = setup();
+    type(input, "thanh");
+    enter(input);
+    await waitFor(() => expect(geocodeMock).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("option", { name: /Sân Thanh Xuân/ }));
+    await act(async () => resolve({ lat: 21, lng: 105, label: "Thanh" }));
+    expect(props.onPickVenue).toHaveBeenCalledWith(2);
+    expect(props.onPlace).not.toHaveBeenCalled();
+  });
+
+  it("the input is aria-busy while a geocode is pending and the lock is released after", async () => {
+    let resolve: (v: unknown) => void = () => {};
+    geocodeMock.mockImplementation(() => new Promise((r) => (resolve = r)));
+    const { input } = setup();
+    type(input, "abc xyz");
+    enter(input);
+    await waitFor(() => expect(input.getAttribute("aria-busy")).toBe("true"));
+    await act(async () => resolve({ error: "x" }));
+    await waitFor(() => expect(input.getAttribute("aria-busy")).toBe("false"));
+    fireEvent.change(input, { target: { value: "abc xyzw" } });
+    enter(input);
+    await waitFor(() => expect(geocodeMock).toHaveBeenCalledTimes(2));
+  });
+
+  it("arrow keys do nothing while the list is closed", async () => {
+    const { input } = setup();
+    type(input, "cau giay");
+    fireEvent.blur(input);
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.focus(input);
+    expect(input.getAttribute("aria-activedescendant")).toBeNull();
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(geocodeMock).toHaveBeenCalledTimes(1));
+  });
+
   it("uses text-base and 44px targets on the input", () => {
     const { input } = setup();
     expect(input.className).toContain("text-base");

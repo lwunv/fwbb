@@ -3,7 +3,7 @@
 import { useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation } from "@tanstack/react-query";
-import { LocateFixed, MapPin, Search } from "lucide-react";
+import { Loader2, LocateFixed, MapPin, Search } from "lucide-react";
 import { geocodeAddress } from "@/actions/venues";
 import type { LatLng } from "@/lib/geo";
 import { islandLabelAt } from "@/lib/map/island-label";
@@ -45,6 +45,9 @@ export function VenueSearchBar({
   const cache = useRef(new Map<string, Place>());
   // Khoá đồng bộ: isPending của react-query chỉ cập nhật sau lần render kế.
   const inFlight = useRef(false);
+  // Chuỗi chuẩn hoá đang nằm trong ô; null khi người dùng đã chọn sân. Kết quả
+  // geocode về muộn chỉ được bay tới nếu vẫn khớp.
+  const currentKey = useRef<string | null>("");
 
   const [q, setQ] = useState("");
   const [focused, setFocused] = useState(false);
@@ -70,6 +73,7 @@ export function VenueSearchBar({
   };
 
   const pickVenue = (v: PublicVenue) => {
+    currentKey.current = null;
     setQ(v.name);
     setActive(-1);
     onPickVenue(v.id);
@@ -86,20 +90,23 @@ export function VenueSearchBar({
       return;
     }
     inFlight.current = true;
-    mutation.mutate(trimmed, {
-      onSuccess: (r) => {
+    void mutation
+      .mutateAsync(trimmed)
+      .then((r) => {
         if ("error" in r) {
-          setError(r.error);
+          if (currentKey.current === key) setError(r.error);
           return;
         }
+        // Luôn nhớ kết quả; chỉ bay tới khi người dùng chưa gõ/chọn thứ khác.
         cache.current.set(key, r);
-        finish(r);
-      },
-      onError: () => setError(t("searchFailed")),
-      onSettled: () => {
+        if (currentKey.current === key) finish(r);
+      })
+      .catch(() => {
+        if (currentKey.current === key) setError(t("searchFailed"));
+      })
+      .finally(() => {
         inFlight.current = false;
-      },
-    });
+      });
   };
 
   const submit = () => {
@@ -121,13 +128,15 @@ export function VenueSearchBar({
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Đang gõ dấu bằng IME/Telex: Enter là chốt chữ, không phải gửi tìm kiếm.
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (e.key === "Enter") {
       e.preventDefault();
       submit();
-    } else if (e.key === "ArrowDown" && optionCount > 0) {
+    } else if (e.key === "ArrowDown" && open) {
       e.preventDefault();
       setActive((a) => (a + 1) % optionCount);
-    } else if (e.key === "ArrowUp" && optionCount > 0) {
+    } else if (e.key === "ArrowUp" && open) {
       e.preventDefault();
       setActive((a) => (a <= 0 ? optionCount - 1 : a - 1));
     } else if (e.key === "Escape") {
@@ -146,7 +155,17 @@ export function VenueSearchBar({
         }}
         className="bg-card/90 flex items-center gap-1 rounded-full border pl-4 shadow-lg backdrop-blur"
       >
-        <Search className="text-muted-foreground size-5 shrink-0" aria-hidden />
+        {mutation.isPending ? (
+          <Loader2
+            className="text-muted-foreground size-5 shrink-0 animate-spin"
+            aria-hidden
+          />
+        ) : (
+          <Search
+            className="text-muted-foreground size-5 shrink-0"
+            aria-hidden
+          />
+        )}
         <input
           ref={inputRef}
           type="search"
@@ -160,10 +179,12 @@ export function VenueSearchBar({
           }
           aria-label={t("searchPlaceholder")}
           placeholder={t("searchPlaceholder")}
+          aria-busy={mutation.isPending}
           maxLength={200}
           autoComplete="off"
           value={q}
           onChange={(e) => {
+            currentKey.current = normalizeName(e.target.value);
             setQ(e.target.value);
             setActive(-1);
             setError(null);
