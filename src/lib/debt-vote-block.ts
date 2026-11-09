@@ -13,6 +13,7 @@ import {
 } from "@/lib/fund-core";
 import { isVoteOpen, type SessionStatus } from "@/lib/session-status";
 import { resolveGlobal } from "@/lib/settings-resolve";
+import { scheduleDebtAlerts } from "@/lib/debt-alert";
 
 export type RemovedVote = { memberId: number; sessionId: number };
 
@@ -176,11 +177,37 @@ export async function afterMemberMoneyChange(
   // admin (mergeLegacyDebtsIntoFund), nơi Next cấm revalidatePath và sẽ làm
   // rollback cả thao tác tiền. Trang chủ và /vote/[id] đọc cookie nên luôn
   // dựng mới mỗi request; chỗ gọi tự revalidate trang của nó như trước.
-  return enforceDebtVoteBlock(
+  const result = await enforceDebtVoteBlock(
     tx,
     changes.map((c) => c.memberId),
     threshold,
   );
+
+  // Member vừa chuyển từ ≥ 0 xuống âm → hẹn mail báo admin, gửi SAU khi trả
+  // kết quả (quyết định user 9/11/2026). Bỏ qua member là admin: số dư admin
+  // lên xuống theo tiền pass sân / phần dư sàn, không phải nợ thật.
+  const adminIds = new Set(
+    (await tx.select({ memberId: admins.memberId }).from(admins))
+      .map((a) => a.memberId)
+      .filter((x): x is number => typeof x === "number"),
+  );
+  const afterBalances = await snapshotBalances(
+    tx,
+    changes.map((c) => c.memberId),
+  );
+  scheduleDebtAlerts(
+    changes
+      .filter((c) => c.balanceBefore >= 0 && !adminIds.has(c.memberId))
+      .map((c) => ({
+        memberId: c.memberId,
+        balanceBefore: c.balanceBefore,
+        balanceAfter:
+          afterBalances.find((b) => b.memberId === c.memberId)?.balanceBefore ??
+          0,
+      }))
+      .filter((c) => c.balanceAfter < 0),
+  );
+  return result;
 }
 
 /**

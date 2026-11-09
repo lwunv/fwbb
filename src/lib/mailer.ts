@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { formatVND } from "@/lib/utils";
 
 const HOST = process.env.SMTP_HOST;
 const USER = process.env.SMTP_USER;
@@ -139,6 +140,90 @@ export async function sendInviteEmail(
   } catch (err) {
     console.error(
       "[Mailer] send failed:",
+      err instanceof Error ? err.message : err,
+    );
+    return { success: false, error: "send failed" };
+  }
+}
+
+/** Escape dữ liệu người dùng nhập (tên, mô tả) trước khi nhét vào HTML mail. */
+function escapeHtml(v: string): string {
+  return v
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+export type AdminDebtAlertInput = {
+  memberName: string;
+  balanceBefore: number;
+  balanceAfter: number;
+  description: string | null;
+  link: string;
+};
+
+/**
+ * Mail báo admin khi một member vừa âm quỹ (quyết định user 9/11/2026, song
+ * song với chuông thông báo). Tên và mô tả là dữ liệu người dùng nhập nên
+ * PHẢI escape trong HTML.
+ */
+export function buildAdminDebtAlertEmail(input: AdminDebtAlertInput): {
+  subject: string;
+  text: string;
+  html: string;
+} {
+  const before = formatVND(input.balanceBefore);
+  const after = formatVND(input.balanceAfter);
+  const subject = `FWBB: ${input.memberName} vừa âm quỹ (${after})`;
+  const text = [
+    `${input.memberName} vừa âm quỹ.`,
+    `Số dư: ${before} → ${after}`,
+    ...(input.description ? [`Khoản gây ra: ${input.description}`] : []),
+    "",
+    `Xem sổ quỹ: ${input.link}`,
+  ].join("\n");
+  const name = escapeHtml(input.memberName);
+  const desc = input.description ? escapeHtml(input.description) : "";
+  const html = `
+  <div style="font-family:system-ui,Arial,sans-serif;max-width:480px;margin:0 auto;padding:16px;color:#111">
+    <h2 style="font-size:18px;margin:0 0 12px">${name} vừa âm quỹ</h2>
+    <p style="font-size:15px;line-height:1.5">Số dư: <b>${escapeHtml(before)}</b> → <b style="color:#dc2626">${escapeHtml(after)}</b></p>
+    ${desc ? `<p style="font-size:14px;color:#444">Khoản gây ra: ${desc}</p>` : ""}
+    <p style="margin:20px 0"><a href="${escapeHtml(input.link)}" style="background:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;font-size:15px">Xem sổ quỹ</a></p>
+  </div>`;
+  return { subject, text, html };
+}
+
+/**
+ * Gửi mail báo âm quỹ cho các admin. Cùng kiểu không-ném-lỗi như các hàm trên.
+ * KHÔNG log tên hay email (dữ liệu cá nhân), chỉ log lý do lỗi.
+ */
+export async function sendAdminDebtAlertEmail(
+  to: string[],
+  input: AdminDebtAlertInput,
+): Promise<MailResult> {
+  if (to.length === 0) return { success: false, error: "no recipients" };
+  if (!HOST || !USER || !PASS) {
+    console.warn(
+      "[Mailer] SMTP not configured (SMTP_HOST/USER/PASS) — skipping debt alert.",
+    );
+    return { success: false, error: "SMTP not configured" };
+  }
+  try {
+    const transporter = nodemailer.createTransport({
+      host: HOST,
+      port: PORT,
+      secure: SECURE,
+      auth: { user: USER, pass: PASS },
+    });
+    const { subject, text, html } = buildAdminDebtAlertEmail(input);
+    await transporter.sendMail({ from: FROM, to, subject, text, html });
+    return { success: true };
+  } catch (err) {
+    console.error(
+      "[Mailer] debt alert send failed:",
       err instanceof Error ? err.message : err,
     );
     return { success: false, error: "send failed" };

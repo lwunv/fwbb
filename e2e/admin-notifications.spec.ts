@@ -85,8 +85,13 @@ test("chuông cạnh logo có số, mở ra thấy member nợ, sang trang thôn
     page.getByRole("searchbox").or(page.getByPlaceholder(/Tìm/)).first(),
   ).toHaveValue(NAME);
 
+  // Vừa bấm đọc tin duy nhất chưa đọc → chuông hết số (số = tin chưa đọc).
+  const bellNoCount = page
+    .getByRole("button", { name: "Thông báo", exact: true })
+    .last();
+  await expect(bellNoCount).toBeVisible();
   // Mở lại chuông, sang trang thông báo.
-  await bell.click();
+  await bellNoCount.click();
   await page
     .getByRole("dialog")
     .getByRole("link", { name: "Xem tất cả thông báo" })

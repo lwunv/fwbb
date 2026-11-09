@@ -33,6 +33,26 @@ vi.mock("@/lib/user-identity", () => ({
   getUserFromCookie: vi.fn(async () => null),
 }));
 
+// Mail báo admin khi member vừa âm quỹ (9/11/2026): `after()` gom việc lại,
+// test tự chạy SAU khi action trả kết quả (giống Next chạy sau response).
+const afterQueue: Array<() => unknown> = [];
+vi.mock("next/server", async (orig) => ({
+  ...(await orig<typeof import("next/server")>()),
+  after: (fn: () => unknown) => {
+    afterQueue.push(fn);
+  },
+}));
+const mailMock = vi.hoisted(() => ({
+  sendAdminDebtAlertEmail: vi.fn(async () => ({ success: true })),
+}));
+vi.mock("@/lib/mailer", async (orig) => ({
+  ...(await orig<typeof import("@/lib/mailer")>()),
+  sendAdminDebtAlertEmail: mailMock.sendAdminDebtAlertEmail,
+}));
+async function flushAfter() {
+  while (afterQueue.length) await afterQueue.shift()!();
+}
+
 const { db: testDb, client } = await createTestDb();
 vi.mock("@/db", () => ({ db: testDb }));
 
@@ -74,19 +94,32 @@ async function seed(thanhBalance: number) {
     .returning({ id: members.id });
   const [adminRow] = await testDb
     .insert(adminsTable)
-    .values({ username: "Admin", passwordHash: "x", memberId: adminMember.id })
+    .values({
+      username: "Admin",
+      passwordHash: "x",
+      memberId: adminMember.id,
+      email: "admin@fwbb.test",
+    })
     .returning({ id: adminsTable.id });
   vi.mocked(requireAdmin).mockResolvedValue({
     admin: { sub: String(adminRow.id), role: "admin" },
   } as never);
 
   await testDb.insert(financialTransactions).values([
-    {
-      type: "fund_deduction",
-      direction: "out",
-      amount: -thanhBalance,
-      memberId: thanh.id,
-    },
+    // Số dư ban đầu của Thanh: âm = khoản trừ, dương = khoản nạp.
+    thanhBalance < 0
+      ? {
+          type: "fund_deduction" as const,
+          direction: "out" as const,
+          amount: -thanhBalance,
+          memberId: thanh.id,
+        }
+      : {
+          type: "fund_contribution" as const,
+          direction: "in" as const,
+          amount: thanhBalance,
+          memberId: thanh.id,
+        },
     {
       type: "fund_contribution",
       direction: "in",
@@ -212,5 +245,54 @@ describe("không xoá nhầm phiếu (review cuối 6/11/2026)", () => {
       "error",
     );
     expect(await hasVote(yId, adminMemberId)).toBe(true);
+  });
+});
+
+describe("mail báo admin khi member vừa âm quỹ (9/11/2026)", () => {
+  beforeEach(async () => {
+    await reset();
+    afterQueue.length = 0;
+    mailMock.sendAdminDebtAlertEmail.mockClear();
+  });
+
+  it("chốt sổ đẩy member từ +10.000 xuống âm → 1 mail tới email admin", async () => {
+    const { xId, attendees } = await seed(10_000);
+    expect(await finalizeSession(xId, attendees, 0)).not.toHaveProperty(
+      "error",
+    );
+    await flushAfter();
+    expect(mailMock.sendAdminDebtAlertEmail).toHaveBeenCalledTimes(1);
+    const [to, input] = mailMock.sendAdminDebtAlertEmail.mock
+      .calls[0] as unknown as [
+      string[],
+      {
+        memberName: string;
+        balanceBefore: number;
+        balanceAfter: number;
+        link: string;
+      },
+    ];
+    expect(to).toEqual(["admin@fwbb.test"]);
+    expect(input.memberName).toBe("Thanh");
+    expect(input.balanceBefore).toBe(10_000);
+    expect(input.balanceAfter).toBe(-20_000);
+    expect(input.link).toContain("/admin/fund/transactions?q=Thanh");
+  });
+
+  it("chốt sổ lại khi member đã âm từ trước → không gửi thêm", async () => {
+    const { xId, attendees } = await seed(10_000);
+    await finalizeSession(xId, attendees, 0);
+    await flushAfter();
+    mailMock.sendAdminDebtAlertEmail.mockClear();
+    await finalizeSession(xId, attendees, 0);
+    await flushAfter();
+    expect(mailMock.sendAdminDebtAlertEmail).not.toHaveBeenCalled();
+  });
+
+  it("member đã âm sẵn bị trừ thêm → không gửi (chỉ báo lần vừa âm)", async () => {
+    const { xId, attendees } = await seed(-60_000);
+    await finalizeSession(xId, attendees, 0);
+    await flushAfter();
+    expect(mailMock.sendAdminDebtAlertEmail).not.toHaveBeenCalled();
   });
 });
