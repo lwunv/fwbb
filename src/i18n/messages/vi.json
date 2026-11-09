@@ -2118,7 +2118,8 @@
     "slotsLeftCount": "Còn {count} chỗ",
     "slotsFull": "Hết chỗ",
     "upcomingLoadError": "Không tải được giao lưu sắp tới.",
-    "pickerUnsupported": "Trình duyệt không hiển thị được bản đồ. Bạn nhập toạ độ bằng tay nhé."
+    "pickerUnsupported": "Trình duyệt không hiển thị được bản đồ. Bạn nhập toạ độ bằng tay nhé.",
+    "sheetHandle": "Kéo để xem thêm sân"
   },
   "notifications": {
     "retry": "Thử lại",

@@ -2118,7 +2118,8 @@
     "slotsLeftCount": "还剩 {count} 个名额",
     "slotsFull": "已满",
     "upcomingLoadError": "无法加载即将举行的交流。",
-    "pickerUnsupported": "此浏览器无法显示地图，请手动输入坐标。"
+    "pickerUnsupported": "此浏览器无法显示地图，请手动输入坐标。",
+    "sheetHandle": "拖动查看更多场馆"
   },
   "notifications": {
     "retry": "重试",

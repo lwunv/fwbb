@@ -2118,7 +2118,8 @@
     "slotsLeftCount": "{count, plural, one {# spot left} other {# spots left}}",
     "slotsFull": "Full",
     "upcomingLoadError": "Could not load upcoming exchanges.",
-    "pickerUnsupported": "This browser can't display the map. Please enter the coordinates by hand."
+    "pickerUnsupported": "This browser can't display the map. Please enter the coordinates by hand.",
+    "sheetHandle": "Drag to see more venues"
   },
   "notifications": {
     "retry": "Try again",
