@@ -13,7 +13,6 @@ import {
 } from "@/lib/fund-core";
 import { isVoteOpen, type SessionStatus } from "@/lib/session-status";
 import { resolveGlobal } from "@/lib/settings-resolve";
-import { scheduleDebtAlerts } from "@/lib/debt-alert";
 
 export type RemovedVote = { memberId: number; sessionId: number };
 
@@ -31,7 +30,12 @@ export async function enforceDebtVoteBlock(
   tx: DbLike,
   memberIds: number[],
   threshold: number,
-): Promise<{ removed: RemovedVote[] }> {
+): Promise<{
+  removed: RemovedVote[];
+  /** Số dư hiện tại (trong tx) của các member KHÔNG phải admin đã xét, để
+   *  chỗ gọi dùng lại thay vì đọc sổ lần nữa (Turso, xem review 9/11/2026). */
+  balances: Map<number, number>;
+}> {
   // Member là admin không bao giờ bị tự bỏ phiếu: số dư admin lên xuống theo
   // tiền pass sân / phần dư sàn chứ không phải nợ thật, và admin tự vote hộ.
   const adminMemberIds = new Set(
@@ -40,7 +44,7 @@ export async function enforceDebtVoteBlock(
       .filter((x): x is number => typeof x === "number"),
   );
   const ids = [...new Set(memberIds)].filter((id) => !adminMemberIds.has(id));
-  if (ids.length === 0) return { removed: [] };
+  if (ids.length === 0) return { removed: [], balances: new Map() };
 
   const txRows = await tx
     .select({
@@ -53,12 +57,19 @@ export async function enforceDebtVoteBlock(
     .from(financialTransactions)
     .where(inArray(financialTransactions.memberId, ids));
 
-  const blocked = ids.filter((memberId) => {
-    const own = txRows.filter((r) => r.memberId === memberId);
-    const { balance } = computeBalanceFromTransactions(memberId, own);
-    return isVoteBlockedByDebt(balance, threshold);
-  });
-  if (blocked.length === 0) return { removed: [] };
+  const balances = new Map(
+    ids.map((memberId) => [
+      memberId,
+      computeBalanceFromTransactions(
+        memberId,
+        txRows.filter((r) => r.memberId === memberId),
+      ).balance,
+    ]),
+  );
+  const blocked = ids.filter((memberId) =>
+    isVoteBlockedByDebt(balances.get(memberId) ?? 0, threshold),
+  );
+  if (blocked.length === 0) return { removed: [], balances };
 
   const candidates = await tx
     .select({
@@ -79,7 +90,7 @@ export async function enforceDebtVoteBlock(
         voteDeadline: c.voteDeadline ?? null,
       }).open,
   );
-  if (openCandidates.length === 0) return { removed: [] };
+  if (openCandidates.length === 0) return { removed: [], balances };
 
   // Buổi ĐÃ TỪNG chốt sổ (còn dòng fund_deduction gắn buổi, kể cả đã đảo khi
   // mở khoá) thì không bao giờ tự bỏ phiếu: mở khoá đưa buổi về 'voting' không
@@ -103,7 +114,7 @@ export async function enforceDebtVoteBlock(
   const toRemove = openCandidates.filter(
     (c) => !finalizedSessionIds.has(c.sessionId),
   );
-  if (toRemove.length === 0) return { removed: [] };
+  if (toRemove.length === 0) return { removed: [], balances };
 
   await tx.delete(votes).where(
     inArray(
@@ -113,6 +124,7 @@ export async function enforceDebtVoteBlock(
   );
 
   return {
+    balances,
     removed: toRemove.map((c) => ({
       memberId: c.memberId as number,
       sessionId: c.sessionId as number,
@@ -165,8 +177,8 @@ export async function snapshotBalances(
 export async function afterMemberMoneyChange(
   tx: DbLike,
   changes: MemberMoneyChange[],
-): Promise<{ removed: RemovedVote[] }> {
-  if (changes.length === 0) return { removed: [] };
+): Promise<{ removed: RemovedVote[]; balances: Map<number, number> }> {
+  if (changes.length === 0) return { removed: [], balances: new Map() };
   const settingRows = await tx
     .select({ key: appSettings.key, value: appSettings.value })
     .from(appSettings)
@@ -184,29 +196,23 @@ export async function afterMemberMoneyChange(
   );
 
   // Member vừa chuyển từ ≥ 0 xuống âm → hẹn mail báo admin, gửi SAU khi trả
-  // kết quả (quyết định user 9/11/2026). Bỏ qua member là admin: số dư admin
-  // lên xuống theo tiền pass sân / phần dư sàn, không phải nợ thật.
-  const adminIds = new Set(
-    (await tx.select({ memberId: admins.memberId }).from(admins))
-      .map((a) => a.memberId)
-      .filter((x): x is number => typeof x === "number"),
-  );
-  const afterBalances = await snapshotBalances(
-    tx,
-    changes.map((c) => c.memberId),
-  );
-  scheduleDebtAlerts(
-    changes
-      .filter((c) => c.balanceBefore >= 0 && !adminIds.has(c.memberId))
-      .map((c) => ({
-        memberId: c.memberId,
-        balanceBefore: c.balanceBefore,
-        balanceAfter:
-          afterBalances.find((b) => b.memberId === c.memberId)?.balanceBefore ??
-          0,
-      }))
-      .filter((c) => c.balanceAfter < 0),
-  );
+  // kết quả (quyết định user 9/11/2026). Dùng lại số dư enforceDebtVoteBlock
+  // vừa tính (không đọc sổ thêm trong tx). `balances` không có member là admin
+  // nên admin tự được bỏ qua: số dư admin lên xuống theo tiền pass sân.
+  const crossings = changes
+    .filter((c) => c.balanceBefore >= 0 && result.balances.has(c.memberId))
+    .map((c) => ({
+      memberId: c.memberId,
+      balanceBefore: c.balanceBefore,
+      balanceAfter: result.balances.get(c.memberId)!,
+    }))
+    .filter((c) => c.balanceAfter < 0);
+  if (crossings.length > 0) {
+    // Import lười: chỉ kéo next/server + nodemailer khi thật sự có người âm,
+    // để script dùng enforceDebtVoteBlock không phải nạp cả gói mail.
+    const { scheduleDebtAlerts } = await import("@/lib/debt-alert");
+    scheduleDebtAlerts(crossings);
+  }
   return result;
 }
 

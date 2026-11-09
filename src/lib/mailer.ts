@@ -222,10 +222,13 @@ export async function sendAdminDebtAlertEmail(
     await transporter.sendMail({ from: FROM, to, subject, text, html });
     return { success: true };
   } catch (err) {
-    console.error(
-      "[Mailer] debt alert send failed:",
-      err instanceof Error ? err.message : err,
-    );
+    // Chỉ log mã lỗi: message của nodemailer (vd SMTP từ chối người nhận) có
+    // thể chứa địa chỉ email admin (dữ liệu cá nhân).
+    const code =
+      err && typeof err === "object" && "code" in err
+        ? String((err as { code: unknown }).code)
+        : "unknown";
+    console.error("[Mailer] debt alert send failed", { code });
     return { success: false, error: "send failed" };
   }
 }
