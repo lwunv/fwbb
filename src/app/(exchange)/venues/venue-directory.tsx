@@ -628,7 +628,7 @@ export function VenueDirectory({
                 phần tử tuyệt đối), nên viên "Đang tải" hiện/ẩn không làm mép
                 ngăn nhảy. */}
             <div ref={controlsRef} className="relative flex flex-col gap-2">
-              <div className="pointer-events-auto">
+              <div className={SEARCH_WRAPPER}>
                 <VenueSearchBar
                   {...searchProps}
                   onPickVenue={selectVenue}
@@ -643,7 +643,8 @@ export function VenueDirectory({
                 {chips}
               </div>
               {/* Ở nấc cao ngăn che gần hết bản đồ: các dòng này không còn gì để
-                chú thích và không được đè lên danh sách. */}
+                chú thích và không được đè lên danh sách. Lời báo lỗi thì chuyển
+                vào đầu ngăn (xem dưới), không bị mất. */}
               {snap !== "high" && (
                 <div
                   data-testid="venues-status-row"
@@ -675,7 +676,22 @@ export function VenueDirectory({
                 : undefined
             }
           >
-            <div className="px-3 pb-3">{panelBody("close")}</div>
+            <div className="px-3 pb-3">
+              {/* Nấc cao không có hàng trạng thái nên lỗi bộ lọc giao lưu (kèm
+                  Thử lại) và lỗi vị trí hiện ở đầu ngăn. Thiếu chúng, người
+                  dùng bật "Có giao lưu" mà danh sách không lọc cũng không biết
+                  vì sao. */}
+              {snap === "high" && (locateFailedLine || countsFailedLine) && (
+                <div
+                  data-testid="venues-sheet-notices"
+                  className="mb-3 flex flex-col items-start gap-2"
+                >
+                  {locateFailedLine}
+                  {countsFailedLine}
+                </div>
+              )}
+              {panelBody("close")}
+            </div>
           </VenueSheet>
         </>
       )}

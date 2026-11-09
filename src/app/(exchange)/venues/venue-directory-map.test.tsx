@@ -788,4 +788,102 @@ describe("VenueDirectory: status row", () => {
       expect(screen.queryByText(viMessages.venues.locating)).toBeNull(),
     );
   });
+
+  it("at the high snap the counts error with retry and the location error move to the top of the sheet list", async () => {
+    const counts = vi.fn().mockRejectedValue(new Error("boom"));
+    renderDir({
+      search: "?exchange=true",
+      exchangeEnabled: true,
+      loadExchangeCounts: counts,
+    });
+    await within(overlay()).findByText(
+      viMessages.venues.exchangeFilterUnavailable,
+    );
+    fireEvent.click(sheetTitle());
+    fireEvent.click(sheetTitle());
+    await waitFor(() => expect(snap()).toBe("high"));
+    // Hàng trạng thái vẫn ẩn ở nấc cao (nấc cao chỉ đo ô tìm + chip).
+    expect(screen.queryByTestId("venues-status-row")).toBeNull();
+    const list = screen.getByTestId("venue-sheet-list");
+    const notice = within(list).getByText(
+      viMessages.venues.exchangeFilterUnavailable,
+    );
+    // Lời báo đứng đầu danh sách, trước thẻ sân đầu tiên.
+    const firstCard = within(list).getAllByRole("button", {
+      name: /^Sân (Một|Hai)$/,
+    })[0];
+    expect(
+      notice.compareDocumentPosition(firstCard) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    // Vị trí của tôi thất bại khi đang ở nấc cao: lời báo cũng vào ngăn.
+    fireEvent.click(
+      screen.getByRole("button", { name: viMessages.venues.useMyLocation }),
+    );
+    act(() => geo.set({ status: "denied" }));
+    expect(
+      await within(list).findByText(viMessages.venues.locationUnavailable),
+    ).toBeTruthy();
+
+    counts.mockResolvedValue([[1, 3]]);
+    fireEvent.click(within(list).getByRole("button", { name: "Thử lại" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByText(viMessages.venues.exchangeFilterUnavailable),
+      ).toBeNull(),
+    );
+    expect(snap()).toBe("high");
+  });
+
+  it("lowering the sheet from high moves the error lines back above the map", async () => {
+    const counts = vi.fn().mockRejectedValue(new Error("boom"));
+    renderDir({
+      search: "?exchange=true",
+      exchangeEnabled: true,
+      loadExchangeCounts: counts,
+    });
+    await within(overlay()).findByText(
+      viMessages.venues.exchangeFilterUnavailable,
+    );
+    fireEvent.click(sheetTitle());
+    fireEvent.click(sheetTitle());
+    await waitFor(() => expect(snap()).toBe("high"));
+    fireEvent.click(sheetTitle());
+    await waitFor(() => expect(snap()).toBe("low"));
+    expect(
+      within(overlay()).getByText(viMessages.venues.exchangeFilterUnavailable),
+    ).toBeTruthy();
+    expect(
+      within(screen.getByTestId("venue-sheet-list")).queryByText(
+        viMessages.venues.exchangeFilterUnavailable,
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("VenueDirectory: search suggestions", () => {
+  it("the search box wrapper stacks above the chips and the status row", async () => {
+    renderDir();
+    await screen.findByText("Sân Một");
+    const input = screen.getByRole("combobox");
+    act(() => input.focus());
+    fireEvent.change(input, { target: { value: "Hai" } });
+    const listbox = await screen.findByRole("listbox");
+    const wrapper = input.closest(".pointer-events-auto") as HTMLElement;
+    expect(wrapper.className.split(/\s+/)).toEqual(
+      expect.arrayContaining(["pointer-events-auto", "relative", "z-10"]),
+    );
+    expect(wrapper.contains(listbox)).toBe(true);
+    // Hàng chip và hàng trạng thái vẽ sau ô tìm nhưng không có z riêng.
+    const chipRow = screen.getByTestId("venues-chip-row");
+    expect(chipRow.className).not.toMatch(/(^|\s)z-/);
+    expect(screen.getByTestId("venues-status-row").className).not.toMatch(
+      /(^|\s)z-/,
+    );
+    expect(
+      wrapper.compareDocumentPosition(chipRow) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
 });
