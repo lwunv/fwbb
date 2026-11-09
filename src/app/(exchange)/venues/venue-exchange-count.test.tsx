@@ -76,6 +76,11 @@ vi.mock("@/components/venues/use-user-location", () => ({
   }),
 }));
 vi.mock("@/components/map/lazy-map-view", () => ({ LazyMapView: () => null }));
+// jsdom không có WebGL2; danh bạ ở đây là bố cục có bản đồ và ngăn kéo.
+vi.mock("@/lib/map/webgl", () => ({
+  hasWebGL2: () => true,
+  useWebGL2Support: () => true,
+}));
 
 import { VenueDirectory } from "./venue-directory";
 import VenueDetailPage from "./[id]/page";

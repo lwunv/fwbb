@@ -64,6 +64,12 @@ const { listVenuesNear, geocodeAddress, geo, mapProps, sheetProps, viewport } =
 
 vi.mock("@/actions/venues", () => ({ listVenuesNear, geocodeAddress }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+// jsdom không có WebGL2; các test này là bố cục có bản đồ (máy không có WebGL
+// nằm ở venue-directory-desktop.test.tsx).
+vi.mock("@/lib/map/webgl", () => ({
+  hasWebGL2: () => true,
+  useWebGL2Support: () => true,
+}));
 vi.mock("@/components/venues/use-user-location", async () => {
   const { useSyncExternalStore } = await import("react");
   return {
