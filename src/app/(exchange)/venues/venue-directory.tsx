@@ -1,481 +1,500 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import {
-  parseAsArrayOf,
-  parseAsBoolean,
-  parseAsNumberLiteral,
-  parseAsStringLiteral,
-  useQueryState,
-} from "nuqs";
 import { AnimatePresence, motion } from "framer-motion";
-import { LocateFixed, MapPinned, Plus } from "lucide-react";
-import { listVenuesNear } from "@/actions/venues";
-import type { LatLng } from "@/lib/geo";
-import { movedBeyond, venuesToPoints } from "@/lib/map/map-points";
-import { VENUE_AMENITIES } from "@/lib/venue-amenities";
-import { cn } from "@/lib/utils";
+import { Loader2, LocateFixed, MapPinned, Plus, Search } from "lucide-react";
+import type { ExchangeCard } from "@/lib/exchange/public-event";
+import { VENUE_RADII } from "@/lib/venues/directory-state";
+import { snapOffsets, type SheetSnap } from "@/lib/venues/sheet-snap";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { EmptyState } from "@/components/shared/empty-state";
+import { LazyMapView } from "@/components/map/lazy-map-view";
 import { VenueCard } from "@/components/venues/venue-card";
-import { LocationFallback } from "@/components/venues/location-fallback";
-import { useUserLocation } from "@/components/venues/use-user-location";
-import { VenueMapPanel } from "./venue-map-panel";
+import { VenueFilterChips } from "@/components/venues/venue-filter-chips";
+import { VenueQuickView } from "@/components/venues/venue-quick-view";
+import { VenueSearchBar } from "@/components/venues/venue-search-bar";
+import { VenueSheet } from "@/components/venues/venue-sheet";
+import { useVenueDirectoryState } from "./use-venue-directory-state";
 
-const RADII = [3, 5, 10, 20] as const;
-const VIEWS = ["list", "map"] as const;
-/** Kéo bản đồ quá 30% bán kính thì mới đáng mời tìm lại ở khu vực mới. */
-const SEARCH_HERE_RATIO = 0.3;
+/** Khoảng hở giữa đáy lớp nổi và mép trên ngăn ở nấc cao. */
+const OVERLAY_GAP_PX = 8;
 
+const PILL =
+  "bg-card/90 inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium shadow-lg backdrop-blur";
+
+/**
+ * Khung trang: phủ phần dưới header app (56px). Lưới 2 cột chỉ bật từ `md:`,
+ * nên HTML server giống nhau trên mọi bề rộng.
+ */
+const FRAME =
+  "fixed inset-x-0 top-14 bottom-0 overflow-hidden md:grid md:grid-cols-[400px_minmax(0,1fr)]";
+const MAP_WRAPPER =
+  "relative isolate h-full md:col-start-2 md:row-start-1 [&_.maplibregl-ctrl-bottom-right]:bottom-[var(--venues-map-inset)]";
+
+/** Ô tìm, hàng chip và ngăn ở nấc thấp, giữ chỗ trước khi biết bề rộng máy. */
+function PanelSkeleton() {
+  return (
+    <div
+      data-testid="venues-panel-skeleton"
+      aria-hidden
+      className="pointer-events-none absolute inset-0 z-20 md:hidden"
+    >
+      <div className="space-y-2 px-3 pt-3">
+        <Skeleton className="h-11 w-full rounded-full" />
+        <div className="flex gap-2 overflow-hidden">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-11 w-28 shrink-0 rounded-full" />
+          ))}
+        </div>
+      </div>
+      <div className="bg-card/95 border-border/60 absolute inset-x-0 bottom-0 flex h-[72px] flex-col items-center gap-3 rounded-t-3xl border border-b-0 pt-2">
+        <span className="bg-muted-foreground/40 h-1.5 w-10 rounded-full" />
+        <Skeleton className="h-5 w-36" />
+      </div>
+    </div>
+  );
+}
+
+/** Khung skeleton cả trang (dùng cho `loading.tsx` của route). */
+export function VenueDirectorySkeleton() {
+  return (
+    <div className={FRAME}>
+      <div className={MAP_WRAPPER}>
+        <Skeleton className="absolute inset-0 rounded-none" />
+      </div>
+      <PanelSkeleton />
+    </div>
+  );
+}
+
+function CardSkeletons() {
+  return (
+    <ul className="space-y-2" aria-hidden>
+      {[0, 1, 2].map((i) => (
+        <li
+          key={i}
+          data-testid="venue-card-skeleton"
+          className="bg-card/80 flex items-start gap-2 rounded-xl border p-3"
+        >
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-5 w-3/5" />
+            <Skeleton className="h-5 w-4/5" />
+            <Skeleton className="h-5 w-2/5" />
+          </div>
+          <Skeleton className="size-11 shrink-0 rounded-full" />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * Danh bạ sân, bản đồ trước. Điện thoại: bản đồ phủ khung, lớp nổi (ô tìm,
+ * chip, hàng trạng thái) ở trên, ngăn kéo danh sách ở dưới. Desktop (`md:`):
+ * cột trái dành cho danh sách, bản đồ bên phải.
+ *
+ * Mọi dữ liệu và quota nằm trong `useVenueDirectoryState`; màn này chỉ ghép
+ * giao diện và giữ nấc ngăn kéo.
+ */
 export function VenueDirectory({
   canSuggest,
   exchangeEnabled = false,
   loadExchangeCounts,
+  loadUpcoming,
 }: {
   canSuggest: boolean;
   /** Cờ giao lưu, do server component đọc một lần; tắt thì không có truy vấn thêm. */
   exchangeEnabled?: boolean;
   /** Server action đếm buổi theo sân, do page truyền xuống khi cờ bật; thiếu thì không có truy vấn. */
   loadExchangeCounts?: (ids: number[]) => Promise<[number, number][]>;
+  /** Server action buổi sắp tới tại một sân, cho thẻ xem nhanh; chỉ có khi cờ bật. */
+  loadUpcoming?: (venueId: number) => Promise<ExchangeCard[]>;
 }) {
   const t = useTranslations("venues");
   const locale = useLocale() as "vi" | "en" | "zh";
-  const [radius, setRadiusQuery] = useQueryState(
-    "r",
-    parseAsNumberLiteral(RADII).withDefault(5),
-  );
-  const [amenities, setAmenities] = useQueryState(
-    "a",
-    parseAsArrayOf(parseAsStringLiteral(VENUE_AMENITIES)).withDefault([]),
-  );
-  const [hasExchange, setHasExchange] = useQueryState(
-    "exchange",
-    parseAsBoolean.withDefault(false),
-  );
-  const [view, setView] = useQueryState(
-    "view",
-    parseAsStringLiteral(VIEWS).withDefault("list"),
-  );
-  const [searchCenter, setSearchCenter] = useState<LatLng | null>(null);
-  const [mapCenter, setMapCenter] = useState<LatLng | null>(null);
-  // Đổi bán kính làm bản đồ về lại tâm tìm kiếm; vị trí kéo cũ không còn đúng
-  // với vùng đang thấy nên "Tìm ở khu vực này" phải ẩn.
-  const setRadius = (r: (typeof RADII)[number]) => {
-    setMapCenter(null);
-    return setRadiusQuery(r);
-  };
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  // Máy không dựng được bản đồ: khoá nút "Bản đồ" thay vì báo toast lặp lại.
-  const [mapUnsupported, setMapUnsupported] = useState(false);
-  const loc = useUserLocation();
-  const { request } = loc;
+  const s = useVenueDirectoryState({ exchangeEnabled, loadExchangeCounts });
+  // Chỉ quyết nội dung panel; khung và lưới dựng bằng class `md:`.
+  const isDesktop = useMediaQuery("(min-width: 768px)");
+  const mobile = isDesktop === false;
 
-  // Hỏi vị trí đúng một lần khi mở trang.
+  const [snap, setSnap] = useState<SheetSnap>("low");
+  const [searchFocused, setSearchFocused] = useState(false);
+  // Nấc trước khi ô tìm được focus, để trả lại khi rời ô.
+  const snapBeforeFocus = useRef<SheetSnap | null>(null);
+
+  const frameRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const [frameH, setFrameH] = useState(0);
+  const [topReserve, setTopReserve] = useState(OVERLAY_GAP_PX);
+  const [visibleH, setVisibleH] = useState(0);
+
   useEffect(() => {
-    request();
-  }, [request]);
+    const frame = frameRef.current;
+    if (!frame) return;
+    const measure = () => {
+      setFrameH(frame.clientHeight || window.innerHeight);
+      const ov = overlayRef.current;
+      setTopReserve(
+        ov ? ov.offsetTop + ov.offsetHeight + OVERLAY_GAP_PX : OVERLAY_GAP_PX,
+      );
+    };
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(measure);
+      ro.observe(frame);
+      if (overlayRef.current) ro.observe(overlayRef.current);
+      return () => ro.disconnect();
+    }
+    const raf = requestAnimationFrame(measure);
+    window.addEventListener("resize", measure);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", measure);
+    };
+  }, [mobile]);
 
-  const pos = loc.position;
-  // Tâm "Tìm ở khu vực này" thắng GPS cho tới khi người dùng bấm về vị trí của tôi.
-  const center = searchCenter ?? pos;
-  const query = useQuery({
-    queryKey: [
-      "venues-near",
-      center?.lat.toFixed(3),
-      center?.lng.toFixed(3),
-      radius,
-      [...amenities].sort().join(","),
-    ],
-    queryFn: async () => {
-      const r = await listVenuesNear({
-        lat: center!.lat,
-        lng: center!.lng,
-        radiusKm: radius,
-        amenities,
-      });
-      if ("error" in r) throw new Error(r.error);
-      return r.venues;
-    },
-    enabled: loc.status === "ok" && center !== null,
-    staleTime: 60_000,
-    // Giữ ghim cũ trong lúc tải lại khi đổi khu vực/bán kính, khỏi nháy trống.
-    placeholderData: keepPreviousData,
-  });
+  // Link có `?venue=`: thẻ xem nhanh mở ở nấc giữa. Cờ chỉ bật một lần.
+  const [linkShown, setLinkShown] = useState(false);
+  if (s.openedFromLink && !linkShown) {
+    setLinkShown(true);
+    if (snap !== "mid") setSnap("mid");
+  }
 
-  const venueIds = useMemo(
-    () => (query.data ?? []).map((v) => v.id),
-    [query.data],
-  );
-  // Số buổi theo sân đi qua một lời gọi riêng, không đụng listVenuesNear.
-  const counts = useQuery({
-    queryKey: ["venue-exchange-counts", venueIds],
-    queryFn: async () => new Map(await loadExchangeCounts!(venueIds)),
-    staleTime: 60_000,
-    enabled: exchangeEnabled && !!loadExchangeCounts && venueIds.length > 0,
-    // Giữ số cũ trong lúc tải lại khi đổi khu vực, khỏi nháy mất nhãn.
-    placeholderData: keepPreviousData,
-  });
-  const countMap = exchangeEnabled ? counts.data : undefined;
-  const countsFailed = counts.isError;
-  // Đếm lỗi thì bỏ lọc, hiện danh sách đầy đủ thay vì báo "không có sân".
-  const filterOn = exchangeEnabled && hasExchange && !countsFailed;
-  const filterPending = filterOn && counts.isPending && venueIds.length > 0;
-
-  const nextRadius = RADII.find((r) => r > radius);
-  const isMap = view === "map" && !mapUnsupported;
-  const showMap = isMap && loc.status === "ok" && center !== null;
-  const allVenues = query.data ?? [];
-  const venues = filterOn
-    ? allVenues.filter((v) => (countMap?.get(v.id) ?? 0) > 0)
-    : allVenues;
-  const selectedVenue = venues.find((v) => v.id === selectedId) ?? null;
-  const showSearchHere =
-    showMap &&
-    mapCenter !== null &&
-    movedBeyond(mapCenter, center, radius * SEARCH_HERE_RATIO);
-
-  const errorNotice = (
-    <div className="flex flex-col items-center gap-3 text-center">
-      <p className="text-base font-medium">{t("loadError")}</p>
-      <Button className="min-h-11" onClick={() => query.refetch()}>
-        {t("retry")}
-      </Button>
-    </div>
-  );
-  const emptyActions = (
-    <div className="flex flex-wrap justify-center gap-2">
-      {nextRadius && (
-        <Button className="min-h-11" onClick={() => setRadius(nextRadius)}>
-          {t("expandRadius")}
-        </Button>
-      )}
-      {canSuggest && (
-        <Link
-          href="/venues/suggest"
-          className="bg-card inline-flex min-h-11 items-center rounded-lg border px-4 text-sm font-medium"
-        >
-          {t("suggestVenue")}
-        </Link>
-      )}
-    </div>
-  );
-  const emptyNotice = (
-    <div className="flex flex-col items-center gap-3 text-center">
-      <div className="space-y-1">
-        <p className="text-base font-medium">
-          {t("emptyTitle", { km: radius })}
-        </p>
-        <p className="text-muted-foreground text-sm">{t("emptyDescription")}</p>
-      </div>
-      {emptyActions}
-    </div>
-  );
-  const isEmpty = query.isSuccess && query.data.length === 0;
+  const { query } = s;
+  const data = query.data;
+  const settledData = query.isSuccess && !query.isPlaceholderData;
+  const isEmpty = settledData && data !== undefined && data.length === 0;
   const filteredEmpty =
-    query.isSuccess &&
-    query.data.length > 0 &&
-    filterOn &&
-    !filterPending &&
-    venues.length === 0;
-  // Ở chế độ bản đồ, bản đồ cao 60dvh đẩy khối lỗi/rỗng dưới nó ra ngoài
-  // màn hình, nên hai trạng thái này hiện đè lên bản đồ.
-  const mapNotice = query.isError ? errorNotice : isEmpty ? emptyNotice : null;
+    settledData &&
+    data !== undefined &&
+    data.length > 0 &&
+    !s.exchangeFilterPending &&
+    s.venues.length === 0;
+  const listLoading = query.isPending || s.exchangeFilterPending;
 
-  function changeView(next: (typeof VIEWS)[number]) {
-    // Bản đồ dựng lại từ đầu khi mở lại: bỏ vị trí kéo cũ và ghim đang chọn.
-    setMapCenter(null);
-    setSelectedId(null);
-    setView(next);
+  // Lỗi tải hoặc không có sân: lời nhắn nằm trong ngăn, nên ngăn tự lên nấc
+  // giữa đúng một lần cho mỗi kết quả (người dùng hạ xuống thì không bị kéo lại).
+  const noticeKey = query.isError
+    ? `error:${query.errorUpdatedAt}`
+    : isEmpty || filteredEmpty
+      ? `empty:${query.dataUpdatedAt}:${s.exchange}:${s.openNow}`
+      : null;
+  const [raisedKey, setRaisedKey] = useState<string | null>(null);
+  if (noticeKey !== null && noticeKey !== raisedKey && !searchFocused) {
+    setRaisedKey(noticeKey);
+    if (snap === "low") setSnap("mid");
   }
 
-  function handleMapUnsupported() {
-    setMapUnsupported(true);
-    changeView("list");
+  function selectVenue(id: number) {
+    s.select(id);
+    // Chọn từ gợi ý của ô tìm: ô sắp mất focus và trả nấc cũ, nên đổi nấc
+    // cần trả về thay vì đổi nấc ngay.
+    if (searchFocused) snapBeforeFocus.current = "mid";
+    else setSnap("mid");
+  }
+
+  function onSearchFocus(focused: boolean) {
+    if (focused) {
+      if (!searchFocused) snapBeforeFocus.current = snap;
+      setSearchFocused(true);
+      setSnap("low");
+      return;
+    }
+    const back = snapBeforeFocus.current;
+    snapBeforeFocus.current = null;
+    setSearchFocused(false);
+    if (back) setSnap(back);
+  }
+
+  const midVisible = frameH - snapOffsets(frameH, topReserve).mid;
+  // Phần đáy bản đồ bị ngăn che, chặn ở nấc giữa: kéo lên cao không đẩy tâm
+  // bản đồ lên mãi.
+  const bottomInset = mobile ? Math.max(0, Math.min(visibleH, midVisible)) : 0;
+
+  const frameStyle = {
+    "--venues-top-reserve": `${topReserve}px`,
+    "--venues-map-inset": `${bottomInset}px`,
+  } as CSSProperties;
+
+  const selected = s.selectedVenue;
+  const nextRadius = VENUE_RADII.find((r) => r > s.radius);
+
+  let viewingLine: string | null = null;
+  if ((s.source === "stored" || s.source === "default") && !s.gpsWaiting) {
+    viewingLine = t("viewingAround", {
+      label: s.areaLabel ?? t("defaultAreaLabel"),
+    });
+  } else if (s.source === "url" && s.areaLabel) {
+    viewingLine = t("viewingPlace", { label: s.areaLabel });
+  }
+
+  const sheetTitle =
+    listLoading || query.isError
+      ? t("pageTitle")
+      : t("sheetCount", { count: s.venues.length });
+
+  const suggestLink = canSuggest && (
+    <Link
+      href="/venues/suggest"
+      className="bg-card text-primary inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 text-base font-medium"
+    >
+      <Plus className="size-5" aria-hidden />
+      {t("suggestVenue")}
+    </Link>
+  );
+
+  let listBody;
+  if (query.isError) {
+    listBody = (
+      <div className="flex flex-col items-center gap-3 py-6 text-center">
+        <MapPinned className="text-muted-foreground size-8" aria-hidden />
+        <p className="text-base font-medium">{t("loadError")}</p>
+        <Button className="min-h-11" onClick={() => void query.refetch()}>
+          {t("retry")}
+        </Button>
+      </div>
+    );
+  } else if (listLoading) {
+    listBody = <CardSkeletons />;
+  } else if (isEmpty || filteredEmpty) {
+    listBody = (
+      <div className="flex flex-col items-center gap-3 py-6 text-center">
+        <MapPinned className="text-muted-foreground size-8" aria-hidden />
+        <div className="space-y-1">
+          <p className="text-base font-medium">
+            {t("emptyTitle", { km: s.radius })}
+          </p>
+          <p className="text-muted-foreground text-base">
+            {t("emptyDescription")}
+          </p>
+        </div>
+        <div className="flex flex-wrap justify-center gap-2">
+          {nextRadius && (
+            <Button
+              className="min-h-11"
+              onClick={() => s.setRadius(nextRadius)}
+            >
+              {t("expandRadius")}
+            </Button>
+          )}
+          {suggestLink}
+        </div>
+      </div>
+    );
+  } else {
+    listBody = (
+      <div className="space-y-3">
+        <ul className="space-y-2">
+          {s.venues.map((v) => (
+            <motion.li
+              key={v.id}
+              layout
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <VenueCard
+                venue={v}
+                locale={locale}
+                upcomingExchangeCount={s.counts?.get(v.id)}
+                now={s.now}
+                onSelect={() => selectVenue(v.id)}
+                selected={v.id === s.selectedId}
+              />
+            </motion.li>
+          ))}
+        </ul>
+        {suggestLink && (
+          <div className="flex justify-center">{suggestLink}</div>
+        )}
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-4 pb-24">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-bold">{t("pageTitle")}</h1>
-        <p className="text-muted-foreground text-base">{t("pageSubtitle")}</p>
-      </header>
+    <div ref={frameRef} className={FRAME} style={frameStyle}>
+      <h1 className="sr-only">{t("pageTitle")}</h1>
 
-      <div
-        role="group"
-        aria-label={t("viewSwitch")}
-        className="bg-muted grid grid-cols-2 gap-1 rounded-xl p-1"
-      >
-        {VIEWS.map((v) => {
-          const disabled = v === "map" && mapUnsupported;
-          return (
-            <button
-              key={v}
-              type="button"
-              aria-pressed={view === v}
-              disabled={disabled}
-              aria-disabled={disabled}
-              onClick={() => changeView(v)}
-              className={cn(
-                "min-h-11 rounded-lg text-base font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-                view === v
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground",
-              )}
-            >
-              {t(v === "list" ? "showList" : "showMap")}
-            </button>
-          );
-        })}
+      <div className={MAP_WRAPPER}>
+        {isDesktop === null ? (
+          // HTML server không phụ thuộc WebGL hay bề rộng: bản đồ chỉ dựng ở client.
+          <Skeleton className="absolute inset-0 rounded-none" />
+        ) : (
+          <LazyMapView
+            points={s.points}
+            center={s.center}
+            radiusKm={s.radius}
+            userPosition={s.gps}
+            selectedId={s.selectedId}
+            onPointClick={(p) => selectVenue(p.id)}
+            onMoveEnd={s.onMoveEnd}
+            // Bản đồ phủ cả màn: một ngón là kéo bản đồ, không còn trang để cuộn.
+            cooperativeGestures={false}
+            focus={s.focus}
+            bottomInset={bottomInset}
+            noticeClassName="top-[var(--venues-top-reserve)]"
+            className="h-full rounded-none border-0"
+          />
+        )}
       </div>
-      {mapUnsupported && (
-        <p className="text-muted-foreground text-sm" role="status">
-          {t("mapUnsupported")}
-        </p>
-      )}
 
-      <section className="space-y-3" aria-label={t("radius")}>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium">{t("radius")}</span>
-          {RADII.map((r) => (
-            <button
-              key={r}
-              type="button"
-              aria-pressed={radius === r}
-              onClick={() => setRadius(r)}
-              className={cn(
-                "min-h-11 rounded-full border px-4 text-sm font-medium transition-colors",
-                radius === r
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-card/80 hover:bg-accent",
-              )}
+      {isDesktop === null && <PanelSkeleton />}
+
+      {mobile && (
+        <>
+          <div
+            ref={overlayRef}
+            data-testid="venues-overlay"
+            className="pointer-events-none absolute inset-x-0 top-0 z-20 space-y-2 px-3 pt-3"
+          >
+            <div className="pointer-events-auto">
+              <VenueSearchBar
+                venues={s.venues}
+                locale={locale}
+                onPickVenue={selectVenue}
+                onPlace={s.placeSearched}
+                onLocate={s.locate}
+                locating={s.locating || s.gpsWaiting}
+                onFocusChange={onSearchFocus}
+              />
+            </div>
+            {/* Hàng chip phủ cả bề ngang: chỗ trống giữa các chip vẫn kéo được bản đồ. */}
+            <div
+              data-testid="venues-chip-row"
+              className="pointer-events-none [&_button]:pointer-events-auto"
             >
-              {t("radiusValue", { km: r })}
-            </button>
-          ))}
-        </div>
-        <div
-          className="flex flex-wrap gap-2"
-          role="group"
-          aria-label={t("filterAmenities")}
-        >
-          {VENUE_AMENITIES.map((a) => {
-            const on = amenities.includes(a);
-            return (
-              <button
-                key={a}
-                type="button"
-                aria-pressed={on}
-                onClick={() =>
-                  setAmenities(
-                    on ? amenities.filter((x) => x !== a) : [...amenities, a],
-                  )
-                }
-                className={cn(
-                  "min-h-11 rounded-full border px-3.5 text-sm transition-colors",
-                  on
-                    ? "bg-primary/15 border-primary text-primary"
-                    : "bg-card/80 hover:bg-accent",
+              <VenueFilterChips
+                radius={s.radius}
+                onRadius={s.setRadius}
+                amenities={s.amenities}
+                onAmenities={s.setAmenities}
+                exchange={s.exchange}
+                onExchange={s.setExchange}
+                showExchange={exchangeEnabled}
+                openNow={s.openNow}
+                onOpenNow={s.setOpenNow}
+              />
+            </div>
+            <div className="flex flex-col items-center gap-2">
+              {query.isFetching ? (
+                <motion.div
+                  key="loading"
+                  role="status"
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`${PILL} pointer-events-none`}
+                >
+                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                  {t("loadingVenues")}
+                </motion.div>
+              ) : (
+                s.showSearchHere && (
+                  <motion.button
+                    key="search-here"
+                    type="button"
+                    onClick={s.searchHere}
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    whileTap={{ scale: 0.97 }}
+                    className="bg-primary text-primary-foreground pointer-events-auto inline-flex min-h-11 items-center gap-2 rounded-full px-5 text-base font-medium shadow-lg"
+                  >
+                    <Search className="size-4" aria-hidden />
+                    {t("searchThisArea")}
+                  </motion.button>
+                )
+              )}
+              {(s.gpsWaiting || s.locating) && (
+                <p role="status" className={`${PILL} pointer-events-none`}>
+                  <LocateFixed className="size-4 animate-pulse" aria-hidden />
+                  {t("locating")}
+                </p>
+              )}
+              {viewingLine && (
+                <p className="bg-card/85 text-muted-foreground pointer-events-none max-w-full rounded-xl border px-3 py-1.5 text-center text-sm shadow-sm backdrop-blur">
+                  {viewingLine}
+                </p>
+              )}
+              {s.locateFailed && (
+                <p
+                  role="status"
+                  className="bg-card/90 pointer-events-none max-w-full rounded-xl border px-3 py-1.5 text-center text-sm shadow-sm backdrop-blur"
+                >
+                  {t("locationUnavailable")}
+                </p>
+              )}
+              {s.countsFailed && s.exchange && (
+                <div
+                  role="status"
+                  className="bg-card/90 pointer-events-none flex max-w-full items-center gap-2 rounded-xl border py-1 pr-1 pl-3 text-sm shadow-sm backdrop-blur"
+                >
+                  <span className="text-muted-foreground">
+                    {t("exchangeFilterUnavailable")}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={s.retryCounts}
+                    className="text-primary pointer-events-auto min-h-11 shrink-0 rounded-lg px-3 font-medium"
+                  >
+                    {t("retry")}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <VenueSheet
+            snap={snap}
+            onSnapChange={setSnap}
+            title={sheetTitle}
+            topReserve={topReserve}
+            frozen={searchFocused}
+            onVisibleHeight={setVisibleH}
+            onDragClose={
+              selected
+                ? () => {
+                    s.clearSelection();
+                    setSnap("low");
+                  }
+                : undefined
+            }
+          >
+            <div className="px-3 pb-3">
+              <AnimatePresence mode="wait" initial={false}>
+                {selected ? (
+                  <motion.div
+                    key={`venue-${selected.id}`}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 12 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <VenueQuickView
+                      venue={selected}
+                      locale={locale}
+                      exchangeCount={s.counts?.get(selected.id)}
+                      loadUpcoming={loadUpcoming}
+                      now={s.now}
+                      onClose={s.clearSelection}
+                      closeLabel="close"
+                    />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="list"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    {listBody}
+                  </motion.div>
                 )}
-              >
-                {t(`amenity.${a}`)}
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      {exchangeEnabled && countsFailed && hasExchange && (
-        <div
-          role="status"
-          className="flex flex-wrap items-center gap-2 text-sm"
-        >
-          <span className="text-muted-foreground">
-            {t("exchangeFilterUnavailable")}
-          </span>
-          <button
-            type="button"
-            onClick={() => counts.refetch()}
-            className="text-primary min-h-11 shrink-0 font-medium"
-          >
-            {t("retry")}
-          </button>
-        </div>
-      )}
-
-      {exchangeEnabled && (
-        <div className="flex">
-          <button
-            type="button"
-            aria-pressed={hasExchange}
-            onClick={() => setHasExchange(hasExchange ? null : true)}
-            className={cn(
-              "min-h-11 rounded-full border px-4 text-sm font-medium transition-colors",
-              hasExchange
-                ? "bg-primary/15 border-primary text-primary"
-                : "bg-card/80 hover:bg-accent",
-            )}
-          >
-            {t("filterHasExchange")}
-          </button>
-        </div>
-      )}
-
-      {loc.status === "ok" && loc.label && (
-        <div className="flex items-center justify-between gap-2 text-sm">
-          <span className="text-muted-foreground truncate">
-            {searchCenter
-              ? t("selectedArea")
-              : t("searchingNear", { label: loc.label })}
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              if (searchCenter) {
-                setSearchCenter(null);
-                setMapCenter(null);
-              } else {
-                request();
-              }
-            }}
-            className="text-primary inline-flex min-h-11 shrink-0 items-center gap-1"
-          >
-            <LocateFixed className="h-4 w-4" />
-            {t("useMyLocation")}
-          </button>
-        </div>
-      )}
-
-      {(loc.status === "denied" || loc.status === "unsupported") && (
-        <LocationFallback onLocated={loc.setManual} onRetryGps={request} />
-      )}
-
-      {loc.status === "asking" && (
-        <p className="text-muted-foreground text-sm" role="status">
-          {t("locating")}
-        </p>
-      )}
-
-      {showMap && center && (
-        <VenueMapPanel
-          points={venuesToPoints(venues)}
-          center={center}
-          radiusKm={radius}
-          userPosition={pos}
-          selectedVenue={selectedVenue}
-          selectedId={selectedId}
-          locale={locale}
-          showSearchHere={showSearchHere}
-          loading={query.isFetching}
-          notice={mapNotice}
-          onSelect={setSelectedId}
-          onMoveEnd={setMapCenter}
-          onSearchHere={() => {
-            setSearchCenter(mapCenter);
-            setSelectedId(null);
-          }}
-          onUnsupported={handleMapUnsupported}
-        />
-      )}
-
-      {isMap && (loc.status === "asking" || loc.status === "idle") && (
-        <Skeleton className="h-[60dvh] w-full rounded-2xl" />
-      )}
-
-      {!isMap &&
-        (loc.status === "asking" ||
-          loc.status === "idle" ||
-          (loc.status === "ok" && query.isPending)) && <ListSkeleton />}
-
-      {!isMap && query.isError && (
-        <EmptyState
-          icon={MapPinned}
-          title={t("loadError")}
-          action={
-            <Button className="min-h-11" onClick={() => query.refetch()}>
-              {t("retry")}
-            </Button>
-          }
-        />
-      )}
-
-      {!isMap && isEmpty && (
-        <EmptyState
-          icon={MapPinned}
-          title={t("emptyTitle", { km: radius })}
-          description={t("emptyDescription")}
-          action={emptyActions}
-        />
-      )}
-
-      {!isMap && filterPending && query.isSuccess && <ListSkeleton />}
-
-      {!isMap && filteredEmpty && (
-        <EmptyState
-          icon={MapPinned}
-          title={t("emptyTitle", { km: radius })}
-          description={t("emptyDescription")}
-          action={emptyActions}
-        />
-      )}
-
-      {query.isSuccess && venues.length > 0 && !isMap && (
-        <ul className="grid gap-3 sm:grid-cols-2">
-          <AnimatePresence initial={false}>
-            {venues.map((v) => (
-              <motion.li
-                key={v.id}
-                layout
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-              >
-                <VenueCard
-                  venue={v}
-                  locale={locale}
-                  upcomingExchangeCount={countMap?.get(v.id)}
-                />
-              </motion.li>
-            ))}
-          </AnimatePresence>
-        </ul>
-      )}
-
-      {canSuggest && (
-        <div className="bg-background/95 fixed inset-x-0 bottom-0 z-30 border-t p-3 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0">
-          <Link
-            href="/venues/suggest"
-            className="bg-primary text-primary-foreground flex min-h-12 w-full items-center justify-center gap-2 rounded-xl text-base font-medium sm:w-auto sm:px-6"
-          >
-            <Plus className="h-5 w-5" />
-            {t("suggestVenue")}
-          </Link>
-        </div>
+              </AnimatePresence>
+            </div>
+          </VenueSheet>
+        </>
       )}
     </div>
-  );
-}
-
-function ListSkeleton() {
-  return (
-    <ul className="grid gap-3 sm:grid-cols-2" aria-hidden>
-      {Array.from({ length: 3 }).map((_, i) => (
-        <li key={i} className="bg-card space-y-3 rounded-xl border p-4">
-          <div className="flex items-start gap-3">
-            <Skeleton className="h-11 w-11 shrink-0 rounded-xl" />
-            <div className="flex-1 space-y-1.5">
-              <Skeleton className="h-5 w-3/5" />
-              <Skeleton className="h-4 w-4/5" />
-            </div>
-            <Skeleton className="h-7 w-16 rounded-full" />
-          </div>
-          <Skeleton className="h-4 w-2/5" />
-          <Skeleton className="h-11 w-full rounded-lg" />
-        </li>
-      ))}
-    </ul>
   );
 }
