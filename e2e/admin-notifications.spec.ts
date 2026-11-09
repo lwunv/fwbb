@@ -69,6 +69,13 @@ test("chuông cạnh logo có số, mở ra thấy member nợ, sang trang thôn
     sheet.locator("li", { hasText: NAME }).getByText("Quá hạn mức"),
   ).toBeVisible();
 
+  // Bấm chuông lần nữa thì đóng ngăn, bấm tiếp thì mở lại (user 6/11/2026).
+  await bell.click();
+  await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 5_000 });
+  await expect(bell).toHaveAttribute("aria-expanded", "false");
+  await bell.click();
+  await expect(sheet.getByText(NAME)).toBeVisible({ timeout: 10_000 });
+
   // Bấm 1 dòng trong chuông → sang sổ quỹ đã lọc sẵn tên member đó.
   await sheet.getByRole("link", { name: new RegExp(NAME) }).click();
   await expect(page).toHaveURL(/\/admin\/fund\/transactions\?q=/);

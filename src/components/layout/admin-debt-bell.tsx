@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { useTranslations } from "next-intl";
@@ -44,6 +44,7 @@ export const ADMIN_DEBT_QUERY_KEY = ["admin-debt-notifications"] as const;
 export function AdminDebtBell({ className }: { className?: string }) {
   const t = useTranslations("adminNotifications");
   const [open, setOpen] = useState(false);
+  const bellRef = useRef<HTMLButtonElement>(null);
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: ADMIN_DEBT_QUERY_KEY,
     queryFn: () => getAdminDebtNotifications(),
@@ -66,7 +67,14 @@ export function AdminDebtBell({ className }: { className?: string }) {
       <motion.button
         type="button"
         whileTap={{ scale: 0.92 }}
+        ref={bellRef}
+        aria-expanded={open}
         onClick={() => {
+          // Bấm chuông lần nữa thì đóng (user 6/11/2026).
+          if (open) {
+            setOpen(false);
+            return;
+          }
           setOpen(true);
           // Chuông nằm trong layout, không unmount khi chuyển trang: mở ra là
           // lấy lại 1 lần (không poll) để số không đứng yên giá trị cũ.
@@ -89,7 +97,25 @@ export function AdminDebtBell({ className }: { className?: string }) {
         )}
       </motion.button>
 
-      <Sheet open={open} onOpenChange={setOpen} modal={false}>
+      <Sheet
+        open={open}
+        onOpenChange={(next, details) => {
+          // Ngăn không modal nên bấm vào chuông cũng bị base-ui tính là "chạm
+          // ra ngoài" và đóng ngăn TRƯỚC onClick, rồi onClick lại mở ra. Bỏ qua
+          // lần đóng đó để onClick của chuông tự bật/tắt.
+          const target = details.event?.target;
+          if (
+            !next &&
+            details.reason === "outside-press" &&
+            target instanceof Node &&
+            bellRef.current?.contains(target)
+          ) {
+            return;
+          }
+          setOpen(next);
+        }}
+        modal={false}
+      >
         <SheetContent
           side="left"
           // Desktop: trượt ra NGAY SAU sidebar cố định (lg:w-60), cả nền mờ lẫn

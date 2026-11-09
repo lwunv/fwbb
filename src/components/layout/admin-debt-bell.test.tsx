@@ -87,6 +87,36 @@ describe("AdminDebtBell", () => {
     await waitFor(() => expect(screen.queryByText("Lan")).toBeNull());
   });
 
+  it("bấm chuông lần nữa thì đóng ngăn (bật/tắt)", async () => {
+    action.getAdminDebtNotifications.mockResolvedValue({
+      owing: [
+        {
+          memberId: 9,
+          name: "Lan",
+          nickname: null,
+          balance: -7_000,
+          overLimit: false,
+        },
+      ],
+      history: [],
+      voteBlockDebtThreshold: 100_000,
+    });
+    renderBell();
+    const bell = await screen.findByRole("button", { name: /Thông báo.*1/ });
+    // Trước đây onClick luôn mở, nên bấm lần 2 ngăn vẫn mở (user 6/11/2026).
+    fireEvent.pointerDown(bell);
+    fireEvent.mouseDown(bell);
+    fireEvent.click(bell);
+    await waitFor(() => expect(screen.getByText("Lan")).toBeTruthy());
+    expect(bell.getAttribute("aria-expanded")).toBe("true");
+
+    fireEvent.pointerDown(bell);
+    fireEvent.mouseDown(bell);
+    fireEvent.click(bell);
+    await waitFor(() => expect(screen.queryByText("Lan")).toBeNull());
+    expect(bell.getAttribute("aria-expanded")).toBe("false");
+  });
+
   it("không ai âm quỹ → không có số đỏ", async () => {
     action.getAdminDebtNotifications.mockResolvedValue({
       owing: [],
