@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { Navigation } from "lucide-react";
 import { LazyMapView } from "@/components/map/lazy-map-view";
 import { venuesToPoints } from "@/lib/map/map-points";
-import { hasWebGL2 } from "@/lib/map/webgl";
+import { useWebGL2Support } from "@/lib/map/webgl";
 import { directionsUrl } from "@/lib/maps-link";
 import type { PublicVenue } from "@/lib/public-venue";
 
@@ -20,10 +20,12 @@ export function VenueMiniMap({
   venue: Pick<PublicVenue, "id" | "name" | "lat" | "lng">;
 }) {
   const t = useTranslations("venues");
-  // Kiểm ngay lúc render đầu để máy không có WebGL không thấy khung xương
-  // rồi biến mất. Lazy init chỉ chạy ở client, còn server luôn coi là hỗ trợ.
-  const [unsupported, setUnsupported] = useState(() => !hasWebGL2());
-  if (unsupported) return null;
+  // Server và lần hydrate coi như có WebGL (HTML server không phụ thuộc máy,
+  // không lệch hydrate); ngay sau hydrate mới ẩn trên máy không có. Điều hướng
+  // phía client thì biết ngay từ lần vẽ đầu nên không nháy khung.
+  const webgl = useWebGL2Support();
+  const [failed, setFailed] = useState(false);
+  if (!webgl || failed) return null;
 
   return (
     // Ô attribution của maplibre phải nổi trên lớp link để còn chạm được. Cần
@@ -35,7 +37,7 @@ export function VenueMiniMap({
         center={{ lat: venue.lat, lng: venue.lng }}
         interactive={false}
         className="aspect-[16/9] h-auto rounded-xl"
-        onUnsupported={() => setUnsupported(true)}
+        onUnsupported={() => setFailed(true)}
       />
       {/* Lớp phủ nằm trên ghim nên nhận cú chạm; ghim bị vô hiệu ở chế độ
           không tương tác (xem MapView) nên chỉ còn một link để Tab tới. */}
@@ -46,10 +48,11 @@ export function VenueMiniMap({
         aria-label={t("directionsTo", { name: venue.name })}
         className="focus-visible:outline-ring absolute inset-0 z-10 rounded-xl focus-visible:outline-2"
       >
-        {/* Chỉ để nhìn: cả khung là link nên nút này không cần nhận chạm riêng. */}
+        {/* Chỉ để nhìn: cả khung là link nên nút này không cần nhận chạm riêng.
+            Góc trên: ô attribution ở góc dưới phải mở rộng gần hết mép dưới. */}
         <span
           aria-hidden
-          className="bg-card/80 absolute bottom-2 left-2 inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-sm font-medium backdrop-blur"
+          className="bg-card/80 absolute top-2 left-2 inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-sm font-medium backdrop-blur"
         >
           <Navigation className="size-4" />
           {t("directions")}

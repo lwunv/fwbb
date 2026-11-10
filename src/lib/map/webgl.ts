@@ -9,7 +9,12 @@ import { useState, useSyncExternalStore } from "react";
 export function hasWebGL2(): boolean {
   if (typeof document === "undefined") return true;
   try {
-    return document.createElement("canvas").getContext("webgl2") !== null;
+    const gl = document.createElement("canvas").getContext("webgl2");
+    if (gl === null) return false;
+    // Trả context dò ngay: trình duyệt giới hạn số context còn sống và huỷ
+    // context cũ nhất khi vượt, có thể là context của chính bản đồ.
+    gl.getExtension?.("WEBGL_lose_context")?.loseContext();
+    return true;
   } catch {
     return false;
   }

@@ -537,12 +537,48 @@ describe("useVenueDirectoryState: selection", () => {
     await waitFor(() => expect(result.current.selectedId).toBe(1));
     expect(result.current.focus).toMatchObject({ lat: venue(1).lat, seq: 2 });
     expect(result.current.openedFromLink).toBe(false);
+    expect(listVenuesNear).toHaveBeenCalledTimes(1);
+  });
+
+  // Closing used to clear ?venue= with replace, leaving the pushed entry in
+  // history, so the phone Back button needed two presses to leave /venues.
+  it("closing a venue selected in this session steps back over the pushed entry (one Back leaves the page)", async () => {
+    const back = vi.spyOn(window.history, "back").mockImplementation(() => {});
+    const { result, onUrlUpdate } = setup();
+    await waitFor(() => expect(result.current.venues).toHaveLength(2));
+    const before = onUrlUpdate.mock.calls.length;
+
+    act(() => result.current.select(2));
+    await waitFor(() => expect(result.current.selectedId).toBe(2));
+    // Switching pins replaces the entry: only one pushed entry per quick view.
+    act(() => result.current.select(1));
+    await waitFor(() => expect(result.current.selectedId).toBe(1));
+    const histories = onUrlUpdate.mock.calls
+      .slice(before)
+      .map((c) => c[0].options.history);
+    expect(histories).toEqual(["push", "replace"]);
+
+    const writes = onUrlUpdate.mock.calls.length;
+    act(() => result.current.clearSelection());
+    expect(back).toHaveBeenCalledTimes(1);
+    // No second URL write: the popstate from back() is what clears ?venue=.
+    expect(onUrlUpdate.mock.calls.length).toBe(writes);
+    back.mockRestore();
+  });
+
+  it("closing a venue opened from a shared link clears ?venue= with replace (no entry of ours to step back over)", async () => {
+    const back = vi.spyOn(window.history, "back").mockImplementation(() => {});
+    const { result, lastUrl } = setup({
+      search: "?venue=2&lat=21.03&lng=105.85",
+    });
+    await waitFor(() => expect(result.current.selectedVenue?.id).toBe(2));
 
     act(() => result.current.clearSelection());
     await waitFor(() => expect(result.current.selectedId).toBeNull());
-    expect(result.current.selectedVenue).toBeNull();
+    expect(back).not.toHaveBeenCalled();
     expect(lastUrl()?.searchParams.has("venue")).toBe(false);
-    expect(listVenuesNear).toHaveBeenCalledTimes(1);
+    expect(lastUrl()?.options.history).toBe("replace");
+    back.mockRestore();
   });
 
   it("a selected venue filtered out clears ?venue=", async () => {

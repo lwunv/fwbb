@@ -204,6 +204,13 @@ export function useVenueDirectoryState({
       ? null
       : (venues.find((v) => v.id === selectedId) ?? null);
 
+  // Mục lịch sử của `?venue=` hiện tại có phải do `select` push trong phiên
+  // này không. Back của trình duyệt (hoặc mọi lần ?venue= biến mất) xoá cờ.
+  const pushedVenue = useRef(false);
+  useEffect(() => {
+    if (venueParam === null) pushedVenue.current = false;
+  }, [venueParam]);
+
   const [focus, setFocus] = useState<{
     lat: number;
     lng: number;
@@ -301,14 +308,26 @@ export function useVenueDirectoryState({
   }
 
   function select(id: number) {
-    // Back trên điện thoại đóng thẻ xem nhanh, nên ghi bằng push.
-    void setUrl({ venue: id }, { history: "push" });
+    // Back trên điện thoại đóng thẻ xem nhanh, nên lần chọn đầu ghi bằng push.
+    // Đang mở một sân mà bấm sân khác thì thay mục đó, để mỗi thẻ xem nhanh chỉ
+    // có đúng một mục lịch sử.
+    const push = !pushedVenue.current;
+    pushedVenue.current = true;
+    void setUrl({ venue: id }, { history: push ? "push" : "replace" });
     const v = venues.find((x) => x.id === id);
     if (v) {
       setFocus((f) => ({ lat: v.lat, lng: v.lng, seq: (f?.seq ?? 0) + 1 }));
     }
   }
   function clearSelection() {
+    // Mục `?venue=` do chính trang này push: lùi qua nó, đừng xoá bằng replace
+    // (để lại mục thừa khiến Back phải bấm hai lần mới rời trang). Sân mở từ
+    // link chia sẻ không có mục của mình nên vẫn xoá bằng replace.
+    if (pushedVenue.current && typeof window !== "undefined") {
+      pushedVenue.current = false;
+      window.history.back();
+      return;
+    }
     void setUrl({ venue: null });
   }
 
@@ -326,6 +345,9 @@ export function useVenueDirectoryState({
     setPlaceLabel(area);
     setStored(area);
     writeStoredArea(area);
+    // Mục đã push giờ mang vùng mới (replace), không còn là mục của thẻ xem
+    // nhanh nữa.
+    pushedVenue.current = false;
     void setUrl({ lat: area.lat, lng: area.lng, venue: null });
   }
   function searchHere() {

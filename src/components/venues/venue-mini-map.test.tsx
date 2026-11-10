@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { render, screen, cleanup, act } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { NextIntlClientProvider } from "next-intl";
 import viMessages from "@/i18n/messages/vi.json";
 import type { MapViewProps } from "@/components/map/map-view";
@@ -89,5 +90,41 @@ describe("VenueMiniMap", () => {
     expect(wrapper.className.split(/\s+/)).toContain(
       "[&_.maplibregl-ctrl-bottom-right]:z-20!",
     );
+  });
+
+  // Ô attribution của maplibre mở rộng gần hết mép dưới khung ở 390px và nằm
+  // trên lớp link (z-20), nên viên "Chỉ đường" ở góc dưới trái bị chữ đè lên.
+  it("puts the directions pill at the top-left, clear of the bottom attribution", () => {
+    renderMini();
+    const pill = screen
+      .getByRole("link", { name: "Chỉ đường tới Sân Cầu Giấy" })
+      .querySelector("span") as HTMLElement;
+    const cls = pill.className.split(/\s+/);
+    expect(cls).toContain("top-2");
+    expect(cls).not.toContain("bottom-2");
+  });
+
+  it("hydrates server HTML on a device without WebGL2 without a mismatch, then hides", async () => {
+    mockWebGL(false);
+    const tree = (
+      <NextIntlClientProvider locale="vi" messages={viMessages}>
+        <VenueMiniMap venue={venue} />
+      </NextIntlClientProvider>
+    );
+    const html = renderToString(tree);
+    expect(html).toContain("Chỉ đường");
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    document.body.appendChild(container);
+    const consoleError = vi.spyOn(console, "error");
+    render(tree, { container, hydrate: true });
+    await act(async () => {});
+    expect(
+      consoleError.mock.calls
+        .map((args) => args.map(String).join(" "))
+        .filter((m) => /hydrat|did not match|server rendered/i.test(m)),
+    ).toEqual([]);
+    expect(container.firstChild).toBeNull();
+    container.remove();
   });
 });

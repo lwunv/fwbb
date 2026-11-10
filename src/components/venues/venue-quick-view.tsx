@@ -26,7 +26,7 @@ import { AMENITY_ICONS } from "./amenity-icons";
 
 const MAX_UPCOMING = 3;
 const actionClass =
-  "bg-secondary text-secondary-foreground inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-3 text-base font-medium active:scale-95";
+  "bg-secondary text-secondary-foreground inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-3 text-base font-medium whitespace-nowrap active:scale-95";
 
 /** Dòng một buổi giao lưu sắp tới tại sân, cả dòng là link. */
 function UpcomingRow({
@@ -212,6 +212,33 @@ export function VenueQuickView({
         )}
       </div>
 
+      {/* Ngay sau giá và giờ: thẻ mở ở nấc giữa, nơi ngăn không cuộn, nên
+          nút hành động phải nằm trong phần đang lộ ra. */}
+      <div className="flex flex-wrap gap-2">
+        <a
+          href={directionsUrl(venue)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="bg-primary text-primary-foreground inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-3 text-base font-medium whitespace-nowrap active:scale-95"
+        >
+          <Navigation className="size-5" aria-hidden />
+          {t("directions")}
+        </a>
+        {phone && (
+          <a href={`tel:${phone}`} className={actionClass}>
+            <Phone className="size-5" aria-hidden />
+            {t("call")}
+          </a>
+        )}
+        <button type="button" onClick={handleShare} className={actionClass}>
+          <Share2 className="size-5" aria-hidden />
+          {t("share")}
+        </button>
+        <Link href={`/venues/${venue.id}`} className={actionClass}>
+          {t("viewDetails")}
+        </Link>
+      </div>
+
       {venue.amenities.length > 0 && (
         <ul className="flex flex-wrap gap-x-4 gap-y-2">
           {venue.amenities.map((a) => {
@@ -238,31 +265,6 @@ export function VenueQuickView({
           />
         </div>
       )}
-
-      <div className="flex flex-wrap gap-2">
-        <a
-          href={directionsUrl(venue)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="bg-primary text-primary-foreground inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-3 text-base font-medium active:scale-95"
-        >
-          <Navigation className="size-5" aria-hidden />
-          {t("directions")}
-        </a>
-        {phone && (
-          <a href={`tel:${phone}`} className={actionClass}>
-            <Phone className="size-5" aria-hidden />
-            {t("call")}
-          </a>
-        )}
-        <button type="button" onClick={handleShare} className={actionClass}>
-          <Share2 className="size-5" aria-hidden />
-          {t("share")}
-        </button>
-        <Link href={`/venues/${venue.id}`} className={actionClass}>
-          {t("viewDetails")}
-        </Link>
-      </div>
     </motion.section>
   );
 }

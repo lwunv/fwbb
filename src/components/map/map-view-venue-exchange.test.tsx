@@ -158,6 +158,17 @@ describe("MapView venue exchange pins", () => {
     expect(badge.textContent).toBe("1");
   });
 
+  it("a two-digit exchange count widens the badge instead of spilling out of a fixed 20px circle", () => {
+    renderMap({ points: withEx(12) });
+    const pin = screen.getByRole("button", { name: pinLabel(12) });
+    const badge = pin.querySelector<HTMLElement>("[data-role=count]")!;
+    expect(badge.textContent).toBe("12");
+    const cls = badge.className.split(/\s+/);
+    expect(cls).toContain("min-w-5");
+    expect(cls).toContain("h-5");
+    expect(cls).not.toContain("size-5");
+  });
+
   it("a pin created without exchanges turns into an exchange pin on rerender with count 2, and back to plain at 0", () => {
     const { rerenderWith } = renderMap();
     let pin = screen.getByRole("button", { name: "Sân Cầu Giấy" });

@@ -47,6 +47,20 @@ describe("useWebGL2Support", () => {
     expect(screen.getByRole("button").dataset.supported).toBe("true");
   });
 
+  it("releases the probe context right after probing so it does not count against the browser's live-context limit", () => {
+    const loseContext = vi.fn();
+    const getExtension = vi.fn((name: string) =>
+      name === "WEBGL_lose_context" ? { loseContext } : null,
+    );
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
+      (() => ({ getExtension }) as unknown as WebGL2RenderingContext) as never,
+    );
+    render(<Probe />);
+    expect(screen.getByRole("button").dataset.supported).toBe("true");
+    expect(getExtension).toHaveBeenCalledWith("WEBGL_lose_context");
+    expect(loseContext).toHaveBeenCalledTimes(1);
+  });
+
   it("probes once per mount, not on every render (each probe creates a WebGL context)", () => {
     const getContext = mockWebGL(true);
     render(<Probe />);

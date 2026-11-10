@@ -15,8 +15,10 @@ const STATUS_KEY = {
 } as const satisfies Record<OpenStatus, string>;
 
 // Chấm màu chỉ giúp nhìn nhanh; chữ "Đang mở/Đã đóng" mới là thông tin.
+// Không dùng --accent cho "đang mở": ở theme hồng nó là hồng, gần trùng đỏ
+// của "đã đóng".
 const STATUS_DOT: Record<OpenStatus, string | null> = {
-  open: "bg-accent",
+  open: "bg-success",
   closed: "bg-destructive",
   unknown: null,
 };

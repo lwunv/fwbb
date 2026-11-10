@@ -13,6 +13,7 @@ import { renderToString } from "react-dom/server";
 import type { ReactNode } from "react";
 import { NextIntlClientProvider } from "next-intl";
 import { NuqsTestingAdapter } from "nuqs/adapters/testing";
+import { NuqsAdapter } from "nuqs/adapters/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import viMessages from "@/i18n/messages/vi.json";
 import type { MapViewProps } from "@/components/map/map-view";
@@ -263,6 +264,11 @@ type Opts = {
   exchangeEnabled?: boolean;
   loadExchangeCounts?: (ids: number[]) => Promise<[number, number][]>;
   canSuggest?: boolean;
+  /**
+   * Adapter nuqs đọc/ghi `window.history` thật (jsdom): đóng thẻ xem nhanh lùi
+   * bằng history.back(), mà adapter test không biết gì về popstate.
+   */
+  realHistory?: boolean;
 };
 
 function tree(opts: Opts, onUrlUpdate = vi.fn()): ReactNode {
@@ -277,18 +283,28 @@ function tree(opts: Opts, onUrlUpdate = vi.fn()): ReactNode {
         messages={viMessages}
         timeZone="Asia/Ho_Chi_Minh"
       >
-        <NuqsTestingAdapter
-          searchParams={opts.search ?? ""}
-          hasMemory
-          resetUrlUpdateQueueOnMount={false}
-          onUrlUpdate={onUrlUpdate}
-        >
-          <VenueDirectory
-            canSuggest={opts.canSuggest ?? false}
-            exchangeEnabled={opts.exchangeEnabled ?? false}
-            loadExchangeCounts={opts.loadExchangeCounts}
-          />
-        </NuqsTestingAdapter>
+        {opts.realHistory ? (
+          <NuqsAdapter>
+            <VenueDirectory
+              canSuggest={opts.canSuggest ?? false}
+              exchangeEnabled={opts.exchangeEnabled ?? false}
+              loadExchangeCounts={opts.loadExchangeCounts}
+            />
+          </NuqsAdapter>
+        ) : (
+          <NuqsTestingAdapter
+            searchParams={opts.search ?? ""}
+            hasMemory
+            resetUrlUpdateQueueOnMount={false}
+            onUrlUpdate={onUrlUpdate}
+          >
+            <VenueDirectory
+              canSuggest={opts.canSuggest ?? false}
+              exchangeEnabled={opts.exchangeEnabled ?? false}
+              loadExchangeCounts={opts.loadExchangeCounts}
+            />
+          </NuqsTestingAdapter>
+        )}
       </NextIntlClientProvider>
     </QueryClientProvider>
   );
@@ -632,7 +648,12 @@ describe("VenueDirectory: sheet", () => {
   });
 
   it("X returns to the list at the same snap; drag close returns to low", async () => {
-    const { lastUrl } = renderDir();
+    window.history.replaceState(null, "", "/venues");
+    const startLength = window.history.length;
+    const historyBack = vi.spyOn(window.history, "back");
+    renderDir({ realHistory: true });
+    const venueParam = () =>
+      new URLSearchParams(window.location.search).get("venue");
     fireEvent.click(await screen.findByRole("button", { name: "pin-2" }));
     await waitFor(() => expect(snap()).toBe("mid"));
     fireEvent.click(sheetTitle());
@@ -654,9 +675,11 @@ describe("VenueDirectory: sheet", () => {
         within(sheet()).queryByRole("button", { name: "Đóng" }),
       ).toBeNull(),
     );
-    await waitFor(() =>
-      expect(lastUrl()?.searchParams.get("venue")).toBeNull(),
-    );
+    await waitFor(() => expect(venueParam()).toBeNull());
+    // Mỗi lần mở thẻ push một mục, mỗi lần đóng lùi qua đúng mục đó: Back của
+    // điện thoại không phải bấm thêm lần nào để rời trang.
+    expect(historyBack).toHaveBeenCalledTimes(2);
+    expect(window.history.length).toBe(startLength + 1);
   });
 
   it("exchange filter pending shows skeleton cards and a title without a number", async () => {

@@ -117,7 +117,7 @@ function createPin(onClick: () => void): HTMLButtonElement {
   badge.hidden = true;
   badge.setAttribute("aria-hidden", "true");
   badge.className =
-    "bg-background text-foreground border-primary group-data-[exchange=true]:border-warning pointer-events-none absolute top-0 right-0 flex size-5 items-center justify-center rounded-full border text-sm leading-none font-bold";
+    "bg-background text-foreground border-primary group-data-[exchange=true]:border-warning pointer-events-none absolute top-0 right-0 flex h-5 min-w-5 items-center justify-center rounded-full border px-1 text-sm leading-none font-bold";
   el.appendChild(badge);
   el.addEventListener("click", (e) => {
     // Không để cú bấm ghim lọt xuống bản đồ.
