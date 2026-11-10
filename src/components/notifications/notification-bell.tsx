@@ -50,6 +50,9 @@ export function NotificationBell({
       <button
         type="button"
         onClick={() => setOpen(true)}
+        // Header admin còn có chuông nợ (AdminDebtBell) cùng nhãn "Thông báo":
+        // e2e bám data-slot này để chỉ đúng chuông thông báo chung.
+        data-slot="notification-bell"
         aria-label={
           unread > 0
             ? `${t("title")}, ${t("unreadCount", { count: unread })}`

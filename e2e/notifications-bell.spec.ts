@@ -166,7 +166,9 @@ test("bell hidden while notificationsEnabled is off", async ({
   await expect(page.getByText("Admin").first()).toBeVisible({
     timeout: 20_000,
   });
-  await expect(page.getByRole("button", { name: /^Thông báo/ })).toHaveCount(0);
+  // Admin luôn có chuông nợ riêng (cùng nhãn "Thông báo", không theo công tắc
+  // này), nên đếm đúng chuông thông báo chung.
+  await expect(page.locator('[data-slot="notification-bell"]')).toHaveCount(0);
 
   // Member.
   const ctx = await browser.newContext({
@@ -318,7 +320,8 @@ test("admin bell lists a capacity alert after a seeded vote fills the session", 
       .toBeGreaterThan(0);
 
     await page.goto("/admin/dashboard", { waitUntil: "domcontentloaded" });
-    const bell = page.getByRole("button", { name: /^Thông báo/ }).first();
+    // Chuông nợ của admin đứng trước trong header: chọn đúng chuông thông báo chung.
+    const bell = page.locator('button[data-slot="notification-bell"]').first();
     await expect(bell).toBeVisible({ timeout: 20_000 });
     await bell.click();
     await expect(page.getByText(/Buổi đã đầy chỗ/).first()).toBeVisible({
