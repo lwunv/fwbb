@@ -1,6 +1,6 @@
 process.env.TZ = "UTC";
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, onTestFinished, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "@/db/test-db";
@@ -67,6 +67,7 @@ const {
   scheduleRatingReminder,
   scheduleRatingReminderAfterCommit,
   runRatingReminder,
+  dailyReminderEventsQuery,
 } = await import("./rating-jobs");
 const { runJob, finishJob } = await import("@/lib/notifications/jobs");
 const { runDailyNotifications } = await import("@/lib/notifications/daily");
@@ -309,6 +310,47 @@ describe("scheduleRatingReminder", () => {
     expect(row.status).toBe("cancelled");
   });
 
+  it("an alive event past its reminder time keeps the pending job; hiding it then still cancels", async () => {
+    qstash.state.configured = true;
+    const ev = await addEvent(END);
+    await scheduleRatingReminder(testDb, snapshot(ev), BEFORE);
+    const [first] = await ratingJobs();
+    qstash.cancelJobMessage.mockClear();
+    qstash.publishJob.mockClear();
+
+    // Admin bấm "bỏ ẩn" trên buổi vốn đang hiện, sau giờ nhắc mà job chưa chạy.
+    const late = new Date(AT_RUN.getTime() + 1);
+    await scheduleRatingReminder(testDb, snapshot(ev), late);
+    let rows = await ratingJobs();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      status: "scheduled",
+      messageId: first.messageId,
+      jobKey: first.jobKey,
+    });
+    expect(qstash.cancelJobMessage).not.toHaveBeenCalled();
+    expect(qstash.publishJob).not.toHaveBeenCalled();
+
+    await scheduleRatingReminder(
+      testDb,
+      { ...snapshot(ev), hiddenAt: late.toISOString() },
+      late,
+    );
+    rows = await ratingJobs();
+    expect(rows[0].status).toBe("cancelled");
+    expect(qstash.cancelJobMessage).toHaveBeenCalledWith(first.messageId);
+  });
+
+  it("an alive event past its reminder time with no job gets none", async () => {
+    const ev = await addEvent(END);
+    await scheduleRatingReminder(
+      testDb,
+      snapshot(ev),
+      new Date(AT_RUN.getTime() + 1),
+    );
+    expect(await ratingJobs()).toHaveLength(0);
+  });
+
   it("notifications off at creation schedules nothing; the daily step schedules it later", async () => {
     await client.execute("DELETE FROM app_settings");
     await setExchangeFlag(true);
@@ -516,6 +558,11 @@ describe("runRatingReminder", () => {
   });
 
   it("a member who muted the Giao lưu group gets nothing; a verified email gets one mail via the outbox", async () => {
+    // Mail cần link tuyệt đối: không phụ thuộc env của shell chạy test.
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://fwbb.test");
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+    });
     const ev = await addEvent(END);
     const muted = await addMember();
     const withMail = await addMember({
@@ -542,5 +589,18 @@ describe("runRatingReminder", () => {
     await drainOutbox(testDb, { now: new Date("2026-11-13T00:30:00.000Z") });
     expect(mailer.sendMail).toHaveBeenCalledTimes(1);
     expect(mailer.sendMail.mock.calls[0][0].to).toBe("p@example.test");
+  });
+});
+
+describe("query plans", () => {
+  it("EXPLAIN QUERY PLAN of the daily step's end_at range uses exchange_events_end_at_idx without a SCAN", async () => {
+    const q = dailyReminderEventsQuery(testDb, BEFORE).toSQL();
+    const res = await client.execute({
+      sql: `EXPLAIN QUERY PLAN ${q.sql}`,
+      args: q.params as (string | number | null)[],
+    });
+    const details = res.rows.map((r) => String(r.detail));
+    expect(details.join("\n")).toMatch(/exchange_events_end_at_idx/);
+    expect(details.filter((d) => /\bSCAN\b/.test(d))).toEqual([]);
   });
 });

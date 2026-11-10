@@ -67,8 +67,9 @@ async function exchangeFlagOn(db: DbOrTx): Promise<boolean> {
 }
 
 /**
- * Đồng bộ job nhắc của một buổi. Thông báo tắt, buổi huỷ/ẩn hoặc đã qua giờ
- * nhắc: mọi dòng `scheduled` của buổi thành `cancelled` và huỷ message QStash.
+ * Đồng bộ job nhắc của một buổi. Thông báo tắt hoặc buổi huỷ/ẩn: mọi dòng
+ * `scheduled` của buổi thành `cancelled` và huỷ message QStash. Buổi còn sống
+ * mà đã qua giờ nhắc: giữ nguyên mọi dòng.
  * Còn lại: chỉ giữ đúng một dòng theo khoá hiện tại (dòng khoá cũ bị huỷ).
  * Dòng `cancelled` được hồi sinh với `revision` mới để QStash không bỏ message
  * vì trùng mã chống lặp. Dòng `scheduled` chưa có message (tạo lúc còn xa hơn
@@ -86,11 +87,11 @@ export async function scheduleRatingReminder(
   const key = ratingJobKey(ev.id, ev.endAt);
   const runAt = new Date(Date.parse(ev.endAt) + RATING_REMINDER_DELAY_MS);
   const nowIso = now.toISOString();
-  const cancelAll =
-    !on ||
-    ev.status === "cancelled" ||
-    ev.hiddenAt !== null ||
-    runAt.getTime() <= now.getTime();
+  const cancelAll = !on || ev.status === "cancelled" || ev.hiddenAt !== null;
+  // Buổi còn sống mà đã qua giờ nhắc: không huỷ, không tạo, không hồi sinh.
+  // Dòng đang chờ (vd admin bấm "bỏ ẩn" trên buổi vốn đang hiện) vẫn chạy được;
+  // lúc chạy job tự kiểm lại buổi, người nhận và cửa sổ chấm.
+  if (!cancelAll && runAt.getTime() <= now.getTime()) return;
 
   // Khoảng khoá của đúng buổi này (';' đứng ngay sau ':' trong bảng mã), đi
   // theo unique index `job_key`.
@@ -299,14 +300,10 @@ export async function runRatingReminder(
  * lưu bật, đồng bộ job nhắc cho mọi buổi không huỷ, không ẩn, kết thúc trong 8
  * ngày tới mà giờ nhắc chưa qua (theo `exchange_events_end_at_idx`). Bù cho
  * buổi tạo lúc tắt thông báo và đăng QStash cho buổi tạo sớm hơn 7 ngày.
- * Trả số buổi đã xét.
+ * Trả số buổi đã xét. Truy vấn tách riêng để test EXPLAIN khoá index.
  */
-export async function syncRatingRemindersDaily(
-  db: DbOrTx,
-  now: Date,
-): Promise<number> {
-  if (!(await exchangeFlagOn(db))) return 0;
-  const rows = await db
+export function dailyReminderEventsQuery(db: DbOrTx, now: Date) {
+  return db
     .select({
       id: exchangeEvents.id,
       endAt: exchangeEvents.endAt,
@@ -328,6 +325,15 @@ export async function syncRatingRemindersDaily(
         isNull(exchangeEvents.hiddenAt),
       ),
     );
+}
+
+/** Bước hằng ngày: đồng bộ job nhắc cho từng buổi của `dailyReminderEventsQuery`. */
+export async function syncRatingRemindersDaily(
+  db: DbOrTx,
+  now: Date,
+): Promise<number> {
+  if (!(await exchangeFlagOn(db))) return 0;
+  const rows = await dailyReminderEventsQuery(db, now);
   for (const ev of rows) {
     await scheduleRatingReminder(db, ev, now, true);
   }
