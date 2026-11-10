@@ -19,7 +19,10 @@ import {
   repointNotifications,
 } from "@/lib/notifications/account-events";
 import { repointExchangeRows } from "@/lib/exchange/member-rows";
-import { invalidateMemberReputation } from "@/lib/reputation/invalidate";
+import {
+  invalidateAfterMerge,
+  invalidateMemberReputation,
+} from "@/lib/reputation/invalidate";
 
 /** Helper: normalize Vietnamese name for fuzzy matching (lowercase + strip
  *  diacritics + collapse whitespace). Đủ cho UX gợi ý, không phải search engine. */
@@ -464,6 +467,7 @@ export async function approveAndMergeMember(
 
   // Copy OAuth credentials sang target, plus nickname/phone/bank nếu pending
   // có set mà target chưa có.
+  let droppedRatedIds: number[] = [];
   await db.transaction(async (tx) => {
     const updates: Partial<typeof members.$inferInsert> = {
       approvalStatus: "approved",
@@ -518,7 +522,11 @@ export async function approveAndMergeMember(
     // gate khỏi vote, nên hard delete OK.
     // Tin đã gửi cho tài khoản chờ duyệt chuyển sang target trước khi xoá nó.
     await repointNotifications(tx, pendingMemberId, targetMemberId);
-    await repointExchangeRows(tx, pendingMemberId, targetMemberId);
+    ({ droppedRatedIds } = await repointExchangeRows(
+      tx,
+      pendingMemberId,
+      targetMemberId,
+    ));
     await tx.delete(members).where(eq(members.id, pendingMemberId));
 
     await notifyMemberAccount(tx, {
@@ -527,14 +535,17 @@ export async function approveAndMergeMember(
       dedupBase: `acct:merge:m${targetMemberId}`,
     });
   });
-  await invalidateMemberReputation(db, [pendingMemberId, targetMemberId], {
-    asRater: true,
-    codes: true,
-  });
-
   revalidatePath("/admin/members");
   revalidatePath("/pending-approval");
   revalidatePath("/");
+  // Sau commit và sau revalidatePath: lỗi cache không làm lần gộp đã ghi
+  // thành thất bại (xem invalidateAfterMerge).
+  await invalidateAfterMerge(
+    db,
+    pendingMemberId,
+    targetMemberId,
+    droppedRatedIds,
+  );
   return { success: true };
 }
 

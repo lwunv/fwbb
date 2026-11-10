@@ -912,13 +912,11 @@ describe("reputation rows through merge (G2d)", () => {
 
     // Đích đã có người giới thiệu: dòng của nguồn bị bỏ, giữ của đích.
     const source2 = await mk("Nguon 2");
-    await testDb
-      .insert(referrals)
-      .values({
-        referrerMemberId: b,
-        refereeMemberId: source2,
-        createdAt: NOW,
-      });
+    await testDb.insert(referrals).values({
+      referrerMemberId: b,
+      refereeMemberId: source2,
+      createdAt: NOW,
+    });
     await testDb
       .update(referrals)
       .set({ refereeMemberId: target })
@@ -1154,5 +1152,146 @@ describe("reputation rows through merge (G2d)", () => {
     expect(tags).toEqual(
       expect.arrayContaining(["exchange", `rep:m${pending}`, `rep:m${target}`]),
     );
+  });
+
+  it.each([
+    [
+      "peer_feedback (rated only)",
+      async (m: number) => {
+        const rater = await mk("Nguoi cham");
+        const host = await mk("Host");
+        await mkPeer(await mkEvent(host, "DLP1"), rater, m);
+      },
+    ],
+    [
+      "host_feedback",
+      async (m: number) => {
+        const host = await mk("Host");
+        await mkHostFb(await mkEvent(host, "DLH1"), m);
+      },
+    ],
+    [
+      "host_flag_reviews",
+      async (m: number) => {
+        await testDb
+          .insert(hostFlagReviews)
+          .values({ hostMemberId: m, captives: 2, reviewedAt: NOW });
+      },
+    ],
+    [
+      "referrals",
+      async (m: number) => {
+        const referrer = await mk("Nguoi gioi thieu");
+        await testDb.insert(referrals).values({
+          referrerMemberId: referrer,
+          refereeMemberId: m,
+          createdAt: NOW,
+        });
+      },
+    ],
+  ])("deleteMember with only %s is blocked", async (_table, seed) => {
+    const m = await mk("Chi co uy tin");
+    await seed(m);
+
+    const r = await deleteMember(m);
+    expect(r).toHaveProperty("error");
+    expect(
+      await testDb.query.members.findFirst({ where: eq(members.id, m) }),
+    ).toBeDefined();
+  });
+
+  it("merge refreshes a member whose only rating was dropped because the target hosted that event", async () => {
+    const source = await mk("Nguon");
+    const target = await mk("Dich");
+    const y = await mk("Y");
+    const ev = await mkEvent(target, "RP9");
+    const dropped = await mkPeer(ev, source, y);
+
+    expect(await mergeMember(source, target)).toEqual({ success: true });
+
+    const peers = await testDb.select().from(peerFeedback);
+    expect(peers.find((p) => p.id === dropped)).toBeUndefined();
+    const { updateTag } = await import("next/cache");
+    const tags = vi.mocked(updateTag).mock.calls.map((c) => c[0]);
+    expect(tags).toContain(`rep:m${y}`);
+  });
+
+  it("approve-as-merge refreshes a member whose only rating was dropped the same way", async () => {
+    const target = await mk("Dich");
+    const pending = await mk("Cho duyet", {
+      approvalStatus: "pending",
+      googleId: "g-pend-drop",
+    });
+    const y = await mk("Y");
+    const ev = await mkEvent(target, "RP10");
+    await mkPeer(ev, pending, y);
+
+    expect(await approveAndMergeMember(pending, target)).toEqual({
+      success: true,
+    });
+
+    const { updateTag } = await import("next/cache");
+    const tags = vi.mocked(updateTag).mock.calls.map((c) => c[0]);
+    expect(tags).toContain(`rep:m${y}`);
+  });
+
+  it("a failing cache refresh after merge still reports success and revalidates the fund pages", async () => {
+    const source = await mk("Nguon");
+    const target = await mk("Dich");
+    const { updateTag, revalidatePath } = await import("next/cache");
+    vi.mocked(revalidatePath).mockClear();
+    vi.mocked(updateTag).mockImplementationOnce(() => {
+      throw new Error("cache down");
+    });
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(await mergeMember(source, target)).toEqual({ success: true });
+
+      const paths = vi.mocked(revalidatePath).mock.calls.map((c) => c[0]);
+      expect(paths).toEqual(
+        expect.arrayContaining(["/admin/members", "/admin/fund"]),
+      );
+      expect(
+        await testDb.query.members.findFirst({
+          where: eq(members.id, source),
+        }),
+      ).toBeUndefined();
+      expect(err).toHaveBeenCalledWith("[Reputation] merge-invalidate-failed", {
+        sourceId: source,
+        targetId: target,
+      });
+    } finally {
+      err.mockRestore();
+    }
+  });
+
+  it("a failing cache refresh after approve-as-merge still reports success and revalidates", async () => {
+    const target = await mk("Dich");
+    const pending = await mk("Cho duyet", {
+      approvalStatus: "pending",
+      googleId: "g-pend-fail",
+    });
+    const { updateTag, revalidatePath } = await import("next/cache");
+    vi.mocked(revalidatePath).mockClear();
+    vi.mocked(updateTag).mockImplementationOnce(() => {
+      throw new Error("cache down");
+    });
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(await approveAndMergeMember(pending, target)).toEqual({
+        success: true,
+      });
+
+      const paths = vi.mocked(revalidatePath).mock.calls.map((c) => c[0]);
+      expect(paths).toEqual(
+        expect.arrayContaining(["/admin/members", "/pending-approval", "/"]),
+      );
+      expect(err).toHaveBeenCalledWith("[Reputation] merge-invalidate-failed", {
+        sourceId: pending,
+        targetId: target,
+      });
+    } finally {
+      err.mockRestore();
+    }
   });
 });

@@ -28,7 +28,10 @@ import {
   notExchangeAccountWhere,
 } from "@/lib/exchange-account";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { invalidateMemberReputation } from "@/lib/reputation/invalidate";
+import {
+  invalidateAfterMerge,
+  invalidateMemberReputation,
+} from "@/lib/reputation/invalidate";
 import { memberSchema } from "@/lib/validators";
 import { normalizeUsername } from "@/lib/username";
 import { AVATAR_BRAND_KEYS } from "@/lib/member-avatar-presets";
@@ -999,6 +1002,7 @@ export async function mergeMember(sourceId: number, targetId: number) {
     }
   }
 
+  let droppedRatedIds: number[] = [];
   await db.transaction(async (tx) => {
     // 1. votes — UNIQUE (sessionId, memberId). Lấy danh sách session mà target
     //    đã có vote → xóa source ở các session đó (giữ target). Còn lại update.
@@ -1223,20 +1227,19 @@ export async function mergeMember(sourceId: number, targetId: number) {
     await repointNotifications(tx, sourceId, targetId);
 
     // 6d. Dòng giao lưu (buổi host, đăng ký, chặn, báo cáo) sang target.
-    await repointExchangeRows(tx, sourceId, targetId);
+    ({ droppedRatedIds } = await repointExchangeRows(tx, sourceId, targetId));
 
     // 7. Xóa member nguồn.
     await tx.delete(members).where(eq(members.id, sourceId));
-  });
-  await invalidateMemberReputation(db, [sourceId, targetId], {
-    asRater: true,
-    codes: true,
   });
 
   revalidatePath("/admin/members");
   revalidatePath("/admin/fund");
   revalidatePath("/admin/sessions");
   revalidatePath("/admin/dashboard");
+  // Sau commit và sau revalidatePath: lỗi cache không làm lần gộp đã ghi
+  // thành thất bại (xem invalidateAfterMerge).
+  await invalidateAfterMerge(db, sourceId, targetId, droppedRatedIds);
   return { success: true };
 }
 

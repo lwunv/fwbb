@@ -100,12 +100,16 @@ function latest(a: string | null, b: string | null): string | null {
  * dòng đăng ký và được cộng sang dòng giữ lại khi trùng.
  *
  * Mọi trường hợp trùng khoá unique đều giữ dòng của đích, xoá dòng của nguồn.
+ *
+ * Trả `droppedRatedIds`: người được chấm mất dòng chấm vì buổi đó nay do đích
+ * làm host. Sau commit không còn dòng nào nối họ với đích, nên người gọi phải
+ * truyền họ vào `invalidateMemberReputation` (`rated`) để hồ sơ không cũ.
  */
 export async function repointExchangeRows(
   tx: Tx,
   sourceId: number,
   targetId: number,
-): Promise<void> {
+): Promise<{ droppedRatedIds: number[] }> {
   const now = new Date().toISOString();
 
   // Buổi do nguồn làm host.
@@ -320,7 +324,8 @@ export async function repointExchangeRows(
   }
 
   await repointCommentRows(tx, sourceId, targetId);
-  await repointReputationRows(tx, sourceId, targetId);
+  const droppedRatedIds = await repointReputationRows(tx, sourceId, targetId);
+  return { droppedRatedIds };
 }
 
 /**
@@ -333,7 +338,7 @@ async function repointReputationRows(
   tx: Tx,
   sourceId: number,
   targetId: number,
-): Promise<void> {
+): Promise<number[]> {
   const now = new Date().toISOString();
   const hostedByTarget = sql`(SELECT he.id FROM exchange_events he WHERE he.host_member_id = ${targetId})`;
 
@@ -377,6 +382,18 @@ async function repointReputationRows(
     .update(peerFeedback)
     .set({ toMemberId: targetId })
     .where(eq(peerFeedback.toMemberId, sourceId));
+  // Đọc trước khi xoá: người đích (gồm cả dòng vừa dời từ nguồn) đã chấm ở
+  // buổi nay do đích làm host. Dòng chấm đích thì đích đã nằm trong danh sách
+  // làm mới của người gọi.
+  const droppedRated = await tx
+    .selectDistinct({ id: peerFeedback.toMemberId })
+    .from(peerFeedback)
+    .where(
+      and(
+        eq(peerFeedback.fromMemberId, targetId),
+        sql`${peerFeedback.eventId} IN ${hostedByTarget}`,
+      ),
+    );
   await tx
     .delete(peerFeedback)
     .where(
@@ -536,6 +553,7 @@ async function repointReputationRows(
         .where(and(eq(members.id, targetId), isNull(members.publicCode)));
     }
   }
+  return droppedRated.map((r) => r.id);
 }
 
 /**
