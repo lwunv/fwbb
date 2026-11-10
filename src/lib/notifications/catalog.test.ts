@@ -231,6 +231,27 @@ describe("catalog exchange comments", () => {
   });
 });
 
+describe("catalog venue reviews", () => {
+  it("catalog: venue_review_held has vi/en/zh title and body", () => {
+    for (const bundle of [vi, en, zh]) {
+      const kinds = (bundle as unknown as Bundle).notifications.kinds;
+      const k = kinds.venue_review_held;
+      expect(k?.title).toBeTruthy();
+      expect(k?.body).toBeTruthy();
+      expect(k?.body).toContain("{venueName}");
+      expect(`${k?.title}${k?.body}`).not.toMatch(/[\u2013\u2014]/);
+    }
+    expect(NOTIFICATION_CATALOG.venue_review_held).toEqual({
+      audience: "admin",
+      group: "admin_members",
+      mandatory: false,
+      email: false,
+      level: "now",
+      quietHoursBypassSameDay: false,
+    });
+  });
+});
+
 describe("catalog rating reminder", () => {
   it("catalog: exchange_rate_reminder has vi/en/zh title and body", () => {
     expect(NOTIFICATION_CATALOG.exchange_rate_reminder).toEqual({

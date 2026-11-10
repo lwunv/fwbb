@@ -1135,6 +1135,12 @@
       "feedbackClosed": "这场活动的评价时间已结束。",
       "feedbackNotAllowed": "你无法评价这场活动。",
       "feedbackSaveFailed": "评价未能保存，请重试。",
+      "reviewVenueNotFound": "找不到这个场馆。",
+      "reviewNotEligible": "只有在这个场馆打过球的人才能评价。",
+      "reviewEditTooSoon": "你最近修改过评价，{date} 起可以再次修改。",
+      "reviewHidden": "这条评价已被隐藏，无法修改。",
+      "reviewNotFound": "这条评价已不存在。",
+      "reviewSaveFailed": "场馆评价未能保存，请重试。",
       "referralNotEligible": "至少到场 3 次且到场率不低于 80% 才能推荐他人。",
       "referralQuota": "你本月已推荐满 {max} 人。",
       "referralBlocked": "你在 {date} 之前暂时无法推荐他人。",
@@ -1282,6 +1288,13 @@
       "reportSubmit": "提交举报",
       "reportSent": "举报已提交,谢谢。",
       "reportFailed": "举报未能发送,请重试。"
+    },
+    "reputation": {
+      "newBadge": "新",
+      "hostNew": "新组织者",
+      "hostOrganized": "已组织 {count} 场",
+      "hostAsDescribed": "与描述相符 {pct}%",
+      "hostFeeAsPromised": "费用相符 {pct}%"
     },
     "manage": {
       "title": "管理活动",
@@ -2072,7 +2085,6 @@
     "linkedDirectory": "目录：",
     "notLinked": "未关联",
     "directions": "导航",
-    "directionsTo": "导航到 {name}",
     "pageTitle": "附近的球馆",
     "radius": "范围",
     "radiusValue": "{km} 公里",
@@ -2396,10 +2408,6 @@
         "title": "交流活动已被隐藏",
         "body": "你的活动 {eventTitle} 已被管理员从公开列表中隐藏。"
       },
-      "exchange_rate_reminder": {
-        "title": "给刚结束的交流活动评分",
-        "body": "\"{eventTitle}\" 已结束。请在 7 天内给一起打球的人和主办人评分。"
-      },
       "exchange_reported": {
         "title": "收到新举报",
         "body": "有人举报了{targetType}，原因：{reason}。"
@@ -2419,6 +2427,14 @@
       "exchange_comment_held": {
         "title": "有评论待审核",
         "body": "{eventTitle} 有一条评论等你审核。"
+      },
+      "venue_review_held": {
+        "title": "有场馆评价待审核",
+        "body": "{venueName} 有一条评价等你审核。"
+      },
+      "exchange_rate_reminder": {
+        "title": "给刚结束的交流活动评分",
+        "body": "\"{eventTitle}\" 已结束。请在 7 天内给一起打球的人和主办人评分。"
       }
     },
     "unsubscribe": {
@@ -2437,6 +2453,8 @@
       "member": "一位成员",
       "event": "一场交流活动",
       "comment": "一条评论",
+      "review": "一条场馆评价",
+      "venue": "一个场馆",
       "other": "一项内容"
     },
     "reportReasons": {

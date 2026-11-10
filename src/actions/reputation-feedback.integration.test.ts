@@ -494,6 +494,10 @@ describe("submitEventFeedback: writes", () => {
     );
     const [e1Before] = await peerRows(e1.id);
     const [e1HostBefore] = await hostRows(e1.id);
+    expect(e1Before.raterWeight).toBe(2);
+
+    // Người chấm đến thêm một buổi: w5 2 -> 3 trước lần sửa.
+    await addReg((await mkEvent(host)).id, a.id);
 
     vi.setSystemTime(NOW + 2 * 3_600_000);
     const r = await submitEventFeedback(
@@ -503,11 +507,13 @@ describe("submitEventFeedback: writes", () => {
     );
     expect(r).toEqual({ success: true, data: { saved: 2 } });
 
+    // Dòng không đổi giữ trọng số cũ; dòng đổi nhận trọng số mới.
     const [e1After] = await peerRows(e1.id);
     expect(e1After).toEqual(e1Before);
     const [e1HostAfter] = await hostRows(e1.id);
     expect(e1HostAfter).toMatchObject({
       asDescribed: false,
+      raterWeight: 3,
       updatedAt: iso(NOW + 2 * 3_600_000),
     });
     expect(e1HostAfter.idempotencyKey).not.toBe(e1HostBefore.idempotencyKey);
@@ -529,18 +535,23 @@ describe("submitEventFeedback: writes", () => {
   });
 
   it("editing only the peer answers keeps the host row's timestamp and weight but stores the new key", async () => {
-    const { ev, a, regB } = await scene();
+    const { host, ev, a, regB } = await scene();
     asMember(a);
     await submitEventFeedback(
       payload(ev.publicCode, [{ registrationId: regB.id, playAgain: true }]),
     );
     const [hostBefore] = await hostRows(ev.id);
+    expect(hostBefore.raterWeight).toBe(1);
+
+    // Người chấm đến thêm một buổi: w5 1 -> 2 trước lần sửa.
+    await addReg((await mkEvent(host)).id, a.id);
 
     vi.setSystemTime(NOW + 3_600_000);
     const again = payload(ev.publicCode, [
       { registrationId: regB.id, tags: ["friendly"] },
     ]);
     await submitEventFeedback(again);
+    // Câu về host không đổi: giữ trọng số 1 cũ, chỉ lưu key mới.
     const [hostAfter] = await hostRows(ev.id);
     expect(hostAfter).toEqual({
       ...hostBefore,
@@ -548,6 +559,7 @@ describe("submitEventFeedback: writes", () => {
     });
     const [peerAfter] = await peerRows(ev.id);
     expect(peerAfter.updatedAt).toBe(iso(NOW + 3_600_000));
+    expect(peerAfter.raterWeight).toBe(2);
 
     // Gửi lại cùng key vẫn là lần gửi lặp, không ghi gì.
     vi.setSystemTime(NOW + 2 * 3_600_000);

@@ -12,26 +12,41 @@ import { cn } from "@/lib/utils";
 
 type Target = "event" | "host";
 
-/**
- * Báo cáo buổi hoặc host. Gửi bằng `fireAction` với `retry: false`: token
- * Turnstile chỉ dùng được một lần nên không được gửi lại cùng closure, và sau
- * mỗi lần gửi (thành công hay lỗi) phải tăng `resetKey` để lấy token mới.
- */
-export function ReportSheet({
-  open,
-  onOpenChange,
-  code,
-  registrationId,
-  commentId,
-}: {
+/** Đối tượng đã rõ (hồ sơ người chơi, sân, một đánh giá sân): không cần mã buổi. */
+export type ReportSheetTarget =
+  | { type: "player"; code: string }
+  | { type: "venue"; venueId: number }
+  | { type: "review"; reviewId: number };
+
+type ReportSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  code: string;
-  /** Host báo cáo một người đăng ký: bỏ lựa chọn buổi/host, gửi theo đăng ký. */
-  registrationId?: number;
-  /** Báo cáo một bình luận: bỏ lựa chọn buổi/host, gửi theo bình luận. */
-  commentId?: number;
-}) {
+} & (
+  | {
+      code: string;
+      target?: undefined;
+      /** Host báo cáo một người đăng ký: bỏ lựa chọn buổi/host, gửi theo đăng ký. */
+      registrationId?: number;
+      /** Báo cáo một bình luận: bỏ lựa chọn buổi/host, gửi theo bình luận. */
+      commentId?: number;
+    }
+  | {
+      code?: string;
+      /** Báo cáo theo đối tượng: bỏ lựa chọn buổi/host, gửi đúng đối tượng này. */
+      target: ReportSheetTarget;
+      registrationId?: undefined;
+      commentId?: undefined;
+    }
+);
+
+/**
+ * Báo cáo buổi, host, đăng ký, bình luận hoặc một đối tượng đã rõ. Gửi bằng
+ * `fireAction` với `retry: false`: token Turnstile chỉ dùng được một lần nên
+ * không được gửi lại cùng closure, và sau mỗi lần gửi (thành công hay lỗi)
+ * phải tăng `resetKey` để lấy token mới.
+ */
+export function ReportSheet(props: ReportSheetProps) {
+  const { open, onOpenChange, registrationId, commentId } = props;
   const t = useTranslations("exchange.event");
   const tReason = useTranslations("notifications.reportReasons");
   const [target, setTarget] = useState<Target>("event");
@@ -49,11 +64,13 @@ export function ReportSheet({
       () =>
         reportAbuse({
           target:
-            commentId !== undefined
-              ? { type: "comment", commentId }
-              : registrationId !== undefined
-                ? { type: "registration", registrationId }
-                : { type: target, code },
+            props.target !== undefined
+              ? props.target
+              : commentId !== undefined
+                ? { type: "comment", commentId }
+                : registrationId !== undefined
+                  ? { type: "registration", registrationId }
+                  : { type: target, code: props.code },
           reason,
           note: note.trim() || undefined,
           turnstileToken,
@@ -75,6 +92,12 @@ export function ReportSheet({
       },
     );
   }
+
+  // Đối tượng đã rõ (đăng ký, bình luận, target) thì không hỏi "Báo cáo ai".
+  const pickTarget =
+    props.target === undefined &&
+    registrationId === undefined &&
+    commentId === undefined;
 
   const radio = (active: boolean) =>
     cn(
@@ -102,7 +125,7 @@ export function ReportSheet({
         </button>
       }
     >
-      {registrationId === undefined && commentId === undefined && (
+      {pickTarget && (
         <fieldset className="space-y-2">
           <legend className="text-base font-medium">{t("reportTarget")}</legend>
           <div className="flex gap-2" role="radiogroup">

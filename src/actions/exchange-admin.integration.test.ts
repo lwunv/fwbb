@@ -9,6 +9,7 @@ import {
   exchangeRegistrations,
   members,
   notifications,
+  venueReviews,
   scheduledJobs,
   venues,
 } from "@/db/schema";
@@ -117,6 +118,7 @@ const noticesOf = (kind: string) =>
 beforeEach(async () => {
   await testDb.delete(notifications);
   await testDb.delete(abuseReports);
+  await testDb.delete(venueReviews);
   await testDb.delete(exchangeRegistrations);
   await testDb.delete(exchangeCommentVotes);
   await testDb.delete(exchangeCommentReads);
@@ -465,6 +467,133 @@ describe("admin comment moderation", () => {
     expect(await statusOf(c.id)).toEqual({ s: "deleted", p: false });
     expect(await reportStatuses(c.id)).toEqual(["resolved", "resolved"]);
     expect(mocks.updateTag).toHaveBeenCalledWith(`xcmt:e${ev.id}`);
+  });
+});
+
+describe("admin reports on venues and reviews", () => {
+  let n = 0;
+  async function reporter(approvalStatus: "approved" | "pending" = "approved") {
+    n += 1;
+    const [m] = await testDb
+      .insert(members)
+      .values({ name: `VRep${n}`, approvalStatus })
+      .returning();
+    return m;
+  }
+  async function seedReview(
+    over: Partial<typeof venueReviews.$inferInsert> = {},
+  ) {
+    const author = await reporter();
+    const [r] = await testDb
+      .insert(venueReviews)
+      .values({
+        venueId: venue.id,
+        memberId: author.id,
+        scoreSurface: 3,
+        scoreLighting: 3,
+        scoreVentilation: 3,
+        scorePrice: 3,
+        scoreParking: 3,
+        scoreOwner: 3,
+        comment: "b".repeat(200),
+        raterWeight: 5,
+        createdAt: iso(-DAY),
+        updatedAt: iso(-DAY),
+        ...over,
+      })
+      .returning();
+    return r;
+  }
+  async function reportOn(
+    targetType: "review" | "venue" | "event",
+    targetId: number,
+    by?: { id: number },
+  ) {
+    const m = by ?? (await reporter());
+    const [row] = await testDb
+      .insert(abuseReports)
+      .values({
+        reporterMemberId: m.id,
+        targetType,
+        targetId,
+        reason: "spam",
+        createdAt: iso(0),
+      })
+      .returning();
+    return row;
+  }
+
+  it("admin report list shows venue name and excerpt for a review, venue name for a venue", async () => {
+    const r = await seedReview();
+    const short = await seedReview({ comment: null });
+    await reportOn("review", r.id);
+    await reportOn("review", short.id);
+    await reportOn("venue", venue.id);
+    const res = await adminListReports("open");
+    if (!("data" in res)) throw new Error("no data");
+    expect(res.data).toHaveLength(3);
+    expect(
+      res.data.find((x) => x.targetType === "review" && x.reviewExcerpt),
+    ).toMatchObject({
+      targetName: "San Z",
+      venueId: venue.id,
+      eventCode: null,
+      commentExcerpt: null,
+      reviewExcerpt: "b".repeat(120),
+    });
+    expect(
+      res.data.find((x) => x.targetType === "review" && !x.reviewExcerpt),
+    ).toMatchObject({
+      targetName: "San Z",
+      venueId: venue.id,
+      reviewExcerpt: null,
+    });
+    expect(res.data.find((x) => x.targetType === "venue")).toMatchObject({
+      targetName: "San Z",
+      venueId: venue.id,
+      eventCode: null,
+      commentExcerpt: null,
+      reviewExcerpt: null,
+    });
+    // Báo cáo kiểu cũ có hai trường mới là null.
+    const ev = await mkEvent();
+    await reportOn("event", ev.id);
+    const again = await adminListReports("open");
+    if (!("data" in again)) throw new Error("no data");
+    expect(again.data.find((x) => x.targetType === "event")).toMatchObject({
+      venueId: null,
+      reviewExcerpt: null,
+    });
+  });
+
+  it("resolving a review report in the reports tab lowers report_count", async () => {
+    const r = await seedReview({ status: "hidden", reportCount: 3 });
+    const a = await reportOn("review", r.id);
+    await reportOn("review", r.id);
+    await reportOn("review", r.id);
+    // Báo cáo của nick mới không tính vào số đếm.
+    await reportOn("review", r.id, await reporter("pending"));
+    expect(
+      await adminResolveReport({ reportId: a.id, status: "resolved" }),
+    ).toEqual({ success: true });
+    const [after] = await testDb
+      .select({ s: venueReviews.status, n: venueReviews.reportCount })
+      .from(venueReviews)
+      .where(eq(venueReviews.id, r.id));
+    // Trạng thái ẩn chỉ đổi ở tab Uy tín.
+    expect(after).toEqual({ s: "hidden", n: 2 });
+
+    // Báo cáo đích khác không đụng số đếm của đánh giá.
+    const other = await seedReview({ reportCount: 1 });
+    const ve = await reportOn("venue", venue.id);
+    expect(
+      await adminResolveReport({ reportId: ve.id, status: "dismissed" }),
+    ).toEqual({ success: true });
+    const [o] = await testDb
+      .select({ n: venueReviews.reportCount })
+      .from(venueReviews)
+      .where(eq(venueReviews.id, other.id));
+    expect(o.n).toBe(1);
   });
 });
 

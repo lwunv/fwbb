@@ -214,6 +214,11 @@ export interface NotificationPayloads {
   exchange_comment_reply: ExchangeEventRef & { channel: "qa" | "group" };
   exchange_comment_host_post: ExchangeEventRef;
   exchange_comment_held: ExchangeEventRef;
+  /**
+   * Đánh giá sân vào hàng chờ (G2d). Chỉ tên sân: không người viết, không
+   * nội dung; admin mở tab Uy tín để xem.
+   */
+  venue_review_held: { venueName: string };
 }
 
 /** Trường chung của tin giao lưu: mã URL công khai và tên buổi. */
@@ -336,6 +341,7 @@ export const NOTIFICATION_CATALOG: Record<NotificationKind, KindDef> = {
   ),
   // Admin
   exchange_reported: def("admin", "admin_members", false, false, "now"),
+  venue_review_held: def("admin", "admin_members", false, false, "now"),
   capacity_alert: def("admin", "admin_session", true, true, "now"),
   low_attendance: def("admin", "admin_session", true, true, "scheduled"),
   member_dropped_late: def("admin", "admin_session", false, false, "now"),

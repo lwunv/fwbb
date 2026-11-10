@@ -12,10 +12,8 @@ vi.mock("next/headers", () => ({
   cookies: async () => ({ get: () => undefined, set: () => undefined }),
 }));
 
-// Nhánh lane b chỉ có phần đọc (Task 9). `getMyVenueReview` và
-// `submitVenueReview` đến từ Task 8 ở nhánh chính; khi gộp hai nhánh, danh
-// sách này thành đủ ba tên như tên test.
-const EXPECTED = ["listVenueReviews"];
+// Phần ghi (Task 8) và phần đọc (Task 9) cùng nằm trong một file action.
+const EXPECTED = ["getMyVenueReview", "listVenueReviews", "submitVenueReview"];
 
 describe("server action boundary", () => {
   it(

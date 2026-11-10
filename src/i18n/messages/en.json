@@ -1135,6 +1135,12 @@
       "feedbackClosed": "The rating period for this exchange has ended.",
       "feedbackNotAllowed": "You cannot rate this exchange.",
       "feedbackSaveFailed": "Your ratings could not be saved. Please try again.",
+      "reviewVenueNotFound": "This venue could not be found.",
+      "reviewNotEligible": "Only players who have played at this venue can review it.",
+      "reviewEditTooSoon": "You edited your review recently. You can edit it again from {date}.",
+      "reviewHidden": "This review is hidden, so it cannot be edited.",
+      "reviewNotFound": "This review is no longer available.",
+      "reviewSaveFailed": "Your venue review could not be saved. Please try again.",
       "referralNotEligible": "You need at least 3 attended sessions and an attendance rate of 80% or more to refer someone.",
       "referralQuota": "You have already referred {max, plural, one {# person} other {# people}} this month.",
       "referralBlocked": "You can't refer anyone until {date}.",
@@ -1282,6 +1288,13 @@
       "reportSubmit": "Send report",
       "reportSent": "Report sent. Thank you.",
       "reportFailed": "Could not send the report. Please try again."
+    },
+    "reputation": {
+      "newBadge": "New",
+      "hostNew": "New host",
+      "hostOrganized": "Organized {count, plural, one {# event} other {# events}}",
+      "hostAsDescribed": "As described {pct}%",
+      "hostFeeAsPromised": "Fee as promised {pct}%"
     },
     "manage": {
       "title": "Manage event",
@@ -2072,7 +2085,6 @@
     "linkedDirectory": "Directory:",
     "notLinked": "Not linked",
     "directions": "Directions",
-    "directionsTo": "Directions to {name}",
     "pageTitle": "Courts near you",
     "radius": "Radius",
     "radiusValue": "{km} km",
@@ -2396,10 +2408,6 @@
         "title": "Exchange event hidden",
         "body": "Your event {eventTitle} was hidden from the public list by an admin."
       },
-      "exchange_rate_reminder": {
-        "title": "Rate the exchange you just played",
-        "body": "\"{eventTitle}\" has ended. Please rate your co-players and the host within 7 days."
-      },
       "exchange_reported": {
         "title": "New report",
         "body": "Someone reported {targetType} for this reason: {reason}."
@@ -2419,6 +2427,14 @@
       "exchange_comment_held": {
         "title": "Comment waiting for review",
         "body": "A comment on {eventTitle} is waiting for you to review."
+      },
+      "venue_review_held": {
+        "title": "Venue review waiting for review",
+        "body": "A review of {venueName} is waiting for you to review."
+      },
+      "exchange_rate_reminder": {
+        "title": "Rate the exchange you just played",
+        "body": "\"{eventTitle}\" has ended. Please rate your co-players and the host within 7 days."
       }
     },
     "unsubscribe": {
@@ -2437,6 +2453,8 @@
       "member": "a member",
       "event": "an exchange event",
       "comment": "a comment",
+      "review": "a venue review",
+      "venue": "a venue",
       "other": "an item"
     },
     "reportReasons": {

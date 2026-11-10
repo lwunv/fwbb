@@ -199,6 +199,9 @@ export function notificationHref(
   if (scope === "admin" && item.kind === "exchange_reported") {
     return "/admin/exchanges";
   }
+  if (scope === "admin" && item.kind === "venue_review_held") {
+    return "/admin/exchanges?tab=reputation";
+  }
   if (scope === "member" && group === "exchange_comments") {
     const code = item.payload?.eventCode;
     if (typeof code !== "string" || !code) return "/exchanges";

@@ -1135,6 +1135,12 @@
       "feedbackClosed": "Đã hết thời gian đánh giá buổi này.",
       "feedbackNotAllowed": "Bạn không có quyền đánh giá buổi này.",
       "feedbackSaveFailed": "Chưa lưu được đánh giá. Vui lòng thử lại.",
+      "reviewVenueNotFound": "Không tìm thấy sân này.",
+      "reviewNotEligible": "Chỉ người đã chơi ở sân này mới đánh giá được.",
+      "reviewEditTooSoon": "Bạn đã sửa đánh giá gần đây. Bạn có thể sửa lại từ ngày {date}.",
+      "reviewHidden": "Đánh giá này đang bị ẩn nên không sửa được.",
+      "reviewNotFound": "Đánh giá này không còn hiển thị.",
+      "reviewSaveFailed": "Chưa lưu được đánh giá sân. Vui lòng thử lại.",
       "referralNotEligible": "Bạn cần đã đến ít nhất 3 buổi và có tỉ lệ đến từ 80% mới giới thiệu được.",
       "referralQuota": "Bạn đã giới thiệu đủ {max} người trong tháng này.",
       "referralBlocked": "Bạn tạm không giới thiệu được tới {date}.",
@@ -1282,6 +1288,13 @@
       "reportSubmit": "Gửi báo cáo",
       "reportSent": "Đã gửi báo cáo. Cảm ơn bạn.",
       "reportFailed": "Chưa gửi được báo cáo. Thử lại nhé."
+    },
+    "reputation": {
+      "newBadge": "Mới",
+      "hostNew": "Host mới",
+      "hostOrganized": "Đã tổ chức {count} buổi",
+      "hostAsDescribed": "Đúng mô tả {pct}%",
+      "hostFeeAsPromised": "Đúng phí {pct}%"
     },
     "manage": {
       "title": "Quản lý buổi",
@@ -2072,7 +2085,6 @@
     "linkedDirectory": "Danh bạ:",
     "notLinked": "Chưa nối",
     "directions": "Chỉ đường",
-    "directionsTo": "Chỉ đường tới {name}",
     "pageTitle": "Sân quanh đây",
     "radius": "Bán kính",
     "radiusValue": "{km} km",
@@ -2396,10 +2408,6 @@
         "title": "Buổi giao lưu bị ẩn",
         "body": "Buổi {eventTitle} của bạn đã bị admin ẩn khỏi danh sách công khai."
       },
-      "exchange_rate_reminder": {
-        "title": "Chấm buổi giao lưu vừa chơi",
-        "body": "Buổi \"{eventTitle}\" đã xong. Bạn chấm người chơi cùng và host trong 7 ngày nhé."
-      },
       "exchange_reported": {
         "title": "Có báo cáo mới",
         "body": "Có người báo cáo {targetType} với lý do: {reason}."
@@ -2419,6 +2427,14 @@
       "exchange_comment_held": {
         "title": "Có bình luận chờ duyệt",
         "body": "Buổi {eventTitle} có bình luận đang chờ bạn duyệt."
+      },
+      "venue_review_held": {
+        "title": "Có đánh giá sân chờ duyệt",
+        "body": "Sân {venueName} có đánh giá đang chờ bạn duyệt."
+      },
+      "exchange_rate_reminder": {
+        "title": "Chấm buổi giao lưu vừa chơi",
+        "body": "Buổi \"{eventTitle}\" đã xong. Bạn chấm người chơi cùng và host trong 7 ngày nhé."
       }
     },
     "unsubscribe": {
@@ -2437,6 +2453,8 @@
       "member": "một thành viên",
       "event": "một buổi giao lưu",
       "comment": "một bình luận",
+      "review": "một đánh giá sân",
+      "venue": "một sân",
       "other": "một nội dung"
     },
     "reportReasons": {
