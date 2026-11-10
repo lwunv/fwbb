@@ -18,6 +18,8 @@ import {
   QSTASH_MAX_DELAY_MS,
 } from "./qstash";
 import { superadminRecipients } from "./recipients";
+import { RATING_JOB_KIND } from "@/lib/reputation/constants";
+import { runRatingReminder } from "@/lib/reputation/rating-jobs";
 import { isSessionJobKind, runSessionJob } from "./scheduled-events";
 import { sessionStartInstant, vnDate } from "./time";
 import type { NotificationPayloads } from "./catalog";
@@ -130,7 +132,7 @@ const withinQstashWindow = (runAt: Date, now: Date) =>
   runAt.getTime() <= now.getTime() + QSTASH_MAX_DELAY_MS;
 
 /** Đăng message cho dòng chưa có `messageId` rồi lưu lại (không đè lượt đăng song song). */
-async function publishRow(
+export async function publishRow(
   db: DbOrTx,
   row: { id: number; jobKey: string; runAt: Date; revision?: number },
   now: Date,
@@ -415,6 +417,10 @@ export async function runJob(
       gate: true,
     });
     return "done";
+  }
+  if (job.kind === RATING_JOB_KIND) {
+    if (!(await isNotificationsEnabled(db))) return "skipped";
+    return runRatingReminder(db, job, now, true);
   }
   if (job.kind === "outbox_retry") {
     // drainOutbox tự kiểm công tắc và giữ chỗ từng mail trước khi gửi.

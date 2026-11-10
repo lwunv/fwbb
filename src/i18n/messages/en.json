@@ -2384,6 +2384,10 @@
         "title": "Exchange event hidden",
         "body": "Your event {eventTitle} was hidden from the public list by an admin."
       },
+      "exchange_rate_reminder": {
+        "title": "Rate the exchange you just played",
+        "body": "\"{eventTitle}\" has ended. Please rate your co-players and the host within 7 days."
+      },
       "exchange_reported": {
         "title": "New report",
         "body": "Someone reported {targetType} for this reason: {reason}."

@@ -84,6 +84,8 @@ const HREFS: Record<NotificationKind, [string, string]> = {
   exchange_comment_reply: ["/exchanges", "/admin/dashboard"],
   exchange_comment_host_post: ["/exchanges", "/admin/dashboard"],
   exchange_comment_held: ["/exchanges", "/admin/dashboard"],
+  // Thêm ở G2d Task 14 (thiếu eventCode nên về /exchanges; link ?feedback=1 ở render.test).
+  exchange_rate_reminder: ["/exchanges", "/admin/dashboard"],
 };
 
 describe("notificationHref", () => {

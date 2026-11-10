@@ -28,6 +28,7 @@ import { computeBalanceFromTransactions } from "@/lib/fund-core";
 import { sendMail } from "@/lib/mailer";
 import { runReconcile } from "@/lib/reconcile-core";
 import { pruneIpSignalsDaily } from "@/lib/reputation/ip-signals";
+import { syncRatingRemindersDaily } from "@/lib/reputation/rating-jobs";
 import { NOTIFICATION_CATALOG, NOTIFICATION_KINDS } from "./catalog";
 import {
   debtAgeDays,
@@ -82,6 +83,8 @@ export type DailyReport = {
   cleaned: number;
   /** Số dòng tín hiệu mạng quá 30 ngày đã xoá (G2d). */
   ipSignalsPruned: number;
+  /** Số buổi giao lưu đã đồng bộ job nhắc chấm (G2d). */
+  ratingReminders: number;
   errors: string[];
 };
 
@@ -300,6 +303,7 @@ export async function runDailyNotifications(
     reconcileChecked: false,
     cleaned: 0,
     ipSignalsPruned: 0,
+    ratingReminders: 0,
     errors: [],
   };
   const step = async (code: string, fn: () => Promise<void>) => {
@@ -396,6 +400,12 @@ export async function runDailyNotifications(
       await rescheduleSessionJobs(db, s.id, now, true);
       report.rescheduled++;
     }
+  });
+
+  // 3b. Nhắc chấm sau buổi giao lưu (G2d): hẹn bù và đăng QStash khi vào
+  // khung 7 ngày. Job quá giờ của kind này đã chạy ở bước 2.
+  await step("exchange_rating", async () => {
+    report.ratingReminders = await syncRatingRemindersDaily(db, now);
   });
 
   // 4. Nhắc nợ theo tuổi nợ (quyết định 11), tối đa 1 tin/người/ngày.

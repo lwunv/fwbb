@@ -9,9 +9,11 @@ import {
   exchangeRegistrations,
   members,
   notifications,
+  scheduledJobs,
   venues,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { createHash } from "node:crypto";
 
 const mocks = vi.hoisted(() => ({
   flag: vi.fn(),
@@ -28,6 +30,13 @@ vi.mock("next/cache", () => ({
 vi.mock("next-intl/server", () => ({
   getTranslations: vi.fn(async () => (key: string) => key),
 }));
+// Bắt việc hẹn sau phản hồi (nhắc chấm, Task 14 G2d) để test tự chạy.
+const pendingAfter = vi.hoisted(() => [] as (() => Promise<unknown>)[]);
+vi.mock("@/lib/notifications/after", () => ({
+  runAfterResponse: (fn: () => Promise<unknown>) => {
+    pendingAfter.push(fn);
+  },
+}));
 
 const { db: testDb } = await createTestDb();
 vi.mock("@/db", () => ({ db: testDb }));
@@ -43,6 +52,7 @@ const {
 } = await import("./exchange-admin");
 const { enableNotificationsForTest } =
   await import("@/lib/notifications/test-helpers");
+const { scheduleRatingReminder } = await import("@/lib/reputation/rating-jobs");
 
 const DAY = 86_400_000;
 const iso = (offsetMs: number) => new Date(Date.now() + offsetMs).toISOString();
@@ -455,5 +465,53 @@ describe("admin comment moderation", () => {
     expect(await statusOf(c.id)).toEqual({ s: "deleted", p: false });
     expect(await reportStatuses(c.id)).toEqual(["resolved", "resolved"]);
     expect(mocks.updateTag).toHaveBeenCalledWith(`xcmt:e${ev.id}`);
+  });
+});
+
+async function flushAfter() {
+  while (pendingAfter.length > 0) await pendingAfter.shift()!();
+}
+const ratingKey = (id: number, endAt: string) =>
+  `xrate:${id}:${createHash("sha256").update(endAt).digest("hex").slice(0, 8)}`;
+const ratingRows = () =>
+  testDb
+    .select()
+    .from(scheduledJobs)
+    .where(eq(scheduledJobs.kind, "exchange_rate_reminder"));
+
+describe("admin actions and the rating reminder", () => {
+  it("admin cancel and admin hide cancel the job; unhiding before the reminder revives it", async () => {
+    await testDb.delete(scheduledJobs);
+    pendingAfter.length = 0;
+
+    const hidden = await mkEvent();
+    await scheduleRatingReminder(testDb, hidden, new Date());
+    expect(
+      await adminSetExchangeHidden({ eventId: hidden.id, hidden: true }),
+    ).toMatchObject({ success: true });
+    await flushAfter();
+    let [row] = await ratingRows();
+    expect(row).toMatchObject({
+      jobKey: ratingKey(hidden.id, hidden.endAt),
+      status: "cancelled",
+    });
+    expect(
+      await adminSetExchangeHidden({ eventId: hidden.id, hidden: false }),
+    ).toMatchObject({ success: true });
+    await flushAfter();
+    [row] = await ratingRows();
+    expect(row.status).toBe("scheduled");
+    expect(row.payload).toMatchObject({ revision: 1 });
+
+    await testDb.delete(scheduledJobs);
+    const cancelled = await mkEvent();
+    await scheduleRatingReminder(testDb, cancelled, new Date());
+    expect(await adminCancelExchange({ eventId: cancelled.id })).toMatchObject({
+      success: true,
+    });
+    await flushAfter();
+    const rows = await ratingRows();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe("cancelled");
   });
 });

@@ -2384,6 +2384,10 @@
         "title": "交流活动已被隐藏",
         "body": "你的活动 {eventTitle} 已被管理员从公开列表中隐藏。"
       },
+      "exchange_rate_reminder": {
+        "title": "给刚结束的交流活动评分",
+        "body": "\"{eventTitle}\" 已结束。请在 7 天内给一起打球的人和主办人评分。"
+      },
       "exchange_reported": {
         "title": "收到新举报",
         "body": "有人举报了{targetType}，原因：{reason}。"

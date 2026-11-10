@@ -5,10 +5,12 @@ import {
   exchangeRegistrations,
   hostBlocks,
   notifications,
+  scheduledJobs,
   venues,
   members,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { createHash } from "node:crypto";
 
 const mocks = vi.hoisted(() => ({
   flag: vi.fn(),
@@ -25,6 +27,13 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
   unstable_cache: (fn: unknown) => fn,
 }));
+// Bắt việc hẹn sau phản hồi (nhắc chấm, Task 14 G2d) để test tự chạy.
+const pendingAfter = vi.hoisted(() => [] as (() => Promise<unknown>)[]);
+vi.mock("@/lib/notifications/after", () => ({
+  runAfterResponse: (fn: () => Promise<unknown>) => {
+    pendingAfter.push(fn);
+  },
+}));
 
 const { db: testDb } = await createTestDb();
 vi.mock("@/db", () => ({ db: testDb }));
@@ -37,7 +46,9 @@ const {
   blockRegistrant,
   unblockMember,
   getManageView,
+  cancelExchangeEvent,
 } = await import("./exchange-host");
+const { scheduleRatingReminder } = await import("@/lib/reputation/rating-jobs");
 const { enableNotificationsForTest } =
   await import("@/lib/notifications/test-helpers");
 
@@ -532,5 +543,49 @@ describe("host actions", () => {
     expect(await testDb.select().from(notifications)).toHaveLength(0);
     expect(mocks.updateTag).not.toHaveBeenCalled();
     void mine;
+  });
+});
+
+async function flushAfter() {
+  while (pendingAfter.length > 0) await pendingAfter.shift()!();
+}
+const ratingKey = (id: number, endAt: string) =>
+  `xrate:${id}:${createHash("sha256").update(endAt).digest("hex").slice(0, 8)}`;
+const ratingRows = () =>
+  testDb
+    .select()
+    .from(scheduledJobs)
+    .where(eq(scheduledJobs.kind, "exchange_rate_reminder"));
+
+describe("cancelExchangeEvent rating reminder", () => {
+  it("host cancel cancels the rating reminder job", async () => {
+    await enableNotificationsForTest(testDb);
+    await testDb.delete(scheduledJobs);
+    pendingAfter.length = 0;
+    as(host);
+    const ev = await mkEvent();
+    await scheduleRatingReminder(testDb, ev, new Date());
+    expect((await ratingRows())[0]).toMatchObject({
+      jobKey: ratingKey(ev.id, ev.endAt),
+      status: "scheduled",
+    });
+    expect(await cancelExchangeEvent({ eventId: ev.id })).toMatchObject({
+      success: true,
+    });
+    await flushAfter();
+    const rows = await ratingRows();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe("cancelled");
+  });
+
+  it("a refused cancel schedules nothing", async () => {
+    await enableNotificationsForTest(testDb);
+    pendingAfter.length = 0;
+    as(host2);
+    const ev = await mkEvent();
+    expect(await cancelExchangeEvent({ eventId: ev.id })).toHaveProperty(
+      "error",
+    );
+    expect(pendingAfter).toHaveLength(0);
   });
 });

@@ -29,6 +29,7 @@ import {
   MAX_SLOTS,
 } from "@/lib/exchange/constants";
 import { cancelEventCore } from "@/lib/exchange/cancel";
+import { scheduleRatingReminderAfterCommit } from "@/lib/reputation/rating-jobs";
 import {
   exchangeGate,
   loadHostedEvent,
@@ -686,14 +687,26 @@ export async function finishExchangeEvent(input: unknown): Promise<Result> {
 
 /** Host huỷ buổi của mình. Admin huỷ qua `cancelEventCore` với quyền admin riêng. */
 export async function cancelExchangeEvent(input: unknown): Promise<Result> {
-  return hostAction(eventOnlySchema, input, "cancel", async (h, f) => {
-    const { t, tx, now, notifyOn, hostId } = h;
-    const ev = await loadHostedEvent(tx, f.eventId, hostId);
-    if (!ev) return { error: t("notAllowed") };
-    if (!(await cancelEventCore(tx, ev, now, notifyOn)))
-      return { error: t("eventClosed") };
-    return { success: true };
-  });
+  let eventId: number | null = null;
+  const result = await hostAction(
+    eventOnlySchema,
+    input,
+    "cancel",
+    async (h, f) => {
+      const { t, tx, now, notifyOn, hostId } = h;
+      const ev = await loadHostedEvent(tx, f.eventId, hostId);
+      if (!ev) return { error: t("notAllowed") };
+      if (!(await cancelEventCore(tx, ev, now, notifyOn)))
+        return { error: t("eventClosed") };
+      eventId = ev.id;
+      return { success: true };
+    },
+  );
+  // Huỷ job nhắc chấm sau commit (G2d); chỉ khi huỷ thật sự thành công.
+  if ("success" in result && eventId !== null) {
+    scheduleRatingReminderAfterCommit(eventId);
+  }
+  return result;
 }
 
 export type ManageReg = {

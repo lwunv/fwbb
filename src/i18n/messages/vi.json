@@ -2384,6 +2384,10 @@
         "title": "Buổi giao lưu bị ẩn",
         "body": "Buổi {eventTitle} của bạn đã bị admin ẩn khỏi danh sách công khai."
       },
+      "exchange_rate_reminder": {
+        "title": "Chấm buổi giao lưu vừa chơi",
+        "body": "Buổi \"{eventTitle}\" đã xong. Bạn chấm người chơi cùng và host trong 7 ngày nhé."
+      },
       "exchange_reported": {
         "title": "Có báo cáo mới",
         "body": "Có người báo cáo {targetType} với lý do: {reason}."

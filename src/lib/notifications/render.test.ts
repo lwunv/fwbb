@@ -444,3 +444,23 @@ describe("render exchange kinds", () => {
     expect(viOut.body).not.toContain("event");
   });
 });
+
+describe("rating reminder", () => {
+  it("href opens /exchanges/{code}?feedback=1", () => {
+    const item = view("exchange_rate_reminder", {
+      eventCode: "ab12cd34ef",
+      eventTitle: "Giao lưu Thứ 7",
+    });
+    expect(notificationHref(item, "member")).toBe(
+      "/exchanges/ab12cd34ef?feedback=1",
+    );
+    expect(notificationHref(view("exchange_rate_reminder", {}), "member")).toBe(
+      "/exchanges",
+    );
+    const out = renderNotification(translator("vi"), item, "vi");
+    expect(out.title).toBe("Chấm buổi giao lưu vừa chơi");
+    expect(out.body).toBe(
+      'Buổi "Giao lưu Thứ 7" đã xong. Bạn chấm người chơi cùng và host trong 7 ngày nhé.',
+    );
+  });
+});
