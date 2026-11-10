@@ -1129,7 +1129,12 @@
       "commentNotFound": "该评论已不存在。",
       "commentEditExpired": "评论发布后只能在 10 分钟内编辑。",
       "commentCapReached": "此讨论的评论数已达上限。",
-      "commentSaveFailed": "无法保存评论，请稍后再试。"
+      "commentSaveFailed": "无法保存评论，请稍后再试。",
+      "feedbackNotFound": "找不到这场交流活动。",
+      "feedbackNotYet": "这场活动尚未结束，暂时无法评价。",
+      "feedbackClosed": "这场活动的评价时间已结束。",
+      "feedbackNotAllowed": "你无法评价这场活动。",
+      "feedbackSaveFailed": "评价未能保存，请重试。"
     },
     "search": {
       "viewSwitch": "查看方式",

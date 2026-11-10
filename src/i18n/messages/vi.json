@@ -1129,7 +1129,12 @@
       "commentNotFound": "Bình luận này không còn tồn tại.",
       "commentEditExpired": "Bạn chỉ sửa được bình luận trong 10 phút sau khi đăng.",
       "commentCapReached": "Phần thảo luận này đã đạt giới hạn bình luận.",
-      "commentSaveFailed": "Không lưu được bình luận. Thử lại sau."
+      "commentSaveFailed": "Không lưu được bình luận. Thử lại sau.",
+      "feedbackNotFound": "Không tìm thấy buổi giao lưu này.",
+      "feedbackNotYet": "Buổi này chưa kết thúc nên chưa đánh giá được.",
+      "feedbackClosed": "Đã hết thời gian đánh giá buổi này.",
+      "feedbackNotAllowed": "Bạn không có quyền đánh giá buổi này.",
+      "feedbackSaveFailed": "Chưa lưu được đánh giá. Vui lòng thử lại."
     },
     "search": {
       "viewSwitch": "Chế độ xem",

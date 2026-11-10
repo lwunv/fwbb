@@ -116,7 +116,8 @@ const WINDOW_MS = FEEDBACK_WINDOW_DAYS * 86_400_000;
  * hoặc huỷ. Đúng mốc `endAt + 7 ngày` đã là `closed`: lúc đó lượt chấm bắt đầu
  * được cộng (`windowClosed`), nên không lần ghi nào được lọt vào cửa sổ đã tổng
  * hợp. Host không chấm người chơi buổi mình mở và không bao giờ là peer
- * (quyết định 4); người xem không có điểm danh hợp lệ thì không thấy ai.
+ * (quyết định 4); người xem không có điểm danh hợp lệ thì không thấy ai. Peer
+ * bị khoá hoặc bị từ chối không có trong danh sách.
  */
 export async function loadFeedbackContext(
   db: DbOrTx,
@@ -202,6 +203,10 @@ export async function loadFeedbackContext(
         eq(exchangeRegistrations.status, "approved"),
         ne(exchangeRegistrations.memberId, viewerId),
         ne(exchangeRegistrations.memberId, ev.hostMemberId),
+        // Nick bị khoá hoặc bị từ chối không chấm được (lượt của họ không
+        // tính) nên cũng không được chấm: phiếu không hiện, action từ chối.
+        eq(members.isActive, true),
+        ne(members.approvalStatus, "rejected"),
       ),
     )
     .orderBy(asc(exchangeRegistrations.id))

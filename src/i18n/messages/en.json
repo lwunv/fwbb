@@ -1129,7 +1129,12 @@
       "commentNotFound": "This comment is not available.",
       "commentEditExpired": "You can only edit a comment within 10 minutes of posting.",
       "commentCapReached": "This discussion has reached its comment limit.",
-      "commentSaveFailed": "Could not save your comment. Please try again later."
+      "commentSaveFailed": "Could not save your comment. Please try again later.",
+      "feedbackNotFound": "This exchange could not be found.",
+      "feedbackNotYet": "This exchange has not ended yet, so it cannot be rated.",
+      "feedbackClosed": "The rating period for this exchange has ended.",
+      "feedbackNotAllowed": "You cannot rate this exchange.",
+      "feedbackSaveFailed": "Your ratings could not be saved. Please try again."
     },
     "search": {
       "viewSwitch": "View mode",

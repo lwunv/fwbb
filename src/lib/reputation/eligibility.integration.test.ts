@@ -192,6 +192,19 @@ describe("raterWeight5", () => {
     expect(await raterWeight5(testDb, m)).toBe(1);
   });
 
+  it("each weight query reads at most 5 rows for a member with more than 5 check-ins and 5 group sessions", async () => {
+    const m = await seedMember();
+    for (let i = 0; i < 7; i++) {
+      await reg((await seedEvent()).id, m, "approved", true);
+      await attend(await seedSession(), m);
+    }
+    const [exchange, group] = raterWeightQueries(m);
+    // Bỏ LIMIT thì mỗi câu trả 7 dòng: quota Turso tính theo dòng đọc.
+    expect(await testDb.all(exchange)).toHaveLength(5);
+    expect(await testDb.all(group)).toHaveLength(5);
+    expect(await raterWeight5(testDb, m)).toBe(5);
+  });
+
   it("EXPLAIN QUERY PLAN of the weight uses session_attendees_member_idx and exchange_registrations_member_checked_in_idx, no SCAN", async () => {
     const m = await seedMember();
     const details: string[] = [];
@@ -323,6 +336,39 @@ describe("loadFeedbackContext", () => {
     expect(asHost?.myRegistrationId).toBeNull();
     expect(asHost?.peers).toEqual([]);
   });
+
+  it("peers are capped at 50 in registration id order", async () => {
+    const now = new Date(Date.parse(END) + DAY);
+    const ev = await seedEvent();
+    const viewer = await seedMember();
+    const regs: number[] = [];
+    for (let i = 0; i < 52; i++) {
+      regs.push(await reg(ev.id, await seedMember(), "approved", true));
+    }
+    // Người xem đăng ký sau cùng: không chiếm chỗ trong 50 người.
+    await reg(ev.id, viewer, "approved", true);
+    const ctx = await loadFeedbackContext(testDb, ev.code, viewer, now);
+    expect(ctx?.peers.map((p) => p.registrationId)).toEqual(regs.slice(0, 50));
+  });
+
+  it("a locked or rejected co-player is never a peer", async () => {
+    const now = new Date(Date.parse(END) + DAY);
+    const { ev, a, regB, regC } = await seedFeedbackEvent();
+    const locked = await seedMember({ name: "L" });
+    await testDb
+      .update(members)
+      .set({ isActive: false })
+      .where(sql`${members.id} = ${locked}`);
+    const rejected = await seedMember({ name: "R" });
+    await testDb
+      .update(members)
+      .set({ approvalStatus: "rejected" })
+      .where(sql`${members.id} = ${rejected}`);
+    await reg(ev.id, locked, "approved", true);
+    await reg(ev.id, rejected, "approved", true);
+    const ctx = await loadFeedbackContext(testDb, ev.code, a, now);
+    expect(ctx?.peers.map((p) => p.registrationId)).toEqual([regB, regC]);
+  });
 });
 
 describe("venueReviewEligible", () => {
@@ -364,6 +410,18 @@ describe("venueReviewEligible", () => {
       true,
     );
     expect(await venueReviewEligible(testDb, venue, hiddenThere)).toBe(false);
+
+    // Đăng ký bị huỷ do gộp tài khoản vẫn giữ cờ điểm danh: không tính là đã đến.
+    const mergeCancelled = await seedMember();
+    await reg(
+      (await seedEvent({ venue })).id,
+      mergeCancelled,
+      "cancelled",
+      true,
+    );
+    expect(await venueReviewEligible(testDb, venue, mergeCancelled)).toBe(
+      false,
+    );
 
     const linkedCourt = await seedCourt(venue);
     const unlinkedCourt = await seedCourt(null);
