@@ -24,11 +24,14 @@ export function VenueReviewList({
   initialPage,
   signedIn,
   onReport,
+  pendingReview = null,
 }: {
   venueId: number;
   initialPage: VenueReviewPage;
   signedIn: boolean;
   onReport?: (reviewId: number) => void;
+  /** Đánh giá của mình đang gửi: thay dòng cùng id (sửa), không có thì lên đầu. */
+  pendingReview?: VenueReviewView | null;
 }) {
   const t = useTranslations("venueReviews");
   const q = useInfiniteQuery({
@@ -55,6 +58,12 @@ export function VenueReviewList({
     }
   }
 
+  if (pendingReview) {
+    const at = reviews.findIndex((r) => r.id === pendingReview.id);
+    if (at >= 0) reviews[at] = pendingReview;
+    else reviews.unshift(pendingReview);
+  }
+
   async function loadMore() {
     if (q.isFetchingNextPage) return;
     const r = await q.fetchNextPage();
@@ -74,7 +83,7 @@ export function VenueReviewList({
 
   return (
     <div className="space-y-3">
-      <ul className="space-y-3">
+      <ul className="space-y-3" data-testid="venue-review-list">
         <AnimatePresence initial={false}>
           {reviews.map((r) => (
             <motion.li
@@ -89,6 +98,7 @@ export function VenueReviewList({
                 review={r}
                 signedIn={signedIn}
                 onReport={onReport}
+                pending={r === pendingReview}
               />
             </motion.li>
           ))}

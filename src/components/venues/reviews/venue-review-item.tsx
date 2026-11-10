@@ -1,9 +1,10 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { BadgeCheck, Flag } from "lucide-react";
+import { BadgeCheck, Flag, Loader2 } from "lucide-react";
 import { VENUE_CRITERIA } from "@/lib/reputation/constants";
 import type { VenueReviewView } from "@/lib/reputation/venue-review-read";
+import { cn } from "@/lib/utils";
 
 /**
  * Một đánh giá sân công khai. Không tên, không mã, chỉ chip "Đã chơi ở đây" và
@@ -14,15 +15,24 @@ export function VenueReviewItem({
   review,
   signedIn,
   onReport,
+  pending = false,
 }: {
   review: VenueReviewView;
   signedIn: boolean;
   onReport?: (reviewId: number) => void;
+  /** Dòng của chính mình đang gửi (optimistic): nhãn "Đang gửi…", không báo cáo. */
+  pending?: boolean;
 }) {
   const t = useTranslations("venueReviews");
   const [year, month] = review.month.split("-");
   return (
-    <article className="bg-card/80 space-y-3 rounded-2xl border p-4 shadow-sm backdrop-blur">
+    <article
+      aria-busy={pending || undefined}
+      className={cn(
+        "bg-card/80 space-y-3 rounded-2xl border p-4 shadow-sm backdrop-blur",
+        pending && "border-primary/40 opacity-80",
+      )}
+    >
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="bg-primary/10 text-primary inline-flex min-h-7 items-center gap-1 rounded-full px-2.5 text-sm font-semibold">
           <BadgeCheck className="size-4 shrink-0" aria-hidden />
@@ -34,6 +44,12 @@ export function VenueReviewItem({
         </time>
         {review.edited && (
           <span className="text-muted-foreground text-sm">{t("edited")}</span>
+        )}
+        {pending && (
+          <span className="text-primary inline-flex items-center gap-1 text-sm font-medium">
+            <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden />
+            {t("sending")}
+          </span>
         )}
       </div>
 
@@ -62,7 +78,7 @@ export function VenueReviewItem({
         </p>
       )}
 
-      {signedIn && onReport && (
+      {signedIn && onReport && !pending && (
         <div className="flex justify-end">
           <button
             type="button"
