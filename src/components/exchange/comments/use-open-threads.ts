@@ -234,7 +234,13 @@ export function useOpenThreads(
   const tempView = (s: PendingSend): CommentView => ({
     id: s.tempId,
     parentId: s.parentId,
-    author: { name: t("you"), avatarUrl: null, avatarKey: null, isHost: false },
+    author: {
+      name: t("you"),
+      avatarUrl: null,
+      avatarKey: null,
+      isHost: false,
+      isNew: false,
+    },
     replyToName: null,
     body: s.body,
     state: "visible",

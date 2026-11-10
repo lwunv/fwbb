@@ -1305,7 +1305,12 @@
       "hostNew": "New host",
       "hostOrganized": "Organized {count, plural, one {# event} other {# events}}",
       "hostAsDescribed": "As described {pct}%",
-      "hostFeeAsPromised": "Fee as promised {pct}%"
+      "hostFeeAsPromised": "Fee as promised {pct}%",
+      "attendanceLine": "Came to {attended}/{approvedPast, plural, one {# event} other {# events}}",
+      "lateCancelsLine": "{count, plural, one {# late cancel} other {# late cancels}}",
+      "noShowsLine": "{count, plural, one {# no-show} other {# no-shows}}",
+      "profileLink": "Profile",
+      "profileOf": "Profile of {name}"
     },
     "manage": {
       "title": "Manage event",

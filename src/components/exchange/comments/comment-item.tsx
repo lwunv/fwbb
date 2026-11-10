@@ -15,6 +15,7 @@ import { nameSeed } from "@/components/exchange/exchange-card";
 import { ResponsiveSheet } from "@/components/exchange/responsive-sheet";
 import { ReportSheet } from "@/components/exchange/report-sheet";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { NewBadge } from "@/components/reputation/new-badge";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import type { CommentView } from "@/lib/exchange/comment-tree";
 import type { CommentChannel } from "@/lib/exchange/constants";
@@ -232,6 +233,7 @@ export function CommentItem({
             {t("host")}
           </span>
         )}
+        {v.author.isNew && !v.author.isHost && <NewBadge />}
         <span
           className="text-muted-foreground text-sm"
           suppressHydrationWarning

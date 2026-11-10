@@ -28,7 +28,10 @@ const MASK_PUBLIC = sql.raw(`('held','deleted','hidden')`);
 // Bản đầy đủ cho tác giả hoặc host: chỉ còn che dòng đã xoá hoặc bị ẩn.
 const MASK_REMOVED = sql.raw(`('deleted','hidden')`);
 
-type RawRow = Omit<CommentRow, "pinned" | "replyCount"> & { pinned: number };
+type RawRow = Omit<CommentRow, "pinned" | "replyCount" | "authorIsNew"> & {
+  pinned: number;
+  authorIsNew: number | null;
+};
 
 const inList = (ids: number[]): SQL =>
   sql`(${sql.join(
@@ -38,11 +41,19 @@ const inList = (ids: number[]): SQL =>
 
 function selectComments(mask: SQL): SQL {
   const hide = sql`c.status IN ${mask}`;
+  // Nick mới đúng định nghĩa G2b: không approved và chưa từng được điểm danh.
+  // Dòng bị che không mang cờ nào, như tên và ảnh.
+  const isNew = sql`CASE WHEN ${hide} THEN NULL
+      WHEN m.approval_status = 'approved' THEN 0
+      WHEN EXISTS (SELECT 1 FROM exchange_registrations xr
+        WHERE xr.member_id = c.author_member_id AND xr.checked_in = 1) THEN 0
+      ELSE 1 END`;
   return sql`SELECT c.id AS id, c.parent_id AS parentId, c.channel AS channel,
     CASE WHEN ${hide} THEN NULL ELSE c.author_member_id END AS authorMemberId,
     CASE WHEN ${hide} THEN NULL ELSE m.name END AS authorName,
     CASE WHEN ${hide} THEN NULL ELSE m.avatar_url END AS authorAvatarUrl,
     CASE WHEN ${hide} THEN NULL ELSE m.avatar_key END AS authorAvatarKey,
+    ${isNew} AS authorIsNew,
     CASE WHEN ${hide} OR c.reply_to_member_id IS NULL
       OR c.reply_to_member_id = p.author_member_id THEN NULL ELSE rm.name END AS replyToName,
     CASE WHEN ${hide} THEN NULL ELSE c.body END AS body,
@@ -65,6 +76,7 @@ function toRow(r: RawRow, replyCount: number): CommentRow {
     authorName: r.authorName,
     authorAvatarUrl: r.authorAvatarUrl,
     authorAvatarKey: r.authorAvatarKey,
+    authorIsNew: r.authorIsNew === null ? null : Number(r.authorIsNew) === 1,
     replyToName: r.replyToName,
     body: r.body,
     status: r.status,

@@ -1117,6 +1117,7 @@ export async function listCommentReplies(
     authorName: null,
     authorAvatarUrl: null,
     authorAvatarKey: null,
+    authorIsNew: null,
     replyToName: null,
     body: "",
     status: "visible",

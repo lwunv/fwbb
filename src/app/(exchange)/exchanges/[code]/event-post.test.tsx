@@ -202,6 +202,29 @@ describe("EventPost", () => {
     expect(screen.getByText("Phí cao hơn số đã hiện lúc đăng ký")).toBeTruthy();
   });
 
+  it("approved attendee names link to profiles; no code means plain text", () => {
+    renderPost({
+      viewer: makeViewer({
+        role: "member",
+        myRegistration: makeReg(),
+        attendees: [
+          {
+            name: "Lan Nguyen",
+            avatarUrl: null,
+            avatarKey: null,
+            code: "lannguyen1",
+          },
+          { name: "Bao Tran", avatarUrl: null, avatarKey: null, code: null },
+        ],
+      }),
+    });
+    const link = screen.getByRole("link", { name: /Lan Nguyen/ });
+    expect(link.getAttribute("href")).toBe("/players/lannguyen1");
+    expect(link.className).toContain("min-h-11");
+    expect(screen.getByText("Bao Tran").closest("a")).toBeNull();
+    expect(screen.queryByRole("link", { name: /Bao Tran/ })).toBeNull();
+  });
+
   it("the host line links to /players/{code}, shows Host mới when nothing was organized, and is absent without a code", () => {
     renderPost({
       hostLine: {

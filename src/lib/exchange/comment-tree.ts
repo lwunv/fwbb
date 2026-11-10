@@ -15,6 +15,8 @@ export type CommentRow = {
   authorName: string | null;
   authorAvatarUrl: string | null;
   authorAvatarKey: string | null;
+  /** Nick mới theo G2b (G2d quyết định 38); null khi dòng bị che nội dung. */
+  authorIsNew: boolean | null;
   replyToName: string | null;
   body: string | null;
   status: CommentStatus;
@@ -35,6 +37,8 @@ export type CommentView = {
     avatarUrl: string | null;
     avatarKey: string | null;
     isHost: boolean;
+    /** Nhãn "Mới", cờ duy nhất người bình luận có thêm. */
+    isNew: boolean;
   } | null;
   replyToName: string | null;
   body: string | null;
@@ -113,6 +117,7 @@ export function buildThreads(
               isHost:
                 r.authorMemberId !== null &&
                 r.authorMemberId === opts.hostMemberId,
+              isNew: r.authorIsNew === true,
             }
           : null,
       replyToName: r.replyToName,

@@ -31,6 +31,8 @@ import {
 } from "@/lib/exchange/constants";
 import { cancelEventCore } from "@/lib/exchange/cancel";
 import { scheduleRatingReminderAfterCommit } from "@/lib/reputation/rating-jobs";
+import { attendanceSummaries } from "@/lib/reputation/profile-read";
+import type { AttendanceSummary } from "@/lib/reputation/public-profile";
 import {
   exchangeGate,
   loadHostedEvent,
@@ -722,6 +724,13 @@ export type ManageReg = {
   isNewAccount: boolean;
   /** Đã có người giới thiệu (G2d); không bao giờ kèm người giới thiệu là ai. */
   referred: boolean;
+  /** Mã hồ sơ `/players/{code}` (G2d), null khi người đó chưa có mã. */
+  memberCode: string | null;
+  /** Số đến, huỷ muộn, vắng cho host (quyết định 19); không có số tiền. */
+  attendance: Pick<
+    AttendanceSummary,
+    "attended" | "approvedPast" | "lateCancels" | "noShows"
+  >;
   accountLocked: boolean;
   maleCount: number;
   femaleCount: number;
@@ -807,31 +816,25 @@ export async function getManageView(code: string): Promise<ManageView | null> {
       skillLevel: members.skillLevel,
       isActive: members.isActive,
       approvalStatus: members.approvalStatus,
+      publicCode: members.publicCode,
     })
     .from(exchangeRegistrations)
     .innerJoin(members, eq(members.id, exchangeRegistrations.memberId))
     .where(eq(exchangeRegistrations.eventId, ev.id))
     .orderBy(asc(exchangeRegistrations.id));
 
-  // Cùng định nghĩa nick mới với `newAccountLimits` (nhóm approved không bao
-  // giờ là nick mới, còn lại cần ít nhất 1 check-in), nhưng gom một truy vấn.
-  const unapproved = regRows
-    .filter((r) => r.approvalStatus !== "approved")
-    .map((r) => r.reg.memberId);
-  const attended = new Set<number>();
-  if (unapproved.length > 0) {
-    const rows = await db
-      .select({ memberId: exchangeRegistrations.memberId })
-      .from(exchangeRegistrations)
-      .where(
-        and(
-          inArray(exchangeRegistrations.memberId, unapproved),
-          eq(exchangeRegistrations.checkedIn, true),
-        ),
-      )
-      .groupBy(exchangeRegistrations.memberId);
-    for (const r of rows) attended.add(r.memberId);
-  }
+  const now = new Date();
+  // Một truy vấn cho cả danh sách (G2d quyết định 19). `isNew` của nó cùng định
+  // nghĩa nick mới với `newAccountLimits` (approved không bao giờ mới, còn lại
+  // cần ít nhất 1 check-in), nên thay luôn truy vấn check-in riêng trước đây.
+  const summaries = await attendanceSummaries(
+    db,
+    regRows.map((r) => ({
+      id: r.reg.memberId,
+      approvalStatus: r.approvalStatus,
+    })),
+    now,
+  );
 
   // Chip "Được giới thiệu" (G2d quyết định 46): một truy vấn cho cả danh sách.
   // Cùng nghĩa với `referred` của hồ sơ: có dòng giới thiệu là đủ.
@@ -852,7 +855,6 @@ export async function getManageView(code: string): Promise<ManageView | null> {
     .where(eq(hostBlocks.hostMemberId, host.id))
     .orderBy(asc(hostBlocks.id));
 
-  const now = new Date();
   const regs: ManageReg[] = regRows.map((r) => {
     const { remaining, refundDue, received } = registrationSettlement(
       r.reg,
@@ -860,6 +862,7 @@ export async function getManageView(code: string): Promise<ManageView | null> {
       ev.status,
     );
     const level = (r.skillLevel ?? null) as SkillLevel | null;
+    const sum = summaries.get(r.reg.memberId);
     return {
       id: r.reg.id,
       status: r.reg.status,
@@ -873,9 +876,15 @@ export async function getManageView(code: string): Promise<ManageView | null> {
         ev.skillMin ?? null,
         ev.skillMax ?? null,
       ),
-      isNewAccount:
-        r.approvalStatus !== "approved" && !attended.has(r.reg.memberId),
+      isNewAccount: sum?.isNew ?? r.approvalStatus !== "approved",
       referred: referredIds.has(r.reg.memberId),
+      memberCode: r.publicCode ?? null,
+      attendance: {
+        attended: sum?.attended ?? 0,
+        approvedPast: sum?.approvedPast ?? 0,
+        lateCancels: sum?.lateCancels ?? 0,
+        noShows: sum?.noShows ?? 0,
+      },
       accountLocked: !r.isActive || r.approvalStatus === "rejected",
       maleCount: r.reg.maleCount,
       femaleCount: r.reg.femaleCount,

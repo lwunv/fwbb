@@ -1305,7 +1305,12 @@
       "hostNew": "新组织者",
       "hostOrganized": "已组织 {count} 场",
       "hostAsDescribed": "与描述相符 {pct}%",
-      "hostFeeAsPromised": "费用相符 {pct}%"
+      "hostFeeAsPromised": "费用相符 {pct}%",
+      "attendanceLine": "到场 {attended}/{approvedPast} 场",
+      "lateCancelsLine": "临时取消 {count} 次",
+      "noShowsLine": "缺席 {count} 次",
+      "profileLink": "资料",
+      "profileOf": "{name} 的资料"
     },
     "manage": {
       "title": "管理活动",

@@ -496,6 +496,72 @@ describe("host actions", () => {
     expect(JSON.stringify(view)).not.toContain(host2.name);
   });
 
+  it("manage view gives each registrant attendance numbers and a code with one extra query", async () => {
+    const ev = await mkEvent();
+    const vet = await newMember({
+      approvalStatus: "pending",
+      publicCode: "vetcode001",
+    });
+    const fresh = await newMember({ approvalStatus: "pending" });
+    const other = await newMember();
+    // Hai buổi đã qua: vet đến buổi 1, vắng buổi 2 (có người khác điểm danh).
+    const past1 = await mkEvent({
+      startAt: iso(-10 * DAY),
+      endAt: iso(-10 * DAY + 2 * 3_600_000),
+      status: "done",
+    });
+    const past2 = await mkEvent({
+      startAt: iso(-5 * DAY),
+      endAt: iso(-5 * DAY + 2 * 3_600_000),
+      status: "done",
+    });
+    const later = await mkEvent({
+      startAt: iso(20 * DAY),
+      endAt: iso(21 * DAY),
+    });
+    await addReg(past1.id, vet.id, "approved", 1, 0, { checkedIn: true });
+    await addReg(past2.id, vet.id, "no_show");
+    await addReg(past2.id, other.id, "approved", 1, 0, { checkedIn: true });
+    await addReg(later.id, vet.id, "late_cancelled");
+    for (const m of [vet, fresh, other]) await addReg(ev.id, m.id, "pending");
+
+    const exec = vi.spyOn(client, "execute");
+    let view: Awaited<ReturnType<typeof getManageView>>;
+    try {
+      view = await getManageView(ev.publicCode);
+      const sqlOf = (a: unknown) =>
+        typeof a === "string" ? a : String((a as { sql?: string })?.sql ?? "");
+      const hits = exec.mock.calls.filter(([a]) =>
+        /AS approvedPast/.test(sqlOf(a)),
+      );
+      expect(hits).toHaveLength(1);
+    } finally {
+      exec.mockRestore();
+    }
+    const byName = (n: string) => view!.regs.find((r) => r.name === n)!;
+    expect(byName(vet.name)).toMatchObject({
+      memberCode: "vetcode001",
+      isNewAccount: false,
+      attendance: { attended: 1, approvedPast: 2, lateCancels: 1, noShows: 1 },
+    });
+    expect(byName(fresh.name)).toMatchObject({
+      memberCode: null,
+      isNewAccount: true,
+      attendance: { attended: 0, approvedPast: 0, lateCancels: 0, noShows: 0 },
+    });
+    expect(byName(other.name)).toMatchObject({
+      isNewAccount: false,
+      attendance: { attended: 1, approvedPast: 1 },
+    });
+    // Chỉ bốn số cho host, không số tiền hay cờ khác của hồ sơ.
+    expect(Object.keys(byName(vet.name).attendance).sort()).toEqual([
+      "approvedPast",
+      "attended",
+      "lateCancels",
+      "noShows",
+    ]);
+  });
+
   it("blockRegistrant is idempotent and leaves the registration alone", async () => {
     const ev = await mkEvent();
     const m = await newMember();

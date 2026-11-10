@@ -179,6 +179,31 @@ describe("CommentSection", () => {
     expect(container.querySelector("a")).toBeNull();
   });
 
+  it("a new commenter gets the Mới chip and nothing else from reputation", async () => {
+    pageFor({
+      roots: [
+        makeView({
+          id: 1,
+          body: "bài mới",
+          author: {
+            name: "Nick Moi",
+            avatarUrl: null,
+            avatarKey: null,
+            isHost: false,
+            isNew: true,
+          },
+        }),
+        makeView({ id: 2, body: "bài cũ" }),
+      ],
+    });
+    renderSection();
+    await screen.findByText("bài mới");
+    expect(screen.getAllByText("Mới")).toHaveLength(1);
+    expect(screen.getByText("Nick Moi").parentElement!.textContent).toContain(
+      "Mới",
+    );
+  });
+
   it("vote is optimistic, uses the server count, rolls back with a toast on error, and is not retried", async () => {
     pageFor({ roots: [makeView({ id: 5, upvotes: 2 })] });
     let resolve!: (v: unknown) => void;

@@ -6,7 +6,13 @@ export function makeView(over: Partial<CommentView> = {}): CommentView {
   return {
     id: 1,
     parentId: null,
-    author: { name: "An", avatarUrl: null, avatarKey: null, isHost: false },
+    author: {
+      name: "An",
+      avatarUrl: null,
+      avatarKey: null,
+      isHost: false,
+      isNew: false,
+    },
     replyToName: null,
     body: "Sân có điều hòa không?",
     state: "visible",

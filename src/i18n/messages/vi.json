@@ -1305,7 +1305,12 @@
       "hostNew": "Host mới",
       "hostOrganized": "Đã tổ chức {count} buổi",
       "hostAsDescribed": "Đúng mô tả {pct}%",
-      "hostFeeAsPromised": "Đúng phí {pct}%"
+      "hostFeeAsPromised": "Đúng phí {pct}%",
+      "attendanceLine": "Đến {attended}/{approvedPast} buổi",
+      "lateCancelsLine": "{count} huỷ muộn",
+      "noShowsLine": "{count} vắng",
+      "profileLink": "Hồ sơ",
+      "profileOf": "Hồ sơ của {name}"
     },
     "manage": {
       "title": "Quản lý buổi",

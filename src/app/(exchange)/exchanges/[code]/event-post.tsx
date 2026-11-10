@@ -399,14 +399,36 @@ export function EventPost({
           {viewer.attendees ? (
             <ul className="space-y-2">
               {viewer.attendees.map((a, i) => (
-                <li key={`${a.name}-${i}`} className="flex items-center gap-2">
-                  <MemberAvatar
-                    memberId={nameSeed(a.name)}
-                    avatarUrl={a.avatarUrl}
-                    avatarKey={a.avatarKey}
-                    size={32}
-                  />
-                  <span className="min-w-0 truncate text-base">{a.name}</span>
+                <li key={`${a.name}-${i}`}>
+                  {/* Có mã hồ sơ thì cả dòng là link 44px; không có mã thì chữ thường. */}
+                  {a.code ? (
+                    <Link
+                      href={`/players/${a.code}`}
+                      className="hover:bg-muted/60 -mx-2 flex min-h-11 items-center gap-2 rounded-xl px-2"
+                    >
+                      <MemberAvatar
+                        memberId={nameSeed(a.name)}
+                        avatarUrl={a.avatarUrl}
+                        avatarKey={a.avatarKey}
+                        size={32}
+                      />
+                      <span className="text-primary min-w-0 text-base break-words">
+                        {a.name}
+                      </span>
+                    </Link>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <MemberAvatar
+                        memberId={nameSeed(a.name)}
+                        avatarUrl={a.avatarUrl}
+                        avatarKey={a.avatarKey}
+                        size={32}
+                      />
+                      <span className="min-w-0 text-base break-words">
+                        {a.name}
+                      </span>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
