@@ -12,6 +12,7 @@ import {
   cleanup,
   fireEvent,
   waitFor,
+  act,
 } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -114,6 +115,74 @@ describe("sticky primary action in exchange sheets", () => {
     expect(f!.className).toMatch(/safe-area-inset-bottom/);
     expect(f!.className).toMatch(/backdrop-blur/);
     expect(f!.textContent).toBe("Go");
+  });
+
+  // Task 25 (Task 22 review): bàn phím iOS không làm co 92dvh, nút gửi nằm sau
+  // bàn phím khi đang gõ nhận xét.
+  it("ResponsiveSheet follows visualViewport so the footer stays above the keyboard", () => {
+    const vv = Object.assign(new EventTarget(), { height: 800, offsetTop: 0 });
+    const prevVv = Object.getOwnPropertyDescriptor(window, "visualViewport");
+    const prevH = window.innerHeight;
+    Object.defineProperty(window, "visualViewport", {
+      configurable: true,
+      value: vv,
+    });
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      value: 800,
+    });
+    const remove = vi.spyOn(vv, "removeEventListener");
+    try {
+      const { unmount } = wrap(
+        <ResponsiveSheet
+          open
+          onOpenChange={() => {}}
+          title="T"
+          footer={<button type="button">Go</button>}
+        >
+          <textarea aria-label="c" />
+        </ResponsiveSheet>,
+      );
+      const sheet = () => footer()!.parentElement!;
+      expect(sheet().style.bottom).toBe("0px");
+      expect(sheet().style.maxHeight).toBe("736px");
+
+      // Bàn phím mở: vùng thấy được còn 460px.
+      act(() => {
+        vv.height = 460;
+        vv.dispatchEvent(new Event("resize"));
+      });
+      expect(sheet().style.bottom).toBe("340px");
+      expect(sheet().style.maxHeight).toBe("423px");
+
+      unmount();
+      expect(remove).toHaveBeenCalledWith("resize", expect.any(Function));
+      expect(remove).toHaveBeenCalledWith("scroll", expect.any(Function));
+    } finally {
+      if (prevVv) Object.defineProperty(window, "visualViewport", prevVv);
+      else delete (window as { visualViewport?: unknown }).visualViewport;
+      Object.defineProperty(window, "innerHeight", {
+        configurable: true,
+        value: prevH,
+      });
+    }
+  });
+
+  it("ResponsiveSheet keeps its CSS height when visualViewport is missing", () => {
+    expect(window.visualViewport ?? null).toBeNull();
+    wrap(
+      <ResponsiveSheet
+        open
+        onOpenChange={() => {}}
+        title="T"
+        footer={<button type="button">Go</button>}
+      >
+        <p>body</p>
+      </ResponsiveSheet>,
+    );
+    const sheet = footer()!.parentElement!;
+    expect(sheet.style.bottom).toBe("");
+    expect(sheet.className).toContain("max-h-[92dvh]");
   });
 
   it("register, report, edit and lock sheets put their submit button in the sticky footer", () => {

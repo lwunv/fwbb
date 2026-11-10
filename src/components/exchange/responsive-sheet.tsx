@@ -13,6 +13,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useIsMobile } from "@/lib/use-is-mobile";
+import { useVisualViewport } from "@/lib/use-visual-viewport";
 import { cn } from "@/lib/utils";
 
 /**
@@ -21,6 +22,10 @@ import { cn } from "@/lib/utils";
  *
  * `footer` là chỗ cho nút chính: trên mobile nó dính đáy sheet (vùng ngón cái)
  * kể cả khi form dài phải cuộn, và tự chừa vùng an toàn của iPhone.
+ *
+ * Bàn phím iOS không làm co `92dvh`, nên lúc gõ nhận xét nút chính bị bàn phím
+ * che. Khi mở trên mobile, sheet bám theo `visualViewport`: đáy sheet nằm trên
+ * mép bàn phím và chiều cao tối đa tính theo phần còn thấy được.
  */
 export function ResponsiveSheet({
   open,
@@ -37,6 +42,7 @@ export function ResponsiveSheet({
 }) {
   const isMobile = useIsMobile();
   const hasFooter = footer !== undefined && footer !== null && footer !== false;
+  const viewport = useVisualViewport(isMobile && open);
   if (isMobile) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
@@ -46,6 +52,14 @@ export function ResponsiveSheet({
             "max-h-[92dvh] overflow-y-auto rounded-t-2xl",
             !hasFooter && "pb-[env(safe-area-inset-bottom)]",
           )}
+          style={
+            viewport
+              ? {
+                  bottom: `${viewport.bottomInset}px`,
+                  maxHeight: `${Math.floor(viewport.height * 0.92)}px`,
+                }
+              : undefined
+          }
         >
           <SheetHeader>
             <SheetTitle className="text-lg font-semibold">{title}</SheetTitle>
