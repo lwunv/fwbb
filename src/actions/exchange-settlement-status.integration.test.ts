@@ -50,6 +50,8 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
   unstable_cache: (fn: unknown) => fn,
 }));
+// Đăng ký đọc IP để ghi tín hiệu nick trùng (G2d); ngoài request thì không có header.
+vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 vi.mock("@/lib/exchange/guards", async (orig) => ({
   ...(await orig<typeof import("@/lib/exchange/guards")>()),
   checkBotAndRate: vi.fn(async () => ({ ok: true })),

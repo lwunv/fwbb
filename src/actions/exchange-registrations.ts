@@ -100,10 +100,11 @@ export async function registerForExchange(
   if ("error" in bot) return bot;
 
   // Tín hiệu nick trùng (G2d): sau Turnstile và rate limit, ngoài transaction.
-  // Tự nuốt lỗi: đăng ký không được hỏng vì nó.
+  // Tự nuốt lỗi ghi: đăng ký không được hỏng vì nó.
+  const ip = await getTrustedClientIp();
   await recordIpSignalQuietly(
     db,
-    { memberId: member.id, ip: getTrustedClientIp(), kind: "register" },
+    { memberId: member.id, ip, kind: "register" },
     new Date(),
   );
 

@@ -60,6 +60,20 @@ describe("findDupSignalGroups", () => {
     ).toEqual([]);
   });
 
+  it("names that fold to empty (Chinese, emoji only) never form a same-name pair", () => {
+    expect(
+      findDupSignalGroups(
+        [
+          row({ memberId: 1, name: "李明" }),
+          row({ memberId: 2, name: "王芳" }),
+          row({ memberId: 3, name: "😀🏸" }),
+          row({ memberId: 4, name: "  " }),
+        ],
+        none,
+      ),
+    ).toEqual([]);
+  });
+
   it("three exchange signups on one network within 24h form a burst; spread over three days they do not", () => {
     const burst = findDupSignalGroups(
       [

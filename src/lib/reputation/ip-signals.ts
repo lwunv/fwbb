@@ -110,16 +110,15 @@ export async function recordIpSignal(
 /**
  * `recordIpSignal` cho đăng nhập và đăng ký. Tín hiệu chỉ để admin tham khảo
  * (quyết định 56): ghi lỗi thì bỏ qua có chủ đích để không làm hỏng việc chính
- * của người dùng. Log chỉ có id member, không IP, tên hay lỗi DB. `ip` nhận cả
- * promise để lỗi đọc header cũng rơi vào nhánh bỏ qua này.
+ * của người dùng. Log chỉ có id member, không IP, tên hay lỗi DB.
  */
 export async function recordIpSignalQuietly(
   db: DbOrTx,
-  input: { memberId: number; ip: string | Promise<string>; kind: IpSignalKind },
+  input: { memberId: number; ip: string; kind: IpSignalKind },
   now: Date,
 ): Promise<void> {
   try {
-    await recordIpSignal(db, { ...input, ip: await input.ip }, now);
+    await recordIpSignal(db, input, now);
   } catch {
     console.error("[DupSignal] record_failed", { memberId: input.memberId });
   }

@@ -82,7 +82,10 @@ export function findDupSignalGroups(
   // một hash, rồi gom thành phần liên thông (union-find).
   const byNetName = new Map<string, Set<number>>();
   for (const r of rows) {
-    const k = `${r.ipHash}\u0000${foldAscii(r.name)}`;
+    // Tên chỉ có chữ Hán, emoji hay dấu cách thì gập ra rỗng: không coi là trùng.
+    const name = foldAscii(r.name);
+    if (!name) continue;
+    const k = `${r.ipHash}\u0000${name}`;
     const set = byNetName.get(k) ?? new Set<number>();
     set.add(r.memberId);
     byNetName.set(k, set);
