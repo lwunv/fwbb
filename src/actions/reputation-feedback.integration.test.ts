@@ -10,6 +10,7 @@ import {
 import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "@/db/test-db";
+import { latestPerRater } from "@/lib/reputation/score";
 import {
   exchangeEvents,
   exchangeRegistrations,
@@ -470,6 +471,90 @@ describe("submitEventFeedback: writes", () => {
     ).toEqual([0, 2]);
     expect(await peerRows(ev2.id)).toHaveLength(1);
     expect(await hostRows(ev2.id)).toHaveLength(1);
+  });
+
+  it("editing only the host answers keeps the peer row's timestamp, so the aggregate still uses the newer event's row", async () => {
+    const host = await newMember({ approvalStatus: "approved" });
+    const a = await newMember();
+    const x = await newMember();
+    const e1 = await mkEvent(host);
+    const e2 = await mkEvent(host);
+    await addReg(e1.id, a.id);
+    const x1 = await addReg(e1.id, x.id);
+    await addReg(e2.id, a.id);
+    const x2 = await addReg(e2.id, x.id);
+    asMember(a);
+
+    await submitEventFeedback(
+      payload(e1.publicCode, [{ registrationId: x1.id, playAgain: true }]),
+    );
+    vi.setSystemTime(NOW + 3_600_000);
+    await submitEventFeedback(
+      payload(e2.publicCode, [{ registrationId: x2.id, tags: ["on_time"] }]),
+    );
+    const [e1Before] = await peerRows(e1.id);
+    const [e1HostBefore] = await hostRows(e1.id);
+
+    vi.setSystemTime(NOW + 2 * 3_600_000);
+    const r = await submitEventFeedback(
+      payload(e1.publicCode, [{ registrationId: x1.id, playAgain: true }], {
+        host: { asDescribed: false, feeAsPromised: true },
+      }),
+    );
+    expect(r).toEqual({ success: true, data: { saved: 2 } });
+
+    const [e1After] = await peerRows(e1.id);
+    expect(e1After).toEqual(e1Before);
+    const [e1HostAfter] = await hostRows(e1.id);
+    expect(e1HostAfter).toMatchObject({
+      asDescribed: false,
+      updatedAt: iso(NOW + 2 * 3_600_000),
+    });
+    expect(e1HostAfter.idempotencyKey).not.toBe(e1HostBefore.idempotencyKey);
+
+    // Bước "mỗi người chấm chỉ lấy dòng mới nhất" của phần tổng hợp.
+    const toX = await testDb
+      .select()
+      .from(peerFeedback)
+      .where(eq(peerFeedback.toMemberId, x.id));
+    const kept = latestPerRater(
+      toX.map((row) => ({
+        id: row.id,
+        fromId: row.fromMemberId,
+        updatedAt: row.updatedAt,
+        eventId: row.eventId,
+      })),
+    );
+    expect(kept.map((k) => k.eventId)).toEqual([e2.id]);
+  });
+
+  it("editing only the peer answers keeps the host row's timestamp and weight but stores the new key", async () => {
+    const { ev, a, regB } = await scene();
+    asMember(a);
+    await submitEventFeedback(
+      payload(ev.publicCode, [{ registrationId: regB.id, playAgain: true }]),
+    );
+    const [hostBefore] = await hostRows(ev.id);
+
+    vi.setSystemTime(NOW + 3_600_000);
+    const again = payload(ev.publicCode, [
+      { registrationId: regB.id, tags: ["friendly"] },
+    ]);
+    await submitEventFeedback(again);
+    const [hostAfter] = await hostRows(ev.id);
+    expect(hostAfter).toEqual({
+      ...hostBefore,
+      idempotencyKey: again.idempotencyKey,
+    });
+    const [peerAfter] = await peerRows(ev.id);
+    expect(peerAfter.updatedAt).toBe(iso(NOW + 3_600_000));
+
+    // Gửi lại cùng key vẫn là lần gửi lặp, không ghi gì.
+    vi.setSystemTime(NOW + 2 * 3_600_000);
+    expect(await submitEventFeedback(again)).toEqual({
+      success: true,
+      data: { saved: 0 },
+    });
   });
 
   it("clearing every answer for a co-player deletes that row", async () => {

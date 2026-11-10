@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { db } from "@/db";
@@ -71,6 +71,10 @@ const submitSchema = z.object({
   idempotencyKey: z.string().uuid(),
   turnstileToken: z.string().min(1).max(4096),
 });
+
+/** Trong `ON CONFLICT DO UPDATE` của `host_feedback`: hai câu trả lời không đổi. */
+const hostAnswersSame = sql`${hostFeedback.asDescribed} IS excluded.as_described
+  AND ${hostFeedback.feeAsPromised} IS excluded.fee_as_promised`;
 
 /** Tag lưu theo thứ tự `PEER_TAGS`; dữ liệu lạ trong cột bị bỏ qua. */
 function sortTags(tags: readonly string[]): PeerTag[] {
@@ -293,6 +297,13 @@ export async function submitEventFeedback(
                 raterWeight: w5,
                 updatedAt: stamp,
               },
+              // Chỉ ghi khi câu trả lời đổi. Phần tổng hợp lấy dòng mới nhất
+              // của mỗi người chấm qua mọi buổi (quyết định 3): đóng dấu lại
+              // dòng không đổi (vd chỉ sửa câu về host) sẽ cho dòng của buổi
+              // cũ vượt dòng của buổi mới hơn.
+              setWhere: sql`${peerFeedback.playAgain} IS NOT excluded.play_again
+                OR ${peerFeedback.tags} IS NOT excluded.tags
+                OR ${peerFeedback.skillLevel} IS NOT excluded.skill_level`,
             });
           saved += 1;
         }
@@ -311,12 +322,14 @@ export async function submitEventFeedback(
           })
           .onConflictDoUpdate({
             target: [hostFeedback.eventId, hostFeedback.fromMemberId],
+            // Key luôn được lưu (kiểm gửi lặp), còn trọng số và mốc sửa chỉ
+            // đổi khi câu trả lời đổi, cùng lý do với dòng chấm người chơi.
             set: {
               asDescribed: f.host.asDescribed,
               feeAsPromised: f.host.feeAsPromised,
-              raterWeight: w5,
+              raterWeight: sql`CASE WHEN ${hostAnswersSame} THEN ${hostFeedback.raterWeight} ELSE excluded.rater_weight END`,
               idempotencyKey: f.idempotencyKey,
-              updatedAt: stamp,
+              updatedAt: sql`CASE WHEN ${hostAnswersSame} THEN ${hostFeedback.updatedAt} ELSE excluded.updated_at END`,
             },
           });
         saved += 1;
