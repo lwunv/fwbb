@@ -79,6 +79,14 @@ function form(over: Record<string, unknown> = {}) {
   };
 }
 
+async function memberCode(id: number) {
+  const [row] = await testDb
+    .select({ code: members.publicCode })
+    .from(members)
+    .where(eq(members.id, id));
+  return row.code;
+}
+
 async function eventCount() {
   return (await testDb.select().from(exchangeEvents)).length;
 }
@@ -187,6 +195,60 @@ describe("createExchangeEvent", () => {
     );
     expect(r).toHaveProperty("error");
     expect(await eventCount()).toBe(0);
+  });
+
+  it("creating an event gives the host a code", async () => {
+    const [fresh] = await testDb
+      .insert(members)
+      .values({ name: "Fresh host", approvalStatus: "approved" })
+      .returning();
+    expect(fresh.publicCode).toBeNull();
+    asMember(fresh);
+    expect(await createExchangeEvent(form())).toMatchObject({ success: true });
+    const code = await memberCode(fresh.id);
+    expect(code).toMatch(/^[abcdefghjkmnpqrstuvwxyz23456789]{10}$/);
+    // A second event keeps the same profile code.
+    expect(await createExchangeEvent(form())).toMatchObject({ success: true });
+    expect(await memberCode(fresh.id)).toBe(code);
+  });
+
+  it("create: a failed Turnstile assigns no code", async () => {
+    const [fresh] = await testDb
+      .insert(members)
+      .values({ name: "Bot host", approvalStatus: "approved" })
+      .returning();
+    asMember(fresh);
+    mocks.bot.mockResolvedValue({ error: "captcha" });
+    expect(await createExchangeEvent(form())).toEqual({
+      error: "captcha",
+    });
+    expect(await memberCode(fresh.id)).toBeNull();
+  });
+
+  it("a code failure on create returns saveFailed instead of throwing", async () => {
+    const [fresh] = await testDb
+      .insert(members)
+      .values({ name: "Unlucky host", approvalStatus: "approved" })
+      .returning();
+    asMember(fresh);
+    // The profile code write is the first UPDATE on this path.
+    const spy = vi.spyOn(testDb, "update").mockImplementationOnce(() => {
+      throw new Error("socket hang up");
+    });
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(await createExchangeEvent(form())).toEqual({
+        error: "saveFailed",
+      });
+      expect(log).toHaveBeenCalledWith("[Reputation] code_failed", {
+        memberId: fresh.id,
+      });
+      expect(await eventCount()).toBe(0);
+      expect(mocks.updateTag).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+      log.mockRestore();
+    }
   });
 
   it("create: a client-sent host id is ignored", async () => {

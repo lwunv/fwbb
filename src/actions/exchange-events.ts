@@ -26,6 +26,7 @@ import {
   loadHostedEvent,
 } from "@/lib/exchange/guards";
 import { newPublicCode } from "@/lib/exchange/public-code";
+import { ensureMemberPublicCode } from "@/lib/reputation/member-code";
 
 // Chỉ export action tự kiểm quyền: người thực hiện luôn lấy từ cookie phiên.
 
@@ -119,6 +120,15 @@ export async function createExchangeEvent(
         }
       : null;
   const nowIso = new Date().toISOString();
+
+  // Host cần mã hồ sơ để trang buổi dẫn tới hồ sơ của họ. Ghi ngoài transaction
+  // của buổi: mã đã cấp thì giữ dù tạo buổi thất bại.
+  try {
+    await ensureMemberPublicCode(db, memberId);
+  } catch {
+    console.error("[Reputation] code_failed", { memberId });
+    return { error: t("saveFailed") };
+  }
 
   for (let attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt++) {
     const publicCode = newPublicCode();

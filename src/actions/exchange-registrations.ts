@@ -21,6 +21,7 @@ import {
   isBlockedByHost,
 } from "@/lib/exchange/guards";
 import { runSerial } from "@/lib/exchange/serial";
+import { ensureMemberPublicCode } from "@/lib/reputation/member-code";
 import {
   autoApproves,
   settleEvent,
@@ -244,6 +245,8 @@ export async function registerForExchange(
 
   let outcome: RegisterResult;
   try {
+    // Người đăng ký cần mã hồ sơ để người cùng buổi xem và chấm được họ.
+    await ensureMemberPublicCode(db, member.id);
     outcome = await run();
   } catch (e) {
     if (!isUniqueViolation(e)) {

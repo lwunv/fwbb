@@ -22,7 +22,7 @@ export function makeEvent(
       lng: 106.65,
       mapLink: null,
     },
-    host: { name: "Minh Host", avatarUrl: null, avatarKey: null },
+    host: { name: "Minh Host", avatarUrl: null, avatarKey: null, code: null },
     skillMin: "yeu",
     skillMax: "tb",
     slotsTotal: 10,

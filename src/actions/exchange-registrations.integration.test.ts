@@ -132,6 +132,14 @@ const input = (code: string, over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+async function memberCode(id: number) {
+  const [row] = await testDb
+    .select({ code: members.publicCode })
+    .from(members)
+    .where(eq(members.id, id));
+  return row.code;
+}
+
 async function regOf(eventId: number, memberId: number) {
   const rows = await testDb
     .select()
@@ -478,6 +486,55 @@ describe("registerForExchange", () => {
     expect(rows.map((r) => [r.kind, r.recipientId])).toEqual([
       ["exchange_registration_received", host.id],
     ]);
+  });
+
+  it("registering gives the registrant one", async () => {
+    const ev = await mkEvent({ autoApprove: true });
+    const a = await newMember();
+    expect(a.publicCode).toBeNull();
+    asMember(a);
+    expect(await registerForExchange(input(ev.publicCode))).toMatchObject({
+      success: true,
+    });
+    const code = await memberCode(a.id);
+    expect(code).toMatch(/^[abcdefghjkmnpqrstuvwxyz23456789]{10}$/);
+    // Registering again (another event) keeps the same code.
+    const ev2 = await mkEvent({ autoApprove: true });
+    await registerForExchange(input(ev2.publicCode));
+    expect(await memberCode(a.id)).toBe(code);
+  });
+
+  it("a failed Turnstile on register assigns no code", async () => {
+    const ev = await mkEvent({ autoApprove: true });
+    const a = await newMember();
+    asMember(a);
+    mocks.bot.mockResolvedValue({ error: "captcha" });
+    expect(await registerForExchange(input(ev.publicCode))).toEqual({
+      error: "captcha",
+    });
+    expect(await memberCode(a.id)).toBeNull();
+    expect(await regOf(ev.id, a.id)).toEqual([]);
+  });
+
+  it("a code failure on register returns saveFailed and writes no registration", async () => {
+    const ev = await mkEvent({ autoApprove: true });
+    const a = await newMember();
+    asMember(a);
+    const spy = vi.spyOn(testDb, "update").mockImplementationOnce(() => {
+      throw new Error("socket hang up");
+    });
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(await registerForExchange(input(ev.publicCode))).toEqual({
+        error: "saveFailed",
+      });
+      expect(await regOf(ev.id, a.id)).toEqual([]);
+      for (const call of log.mock.calls)
+        expect(JSON.stringify(call)).not.toContain(a.name);
+    } finally {
+      spy.mockRestore();
+      log.mockRestore();
+    }
   });
 
   it("invalid heads rejected before Turnstile", async () => {

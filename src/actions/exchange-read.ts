@@ -66,7 +66,12 @@ export type ViewerExtras = {
     accountName: string | null;
   } | null;
   attendees:
-    | { name: string; avatarUrl: string | null; avatarKey: string | null }[]
+    | {
+        name: string;
+        avatarUrl: string | null;
+        avatarKey: string | null;
+        code: string | null;
+      }[]
     | null;
   blocked: boolean;
   isNewAccount: boolean;
@@ -95,6 +100,7 @@ const getPublicEventCached = unstable_cache(
         hostName: members.name,
         hostAvatarUrl: members.avatarUrl,
         hostAvatarKey: members.avatarKey,
+        hostCode: members.publicCode,
         hostActive: members.isActive,
         hostApproval: members.approvalStatus,
       })
@@ -142,6 +148,7 @@ const getPublicEventCached = unstable_cache(
           name: row.hostName,
           avatarUrl: row.hostAvatarUrl,
           avatarKey: row.hostAvatarKey,
+          code: row.hostCode,
         },
         regs,
         attendeeAvatars: avatars,
@@ -327,6 +334,7 @@ export async function getExchangeEvent(
           name: members.name,
           avatarUrl: members.avatarUrl,
           avatarKey: members.avatarKey,
+          code: members.publicCode,
         })
         .from(exchangeRegistrations)
         .innerJoin(members, eq(members.id, exchangeRegistrations.memberId))

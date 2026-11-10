@@ -100,8 +100,8 @@ describe("EventPost", () => {
         hostContact: "zalo.me/minhhost",
         zaloGroupLink: "https://zalo.me/g/abc",
         attendees: [
-          { name: "Lan Nguyen", avatarUrl: null, avatarKey: null },
-          { name: "Bao Tran", avatarUrl: null, avatarKey: null },
+          { name: "Lan Nguyen", avatarUrl: null, avatarKey: null, code: null },
+          { name: "Bao Tran", avatarUrl: null, avatarKey: null, code: null },
         ],
         payout: {
           bankBin: "970416",

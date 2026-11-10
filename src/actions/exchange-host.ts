@@ -886,6 +886,7 @@ export async function getManageView(code: string): Promise<ManageView | null> {
         name: host.name,
         avatarUrl: host.avatarUrl ?? null,
         avatarKey: host.avatarKey ?? null,
+        code: host.publicCode ?? null,
       },
       regs: regs.map((r) => ({
         id: r.id,
