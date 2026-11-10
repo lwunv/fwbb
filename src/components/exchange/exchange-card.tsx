@@ -6,30 +6,14 @@ import { CalendarClock, MapPin, Users } from "lucide-react";
 import type { ExchangeCard as ExchangeCardData } from "@/lib/exchange/public-event";
 import { SKILL_BADGE_CLASS } from "@/lib/skill-level";
 import { MemberAvatar } from "@/components/shared/member-avatar";
-import { cn, formatVND } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import {
+  exchangeFeeText,
+  exchangeWhenLabel,
+  shortMoney,
+} from "@/lib/exchange/format";
 
-const VN_TZ = "Asia/Ho_Chi_Minh";
-
-/** "80K" khi tròn nghìn, còn lại hiện đủ số tiền. */
-export function shortMoney(amount: number): string {
-  return amount % 1000 === 0 ? `${amount / 1000}K` : formatVND(amount);
-}
-
-function whenLabel(startAt: string, endAt: string, locale: string): string {
-  const day = new Intl.DateTimeFormat(locale, {
-    timeZone: VN_TZ,
-    weekday: "short",
-    day: "2-digit",
-    month: "2-digit",
-  }).format(new Date(startAt));
-  const time = new Intl.DateTimeFormat(locale, {
-    timeZone: VN_TZ,
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  });
-  return `${day}, ${time.format(new Date(startAt))}-${time.format(new Date(endAt))}`;
-}
+export { shortMoney };
 
 // Avatar mặc định chọn theo memberId; payload công khai không có id của host
 // nên lấy một số ổn định từ tên để cùng một host luôn ra cùng một avatar.
@@ -49,21 +33,7 @@ export function ExchangeCard({ event }: { event: ExchangeCardData }) {
   const locale = useLocale();
 
   const { fee, counts, slotsTotal } = event;
-  let feeText: string;
-  if (fee.kind === "fixed") {
-    feeText =
-      fee.male === fee.female
-        ? shortMoney(fee.male)
-        : t("feeGender", {
-            male: shortMoney(fee.male),
-            female: shortMoney(fee.female),
-          });
-  } else if (fee.kind === "split") {
-    const amount = shortMoney(fee.estimate.male);
-    feeText = t(fee.estimateIsCap ? "feeCap" : "feeAbout", { amount });
-  } else {
-    feeText = t("feeLocked", { amount: shortMoney(fee.rates.male) });
-  }
+  const feeText = exchangeFeeText(fee, t);
 
   const { skillMin, skillMax } = event;
   let skillText: string;
@@ -102,7 +72,7 @@ export function ExchangeCard({ event }: { event: ExchangeCardData }) {
         <div className="min-w-0 space-y-1">
           <p className="text-primary flex items-center gap-1.5 text-base font-medium">
             <CalendarClock className="h-4 w-4 shrink-0" aria-hidden />
-            {whenLabel(event.startAt, event.endAt, locale)}
+            {exchangeWhenLabel(event.startAt, event.endAt, locale)}
           </p>
           <h3 className="text-lg leading-snug font-semibold break-words">
             {event.title}

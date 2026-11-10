@@ -26,8 +26,10 @@ export function VenueMiniMap({
   if (unsupported) return null;
 
   return (
-    // Ô attribution của maplibre phải nổi trên lớp link để còn chạm được.
-    <div className="relative [&_.maplibregl-ctrl-bottom-right]:z-20">
+    // Ô attribution của maplibre phải nổi trên lớp link để còn chạm được. Cần
+    // `!`: maplibre-gl.css (`z-index: 2`) không nằm trong layer nào nên thắng
+    // mọi utility trong `@layer utilities` của Tailwind.
+    <div className="relative [&_.maplibregl-ctrl-bottom-right]:z-20!">
       <LazyMapView
         points={venuesToPoints([venue])}
         center={{ lat: venue.lat, lng: venue.lng }}

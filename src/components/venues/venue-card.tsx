@@ -2,112 +2,137 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Clock, MapPin, Navigation, Phone } from "lucide-react";
+import { Navigation } from "lucide-react";
 import { directionsUrl } from "@/lib/maps-link";
 import { formatDistance } from "@/lib/geo";
 import { formatK } from "@/lib/utils";
+import { openStatus } from "@/lib/venues/open-hours";
 import type { PublicVenue } from "@/lib/public-venue";
 import { Card, CardContent } from "@/components/ui/card";
+import { AMENITY_ICONS } from "./amenity-icons";
 
-/** Thẻ sân trong danh bạ (học theo cách ALOBO trình bày danh sách sân). */
+/**
+ * Thẻ sân gọn: tên, số sân, giá, trạng thái mở cửa, icon tiện ích.
+ * Có `onSelect` thì cả thẻ là một nút chọn (dùng trong ngăn kéo bản đồ);
+ * link Chỉ đường là phần tử anh em nổi lên trên nút, không lồng trong nó.
+ */
 export function VenueCard({
   venue,
   locale,
   upcomingExchangeCount,
+  now,
+  onSelect,
+  selected,
 }: {
   venue: PublicVenue & { distanceM?: number };
   locale: "vi" | "en" | "zh";
   /** Chỉ truyền khi cờ giao lưu bật; undefined hoặc 0 thì không hiện gì thêm. */
   upcomingExchangeCount?: number;
+  /** Mặc định `new Date()`; truyền vào để test và để mọi thẻ cùng một mốc giờ. */
+  now?: Date;
+  onSelect?: () => void;
+  selected?: boolean;
 }) {
   const t = useTranslations("venues");
+
+  const status = venue.openHours
+    ? openStatus(venue.openHours, now ?? new Date())
+    : null;
+  const hoursPart =
+    status === null
+      ? null
+      : status === "unknown"
+        ? t("hoursUnknown")
+        : t("openStatusWithHours", {
+            status: t(status === "open" ? "openNow" : "closedNow"),
+            hours: venue.openHours as string,
+          });
+
+  const infoParts = [
+    venue.courtCount != null
+      ? t("courtCountValue", { count: venue.courtCount })
+      : null,
+    venue.refPricePerHour != null
+      ? t("pricePerHourValue", { price: `${formatK(venue.refPricePerHour)}đ` })
+      : null,
+    hoursPart,
+  ].filter((p): p is string => p !== null);
+
   return (
-    <Card className="bg-card/80 border-border/60 backdrop-blur">
-      <CardContent className="space-y-3 p-4">
-        <div className="flex items-start gap-3">
-          <div className="bg-primary/10 text-primary flex h-11 w-11 shrink-0 items-center justify-center rounded-xl">
-            <MapPin className="h-5 w-5" />
-          </div>
-          <div className="min-w-0 flex-1 space-y-0.5">
-            <Link
-              href={`/venues/${venue.id}`}
-              className="block truncate text-base font-semibold hover:underline"
-            >
-              {venue.name}
-            </Link>
-            {(venue.address || venue.areaLabel) && (
-              <p className="text-muted-foreground line-clamp-2 text-sm">
-                {venue.address || venue.areaLabel}
+    <Card
+      className={`bg-card/80 border-border/60 backdrop-blur ${selected ? "ring-primary ring-2" : ""}`}
+    >
+      <CardContent className="p-0">
+        <div className="relative flex items-start gap-2 p-3 pr-2">
+          {onSelect && (
+            <button
+              type="button"
+              onClick={onSelect}
+              aria-label={venue.name}
+              aria-pressed={selected}
+              className="active:bg-accent/40 absolute inset-0 rounded-xl"
+            />
+          )}
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="flex items-center gap-2">
+              {onSelect ? (
+                <span className="block min-w-0 flex-1 truncate text-base font-semibold">
+                  {venue.name}
+                </span>
+              ) : (
+                <Link
+                  href={`/venues/${venue.id}`}
+                  className="block min-w-0 flex-1 truncate text-base font-semibold hover:underline"
+                >
+                  {venue.name}
+                </Link>
+              )}
+              {venue.distanceM !== undefined && (
+                <span className="bg-accent shrink-0 rounded-full px-2.5 py-0.5 text-sm font-medium tabular-nums">
+                  {formatDistance(venue.distanceM, locale)}
+                </span>
+              )}
+            </div>
+            {infoParts.length > 0 && (
+              <p className="text-muted-foreground text-base">
+                {infoParts.map((part, i) => (
+                  <span key={i}>
+                    {i > 0 && <span aria-hidden> · </span>}
+                    <span>{part}</span>
+                  </span>
+                ))}
               </p>
             )}
+            {venue.amenities.length > 0 && (
+              <ul className="text-muted-foreground flex flex-wrap gap-3">
+                {venue.amenities.map((a) => {
+                  const Icon = AMENITY_ICONS[a];
+                  return (
+                    <li key={a} title={t(`amenity.${a}`)}>
+                      <Icon className="size-5" aria-hidden />
+                      <span className="sr-only">{t(`amenity.${a}`)}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {upcomingExchangeCount !== undefined &&
+              upcomingExchangeCount > 0 && (
+                <p className="bg-warning/15 text-foreground rounded-lg px-3 py-1.5 text-sm font-medium">
+                  {t("upcomingExchangeCount", { count: upcomingExchangeCount })}
+                </p>
+              )}
           </div>
-          {venue.distanceM !== undefined && (
-            <span className="bg-accent shrink-0 rounded-full px-2.5 py-1 text-sm font-medium tabular-nums">
-              {formatDistance(venue.distanceM, locale)}
-            </span>
-          )}
-        </div>
-
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-          {venue.courtCount != null && (
-            <span>{t("courtCountValue", { count: venue.courtCount })}</span>
-          )}
-          {venue.refPricePerHour != null && (
-            <span className="text-primary font-medium tabular-nums">
-              {t("pricePerHourValue", {
-                price: `${formatK(venue.refPricePerHour)}đ`,
-              })}
-            </span>
-          )}
-          {venue.openHours && (
-            <span className="text-muted-foreground inline-flex items-center gap-1">
-              <Clock className="h-3.5 w-3.5" />
-              {venue.openHours}
-            </span>
-          )}
-        </div>
-
-        {upcomingExchangeCount !== undefined && upcomingExchangeCount > 0 && (
-          <Link
-            href={`/venues/${venue.id}`}
-            className="bg-primary/15 text-primary inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-medium"
-          >
-            {t("upcomingExchangeCount", { count: upcomingExchangeCount })}
-          </Link>
-        )}
-
-        {venue.amenities.length > 0 && (
-          <ul className="flex flex-wrap gap-1.5">
-            {venue.amenities.map((a) => (
-              <li
-                key={a}
-                className="bg-accent/70 rounded-full px-2.5 py-0.5 text-sm"
-              >
-                {t(`amenity.${a}`)}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <div className="flex gap-2">
           <a
             href={directionsUrl(venue)}
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-primary text-primary-foreground inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium active:scale-[0.98]"
+            aria-label={t("directionsTo", { name: venue.name })}
+            title={t("directions")}
+            className="bg-primary text-primary-foreground relative z-10 inline-flex size-11 shrink-0 items-center justify-center rounded-full active:scale-95"
           >
-            <Navigation className="h-4 w-4" />
-            {t("directions")}
+            <Navigation className="size-5" aria-hidden />
           </a>
-          {venue.phone && (
-            <a
-              href={`tel:${venue.phone.replace(/[^0-9+]/g, "")}`}
-              className="bg-card inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-medium"
-            >
-              <Phone className="h-4 w-4" />
-              {venue.phone}
-            </a>
-          )}
         </div>
       </CardContent>
     </Card>

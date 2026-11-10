@@ -1,3 +1,5 @@
+import { useState, useSyncExternalStore } from "react";
+
 /**
  * maplibre-gl v6 chỉ chạy trên WebGL2. Nằm riêng, không import maplibre-gl,
  * để màn nào cũng kiểm được mà không kéo thư viện vào bundle trang.
@@ -11,4 +13,21 @@ export function hasWebGL2(): boolean {
   } catch {
     return false;
   }
+}
+
+const noopSubscribe = () => () => {};
+const assumeSupported = () => true;
+
+/**
+ * `hasWebGL2()` cho component có render ở server. Server và lần hydrate đầu
+ * coi như có (HTML server không phụ thuộc máy), ngay sau hydrate mới là kết
+ * quả thật.
+ *
+ * Chỉ dò một lần mỗi lần mount, không dò mỗi lần render: mỗi lần dò tạo một
+ * context WebGL, mà trình duyệt giới hạn số context còn sống và huỷ context cũ
+ * nhất khi vượt (có thể là context của chính bản đồ).
+ */
+export function useWebGL2Support(): boolean {
+  const [supported] = useState(hasWebGL2);
+  return useSyncExternalStore(noopSubscribe, () => supported, assumeSupported);
 }

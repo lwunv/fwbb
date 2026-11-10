@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import viMessages from "@/i18n/messages/vi.json";
 import { VenueCard } from "./venue-card";
@@ -43,18 +43,12 @@ describe("VenueCard", () => {
     expect(screen.getByText("2,3 km")).toBeTruthy();
     expect(screen.getByText("6 sân")).toBeTruthy();
     expect(screen.getByText("120.000đ/giờ")).toBeTruthy();
-    const a = screen.getByRole("link", { name: /chỉ đường/i });
+    const a = screen.getByRole("link", { name: /Chỉ đường tới/ });
     expect(a.getAttribute("href")).toBe(
       "https://www.google.com/maps/dir/?api=1&destination=21.03,105.85",
     );
     expect(a.getAttribute("target")).toBe("_blank");
     expect(a.getAttribute("rel")).toContain("noopener");
-  });
-
-  it("số điện thoại là link tel:", () => {
-    renderCard({ ...base, phone: "0912 345 678" });
-    const tel = screen.getByRole("link", { name: /0912 345 678/ });
-    expect(tel.getAttribute("href")).toBe("tel:0912345678");
   });
 
   it("không có giá → không hiện dòng giá; không có khoảng cách → không hiện", () => {
@@ -97,5 +91,60 @@ describe("VenueCard upcoming exchanges", () => {
     cleanup();
     renderWithCount(0);
     expect(screen.queryByText(/giao lưu sắp tới/)).toBeNull();
+  });
+});
+
+describe("VenueCard compact", () => {
+  // 03:00 UTC = 10:00 giờ Việt Nam
+  const now = new Date("2026-11-09T03:00:00Z");
+  function renderAt(
+    venue: PublicVenue,
+    props: { onSelect?: () => void; selected?: boolean } = {},
+  ) {
+    return render(
+      <NextIntlClientProvider locale="vi" messages={viMessages}>
+        <VenueCard venue={venue} locale="vi" now={now} {...props} />
+      </NextIntlClientProvider>,
+    );
+  }
+
+  it('shows Đang mở with the raw hours at 10:00 VN for "5:00 - 23:00"', () => {
+    renderAt({ ...base, openHours: "5:00 - 23:00" });
+    expect(screen.getByText(/Đang mở \(5:00 - 23:00\)/)).toBeTruthy();
+  });
+
+  it('shows Chưa rõ giờ for "Sáng 5-9"', () => {
+    renderAt({ ...base, openHours: "Sáng 5-9" });
+    expect(screen.getByText(/Chưa rõ giờ/)).toBeTruthy();
+    expect(screen.queryByText(/Đang mở/)).toBeNull();
+  });
+
+  it("no hours part when openHours is null", () => {
+    renderAt(base);
+    expect(screen.queryByText(/Chưa rõ giờ|Đang mở|Đã đóng/)).toBeNull();
+  });
+
+  it("with onSelect, tapping the card selects and tapping directions does not", () => {
+    const onSelect = vi.fn();
+    renderAt(base, { onSelect });
+    fireEvent.click(screen.getByRole("button", { name: "Sân Cầu Giấy" }));
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("link", { name: /Chỉ đường tới/ }));
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it("with onSelect there is no anchor inside a button", () => {
+    const { container } = renderAt(base, { onSelect: () => {} });
+    expect(container.querySelector("button a")).toBeNull();
+    expect(container.querySelector("a button")).toBeNull();
+  });
+
+  it("directions control has class size-11", () => {
+    renderAt(base);
+    expect(
+      screen
+        .getByRole("link", { name: /Chỉ đường tới/ })
+        .classList.contains("size-11"),
+    ).toBe(true);
   });
 });

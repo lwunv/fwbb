@@ -6,6 +6,7 @@ import {
   cleanup,
   fireEvent,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { NuqsTestingAdapter } from "nuqs/adapters/testing";
@@ -22,6 +23,7 @@ const { listVenuesNear, countUpcomingByVenue, listUpcomingAtVenue, state } =
 
 vi.mock("@/actions/venues", () => ({
   listVenuesNear,
+  geocodeAddress: vi.fn(),
   getPublicVenue: vi.fn(async (id: number) => ({
     id,
     name: "Sân Một",
@@ -74,6 +76,11 @@ vi.mock("@/components/venues/use-user-location", () => ({
   }),
 }));
 vi.mock("@/components/map/lazy-map-view", () => ({ LazyMapView: () => null }));
+// jsdom không có WebGL2; danh bạ ở đây là bố cục có bản đồ và ngăn kéo.
+vi.mock("@/lib/map/webgl", () => ({
+  hasWebGL2: () => true,
+  useWebGL2Support: () => true,
+}));
 
 import { VenueDirectory } from "./venue-directory";
 import VenueDetailPage from "./[id]/page";
@@ -95,8 +102,8 @@ const venue = (id: number, name: string) => ({
   distanceM: 1000,
 });
 
-function renderDir(exchangeEnabled: boolean) {
-  return render(
+async function renderDir(exchangeEnabled: boolean) {
+  const r = render(
     <QueryClientProvider
       client={
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -113,6 +120,16 @@ function renderDir(exchangeEnabled: boolean) {
       </NextIntlClientProvider>
     </QueryClientProvider>,
   );
+  // Danh sách nằm trong ngăn kéo: chờ có dữ liệu rồi bấm tiêu đề để ngăn lên nấc giữa.
+  await screen.findByText("Sân Một");
+  fireEvent.click(screen.getByRole("button", { name: /sân quanh đây/ }));
+  return r;
+}
+
+/** Chip bán kính mở bảng chọn; chọn một giá trị trong đó. */
+async function pickRadius(km: number) {
+  fireEvent.click(screen.getByRole("button", { name: /Bán kính \d+ km/ }));
+  fireEvent.click(await screen.findByRole("radio", { name: `${km} km` }));
 }
 
 beforeEach(() => {
@@ -130,21 +147,18 @@ afterEach(() => {
 
 describe("venue directory exchange counts", () => {
   it("flag off: venue search issues no settings or exchange query and cards show no count", async () => {
-    renderDir(false);
-    await screen.findByText("Sân Một");
+    await renderDir(false);
     expect(countUpcomingByVenue).not.toHaveBeenCalled();
     expect(screen.queryByText(/giao lưu sắp tới/i)).toBeNull();
-    expect(
-      screen.queryByRole("button", { name: "Đang có giao lưu" }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: /Có giao lưu/ })).toBeNull();
   });
 
   it("flag on: cards show the upcoming count and the has-exchange filter narrows the list", async () => {
-    renderDir(true);
+    await renderDir(true);
     await screen.findByText("Sân Hai");
     await screen.findByText("3 giao lưu sắp tới");
     expect(countUpcomingByVenue).toHaveBeenCalledWith([1, 2]);
-    fireEvent.click(screen.getByRole("button", { name: "Đang có giao lưu" }));
+    fireEvent.click(screen.getByRole("button", { name: /Có giao lưu/ }));
     await waitFor(() => expect(screen.queryByText("Sân Hai")).toBeNull());
     expect(screen.getByText("Sân Một")).toBeTruthy();
   });
@@ -153,24 +167,26 @@ describe("venue directory exchange counts", () => {
 describe("venue directory exchange counts resilience", () => {
   it("counts error: keeps the unfiltered list, shows a status notice and retries", async () => {
     countUpcomingByVenue.mockRejectedValue(new Error("boom"));
-    renderDir(true);
+    await renderDir(true);
     await screen.findByText("Sân Hai");
-    fireEvent.click(screen.getByRole("button", { name: "Đang có giao lưu" }));
-    const notice = await screen.findByRole("status");
-    expect(notice.textContent).toContain(
+    fireEvent.click(screen.getByRole("button", { name: /Có giao lưu/ }));
+    const notice = await screen.findByText(
       viMessages.venues.exchangeFilterUnavailable,
     );
+    // Lời báo và nút "Thử lại" nằm ở hàng trạng thái nổi trên bản đồ.
+    const overlay = screen.getByTestId("venues-overlay");
+    expect(overlay.contains(notice)).toBe(true);
     expect(screen.getByText("Sân Một")).toBeTruthy();
     expect(screen.getByText("Sân Hai")).toBeTruthy();
     expect(screen.queryByText(/Chưa có sân nào/)).toBeNull();
     countUpcomingByVenue.mockResolvedValue([[1, 3]]);
-    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    fireEvent.click(within(overlay).getByRole("button", { name: "Thử lại" }));
     await waitFor(() => expect(screen.queryByText("Sân Hai")).toBeNull());
     expect(screen.getByText("Sân Một")).toBeTruthy();
   });
 
   it("changing the venue list keeps the previous counts visible until the new ones arrive", async () => {
-    renderDir(true);
+    await renderDir(true);
     await screen.findByText("3 giao lưu sắp tới");
     let resolveNext!: (v: [number, number][]) => void;
     countUpcomingByVenue.mockReturnValue(
@@ -181,7 +197,7 @@ describe("venue directory exchange counts resilience", () => {
     listVenuesNear.mockResolvedValue({
       venues: [venue(1, "Sân Một"), venue(2, "Sân Hai"), venue(3, "Sân Ba")],
     });
-    fireEvent.click(screen.getByRole("button", { name: "10 km" }));
+    await pickRadius(10);
     await screen.findByText("Sân Ba");
     await waitFor(() => expect(countUpcomingByVenue).toHaveBeenCalledTimes(2));
     expect(screen.getByText("3 giao lưu sắp tới")).toBeTruthy();

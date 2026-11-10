@@ -1,5 +1,8 @@
 import { requireApprovedMember } from "@/lib/member-auth";
-import { countUpcomingByVenue } from "@/actions/exchange-read";
+import {
+  countUpcomingByVenue,
+  listUpcomingAtVenue,
+} from "@/actions/exchange-read";
 import { isExchangeEnabled } from "@/lib/exchange-flag";
 import { VenueDirectory } from "./venue-directory";
 
@@ -14,6 +17,7 @@ export default async function VenuesPage() {
       canSuggest={!("error" in auth)}
       exchangeEnabled={exchangeEnabled}
       loadExchangeCounts={exchangeEnabled ? countUpcomingByVenue : undefined}
+      loadUpcoming={exchangeEnabled ? listUpcomingAtVenue : undefined}
     />
   );
 }
