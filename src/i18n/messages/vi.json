@@ -1343,6 +1343,23 @@
         "friendly": "Vui vẻ",
         "fair_play": "Fair play",
         "nice_play": "Đánh đẹp"
+      },
+      "referral": {
+        "title": "Giới thiệu người mới",
+        "button": "Giới thiệu người này",
+        "rule": "Bạn bảo đảm đây là người thật bạn quen. Họ được bỏ giới hạn tài khoản mới. Nếu họ vắng hoặc huỷ muộn từ {strikes} lần trong {watchDays} ngày đầu, bạn tạm không giới thiệu được {blockDays} ngày.",
+        "remaining": "Bạn còn {n} lượt tháng này",
+        "confirm": "Xác nhận giới thiệu",
+        "sentState": "Đã giới thiệu",
+        "done": "Đã giới thiệu người này",
+        "quotaUsed": "Bạn đã dùng hết {limit} lượt giới thiệu tháng này.",
+        "notEligible": "Bạn giới thiệu được người mới khi đã đến từ {sessions} buổi và có mặt ở ít nhất {pct}% số buổi giao lưu được duyệt.",
+        "blocked": "Bạn tạm không giới thiệu được tới {date}",
+        "used": "Bạn đã giới thiệu {used}/{limit} người trong tháng này",
+        "limitedCard": "Tài khoản mới bị giới hạn: tối đa {pending} đăng ký đang chờ, không dắt thêm người, {comments} bình luận mỗi ngày. Nhờ người quen đã chơi từ {sessions} buổi giới thiệu để bỏ giới hạn.",
+        "share": "Chia sẻ hồ sơ của tôi",
+        "linkCopied": "Đã chép link hồ sơ",
+        "shareFailed": "Chưa chia sẻ được hồ sơ, thử lại sau."
       }
     },
     "manage": {

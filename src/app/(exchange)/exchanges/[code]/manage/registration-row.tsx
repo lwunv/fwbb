@@ -79,6 +79,7 @@ export function RegistrationRow({
   handlers: RowHandlers;
 }) {
   const t = useTranslations("exchange.manage");
+  const tRep = useTranslations("exchange.reputation");
   const h = handlers;
   const money = (n: number) => formatVND(n);
   const hasDeposit = ctx.depositAmount > 0;
@@ -118,6 +119,13 @@ export function RegistrationRow({
             {reg.isNewAccount && (
               <span className={cn(CHIP, "bg-primary/10 text-primary")}>
                 {t("badgeNew")}
+              </span>
+            )}
+            {reg.referred && (
+              <span
+                className={cn(CHIP, "bg-secondary text-secondary-foreground")}
+              >
+                {tRep("referred")}
               </span>
             )}
             {reg.skillOutOfRange && (

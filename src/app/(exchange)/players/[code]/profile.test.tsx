@@ -26,6 +26,8 @@ const mocks = vi.hoisted(() => ({
   getPublicProfile: vi.fn(),
   getExchangeViewer: vi.fn(),
   isExchangeEnabled: vi.fn(),
+  getMyReferralState: vi.fn(),
+  referMember: vi.fn(),
 }));
 
 vi.mock("@/lib/reputation/profile-read", () => ({
@@ -41,6 +43,16 @@ vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("notFound");
   },
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+vi.mock("@/actions/referrals", () => ({
+  getMyReferralState: mocks.getMyReferralState,
+  referMember: mocks.referMember,
+}));
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+vi.mock("@/lib/use-is-mobile", () => ({ useIsMobile: () => true }));
+vi.mock("@/components/security/turnstile-widget", () => ({
+  TurnstileWidget: () => <div data-testid="turnstile" />,
 }));
 // Sheet báo cáo thật cần Turnstile và server action; ở đây chỉ cần biết nó
 // mở với đúng đối tượng.
@@ -61,6 +73,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.isExchangeEnabled.mockResolvedValue(true);
   mocks.getExchangeViewer.mockResolvedValue({ status: "anonymous" });
+  mocks.getMyReferralState.mockResolvedValue(null);
 });
 
 function rep(over: Partial<Reputation> = {}): Reputation {
@@ -314,6 +327,101 @@ describe("player profile page", () => {
     expect(document.body.innerHTML).not.toMatch(/text-xs/);
     const card = screen.getByTestId("profile-header");
     expect(within(card).getByText("Mới")).toBeTruthy();
+  });
+
+  it("refer button only for an eligible signed-in viewer on a new unreferred profile, never your own", async () => {
+    const state = {
+      eligible: true,
+      usedThisMonth: 2,
+      limit: 5,
+      blockedUntil: null as string | null,
+      limited: false,
+    };
+    mocks.getMyReferralState.mockResolvedValue(state);
+    const referBtn = () =>
+      screen.queryByRole("button", { name: "Giới thiệu người này" });
+
+    // Khách và chính mình: không nút, không tốn lần đọc trạng thái giới thiệu.
+    await renderPage(profile());
+    expect(referBtn()).toBeNull();
+    cleanup();
+    signedIn(CODE);
+    await renderPage(profile());
+    expect(referBtn()).toBeNull();
+    expect(mocks.getMyReferralState).not.toHaveBeenCalled();
+    cleanup();
+
+    // Hồ sơ đã được giới thiệu, hoặc không còn là nick mới: không hỏi luôn.
+    signedIn(null);
+    await renderPage(profile({ referred: true }));
+    expect(referBtn()).toBeNull();
+    cleanup();
+    await renderPage(
+      profile({ attendance: { ...rep().attendance, isNew: false } }),
+    );
+    expect(referBtn()).toBeNull();
+    expect(mocks.getMyReferralState).not.toHaveBeenCalled();
+    cleanup();
+
+    // Người khác, đủ điều kiện, còn lượt: có nút 44px và số lượt còn lại.
+    await renderPage(profile());
+    expect(mocks.getMyReferralState).toHaveBeenCalledTimes(1);
+    expect(referBtn()!.className).toMatch(/min-h-11/);
+    expect(screen.getByText("Bạn còn 3 lượt tháng này")).toBeTruthy();
+    cleanup();
+
+    // Không được giới thiệu thì nói rõ vì sao, không có nút.
+    mocks.getMyReferralState.mockResolvedValue({ ...state, eligible: false });
+    await renderPage(profile());
+    expect(referBtn()).toBeNull();
+    expect(screen.getByText(/khi đã đến từ 3 buổi/)).toBeTruthy();
+    cleanup();
+
+    mocks.getMyReferralState.mockResolvedValue({ ...state, usedThisMonth: 5 });
+    await renderPage(profile());
+    expect(referBtn()).toBeNull();
+    expect(
+      screen.getByText("Bạn đã dùng hết 5 lượt giới thiệu tháng này."),
+    ).toBeTruthy();
+    cleanup();
+
+    // 20:00 UTC ngày 14 là 03:00 ngày 15 giờ Việt Nam.
+    mocks.getMyReferralState.mockResolvedValue({
+      ...state,
+      blockedUntil: "2026-12-14T20:00:00.000Z",
+    });
+    await renderPage(profile());
+    expect(referBtn()).toBeNull();
+    expect(
+      screen.getByText("Bạn tạm không giới thiệu được tới 15/12/2026"),
+    ).toBeTruthy();
+    cleanup();
+
+    // Cờ tắt hoặc phiên hết hạn giữa chừng: action trả null, không hiện gì.
+    mocks.getMyReferralState.mockResolvedValue(null);
+    await renderPage(profile());
+    expect(referBtn()).toBeNull();
+    expect(screen.queryByText(/giới thiệu/i)).toBeNull();
+  });
+
+  it("the profile chip never names the referrer", async () => {
+    const leaky = {
+      ...rep(),
+      referred: true,
+      referrer: { name: "Phạm Người Giới Thiệu", code: "refcode001", id: 77 },
+      referrerName: "Phạm Người Giới Thiệu",
+    } as unknown as Reputation;
+    signedIn("zzzzzzzz22");
+    const { container } = await renderPage(toPublicPlayerProfile(CODE, leaky));
+    const card = screen.getByTestId("profile-header");
+    expect(within(card).getByText("Được giới thiệu").textContent).toBe(
+      "Được giới thiệu",
+    );
+    const html = container.innerHTML;
+    for (const secret of ["Phạm Người Giới Thiệu", "refcode001"]) {
+      expect(html, secret).not.toContain(secret);
+    }
+    expect(mocks.getMyReferralState).not.toHaveBeenCalled();
   });
 });
 

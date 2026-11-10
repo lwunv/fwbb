@@ -11,7 +11,6 @@ import { isLimitedNewAccount } from "@/lib/exchange/attendance";
 import { checkBotAndRate, exchangeGate } from "@/lib/exchange/guards";
 import { runSerial } from "@/lib/exchange/serial";
 import { requireExchangeMember } from "@/lib/member-auth";
-import { vnDate } from "@/lib/notifications/time";
 import {
   REFERRAL_MONTHLY_LIMIT,
   RL_REFERRAL,
@@ -20,7 +19,7 @@ import {
 } from "@/lib/reputation/constants";
 import { ensureMemberPublicCode } from "@/lib/reputation/member-code";
 import { referrerState } from "@/lib/reputation/referral";
-import { vnMonthBounds } from "@/lib/reputation/referral-rules";
+import { vnDisplayDate, vnMonthBounds } from "@/lib/reputation/referral-rules";
 
 // Chỉ export action tự kiểm quyền: người giới thiệu luôn lấy từ cookie phiên,
 // input chỉ có mã hồ sơ của người được giới thiệu (quyết định 39). Thứ tự kiểm
@@ -42,12 +41,6 @@ const referSchema = z.object({
   code: z.string().length(10),
   turnstileToken: z.string().min(1).max(4096),
 });
-
-/** `dd/MM/yyyy` theo lịch Việt Nam, cho câu báo đang bị khoá. */
-function vnDisplayDate(isoStr: string): string {
-  const [y, m, d] = vnDate(new Date(isoStr)).split("-");
-  return `${d}/${m}/${y}`;
-}
 
 /** Người giới thiệu hiện tại của nick có mã này, hoặc null. Chỉ đọc. */
 async function referrerOfCode(

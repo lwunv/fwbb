@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import viMessages from "@/i18n/messages/vi.json";
@@ -10,6 +10,9 @@ const mocks = vi.hoisted(() => ({
   settings: vi.fn(),
   unblock: vi.fn(),
   toastError: vi.fn(),
+  toastSuccess: vi.fn(),
+  referralState: vi.fn(),
+  ensureCode: vi.fn(),
 }));
 
 vi.mock("@/lib/member-auth", () => ({
@@ -19,7 +22,11 @@ vi.mock("@/actions/exchange-mine", () => ({ getMyExchanges: mocks.mine }));
 vi.mock("@/actions/settings", () => ({ getSettings: mocks.settings }));
 vi.mock("@/actions/exchange-host", () => ({ unblockMember: mocks.unblock }));
 vi.mock("sonner", () => ({
-  toast: { error: mocks.toastError, success: vi.fn() },
+  toast: { error: mocks.toastError, success: mocks.toastSuccess },
+}));
+vi.mock("@/actions/referrals", () => ({
+  getMyReferralState: mocks.referralState,
+  ensureMyPublicCode: mocks.ensureCode,
 }));
 vi.mock("next/navigation", () => ({
   redirect: (to: string) => {
@@ -63,6 +70,9 @@ const { default: MyExchangesPage } = await import("./page");
 const { MyExchanges } = await import("./my-exchanges");
 
 afterEach(cleanup);
+beforeEach(() => {
+  mocks.referralState.mockResolvedValue(null);
+});
 
 const member = {
   id: 7,
@@ -323,5 +333,149 @@ describe("MyExchanges", () => {
     expect(
       screen.queryByRole("link", { name: "Hồ sơ công khai của bạn" }),
     ).toBeNull();
+  });
+
+  it("a limited account sees the newcomer card; sharing calls ensureMyPublicCode then shares /players/{code}", async () => {
+    const limited = {
+      limited: true,
+      eligible: false,
+      used: 0,
+      limit: 5,
+      blockedDate: null,
+    };
+    const order: string[] = [];
+    mocks.ensureCode.mockImplementation(async () => {
+      order.push("ensure");
+      return { code: "mycode0001" };
+    });
+    const share = vi.fn(async () => {
+      order.push("share");
+    });
+    Object.defineProperty(navigator, "share", {
+      value: share,
+      configurable: true,
+    });
+    render(
+      withIntl(
+        <MyExchanges
+          registrations={[]}
+          hosting={[]}
+          blocks={[]}
+          referral={limited}
+        />,
+      ),
+    );
+    expect(
+      screen.getByText(
+        "Tài khoản mới bị giới hạn: tối đa 2 đăng ký đang chờ, không dắt thêm người, 5 bình luận mỗi ngày. Nhờ người quen đã chơi từ 3 buổi giới thiệu để bỏ giới hạn.",
+      ),
+    ).toBeTruthy();
+    const btn = screen.getByRole("button", { name: "Chia sẻ hồ sơ của tôi" });
+    expect(btn.className).toMatch(/min-h-11/);
+    fireEvent.click(btn);
+    await vi.waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+    expect(order).toEqual(["ensure", "share"]);
+    const arg = (share.mock.calls[0] as unknown as [{ url: string }])[0];
+    expect(arg.url).toBe(`${window.location.origin}/players/mycode0001`);
+
+    // Không có Web Share: chép link và báo.
+    Object.defineProperty(navigator, "share", {
+      value: undefined,
+      configurable: true,
+    });
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    fireEvent.click(btn);
+    await vi.waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(
+        `${window.location.origin}/players/mycode0001`,
+      ),
+    );
+    await vi.waitFor(() =>
+      expect(mocks.toastSuccess).toHaveBeenCalledWith("Đã chép link hồ sơ"),
+    );
+
+    // Lỗi tạo mã: báo lỗi, không chia sẻ gì.
+    mocks.ensureCode.mockResolvedValueOnce({ error: "Không tạo được mã" });
+    writeText.mockClear();
+    fireEvent.click(btn);
+    await vi.waitFor(() =>
+      expect(mocks.toastError).toHaveBeenCalledWith("Không tạo được mã"),
+    );
+    expect(writeText).not.toHaveBeenCalled();
+    cleanup();
+
+    // Người đã quen không thấy thẻ này.
+    render(
+      withIntl(
+        <MyExchanges
+          registrations={[]}
+          hosting={[]}
+          blocks={[]}
+          referral={{ ...limited, limited: false }}
+        />,
+      ),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Chia sẻ hồ sơ của tôi" }),
+    ).toBeNull();
+  });
+});
+
+describe("/exchanges/mine referrals", () => {
+  it("a referrer sees used/limit and the blocked date", async () => {
+    mocks.viewer.current = { status: "ok", member, isGroupMember: true };
+    mocks.mine.mockResolvedValue({
+      registrations: [],
+      hosting: [],
+      blocks: [],
+    });
+    mocks.settings.mockResolvedValue({ notificationsEnabled: false });
+    mocks.referralState.mockResolvedValue({
+      eligible: true,
+      usedThisMonth: 2,
+      limit: 5,
+      // 20:00 UTC ngày 14 là ngày 15 giờ Việt Nam.
+      blockedUntil: "2026-12-14T20:00:00.000Z",
+      limited: false,
+    });
+    render(withIntl(await MyExchangesPage()));
+    expect(
+      screen.getByText("Bạn đã giới thiệu 2/5 người trong tháng này"),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("Bạn tạm không giới thiệu được tới 15/12/2026"),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Tài khoản mới bị giới hạn/)).toBeNull();
+    cleanup();
+
+    // Đủ điều kiện, không bị khoá: chỉ dòng đã dùng.
+    mocks.referralState.mockResolvedValue({
+      eligible: true,
+      usedThisMonth: 0,
+      limit: 5,
+      blockedUntil: null,
+      limited: false,
+    });
+    render(withIntl(await MyExchangesPage()));
+    expect(
+      screen.getByText("Bạn đã giới thiệu 0/5 người trong tháng này"),
+    ).toBeTruthy();
+    expect(screen.queryByText(/tạm không giới thiệu/)).toBeNull();
+    cleanup();
+
+    // Chưa đủ điều kiện, không giới hạn: không có thẻ giới thiệu nào.
+    mocks.referralState.mockResolvedValue({
+      eligible: false,
+      usedThisMonth: 0,
+      limit: 5,
+      blockedUntil: null,
+      limited: false,
+    });
+    render(withIntl(await MyExchangesPage()));
+    expect(screen.queryByText(/người trong tháng này/)).toBeNull();
   });
 });

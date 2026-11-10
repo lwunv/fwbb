@@ -6,18 +6,29 @@ import { useTranslations } from "next-intl";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   CalendarSearch,
+  Loader2,
   MessageCircle,
   Settings2,
+  Share2,
+  ShieldAlert,
   Star,
   UserRound,
+  UserRoundCheck,
   UserRoundX,
 } from "lucide-react";
+import { toast } from "sonner";
 import { unblockMember } from "@/actions/exchange-host";
 import type { MyExchanges as MyExchangesData } from "@/actions/exchange-mine";
+import { ensureMyPublicCode } from "@/actions/referrals";
 import { ExchangeCard } from "@/components/exchange/exchange-card";
 import { Card, CardContent } from "@/components/ui/card";
-import { CHARGEABLE_STATUSES } from "@/lib/exchange/constants";
+import {
+  CHARGEABLE_STATUSES,
+  NEW_ACCOUNT_MAX_WAITING,
+  RL_COMMENT_DAY_NEW,
+} from "@/lib/exchange/constants";
 import { fireAction } from "@/lib/optimistic-action";
+import { REFERRAL_MIN_ATTENDED } from "@/lib/reputation/constants";
 import { formatVND } from "@/lib/utils";
 
 const cardLink =
@@ -49,6 +60,108 @@ function NewCommentsBadge({ code, count }: { code: string; count: number }) {
 
 const CHARGEABLE = new Set<string>(CHARGEABLE_STATUSES);
 
+/** Trạng thái giới thiệu của chính người xem, server đã định dạng ngày khoá. */
+export type MyReferralCard = {
+  limited: boolean;
+  eligible: boolean;
+  used: number;
+  limit: number;
+  /** `dd/MM/yyyy` giờ Việt Nam khi đang bị khoá giới thiệu. */
+  blockedDate: string | null;
+};
+
+/**
+ * Thẻ cho nick mới: nói rõ đang bị giới hạn gì và cho chia sẻ hồ sơ để người
+ * quen mở ra giới thiệu. Mã hồ sơ chỉ được tạo khi bấm chia sẻ (quyết định 50).
+ */
+function NewcomerCard() {
+  const t = useTranslations("exchange.reputation.referral");
+  const [sharing, setSharing] = useState(false);
+
+  async function share() {
+    if (sharing) return;
+    setSharing(true);
+    try {
+      const res = await ensureMyPublicCode();
+      if ("error" in res) {
+        toast.error(res.error);
+        return;
+      }
+      const url = `${window.location.origin}/players/${res.code}`;
+      if (typeof navigator.share === "function") {
+        try {
+          await navigator.share({ title: t("share"), url });
+          return;
+        } catch (err) {
+          // Người dùng tự đóng bảng chia sẻ: không phải lỗi, không chép link.
+          if (err instanceof DOMException && err.name === "AbortError") return;
+        }
+      }
+      await navigator.clipboard.writeText(url);
+      toast.success(t("linkCopied"));
+    } catch {
+      toast.error(t("shareFailed"));
+    } finally {
+      setSharing(false);
+    }
+  }
+
+  return (
+    <section className="space-y-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 backdrop-blur">
+      <p className="flex gap-2 text-base">
+        <ShieldAlert
+          className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300"
+          aria-hidden
+        />
+        <span>
+          {t("limitedCard", {
+            pending: NEW_ACCOUNT_MAX_WAITING,
+            comments: RL_COMMENT_DAY_NEW.limit,
+            sessions: REFERRAL_MIN_ATTENDED,
+          })}
+        </span>
+      </p>
+      <motion.button
+        type="button"
+        whileTap={{ scale: 0.98 }}
+        onClick={share}
+        disabled={sharing}
+        className="bg-primary text-primary-foreground flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-4 text-base font-semibold disabled:opacity-70 sm:w-auto"
+      >
+        {sharing ? (
+          <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+        ) : (
+          <Share2 className="h-5 w-5" aria-hidden />
+        )}
+        {t("share")}
+      </motion.button>
+    </section>
+  );
+}
+
+/** Thẻ cho người giới thiệu được: lượt đã dùng trong tháng và ngày hết khoá. */
+function ReferrerCard({ r }: { r: MyReferralCard }) {
+  const t = useTranslations("exchange.reputation.referral");
+  return (
+    <section className="bg-card/80 space-y-1 rounded-2xl border p-4 backdrop-blur">
+      <h2 className="flex items-center gap-2 text-lg font-semibold">
+        <UserRoundCheck className="text-primary h-5 w-5" aria-hidden />
+        {t("title")}
+      </h2>
+      {r.eligible && (
+        <p className="text-base">
+          {t("used", { used: r.used, limit: r.limit })}
+        </p>
+      )}
+      {r.blockedDate && (
+        <p className="text-destructive text-base font-medium">
+          {t("blocked", { date: r.blockedDate })}
+        </p>
+      )}
+    </section>
+  );
+}
+
 const STATUS_KEY: Record<string, StatusKey> = {
   pending: "statusPending",
   approved: "statusApproved",
@@ -70,7 +183,11 @@ export function MyExchanges({
   hosting,
   blocks: initialBlocks,
   myCode = null,
-}: Omit<MyExchangesData, "myCode"> & { myCode?: string | null }) {
+  referral = null,
+}: Omit<MyExchangesData, "myCode"> & {
+  myCode?: string | null;
+  referral?: MyReferralCard | null;
+}) {
   const t = useTranslations("exchange.mine");
   const [blocks, setBlocks] = useState(initialBlocks);
 
@@ -93,6 +210,11 @@ export function MyExchanges({
           <UserRound className="h-5 w-5 shrink-0" aria-hidden />
           {t("myProfile")}
         </Link>
+      )}
+
+      {referral?.limited && <NewcomerCard />}
+      {referral && (referral.eligible || referral.blockedDate) && (
+        <ReferrerCard r={referral} />
       )}
 
       <section className="space-y-3" aria-labelledby="mine-regs">

@@ -1343,6 +1343,23 @@
         "friendly": "友好",
         "fair_play": "公平竞赛",
         "nice_play": "打得漂亮"
+      },
+      "referral": {
+        "title": "推荐新人",
+        "button": "推荐此人",
+        "rule": "你保证这是你认识的真实的人。对方将解除新账号限制。如果对方在前 {watchDays} 天内缺席或迟取消达 {strikes} 次，你将有 {blockDays} 天无法推荐他人。",
+        "remaining": "本月你还有 {n} 次推荐机会",
+        "confirm": "确认推荐",
+        "sentState": "已推荐",
+        "done": "推荐成功",
+        "quotaUsed": "你本月的 {limit} 次推荐机会已用完。",
+        "notEligible": "参加满 {sessions} 场且出席率不低于 {pct}% 后即可推荐新人。",
+        "blocked": "你在 {date} 之前暂时无法推荐他人",
+        "used": "本月你已推荐 {used}/{limit} 人",
+        "limitedCard": "新账号受限：最多 {pending} 个待审核报名，不能带同伴，每天 {comments} 条评论。请已参加 {sessions} 场以上的熟人推荐你以解除限制。",
+        "share": "分享我的主页",
+        "linkCopied": "已复制主页链接",
+        "shareFailed": "暂时无法分享主页，请稍后再试。"
       }
     },
     "manage": {

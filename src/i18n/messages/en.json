@@ -1343,6 +1343,23 @@
         "friendly": "Friendly",
         "fair_play": "Fair play",
         "nice_play": "Nice play"
+      },
+      "referral": {
+        "title": "Referrals",
+        "button": "Refer this player",
+        "rule": "You vouch that this is a real person you know. Their new-account limits are lifted. If they miss or cancel late {strikes, plural, one {# time} other {# times}} or more in their first {watchDays} days, you can't refer anyone for {blockDays} days.",
+        "remaining": "{n, plural, one {You have # referral left this month} other {You have # referrals left this month}}",
+        "confirm": "Confirm referral",
+        "sentState": "Referred",
+        "done": "Referral saved",
+        "quotaUsed": "You've used all {limit} referrals for this month.",
+        "notEligible": "You can refer new players once you've attended {sessions, plural, one {# session} other {# sessions}} and shown up for at least {pct}% of your approved exchanges.",
+        "blocked": "You can't refer anyone until {date}",
+        "used": "You have referred {used}/{limit} people this month",
+        "limitedCard": "New accounts are limited: at most {pending} pending registrations, no companions, {comments} comments a day. Ask someone you know who has played {sessions} or more sessions to refer you and lift the limits.",
+        "share": "Share my profile",
+        "linkCopied": "Profile link copied",
+        "shareFailed": "Your profile couldn't be shared. Please try again."
       }
     },
     "manage": {
