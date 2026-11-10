@@ -24,7 +24,8 @@ const { listExchangesNear, mobile, locState, webgl } = vi.hoisted(() => ({
 vi.mock("@/actions/exchange-read", () => ({ listExchangesNear }));
 // LocationFallback importa geocodeAddress, kéo theo kết nối DB thật.
 vi.mock("@/actions/venues", () => ({ geocodeAddress: vi.fn() }));
-vi.mock("@/lib/map/webgl", () => ({ hasWebGL2: () => webgl.ok }));
+// The real WebGL helper runs; only the canvas probe is faked, so a test can
+// count how many WebGL contexts the page creates.
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 vi.mock("@/lib/use-is-mobile", async () => {
   const { useEffect, useState } = await import("react");
@@ -119,9 +120,15 @@ function renderSearch(search = "", canOpenEvent = false) {
   );
 }
 
+let webglProbe: { mock: { calls: unknown[][] } };
+
 beforeEach(() => {
   mobile.value = true;
   webgl.ok = true;
+  webglProbe = vi
+    .spyOn(HTMLCanvasElement.prototype, "getContext")
+    .mockImplementation(((type: string) =>
+      type === "webgl2" && webgl.ok ? {} : null) as never);
   locState.status = "ok";
   listExchangesNear.mockResolvedValue({
     events: [
@@ -134,6 +141,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.restoreAllMocks();
 });
 
 describe("ExchangeSearch", () => {
@@ -220,6 +228,17 @@ describe("ExchangeSearch", () => {
     expect(screen.getByText("Chưa có buổi quanh đây")).toBeTruthy();
     const open = screen.getAllByRole("link", { name: "Mở buổi" });
     expect(open[0].getAttribute("href")).toBe("/exchanges/new");
+  });
+
+  // Final review F7: every render used to create a WebGL context to probe.
+  it("probes WebGL once per mount, not on every render", async () => {
+    renderSearch();
+    await screen.findByText("Giao lưu tối T6");
+    fireEvent.click(screen.getByRole("button", { name: "Bản đồ" }));
+    fireEvent.click(screen.getByRole("button", { name: "Danh sách" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bản đồ" }));
+    const probes = webglProbe.mock.calls.filter((c) => c[0] === "webgl2");
+    expect(probes).toHaveLength(1);
   });
 
   it("no WebGL disables the map button", async () => {

@@ -7,6 +7,10 @@
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
+import { act } from "react";
+import { renderToString } from "react-dom/server";
+import { hydrateRoot, type Root } from "react-dom/client";
+import { exchangeWhenLabel } from "@/lib/exchange/format";
 import { NextIntlClientProvider } from "next-intl";
 import viMessages from "@/i18n/messages/vi.json";
 import { getVietQRUrl } from "@/lib/vietqr";
@@ -257,5 +261,74 @@ describe("EventPost", () => {
     const { container } = renderPost({ hostLine: null });
     expect(container.querySelector('a[href^="/players/"]')).toBeNull();
     expect(screen.queryByText("Host mới")).toBeNull();
+  });
+});
+
+// Final review F8: the date chip used Intl in render. Node's ICU writes the
+// Vietnamese weekday differently from Chrome's ("Th 4" vs "Thứ 4"), so the
+// server HTML and the first browser render disagreed (React #418).
+describe("EventPost hydration", () => {
+  let hydrated: { root: Root; container: HTMLElement } | null = null;
+  afterEach(() => {
+    if (hydrated) {
+      const { root, container } = hydrated;
+      act(() => root.unmount());
+      container.remove();
+      hydrated = null;
+    }
+    vi.restoreAllMocks();
+  });
+
+  const post = () => (
+    <NextIntlClientProvider locale="vi" messages={viMessages}>
+      <EventPost
+        event={makeEvent()}
+        viewer={makeViewer()}
+        memberGender={null}
+      />
+    </NextIntlClientProvider>
+  );
+
+  it("the date chip is the fixed-table label and hydrates without a mismatch when the browser ICU differs", () => {
+    const html = renderToString(post());
+    const event = makeEvent();
+    const label = exchangeWhenLabel(event.startAt, event.endAt, "vi");
+    expect(html).toContain(label);
+
+    // Browser ICU: same API, different weekday wording.
+    const RealDTF = Intl.DateTimeFormat;
+    // `function`, not an arrow: the component calls it with `new`.
+    vi.spyOn(Intl, "DateTimeFormat").mockImplementation(function (
+      locale?: string | string[],
+      opts?: Intl.DateTimeFormatOptions,
+    ) {
+      const real = new RealDTF(locale, opts);
+      if (!opts?.weekday) return real;
+      return {
+        ...real,
+        resolvedOptions: () => real.resolvedOptions(),
+        formatToParts: (d?: Date | number) => real.formatToParts(d),
+        format: (d?: Date | number) => `Browser ${real.format(d)}`,
+      };
+    } as never);
+
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    document.body.appendChild(container);
+    const onRecoverableError = vi.fn();
+    const consoleError = vi.spyOn(console, "error");
+    act(() => {
+      hydrated = {
+        root: hydrateRoot(container, post(), { onRecoverableError }),
+        container,
+      };
+    });
+    expect(onRecoverableError).not.toHaveBeenCalled();
+    expect(
+      consoleError.mock.calls
+        .map((args) => args.map(String).join(" "))
+        .filter((m) => /hydrat|did not match|server rendered/i.test(m)),
+    ).toEqual([]);
+    expect(container.textContent).toContain(label);
   });
 });

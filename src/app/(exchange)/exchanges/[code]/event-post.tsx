@@ -24,6 +24,7 @@ import { CommentSection } from "@/components/exchange/comments/comment-section";
 import { ReportSheet } from "@/components/exchange/report-sheet";
 import { HostReputation } from "@/components/reputation/host-reputation";
 import { MemberAvatar } from "@/components/shared/member-avatar";
+import { exchangeWhenLabel } from "@/lib/exchange/format";
 import type { PublicExchangeEvent } from "@/lib/exchange/public-event";
 import type { HostLine } from "@/lib/reputation/host-line";
 import type { HeadRates } from "@/lib/exchange-fee";
@@ -32,25 +33,6 @@ import { SKILL_BADGE_CLASS } from "@/lib/skill-level";
 import { cn, formatVND } from "@/lib/utils";
 import { MyRegistrationBar, type RegState } from "./my-registration-bar";
 import { RegisterSheet } from "./register-sheet";
-
-const VN_TZ = "Asia/Ho_Chi_Minh";
-
-function whenLabel(startAt: string, endAt: string, locale: string): string {
-  const day = new Intl.DateTimeFormat(locale, {
-    timeZone: VN_TZ,
-    weekday: "long",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(new Date(startAt));
-  const time = new Intl.DateTimeFormat(locale, {
-    timeZone: VN_TZ,
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  });
-  return `${day}, ${time.format(new Date(startAt))}-${time.format(new Date(endAt))}`;
-}
 
 function agoLabel(iso: string, locale: string): string {
   const diffMin = Math.round((new Date(iso).getTime() - Date.now()) / 60000);
@@ -315,7 +297,9 @@ export function EventPost({
           <div className="flex flex-wrap gap-2">
             <span className={chip}>
               <CalendarClock className="h-4 w-4 shrink-0" aria-hidden />
-              {whenLabel(event.startAt, event.endAt, locale)}
+              {/* Bảng cố định, không Intl: ICU của Node và trình duyệt viết thứ
+                  khác nhau, lệch hydrate. */}
+              {exchangeWhenLabel(event.startAt, event.endAt, locale)}
             </span>
             <Link
               href={`/venues/${event.venue.id}`}

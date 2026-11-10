@@ -149,6 +149,34 @@ function DetailLinkSearchBar(
   );
 }
 
+/**
+ * Thẻ xem nhanh có "Xem chi tiết" tự điều hướng. Thẻ mở trong phiên này đã có
+ * mục lịch sử riêng (push), nên trang chi tiết thay mục đó: một lần Back về
+ * thẳng danh sách cùng bộ lọc, không ghé lại thẻ. Bấm kèm phím (mở tab mới)
+ * thì để trình duyệt tự làm.
+ */
+function RoutedQuickView({
+  prepareDetail,
+  ...props
+}: Omit<ComponentProps<typeof VenueQuickView>, "onViewDetails"> & {
+  prepareDetail: (id: number) => boolean;
+}) {
+  const router = useRouter();
+  return (
+    <VenueQuickView
+      {...props}
+      onViewDetails={(e) => {
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+          return;
+        e.preventDefault();
+        const href = `/venues/${props.venue.id}`;
+        if (prepareDetail(props.venue.id)) router.replace(href);
+        else router.push(href);
+      }}
+    />
+  );
+}
+
 function CardSkeletons() {
   return (
     <ul className="space-y-2" aria-hidden>
@@ -270,6 +298,10 @@ export function VenueDirectory({
     !s.exchangeFilterPending &&
     s.venues.length === 0;
   const listLoading = query.isPending || s.exchangeFilterPending;
+  // Không có sân là do bộ lọc: chip lọc ở client loại hết, hoặc lọc tiện ích
+  // (lọc ở server) không ra sân nào. Nói đúng lý do và cho bỏ lọc một lần bấm,
+  // đừng báo "Chưa có sân nào trong 5 km".
+  const filtersEmpty = filteredEmpty || (isEmpty && s.amenities.length > 0);
 
   // Lỗi tải hoặc không có sân: lời nhắn nằm trong ngăn, nên ngăn tự lên nấc
   // giữa đúng một lần cho mỗi kết quả (người dùng hạ xuống thì không bị kéo lại).
@@ -366,7 +398,34 @@ export function VenueDirectory({
       );
     }
     if (listLoading) return <CardSkeletons />;
-    if (isEmpty || filteredEmpty) {
+    if (filtersEmpty) {
+      return (
+        <div className="flex flex-col items-center gap-3 py-6 text-center">
+          <MapPinned className="text-muted-foreground size-8" aria-hidden />
+          <div className="space-y-1">
+            <p className="text-base font-medium">{t("filteredEmptyTitle")}</p>
+            <p className="text-muted-foreground text-base">
+              {t("filteredEmptyDescription", { km: s.radius })}
+            </p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button className="min-h-11" onClick={s.clearFilters}>
+              {t("clearFilters")}
+            </Button>
+            {nextRadius && (
+              <Button
+                variant="outline"
+                className="min-h-11"
+                onClick={() => s.setRadius(nextRadius)}
+              >
+                {t("expandRadius")}
+              </Button>
+            )}
+          </div>
+        </div>
+      );
+    }
+    if (isEmpty) {
       return (
         <div className="flex flex-col items-center gap-3 py-6 text-center">
           <MapPinned className="text-muted-foreground size-8" aria-hidden />
@@ -520,7 +579,8 @@ export function VenueDirectory({
             exit={{ opacity: 0, y: 12 }}
             transition={{ duration: 0.15 }}
           >
-            <VenueQuickView
+            <RoutedQuickView
+              prepareDetail={s.prepareDetail}
               venue={selected}
               locale={locale}
               exchangeCount={s.counts?.get(selected.id)}
@@ -599,6 +659,7 @@ export function VenueDirectory({
             // Bản đồ phủ cả màn: một ngón là kéo bản đồ, không còn trang để cuộn.
             cooperativeGestures={false}
             focus={s.focus}
+            recenterKey={s.recenterSeq}
             bottomInset={bottomInset}
             noticeClassName="top-[var(--venues-top-reserve)]"
             className="h-full rounded-none border-0"

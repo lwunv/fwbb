@@ -13,11 +13,13 @@ import { renderToString } from "react-dom/server";
 import type { ReactNode } from "react";
 import { NextIntlClientProvider } from "next-intl";
 import { NuqsTestingAdapter } from "nuqs/adapters/testing";
+import { NuqsAdapter } from "nuqs/adapters/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import viMessages from "@/i18n/messages/vi.json";
 import type { MapViewProps } from "@/components/map/map-view";
 import type { VenueSheet as RealVenueSheet } from "@/components/venues/venue-sheet";
 import { SHEET_PEEK_PX, snapOffsets } from "@/lib/venues/sheet-snap";
+import { readListReturn } from "@/lib/venues/directory-state";
 
 type GeoState = {
   status: "idle" | "asking" | "ok" | "denied" | "unsupported";
@@ -79,6 +81,9 @@ vi.mock("@/components/venues/use-user-location", async () => {
     },
   };
 });
+
+const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
 // Bản đồ thật cần WebGL: thay bằng stub ghi lại props và có nút giả thao tác.
 vi.mock("@/components/map/lazy-map-view", () => ({
@@ -263,6 +268,11 @@ type Opts = {
   exchangeEnabled?: boolean;
   loadExchangeCounts?: (ids: number[]) => Promise<[number, number][]>;
   canSuggest?: boolean;
+  /**
+   * Adapter nuqs đọc/ghi `window.history` thật (jsdom): đóng thẻ xem nhanh lùi
+   * bằng history.back(), mà adapter test không biết gì về popstate.
+   */
+  realHistory?: boolean;
 };
 
 function tree(opts: Opts, onUrlUpdate = vi.fn()): ReactNode {
@@ -277,18 +287,28 @@ function tree(opts: Opts, onUrlUpdate = vi.fn()): ReactNode {
         messages={viMessages}
         timeZone="Asia/Ho_Chi_Minh"
       >
-        <NuqsTestingAdapter
-          searchParams={opts.search ?? ""}
-          hasMemory
-          resetUrlUpdateQueueOnMount={false}
-          onUrlUpdate={onUrlUpdate}
-        >
-          <VenueDirectory
-            canSuggest={opts.canSuggest ?? false}
-            exchangeEnabled={opts.exchangeEnabled ?? false}
-            loadExchangeCounts={opts.loadExchangeCounts}
-          />
-        </NuqsTestingAdapter>
+        {opts.realHistory ? (
+          <NuqsAdapter>
+            <VenueDirectory
+              canSuggest={opts.canSuggest ?? false}
+              exchangeEnabled={opts.exchangeEnabled ?? false}
+              loadExchangeCounts={opts.loadExchangeCounts}
+            />
+          </NuqsAdapter>
+        ) : (
+          <NuqsTestingAdapter
+            searchParams={opts.search ?? ""}
+            hasMemory
+            resetUrlUpdateQueueOnMount={false}
+            onUrlUpdate={onUrlUpdate}
+          >
+            <VenueDirectory
+              canSuggest={opts.canSuggest ?? false}
+              exchangeEnabled={opts.exchangeEnabled ?? false}
+              loadExchangeCounts={opts.loadExchangeCounts}
+            />
+          </NuqsTestingAdapter>
+        )}
       </NextIntlClientProvider>
     </QueryClientProvider>
   );
@@ -329,6 +349,9 @@ beforeEach(() => {
   geo.request.mockReset();
   geo.request.mockImplementation(() => geo.set({ status: "asking" }));
   localStorage.clear();
+  sessionStorage.clear();
+  router.push.mockReset();
+  router.replace.mockReset();
   setPermissions("prompt");
 });
 
@@ -632,7 +655,12 @@ describe("VenueDirectory: sheet", () => {
   });
 
   it("X returns to the list at the same snap; drag close returns to low", async () => {
-    const { lastUrl } = renderDir();
+    window.history.replaceState(null, "", "/venues");
+    const startLength = window.history.length;
+    const historyBack = vi.spyOn(window.history, "back");
+    renderDir({ realHistory: true });
+    const venueParam = () =>
+      new URLSearchParams(window.location.search).get("venue");
     fireEvent.click(await screen.findByRole("button", { name: "pin-2" }));
     await waitFor(() => expect(snap()).toBe("mid"));
     fireEvent.click(sheetTitle());
@@ -654,9 +682,11 @@ describe("VenueDirectory: sheet", () => {
         within(sheet()).queryByRole("button", { name: "Đóng" }),
       ).toBeNull(),
     );
-    await waitFor(() =>
-      expect(lastUrl()?.searchParams.get("venue")).toBeNull(),
-    );
+    await waitFor(() => expect(venueParam()).toBeNull());
+    // Mỗi lần mở thẻ push một mục, mỗi lần đóng lùi qua đúng mục đó: Back của
+    // điện thoại không phải bấm thêm lần nào để rời trang.
+    expect(historyBack).toHaveBeenCalledTimes(2);
+    expect(window.history.length).toBe(startLength + 1);
   });
 
   it("exchange filter pending shows skeleton cards and a title without a number", async () => {
@@ -885,5 +915,116 @@ describe("VenueDirectory: search suggestions", () => {
       wrapper.compareDocumentPosition(chipRow) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+});
+
+// Final review F4: chips that hide every venue in range are not "no venue
+// within 5 km": say the filters are the reason and offer to clear them.
+describe("VenueDirectory: filtered empty state", () => {
+  it("open-now hiding every venue shows the filters message and clearing the filters brings the list back", async () => {
+    const { lastUrl } = renderDir({ search: "?open=true" });
+    const clear = await within(sheet()).findByRole("button", {
+      name: viMessages.venues.clearFilters,
+    });
+    expect(
+      within(sheet()).getByText(viMessages.venues.filteredEmptyTitle),
+    ).toBeTruthy();
+    expect(
+      within(sheet()).queryByText("Chưa có sân nào trong 5 km"),
+    ).toBeNull();
+    expect(snap()).toBe("mid");
+
+    fireEvent.click(clear);
+    await within(sheet()).findByText("Sân Một");
+    await waitFor(() =>
+      expect(lastUrl()?.searchParams.has("open")).toBe(false),
+    );
+  });
+
+  it("an amenity filter with no result also blames the filters and clears them with one tap", async () => {
+    listVenuesNear.mockImplementation(async (q: { amenities: string[] }) => ({
+      venues: q.amenities.length > 0 ? [] : [venue(1, "Sân Một")],
+    }));
+    const { lastUrl } = renderDir({ search: "?amenities=parking" });
+    const clear = await within(sheet()).findByRole("button", {
+      name: viMessages.venues.clearFilters,
+    });
+    expect(
+      within(sheet()).getByText(viMessages.venues.filteredEmptyTitle),
+    ).toBeTruthy();
+    fireEvent.click(clear);
+    await within(sheet()).findByText("Sân Một");
+    expect(lastUrl()?.searchParams.has("amenities")).toBe(false);
+  });
+
+  it("no filters and no venues keeps the radius message", async () => {
+    listVenuesNear.mockResolvedValue({ venues: [] });
+    renderDir();
+    await within(sheet()).findByText("Chưa có sân nào trong 5 km");
+    expect(
+      within(sheet()).queryByRole("button", {
+        name: viMessages.venues.clearFilters,
+      }),
+    ).toBeNull();
+  });
+});
+
+// Final review F2 (wiring): the map gets the recenter sequence.
+describe("VenueDirectory: recenter", () => {
+  it("passes recenterKey to the map and bumps it on a place search", async () => {
+    renderDir();
+    await screen.findByText("Sân Một");
+    const before = mapProps.last?.recenterKey;
+    expect(before).toBe(0);
+    geocodeAddress.mockResolvedValue({
+      lat: 21.036,
+      lng: 105.79,
+      label: "Cầu Giấy",
+    });
+    const input = screen.getByRole("combobox");
+    act(() => input.focus());
+    fireEvent.change(input, { target: { value: "Cầu Giấy" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(mapProps.last?.recenterKey).toBe(1));
+  });
+});
+
+// Final review F6: quick view, then "View details", then Back lands on the list
+// with the same filters in one press.
+describe("VenueDirectory: quick view to detail page", () => {
+  it("a quick view opened here replaces its own entry with the detail page", async () => {
+    renderDir({ search: "?r=10" });
+    fireEvent.click(await screen.findByRole("button", { name: "pin-2" }));
+    const details = await within(sheet()).findByRole("link", {
+      name: viMessages.venues.viewDetails,
+    });
+    fireEvent.click(details);
+    expect(router.replace).toHaveBeenCalledWith("/venues/2");
+    expect(router.push).not.toHaveBeenCalled();
+    expect(readListReturn(2)).toBe("/venues?r=10");
+  });
+
+  it("a quick view opened from a link pushes the detail page", async () => {
+    renderDir({ search: "?venue=2&r=10" });
+    const details = await within(sheet()).findByRole("link", {
+      name: viMessages.venues.viewDetails,
+    });
+    fireEvent.click(details);
+    expect(router.push).toHaveBeenCalledWith("/venues/2");
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(readListReturn(2)).toBe("/venues?r=10");
+  });
+
+  it("a ctrl-click is left to the browser (new tab), no in-app navigation", async () => {
+    renderDir();
+    fireEvent.click(await screen.findByRole("button", { name: "pin-2" }));
+    const details = await within(sheet()).findByRole("link", {
+      name: viMessages.venues.viewDetails,
+    });
+    const notPrevented = fireEvent.click(details, { ctrlKey: true });
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(router.push).not.toHaveBeenCalled();
+    // Next's Link itself leaves modified clicks to the browser.
+    expect(notPrevented).toBe(true);
   });
 });

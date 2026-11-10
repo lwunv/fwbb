@@ -1,9 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import {
   CalendarX,
-  ChevronLeft,
   ExternalLink,
   MapPin,
   MessageSquareText,
@@ -25,6 +23,7 @@ import { toTelNumber } from "@/lib/venues/phone";
 import { ExchangeCard } from "@/components/exchange/exchange-card";
 import { InfoRow } from "@/components/shared/info-row";
 import { AMENITY_ICONS } from "@/components/venues/amenity-icons";
+import { VenueBackLink } from "@/components/venues/venue-back-link";
 import { VenueMiniMap } from "@/components/venues/venue-mini-map";
 import { VenueOpenStatus } from "@/components/venues/venue-open-status";
 import { VenueShareButton } from "@/components/venues/venue-share-button";
@@ -78,13 +77,7 @@ export default async function VenueDetailPage({
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-5 pb-28 md:pb-0">
-      <Link
-        href="/venues"
-        className="text-muted-foreground inline-flex min-h-11 items-center gap-1 text-sm"
-      >
-        <ChevronLeft className="size-4" aria-hidden />
-        {t("backToList")}
-      </Link>
+      <VenueBackLink venueId={venue.id} label={t("backToList")} />
 
       <VenueMiniMap venue={venue} />
 

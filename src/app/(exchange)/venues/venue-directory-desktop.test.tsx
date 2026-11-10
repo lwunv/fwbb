@@ -13,6 +13,7 @@ import { renderToString } from "react-dom/server";
 import type { ReactNode } from "react";
 import { NextIntlClientProvider } from "next-intl";
 import { NuqsTestingAdapter } from "nuqs/adapters/testing";
+import { NuqsAdapter } from "nuqs/adapters/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import viMessages from "@/i18n/messages/vi.json";
 import type { MapViewProps } from "@/components/map/map-view";
@@ -173,7 +174,15 @@ function setPermissions(state: string) {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-type Opts = { search?: string; canSuggest?: boolean };
+type Opts = {
+  search?: string;
+  canSuggest?: boolean;
+  /**
+   * Dùng adapter nuqs đọc/ghi `window.history` thật (jsdom) thay cho adapter
+   * test, để kiểm Back: adapter test không biết gì về history.back/popstate.
+   */
+  realHistory?: boolean;
+};
 
 function tree(opts: Opts, onUrlUpdate = vi.fn()): ReactNode {
   return (
@@ -187,17 +196,26 @@ function tree(opts: Opts, onUrlUpdate = vi.fn()): ReactNode {
         messages={viMessages}
         timeZone="Asia/Ho_Chi_Minh"
       >
-        <NuqsTestingAdapter
-          searchParams={opts.search ?? ""}
-          hasMemory
-          resetUrlUpdateQueueOnMount={false}
-          onUrlUpdate={onUrlUpdate}
-        >
-          <VenueDirectory
-            canSuggest={opts.canSuggest ?? false}
-            exchangeEnabled={false}
-          />
-        </NuqsTestingAdapter>
+        {opts.realHistory ? (
+          <NuqsAdapter>
+            <VenueDirectory
+              canSuggest={opts.canSuggest ?? false}
+              exchangeEnabled={false}
+            />
+          </NuqsAdapter>
+        ) : (
+          <NuqsTestingAdapter
+            searchParams={opts.search ?? ""}
+            hasMemory
+            resetUrlUpdateQueueOnMount={false}
+            onUrlUpdate={onUrlUpdate}
+          >
+            <VenueDirectory
+              canSuggest={opts.canSuggest ?? false}
+              exchangeEnabled={false}
+            />
+          </NuqsTestingAdapter>
+        )}
       </NextIntlClientProvider>
     </QueryClientProvider>
   );
@@ -220,6 +238,13 @@ const classes = (el: Element) => el.className.split(/\s+/);
 /** `a` đứng trước `b` trong tài liệu. */
 const precedes = (a: Node, b: Node) =>
   (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+
+/** Các lần console.error nói về lệch hydrate (React 19 dev). */
+function hydrationWarnings(spy: { mock: { calls: unknown[][] } }): string[] {
+  return spy.mock.calls
+    .map((args) => args.map(String).join(" "))
+    .filter((m) => /hydrat|did not match|server rendered/i.test(m));
+}
 
 beforeEach(() => {
   viewport.width = 390;
@@ -302,7 +327,12 @@ describe("VenueDirectory: desktop two columns", () => {
 
   it("tapping a pin on desktop swaps the column to the quick view without a dialog; back returns to the list and clears ?venue=", async () => {
     viewport.width = 1280;
-    const { lastUrl } = renderDir();
+    window.history.replaceState(null, "", "/venues");
+    const startLength = window.history.length;
+    const historyBack = vi.spyOn(window.history, "back");
+    renderDir({ realHistory: true });
+    const venueParam = () =>
+      new URLSearchParams(window.location.search).get("venue");
     fireEvent.click(await screen.findByRole("button", { name: "pin-2" }));
     const back = await within(column()).findByRole("button", {
       name: viMessages.venues.backToList,
@@ -319,7 +349,9 @@ describe("VenueDirectory: desktop two columns", () => {
       lat: venue(2, "").lat,
       lng: venue(2, "").lng,
     });
-    await waitFor(() => expect(lastUrl()?.searchParams.get("venue")).toBe("2"));
+    await waitFor(() => expect(venueParam()).toBe("2"));
+    // Chọn ghim thêm đúng một mục lịch sử (Back đóng thẻ xem nhanh).
+    expect(window.history.length).toBe(startLength + 1);
 
     fireEvent.click(back);
     await within(column()).findByText("Sân Một");
@@ -328,9 +360,10 @@ describe("VenueDirectory: desktop two columns", () => {
         name: viMessages.venues.backToList,
       }),
     ).toBeNull();
-    await waitFor(() =>
-      expect(lastUrl()?.searchParams.get("venue")).toBeNull(),
-    );
+    await waitFor(() => expect(venueParam()).toBeNull());
+    // Đóng lùi qua mục vừa push thay vì xoá ?venue= bằng replace: trước đây
+    // mục thừa ở lại nên Back của điện thoại phải bấm hai lần mới rời trang.
+    expect(historyBack).toHaveBeenCalledTimes(1);
   });
 
   it("desktop floats the search-here and loading pills over the map, not in the column", async () => {
@@ -471,6 +504,9 @@ describe("VenueDirectory: no WebGL", () => {
     const container = document.createElement("div");
     container.innerHTML = html;
     document.body.appendChild(container);
+    // React báo lệch hydrate qua console.error (rồi tự vẽ lại ở client), nên
+    // chỉ nhìn DOM cuối thì test vẫn xanh dù HTML server sai.
+    const consoleError = vi.spyOn(console, "error");
     render(tree({}), { container, hydrate: true });
     expect(
       await screen.findByText(viMessages.venues.mapUnsupported),
@@ -478,6 +514,7 @@ describe("VenueDirectory: no WebGL", () => {
     await screen.findByText("Sân Một");
     expect(screen.queryByTestId("map")).toBeNull();
     expect(mapLife.mounts).toBe(0);
+    expect(hydrationWarnings(consoleError)).toEqual([]);
   });
 
   it("without WebGL the card name links to the detail page", async () => {

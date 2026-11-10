@@ -110,6 +110,33 @@ describe("VenueQuickView", () => {
     ).toBe("/venues/7");
   });
 
+  // Thẻ xem nhanh mở ở nấc giữa, nơi danh sách không cuộn: nút hành động mà
+  // đứng sau tiện ích và các buổi giao lưu thì rơi xuống dưới mép màn hình
+  // (Chỉ đường ở y=945 trên máy 390x844 khi sân có 2 buổi).
+  it("the action row comes right after price and hours, before amenities and upcoming exchanges, and labels never wrap", async () => {
+    const loadUpcoming = vi.fn(async () => [ev("A1")]);
+    renderQv({ exchangeCount: 1, loadUpcoming });
+    const dir = screen.getByRole("link", { name: "Chỉ đường" });
+    const hours = screen.getByText("Đang mở (5:00 - 23:00)");
+    const amenity = screen.getByText("Gửi xe");
+    const upcoming = screen.getByRole("heading", {
+      name: viMessages.venues.upcomingExchangesTitle,
+    });
+    const follows = (a: Node, b: Node) =>
+      (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    expect(follows(hours, dir)).toBe(true);
+    expect(follows(dir, amenity)).toBe(true);
+    expect(follows(dir, upcoming)).toBe(true);
+    for (const name of ["Chỉ đường", "Gọi", "Xem chi tiết"]) {
+      expect(screen.getByRole("link", { name }).className).toContain(
+        "whitespace-nowrap",
+      );
+    }
+    expect(screen.getByRole("button", { name: "Chia sẻ" }).className).toContain(
+      "whitespace-nowrap",
+    );
+  });
+
   it("no phone hides the call button", () => {
     // Chuỗi không có chữ số nào ("+") cũng không phải số để gọi.
     for (const phone of [null, "+", " + "]) {

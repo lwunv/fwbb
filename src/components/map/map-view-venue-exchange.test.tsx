@@ -158,6 +158,17 @@ describe("MapView venue exchange pins", () => {
     expect(badge.textContent).toBe("1");
   });
 
+  it("a two-digit exchange count widens the badge instead of spilling out of a fixed 20px circle", () => {
+    renderMap({ points: withEx(12) });
+    const pin = screen.getByRole("button", { name: pinLabel(12) });
+    const badge = pin.querySelector<HTMLElement>("[data-role=count]")!;
+    expect(badge.textContent).toBe("12");
+    const cls = badge.className.split(/\s+/);
+    expect(cls).toContain("min-w-5");
+    expect(cls).toContain("h-5");
+    expect(cls).not.toContain("size-5");
+  });
+
   it("a pin created without exchanges turns into an exchange pin on rerender with count 2, and back to plain at 0", () => {
     const { rerenderWith } = renderMap();
     let pin = screen.getByRole("button", { name: "Sân Cầu Giấy" });
@@ -268,5 +279,40 @@ describe("MapView venue exchange pins", () => {
     );
     expect(map.easeTo.mock.calls.length).toBe(n);
     expect(map.setPadding).toHaveBeenLastCalledWith({ bottom: 300 });
+  });
+});
+
+// Final review F2: searching the same place again, or "my location" while the
+// centre is already that fix, must still bring a panned map back.
+describe("MapView recenterKey", () => {
+  it("a recenterKey change eases back to the same centre", () => {
+    const { rerenderWith } = renderMap({ recenterKey: 0 });
+    const map = maps[0];
+    expect(map.easeTo).not.toHaveBeenCalled();
+    rerenderWith({ recenterKey: 1 });
+    expect(map.easeTo).toHaveBeenCalledTimes(1);
+    expect(map.easeTo).toHaveBeenLastCalledWith({
+      center: [center.lng, center.lat],
+      zoom: 12,
+    });
+    rerenderWith({ recenterKey: 2 });
+    expect(map.easeTo).toHaveBeenCalledTimes(2);
+  });
+
+  it("an unchanged recenterKey with an unchanged centre does not ease", () => {
+    const { rerenderWith } = renderMap({ recenterKey: 3 });
+    rerenderWith({ recenterKey: 3 });
+    rerenderWith({ recenterKey: 3, center: { ...center } });
+    expect(maps[0].easeTo).not.toHaveBeenCalled();
+  });
+
+  it("a centre change together with a recenterKey change eases once", () => {
+    const { rerenderWith } = renderMap({ recenterKey: 0 });
+    rerenderWith({ recenterKey: 1, center: { lat: 10.77, lng: 106.7 } });
+    expect(maps[0].easeTo).toHaveBeenCalledTimes(1);
+    expect(maps[0].easeTo).toHaveBeenLastCalledWith({
+      center: [106.7, 10.77],
+      zoom: 12,
+    });
   });
 });

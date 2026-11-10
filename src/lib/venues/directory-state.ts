@@ -61,6 +61,40 @@ export function writeStoredArea(a: StoredArea): void {
   }
 }
 
+/**
+ * Trang danh sách (kèm bộ lọc) mà người dùng rời đi để xem chi tiết một sân.
+ * Nút "Danh sách sân" ở trang chi tiết quay về đúng URL này thay vì `/venues`
+ * trống bộ lọc. Lưu theo tab (sessionStorage), chỉ dùng cho đúng sân đó.
+ */
+export const LIST_RETURN_KEY = "fwbb.venues.listReturn";
+
+/** Chỉ đường dẫn của trang danh sách, không bao giờ là URL ngoài hay trang khác. */
+function isListHref(href: string): boolean {
+  return href === "/venues" || href.startsWith("/venues?");
+}
+
+export function writeListReturn(id: number, href: string): void {
+  try {
+    sessionStorage.setItem(LIST_RETURN_KEY, JSON.stringify({ id, href }));
+  } catch {
+    // Tiện ích: storage bị chặn thì nút quay lại dùng `/venues`.
+  }
+}
+
+export function readListReturn(id: number): string | null {
+  try {
+    const raw = sessionStorage.getItem(LIST_RETURN_KEY);
+    if (!raw) return null;
+    const v: unknown = JSON.parse(raw);
+    if (typeof v !== "object" || v === null) return null;
+    const { id: savedId, href } = v as Record<string, unknown>;
+    if (savedId !== id || typeof href !== "string") return null;
+    return isListHref(href) ? href : null;
+  } catch {
+    return null;
+  }
+}
+
 export type CenterSource = "url" | "gps" | "stored" | "default";
 
 export function resolveCenter(i: {

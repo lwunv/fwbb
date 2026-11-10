@@ -52,11 +52,14 @@ test.afterAll(cleanup);
 async function openDirectory(
   browser: import("@playwright/test").Browser,
   path: string,
+  opts: { noWebGL?: boolean } = {},
 ) {
   const ctx = await browser.newContext({
     geolocation: HERE,
     permissions: ["geolocation"],
     viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
     storageState: { cookies: [], origins: [] },
   });
   const page: Page = await ctx.newPage();
@@ -72,22 +75,30 @@ async function openDirectory(
       body: JSON.stringify({ version: 8, sources: {}, layers: [] }),
     });
   });
+  if (opts.noWebGL) {
+    await page.addInitScript(() => {
+      const orig = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (
+        this: HTMLCanvasElement,
+        type: string,
+        ...args: unknown[]
+      ) {
+        if (type === "webgl2" || type === "webgl") return null;
+        return (orig as (...a: unknown[]) => unknown).call(this, type, ...args);
+      } as typeof orig;
+    });
+  }
   await page.goto(path);
   return { ctx, page, mapRequests, consoleMessages };
 }
 
-test("switching to map shows a marker per seeded venue at 390px", async ({
+test("opening /venues at 390px shows the seeded pins at once, the map frame is at least 200px tall, no horizontal overflow", async ({
   browser,
 }) => {
   const { ctx, page } = await openDirectory(browser, "/venues");
-  await expect(page.getByRole("link", { name: NEAR })).toBeVisible({
-    timeout: 15_000,
-  });
-
-  await page.getByRole("button", { name: "Bản đồ", exact: true }).click();
-  await expect(page).toHaveURL(/view=map/);
 
   // Ghim là nút HTML (aria-label = tên sân), không cần đọc canvas WebGL.
+  // Ngăn ở nấc thấp nên danh sách bị ẩn: chỉ còn ghim trong cây trợ năng.
   await expect(page.getByRole("button", { name: NEAR })).toBeVisible({
     timeout: 20_000,
   });
@@ -110,19 +121,19 @@ test("switching to map shows a marker per seeded venue at 390px", async ({
   await ctx.close();
 });
 
-test("tapping a marker opens the venue card sheet with a details link", async ({
+test("tapping a pin opens the quick view; Xem chi tiết links to /venues/{id}", async ({
   browser,
 }) => {
-  const { ctx, page } = await openDirectory(browser, "/venues?view=map");
+  const { ctx, page } = await openDirectory(browser, "/venues");
   const pin = page.getByRole("button", { name: NEAR });
   await expect(pin).toBeVisible({ timeout: 20_000 });
-  await pin.click();
+  await pin.tap();
 
-  const sheet = page.getByRole("dialog");
-  await expect(sheet).toBeVisible();
-  const details = sheet.getByRole("link", { name: NEAR });
+  await expect(page).toHaveURL(/[?&]venue=\d+/);
+  const details = page.getByRole("link", { name: "Xem chi tiết" });
+  await expect(details).toBeVisible();
   await expect(details).toHaveAttribute("href", /^\/venues\/\d+$/);
-  await details.click();
+  await details.tap();
   await expect(page).toHaveURL(/\/venues\/\d+$/);
   await ctx.close();
 });
@@ -140,7 +151,7 @@ test("the map worker loads from the same origin without map errors", async ({
     predicate: (w) => /maplibre-gl-worker[^/]*\.mjs/.test(w.url()),
     timeout: 20_000,
   });
-  await page.goto("/venues?view=map");
+  await page.goto("/venues");
   const w = await worker;
   expect(new URL(w.url()).origin).toBe(new URL(page.url()).origin);
   await expect(page.getByRole("button", { name: NEAR })).toBeVisible({
@@ -153,12 +164,15 @@ test("the map worker loads from the same origin without map errors", async ({
   await ctx.close();
 });
 
-test("list view still works and does not request the map style", async ({
+test("a device without WebGL shows the list and never requests openfreemap", async ({
   browser,
 }) => {
-  const { ctx, page, mapRequests } = await openDirectory(browser, "/venues");
+  const { ctx, page, mapRequests } = await openDirectory(browser, "/venues", {
+    noWebGL: true,
+  });
   const names = page.getByRole("link", { name: new RegExp(`^${PREFIX}`) });
   await expect(names).toHaveText([NEAR, FAR], { timeout: 15_000 });
+  await expect(page.getByTestId("venues-list-page")).toBeVisible();
   // Cho bản đồ (nếu lỡ nạp) có thời gian gọi mạng trước khi đếm.
   await page.waitForTimeout(1500);
   expect(mapRequests).toHaveLength(0);

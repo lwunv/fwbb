@@ -60,6 +60,8 @@ describe("VenueOpenStatus", () => {
     container.innerHTML = html;
     document.body.appendChild(container);
     const onRecoverableError = vi.fn();
+    // Lệch thuộc tính chỉ hiện qua console.error, không qua onRecoverableError.
+    const consoleError = vi.spyOn(console, "error");
     act(() => {
       hydrated = {
         root: hydrateRoot(container, tree("5:00 - 23:00", "open"), {
@@ -69,6 +71,12 @@ describe("VenueOpenStatus", () => {
       };
     });
     expect(onRecoverableError).not.toHaveBeenCalled();
+    expect(
+      consoleError.mock.calls
+        .map((args) => args.map(String).join(" "))
+        .filter((m) => /hydrat|did not match|server rendered/i.test(m)),
+    ).toEqual([]);
+    consoleError.mockRestore();
     expect(container.textContent).toBe("Đang mở (5:00 - 23:00)");
 
     setVisibility("visible");
@@ -113,5 +121,41 @@ describe("VenueOpenStatus", () => {
     setVisibility("visible");
     expect(vi.getTimerCount()).toBe(0);
     expect(screen.getByText("Chưa rõ giờ (T2-T6 5:00-22:00)")).toBeTruthy();
+  });
+});
+
+describe("VenueOpenStatus dot colour", () => {
+  // Theme hồng: --accent (hồng) và --destructive (đỏ hồng) gần như cùng màu,
+  // nên chấm "Đang mở" phải dùng token riêng khác hẳn chấm "Đã đóng".
+  const dotOf = (container: HTMLElement) =>
+    container.querySelector("span[aria-hidden]") as HTMLElement;
+
+  it("open uses the success token and closed uses destructive", () => {
+    vi.setSystemTime(new Date("2026-11-09T03:00:00Z")); // 10:00 VN
+    const open = render(tree("5:00 - 23:00", "open"));
+    expect(dotOf(open.container).className).toContain("bg-success");
+    expect(dotOf(open.container).className).not.toContain("bg-accent");
+    cleanup();
+    const closed = render(tree("5:00 - 23:00", "closed"));
+    expect(dotOf(closed.container).className).toContain("bg-destructive");
+  });
+
+  it("globals.css defines a success token for light, dark and pink, distinct from pink accent and destructive", async () => {
+    const { readFileSync } = await import("node:fs");
+    const css = readFileSync(`${process.cwd()}/src/app/globals.css`, "utf8");
+    expect(css).toMatch(/--color-success:\s*var\(--success\)/);
+    const block = (selector: string) => {
+      const start = css.indexOf(`${selector} {`);
+      expect(start).toBeGreaterThanOrEqual(0);
+      return css.slice(start, css.indexOf("}", start));
+    };
+    const token = (b: string, name: string) =>
+      b.match(new RegExp(`--${name}:\s*([^;]+);`))?.[1]?.trim();
+    for (const sel of [":root", ".dark", ".pink"]) {
+      expect(token(block(sel), "success"), sel).toBeTruthy();
+    }
+    const pink = block(".pink");
+    expect(token(pink, "success")).not.toBe(token(pink, "accent"));
+    expect(token(pink, "success")).not.toBe(token(pink, "destructive"));
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -13,7 +13,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { CalendarClock, LocateFixed, Plus } from "lucide-react";
 import { listExchangesNear } from "@/actions/exchange-read";
 import type { LatLng } from "@/lib/geo";
-import { hasWebGL2 } from "@/lib/map/webgl";
+import { useWebGL2Support } from "@/lib/map/webgl";
 import { exchangesToPoints, movedBeyond } from "@/lib/map/map-points";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -29,9 +29,6 @@ const RADII = [3, 5, 10, 20] as const;
 const VIEWS = ["list", "map"] as const;
 /** Kéo bản đồ quá 30% bán kính thì mới đáng mời tìm lại ở khu vực mới. */
 const SEARCH_HERE_RATIO = 0.3;
-
-// Phía server luôn "có WebGL"; phía client đọc thật sau hydrate nên không lệch HTML.
-const subscribeNone = () => () => {};
 
 /**
  * Tìm buổi giao lưu quanh một điểm, xem dạng danh sách hoặc bản đồ. Danh sách
@@ -59,11 +56,9 @@ export function ExchangeSearch({ canOpenEvent }: { canOpenEvent: boolean }) {
     return setRadiusQuery(r);
   };
   const [selectedVenueId, setSelectedVenueId] = useState<number | null>(null);
-  const noWebGL = useSyncExternalStore(
-    subscribeNone,
-    () => !hasWebGL2(),
-    () => false,
-  );
+  // Server và lần hydrate coi như có WebGL (không lệch HTML); dò thật một lần
+  // mỗi lần mount, không tạo context WebGL ở mỗi lần render.
+  const noWebGL = !useWebGL2Support();
   const [mapFailed, setMapFailed] = useState(false);
   const mapUnsupported = noWebGL || mapFailed;
   const loc = useUserLocation();

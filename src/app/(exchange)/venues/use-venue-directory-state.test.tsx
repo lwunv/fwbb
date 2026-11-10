@@ -6,7 +6,7 @@ import { NuqsTestingAdapter } from "nuqs/adapters/testing";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import viMessages from "@/i18n/messages/vi.json";
-import { LAST_AREA_KEY } from "@/lib/venues/directory-state";
+import { LAST_AREA_KEY, readListReturn } from "@/lib/venues/directory-state";
 
 type GeoState = {
   status: "idle" | "asking" | "ok" | "denied" | "unsupported";
@@ -537,12 +537,48 @@ describe("useVenueDirectoryState: selection", () => {
     await waitFor(() => expect(result.current.selectedId).toBe(1));
     expect(result.current.focus).toMatchObject({ lat: venue(1).lat, seq: 2 });
     expect(result.current.openedFromLink).toBe(false);
+    expect(listVenuesNear).toHaveBeenCalledTimes(1);
+  });
+
+  // Closing used to clear ?venue= with replace, leaving the pushed entry in
+  // history, so the phone Back button needed two presses to leave /venues.
+  it("closing a venue selected in this session steps back over the pushed entry (one Back leaves the page)", async () => {
+    const back = vi.spyOn(window.history, "back").mockImplementation(() => {});
+    const { result, onUrlUpdate } = setup();
+    await waitFor(() => expect(result.current.venues).toHaveLength(2));
+    const before = onUrlUpdate.mock.calls.length;
+
+    act(() => result.current.select(2));
+    await waitFor(() => expect(result.current.selectedId).toBe(2));
+    // Switching pins replaces the entry: only one pushed entry per quick view.
+    act(() => result.current.select(1));
+    await waitFor(() => expect(result.current.selectedId).toBe(1));
+    const histories = onUrlUpdate.mock.calls
+      .slice(before)
+      .map((c) => c[0].options.history);
+    expect(histories).toEqual(["push", "replace"]);
+
+    const writes = onUrlUpdate.mock.calls.length;
+    act(() => result.current.clearSelection());
+    expect(back).toHaveBeenCalledTimes(1);
+    // No second URL write: the popstate from back() is what clears ?venue=.
+    expect(onUrlUpdate.mock.calls.length).toBe(writes);
+    back.mockRestore();
+  });
+
+  it("closing a venue opened from a shared link clears ?venue= with replace (no entry of ours to step back over)", async () => {
+    const back = vi.spyOn(window.history, "back").mockImplementation(() => {});
+    const { result, lastUrl } = setup({
+      search: "?venue=2&lat=21.03&lng=105.85",
+    });
+    await waitFor(() => expect(result.current.selectedVenue?.id).toBe(2));
 
     act(() => result.current.clearSelection());
     await waitFor(() => expect(result.current.selectedId).toBeNull());
-    expect(result.current.selectedVenue).toBeNull();
+    expect(back).not.toHaveBeenCalled();
     expect(lastUrl()?.searchParams.has("venue")).toBe(false);
-    expect(listVenuesNear).toHaveBeenCalledTimes(1);
+    expect(lastUrl()?.options.history).toBe("replace");
+    back.mockRestore();
   });
 
   it("a selected venue filtered out clears ?venue=", async () => {
@@ -709,5 +745,211 @@ describe("useVenueDirectoryState: selection", () => {
     );
     expect(result.current.venues.map((v) => v.id)).toEqual([5]);
     expect(result.current.selectedVenue?.id).toBe(5);
+  });
+});
+
+// Final review F1/F3: a quick view whose pushed entry was later rewritten by a
+// filter or locate must not be closed with history.back(), which would land on
+// the entry from before the change and silently revert it.
+describe("useVenueDirectoryState: history after changes in a quick view", () => {
+  type Change = (s: ReturnType<typeof useVenueDirectoryState>) => void;
+  const changes: [string, Change, string, string][] = [
+    ["radius", (s) => s.setRadius(10), "r", "10"],
+    ["amenities", (s) => s.setAmenities(["parking"]), "amenities", "parking"],
+    ["open now", (s) => s.setOpenNow(true), "open", "true"],
+  ];
+  for (const [name, change, key, value] of changes) {
+    it(`changing ${name} with a pushed quick view open makes X clear ?venue= with replace, keeping the change`, async () => {
+      const back = vi
+        .spyOn(window.history, "back")
+        .mockImplementation(() => {});
+      // Open-now drops venues without hours: give both venues 24/7 hours so
+      // the selection survives the chip.
+      listVenuesNear.mockResolvedValue({
+        venues: [
+          venue(1, { openHours: "24/7" }),
+          venue(2, { openHours: "24/7" }),
+        ],
+      });
+      const { result, lastUrl } = setup();
+      await waitFor(() => expect(result.current.venues).toHaveLength(2));
+      act(() => result.current.select(2));
+      await waitFor(() => expect(result.current.selectedId).toBe(2));
+      expect(lastUrl()?.options.history).toBe("push");
+
+      act(() => change(result.current));
+      await waitFor(() => expect(lastUrl()?.searchParams.get(key)).toBe(value));
+
+      act(() => result.current.clearSelection());
+      await waitFor(() =>
+        expect(lastUrl()?.searchParams.has("venue")).toBe(false),
+      );
+      expect(back).not.toHaveBeenCalled();
+      expect(lastUrl()?.options.history).toBe("replace");
+      expect(lastUrl()?.searchParams.get(key)).toBe(value);
+    });
+  }
+
+  it("changing the exchange chip with a pushed quick view open makes X use replace", async () => {
+    const back = vi.spyOn(window.history, "back").mockImplementation(() => {});
+    const { result, lastUrl } = setup({
+      exchangeEnabled: true,
+      loadExchangeCounts: async () => [
+        [1, 1],
+        [2, 1],
+      ],
+    });
+    await waitFor(() => expect(result.current.venues).toHaveLength(2));
+    act(() => result.current.select(2));
+    await waitFor(() => expect(result.current.selectedId).toBe(2));
+    act(() => result.current.setExchange(true));
+    await waitFor(() =>
+      expect(lastUrl()?.searchParams.get("exchange")).toBe("true"),
+    );
+    act(() => result.current.clearSelection());
+    await waitFor(() =>
+      expect(lastUrl()?.searchParams.has("venue")).toBe(false),
+    );
+    expect(back).not.toHaveBeenCalled();
+    expect(lastUrl()?.searchParams.get("exchange")).toBe("true");
+  });
+
+  it("a successful locate with a pushed quick view open makes X use replace", async () => {
+    const back = vi.spyOn(window.history, "back").mockImplementation(() => {});
+    const { result, lastUrl } = setup({ search: "?lat=10.77&lng=106.7" });
+    await waitFor(() => expect(result.current.venues).toHaveLength(2));
+    act(() => result.current.select(2));
+    await waitFor(() => expect(result.current.selectedId).toBe(2));
+
+    act(() => result.current.locate());
+    act(() => geo.set({ status: "ok", position: HN }));
+    await waitFor(() => expect(lastUrl()?.searchParams.has("lat")).toBe(false));
+
+    act(() => result.current.clearSelection());
+    expect(back).not.toHaveBeenCalled();
+  });
+
+  it("opened from a link with ?venue=A, selecting B replaces and X shows the list, not A", async () => {
+    const back = vi.spyOn(window.history, "back").mockImplementation(() => {});
+    const { result, lastUrl } = setup({ search: "?venue=1" });
+    await waitFor(() => expect(result.current.selectedVenue?.id).toBe(1));
+
+    act(() => result.current.select(2));
+    await waitFor(() => expect(result.current.selectedId).toBe(2));
+    expect(lastUrl()?.options.history).toBe("replace");
+
+    act(() => result.current.clearSelection());
+    await waitFor(() => expect(result.current.selectedId).toBeNull());
+    expect(back).not.toHaveBeenCalled();
+    expect(lastUrl()?.searchParams.has("venue")).toBe(false);
+  });
+});
+
+// Final review F2: the map only re-centred when the centre value changed, so
+// searching the same place again (or "my location" while already there) left
+// the map where the user had panned it.
+describe("useVenueDirectoryState: recenter", () => {
+  it("starts at 0 and does not move on the first load or on a plain pan", async () => {
+    const { result } = setup();
+    await waitFor(() => expect(listVenuesNear).toHaveBeenCalledTimes(1));
+    act(() => result.current.onMoveEnd({ lat: 21.2, lng: 105.9 }));
+    expect(result.current.recenterSeq).toBe(0);
+  });
+
+  it("each successful place search bumps recenterSeq, even for the same place", async () => {
+    const { result } = setup();
+    await waitFor(() => expect(listVenuesNear).toHaveBeenCalledTimes(1));
+    const p = { lat: 21.036, lng: 105.79 };
+    act(() => result.current.placeSearched(p, "Cầu Giấy"));
+    const first = result.current.recenterSeq;
+    expect(first).toBeGreaterThan(0);
+
+    act(() => result.current.onMoveEnd({ lat: 21.2, lng: 105.9 }));
+    act(() => result.current.placeSearched(p, "Cầu Giấy"));
+    expect(result.current.recenterSeq).toBe(first + 1);
+    expect(result.current.showSearchHere).toBe(false);
+  });
+
+  it("my location while already centred on the same GPS fix bumps recenterSeq once the fix arrives", async () => {
+    setPermissions(async () => ({ state: "granted" }));
+    const { result } = setup();
+    act(() => geo.set({ status: "ok", position: HN }));
+    await waitFor(() => expect(result.current.source).toBe("gps"));
+    const before = result.current.recenterSeq;
+
+    act(() => result.current.onMoveEnd({ lat: 21.2, lng: 105.9 }));
+    act(() => result.current.locate());
+    expect(result.current.recenterSeq).toBe(before);
+    act(() => geo.set({ status: "ok", position: HN }));
+    await waitFor(() => expect(result.current.recenterSeq).toBe(before + 1));
+    expect(result.current.showSearchHere).toBe(false);
+
+    // Not again on unrelated re-renders.
+    act(() => result.current.setRadius(10));
+    expect(result.current.recenterSeq).toBe(before + 1);
+  });
+
+  it("a denied locate does not bump recenterSeq", async () => {
+    const { result } = setup();
+    await waitFor(() => expect(listVenuesNear).toHaveBeenCalledTimes(1));
+    act(() => result.current.locate());
+    act(() => geo.set({ status: "denied" }));
+    expect(result.current.recenterSeq).toBe(0);
+  });
+});
+
+// Final review F4: one action clears every filter chip in a single URL write.
+describe("useVenueDirectoryState: clearFilters", () => {
+  it("clears amenities, exchange and open but keeps radius and area", async () => {
+    const { result, lastUrl } = setup({
+      search:
+        "?r=10&amenities=parking&exchange=true&open=true&lat=10.77&lng=106.7",
+      exchangeEnabled: true,
+      loadExchangeCounts: async () => [],
+    });
+    await waitFor(() => expect(listVenuesNear).toHaveBeenCalled());
+    act(() => result.current.clearFilters());
+    await waitFor(() =>
+      expect(lastUrl()?.searchParams.has("amenities")).toBe(false),
+    );
+    const sp = lastUrl()!.searchParams;
+    expect(sp.has("exchange")).toBe(false);
+    expect(sp.has("open")).toBe(false);
+    expect(sp.get("r")).toBe("10");
+    expect(sp.get("lat")).toBe("10.77");
+    expect(result.current.amenities).toEqual([]);
+    expect(result.current.openNow).toBe(false);
+    expect(result.current.exchange).toBe(false);
+  });
+});
+
+// Final review F6: quick view, then "View details", then Back must land on the
+// list with the same filters in one press, and the detail page's own back link
+// must keep those filters too.
+describe("useVenueDirectoryState: leaving for the detail page", () => {
+  it("from a pushed quick view: asks to replace that entry and remembers the list URL without ?venue=", async () => {
+    const { result } = setup({ search: "?r=10" });
+    await waitFor(() => expect(result.current.venues).toHaveLength(2));
+    act(() => result.current.select(2));
+    await waitFor(() => expect(result.current.selectedId).toBe(2));
+
+    let replace: boolean | undefined;
+    act(() => {
+      replace = result.current.prepareDetail(2);
+    });
+    expect(replace).toBe(true);
+    expect(readListReturn(2)).toBe("/venues?r=10");
+    expect(readListReturn(1)).toBeNull();
+  });
+
+  it("from a quick view opened by a link: pushes (no entry of ours to replace)", async () => {
+    const { result } = setup({ search: "?venue=1" });
+    await waitFor(() => expect(result.current.selectedVenue?.id).toBe(1));
+    let replace: boolean | undefined;
+    act(() => {
+      replace = result.current.prepareDetail(1);
+    });
+    expect(replace).toBe(false);
+    expect(readListReturn(1)).toBe("/venues");
   });
 });

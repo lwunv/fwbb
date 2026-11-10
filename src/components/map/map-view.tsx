@@ -54,6 +54,11 @@ export type MapViewProps = {
   cooperativeGestures?: boolean;
   /** Bay tới điểm (đổi `seq` để bay lại). Không đụng vòng bán kính, không gọi `onMoveEnd`. */
   focus?: { lat: number; lng: number; seq: number } | null;
+  /**
+   * Đổi giá trị thì bay về `center`/`radiusKm` kể cả khi chúng không đổi (vd
+   * tìm lại đúng chỗ cũ sau khi kéo bản đồ đi).
+   */
+  recenterKey?: number;
   /** Chiều cao (px) phần đáy bị ngăn kéo che; tâm bản đồ lệch lên theo. */
   bottomInset?: number;
   /** Vị trí khối "Không tải được nền bản đồ"; mặc định `top-16`. */
@@ -117,7 +122,7 @@ function createPin(onClick: () => void): HTMLButtonElement {
   badge.hidden = true;
   badge.setAttribute("aria-hidden", "true");
   badge.className =
-    "bg-background text-foreground border-primary group-data-[exchange=true]:border-warning pointer-events-none absolute top-0 right-0 flex size-5 items-center justify-center rounded-full border text-sm leading-none font-bold";
+    "bg-background text-foreground border-primary group-data-[exchange=true]:border-warning pointer-events-none absolute top-0 right-0 flex h-5 min-w-5 items-center justify-center rounded-full border px-1 text-sm leading-none font-bold";
   el.appendChild(badge);
   el.addEventListener("click", (e) => {
     // Không để cú bấm ghim lọt xuống bản đồ.
@@ -197,6 +202,7 @@ export function MapView({
   interactive = true,
   cooperativeGestures = false,
   focus,
+  recenterKey,
   bottomInset,
   noticeClassName,
   className,
@@ -219,7 +225,12 @@ export function MapView({
   const focusTargetRef = useRef<{ lat: number; lng: number } | null>(null);
   const appliedInsetRef = useRef<number | undefined>(undefined);
   const lastFocusSeqRef = useRef<number | undefined>(undefined);
-  const lastViewRef = useRef({ lat: center.lat, lng: center.lng, radiusKm });
+  const lastViewRef = useRef({
+    lat: center.lat,
+    lng: center.lng,
+    radiusKm,
+    recenterKey,
+  });
 
   // Handler của maplibre đăng ký một lần lúc tạo map, nên đọc props mới
   // nhất qua ref thay vì closure cũ.
@@ -429,7 +440,8 @@ export function MapView({
     }
   }, [points, selectedId, selectedKey, unsupported, interactive, tx, t]);
 
-  // Màn cha đổi tâm/bán kính (vd "Tìm ở khu vực này", đổi bán kính).
+  // Màn cha đổi tâm/bán kính (vd "Tìm ở khu vực này", đổi bán kính), hoặc
+  // đổi `recenterKey` để bay về tâm cũ.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -437,11 +449,17 @@ export function MapView({
     if (
       prev.lat === center.lat &&
       prev.lng === center.lng &&
-      prev.radiusKm === radiusKm
+      prev.radiusKm === radiusKm &&
+      prev.recenterKey === recenterKey
     ) {
       return;
     }
-    lastViewRef.current = { lat: center.lat, lng: center.lng, radiusKm };
+    lastViewRef.current = {
+      lat: center.lat,
+      lng: center.lng,
+      radiusKm,
+      recenterKey,
+    };
     const c = { lat: center.lat, lng: center.lng };
     map
       .getSource<GeoJSONSource>(RADIUS_SOURCE)
@@ -450,7 +468,7 @@ export function MapView({
       center: [c.lng, c.lat],
       zoom: zoomForRadiusKm(radiusKm ?? DEFAULT_RADIUS_KM),
     });
-  }, [center.lat, center.lng, radiusKm]);
+  }, [center.lat, center.lng, radiusKm, recenterKey]);
 
   // Chừa chỗ cho ngăn kéo. Chỉ gọi API khi màn cha truyền prop.
   useEffect(() => {
