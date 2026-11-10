@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ChevronRight, ShieldCheck } from "lucide-react";
 import type { HostLine } from "@/lib/reputation/host-line";
+import { NewBadge } from "./new-badge";
 
 /**
  * Dòng uy tín ngắn của host trên trang buổi; cả khối là một link 44px tới hồ
@@ -19,9 +20,7 @@ export function HostReputation({ line }: { line: HostLine }) {
       <ShieldCheck className="text-primary h-5 w-5 shrink-0" aria-hidden />
       <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
         {line.organized === 0 ? (
-          <span className="bg-primary/10 text-primary inline-flex min-h-7 items-center rounded-full px-2.5 text-sm font-semibold">
-            {t("hostNew")}
-          </span>
+          <NewBadge label={t("hostNew")} />
         ) : (
           <span className="text-base font-medium">
             {t("hostOrganized", { count: line.organized })}

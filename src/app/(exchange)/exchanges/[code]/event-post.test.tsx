@@ -71,6 +71,24 @@ function renderPost(props: Partial<Props> = {}) {
 }
 
 describe("EventPost", () => {
+  // Task 25 carry (Task 16 review): tên host dài bị cắt "..." ở đầu bài mà
+  // không có cách nào xem đủ tên.
+  it("a truncated host name shows the full name on tap", () => {
+    const long = "Nguyễn Thị Minh Khai Có Một Cái Tên Rất Là Dài";
+    renderPost({
+      event: makeEvent({
+        host: { name: long, avatarUrl: null, avatarKey: null, code: null },
+      }),
+    });
+    const btn = screen.getByRole("button", { name: long });
+    expect(btn.className).toContain("truncate");
+    expect(btn.className).toContain("min-h-11");
+    Object.defineProperty(btn, "scrollWidth", { value: 400 });
+    Object.defineProperty(btn, "clientWidth", { value: 120 });
+    fireEvent.click(btn);
+    expect(screen.getByRole("tooltip").textContent).toBe(long);
+  });
+
   it("post shows title, venue link, fee, slot bar and directions; no phone or email", () => {
     const { container } = renderPost();
     expect(

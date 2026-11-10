@@ -1,8 +1,17 @@
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
-/** Chip "Mới" cho tài khoản mới (hồ sơ người chơi, danh sách đăng ký). */
-export function NewBadge({ className }: { className?: string }) {
+/**
+ * Chip "Mới" cho tài khoản mới (hồ sơ người chơi, danh sách đăng ký). `label`
+ * cho biến thể cùng kiểu như "Host mới", để mọi chip "mới" nhìn giống nhau.
+ */
+export function NewBadge({
+  className,
+  label,
+}: {
+  className?: string;
+  label?: string;
+}) {
   const t = useTranslations("exchange.reputation");
   return (
     <span
@@ -11,7 +20,7 @@ export function NewBadge({ className }: { className?: string }) {
         className,
       )}
     >
-      {t("newBadge")}
+      {label ?? t("newBadge")}
     </span>
   );
 }

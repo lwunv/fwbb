@@ -357,3 +357,47 @@ describe("anomaly and formatting", () => {
     expect(vnMonth("2026-10-31T16:59:59.000Z")).toBe("2026-10");
   });
 });
+
+// Task 25 carry (Task 2 review): người chấm nặng 0 (w5 = 0) không được làm ra
+// NaN, "0%" hay lượt khen giả; điểm sân chỉ còn trung bình chung.
+describe("zero-weight raters", () => {
+  it("venue: three reviews with w = 0 fall back to the prior, no NaN", () => {
+    const zero = venueScore(sums(3, 0, 5), EMPTY_PRIOR);
+    expect(zero.count).toBe(3);
+    // (0 + 25 * 3) / 25 = 3 → 30, mọi tiêu chí và điểm chung.
+    expect(zero.overall).toBe(30);
+    expect(Object.values(zero.criteria)).toEqual([30, 30, 30, 30, 30, 30]);
+    // Prior thật trung bình 4: kéo hẳn về 4.
+    expect(venueScore(sums(3, 0, 1), sums(40, 5, 4)).overall).toBe(40);
+  });
+
+  it("host: three raters all w5 = 0 give raters 3 and null percentages", () => {
+    const rows = [10, 11, 12].map((fromId) =>
+      host({ eventId: 1, fromId, w5: 0, asDescribed: false }),
+    );
+    expect(summarizeHost(rows)).toEqual({
+      raters: 3,
+      asDescribedPct: null,
+      feeAsPromisedPct: null,
+    });
+  });
+
+  it("peer: three raters all w5 = 0 give no play-again, tags or skill", () => {
+    const rows = [10, 11, 12].map((fromId) =>
+      peer({
+        eventId: 1,
+        fromId,
+        w5: 0,
+        playAgain: true,
+        tags: ["on_time", "friendly"],
+        skill: "tb",
+      }),
+    );
+    expect(summarizePeer(rows)).toEqual({
+      raters: 3,
+      playAgain: null,
+      tags: [],
+      skill: null,
+    });
+  });
+});

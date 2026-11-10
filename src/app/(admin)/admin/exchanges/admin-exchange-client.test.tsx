@@ -29,7 +29,8 @@ vi.mock("@/actions/exchange-admin", () => admin);
 vi.mock("@/lib/use-is-mobile", () => ({ useIsMobile: () => true }));
 vi.mock("sonner", () => ({ toast: { error: toastError, success: vi.fn() } }));
 
-const { AdminExchangeClient } = await import("./admin-exchange-client");
+const { AdminExchangeClient, ReputationPanelSkeleton } =
+  await import("./admin-exchange-client");
 
 afterEach(cleanup);
 beforeEach(() => vi.clearAllMocks());
@@ -202,5 +203,18 @@ describe("admin reports tab", () => {
       screen.getByRole("link", { name: "Buổi tối thứ 4" }).getAttribute("href"),
     ).toBe("/exchanges/abc123#comments");
     expect(screen.getByText(/Bình luận:/)).toBeTruthy();
+  });
+});
+
+// Task 25 carry (Tasks 23+24 review): fallback cũ chỉ có danh sách, panel hiện
+// ra thì hai hàng tab chen vào và đẩy danh sách xuống.
+describe("admin reputation tab fallback", () => {
+  it("reserves both tab bars above the list", () => {
+    render(<ReputationPanelSkeleton />);
+    const bars = screen.getAllByTestId("rep-tabbar-skeleton");
+    expect(bars).toHaveLength(2);
+    for (const bar of bars) {
+      expect(bar.firstElementChild?.className).toContain("h-11");
+    }
   });
 });

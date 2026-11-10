@@ -176,6 +176,24 @@ describe("duplicate exchange account signals", () => {
     ).toBeTruthy();
   });
 
+  // Task 25 carry (Tasks 23+24 review): tên trong nhóm trùng tên bị cắt "..."
+  // mà không xem được đủ, nút chỉ cao 32px.
+  it("name groups show full wrapped names and 44px buttons", () => {
+    mount({ groups: [nameGroup], signalGroups: [] });
+    const names = screen.getAllByTestId("dup-member-name");
+    expect(names).toHaveLength(2);
+    for (const n of names) {
+      expect(n.className).not.toContain("truncate");
+      expect(n.className).toContain("break-words");
+    }
+    for (const b of [
+      screen.getByRole("button", { name: /Gộp vào ID #2/ }),
+      ...screen.getAllByRole("button", { name: /Bỏ qua/ }),
+    ]) {
+      expect(b.className).toContain("min-h-11");
+    }
+  });
+
   it("the members page passes signal groups only when the exchange flag is on", async () => {
     const findBanner = (node: ReactNode): ReactElement | undefined => {
       if (Array.isArray(node)) {

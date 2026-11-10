@@ -274,7 +274,7 @@ function ReviewCard({
         <div className="flex flex-wrap items-center gap-2">
           <Link
             href={`/venues/${row.venueId}`}
-            className="min-w-0 text-base font-semibold break-words hover:underline"
+            className="inline-flex min-h-11 min-w-0 items-center text-base font-semibold break-words hover:underline"
           >
             {row.venueName}
           </Link>
@@ -444,7 +444,7 @@ function HostFlagsSection() {
                   {r.hostCode ? (
                     <Link
                       href={`/players/${r.hostCode}`}
-                      className="text-base font-semibold break-words hover:underline"
+                      className="inline-flex min-h-11 items-center text-base font-semibold break-words hover:underline"
                     >
                       {r.hostName}
                     </Link>

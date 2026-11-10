@@ -335,7 +335,7 @@ export function AdminExchangeClient({
           )}
         </>
       ) : tab === "reputation" ? (
-        <Suspense fallback={<ListSkeleton />}>
+        <Suspense fallback={<ReputationPanelSkeleton />}>
           <AdminReputationPanel initialFilter={repFilter} />
         </Suspense>
       ) : tab === "comments" ? (
@@ -440,6 +440,27 @@ function ListSkeleton() {
       {Array.from({ length: 3 }).map((_, i) => (
         <Skeleton key={i} className="h-36 w-full rounded-xl" />
       ))}
+    </div>
+  );
+}
+
+/**
+ * Chờ tải tab Uy tín: giữ chỗ hai hàng tab (mục, bộ lọc) như panel thật, để
+ * danh sách không bị đẩy xuống khi panel hiện ra.
+ */
+export function ReputationPanelSkeleton() {
+  return (
+    <div className="space-y-3" data-testid="rep-panel-skeleton">
+      <div className="flex gap-2" data-testid="rep-tabbar-skeleton">
+        <Skeleton className="h-11 w-28 rounded-full" />
+        <Skeleton className="h-11 w-28 rounded-full" />
+      </div>
+      <div className="flex gap-2" data-testid="rep-tabbar-skeleton">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-11 w-24 rounded-full" />
+        ))}
+      </div>
+      <ListSkeleton />
     </div>
   );
 }

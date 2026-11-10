@@ -1,9 +1,32 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { cache } from "react";
+import { getTranslations } from "next-intl/server";
 import { getMyReferralState } from "@/actions/referrals";
 import { getExchangeViewer } from "@/lib/member-auth";
 import { getPublicProfile } from "@/lib/reputation/profile-read";
 import { vnDisplayDate } from "@/lib/reputation/referral-rules";
 import { PlayerProfile, type ReferralOffer } from "./player-profile";
+
+// Tiêu đề và trang chạy song song trong cùng một request: gộp về một lần gọi
+// để lúc cache hồ sơ hết hạn cũng chỉ đọc DB một lần.
+const loadProfile = cache((code: string) => getPublicProfile(code));
+
+/**
+ * Tiêu đề tab theo tên người chơi (Task 25), để mở nhiều hồ sơ còn phân biệt
+ * được. Mã lạ thì để trang 404, không đặt tiêu đề.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ code: string }>;
+}): Promise<Metadata> {
+  const { code } = await params;
+  const profile = await loadProfile(code);
+  if (!profile) return {};
+  const t = await getTranslations("exchange.reputation");
+  return { title: t("profileOf", { name: profile.name }) };
+}
 
 /**
  * Hồ sơ công khai của một người chơi. Cờ tắt đã 404 ở layout /players; mã
@@ -23,7 +46,7 @@ export default async function PlayerProfilePage({
 }) {
   const { code } = await params;
   // Hồ sơ (có cache) trước: mã lạ 404 ngay, không tốn lần đọc người xem.
-  const profile = await getPublicProfile(code);
+  const profile = await loadProfile(code);
   if (!profile) notFound();
   const viewer = await getExchangeViewer();
 

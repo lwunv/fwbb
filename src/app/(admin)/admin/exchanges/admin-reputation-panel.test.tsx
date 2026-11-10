@@ -111,6 +111,8 @@ describe("admin reputation tab", () => {
       screen.getByRole("tab", { name: /Uy tín/ }).getAttribute("aria-selected"),
     ).toBe("true");
     expect(await screen.findByText("Sân Cầu Giấy")).toBeTruthy();
+    // Task 25: link tên sân là vùng chạm 44px.
+    expect(screen.getByText("Sân Cầu Giấy").className).toContain("min-h-11");
     expect(rep.adminListVenueReviews).toHaveBeenCalledWith("held");
     // Cờ host chỉ tải khi mở tab con của nó (quota Turso).
     expect(rep.adminListHostFlags).not.toHaveBeenCalled();
@@ -244,6 +246,9 @@ describe("admin reputation tab", () => {
     expect(
       screen.getByRole("link", { name: "Tuấn" }).getAttribute("href"),
     ).toBe("/players/abcdefghij");
+    expect(screen.getByRole("link", { name: "Tuấn" }).className).toContain(
+      "min-h-11",
+    );
 
     fireEvent.click(screen.getAllByRole("button", { name: "Đã xem" })[0]);
     await waitFor(() => expect(screen.queryByText("Tuấn")).toBeNull());

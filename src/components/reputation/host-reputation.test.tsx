@@ -149,4 +149,18 @@ describe("NewBadge", () => {
     renderVi(<NewBadge />);
     expect(screen.getByText("Mới")).toBeTruthy();
   });
+
+  // Task 25 carry (Task 16 review): chip "Host mới" từng chép tay class của
+  // NewBadge, sửa một bên là hai chip lệch nhau.
+  it("the Host mới chip is the same badge as Mới", () => {
+    renderVi(
+      <>
+        <NewBadge />
+        <HostReputation line={line({ organized: 0 })} />
+      </>,
+    );
+    expect(screen.getByText("Host mới").className).toBe(
+      screen.getByText("Mới").className,
+    );
+  });
 });

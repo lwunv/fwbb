@@ -403,11 +403,13 @@ describe("GET /api/auth/zalo/callback", () => {
 
   it("cookie bị sửa (sai chữ ký) → error=state", async () => {
     const { st, cookie } = sealedState();
+    // Đổi hẳn ký tự hex cuối của chữ ký. Ghi đè "00" như trước thì không đổi gì
+    // khi chữ ký ngẫu nhiên đã kết thúc bằng "00" (khoảng 1/256 lần chạy).
+    const last = cookie.slice(-1);
+    const tampered = cookie.slice(0, -1) + (last === "0" ? "1" : "0");
+    expect(tampered).not.toBe(cookie);
     const res = await GET(
-      callbackRequest(
-        { code: "c", state: st.state },
-        cookie.slice(0, -2) + "00",
-      ),
+      callbackRequest({ code: "c", state: st.state }, tampered),
     );
     expectLoginError(res, "state");
     expect(fetchMock).not.toHaveBeenCalled();

@@ -214,18 +214,23 @@ export function DuplicateMembersBanner({
                               size={32}
                             />
                             <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className="truncate font-semibold">
+                              {/* Tên xuống dòng thay vì cắt "...": admin cần
+                                  đọc đủ tên mới chọn đúng người để giữ. */}
+                              <div className="flex flex-wrap items-center gap-x-2">
+                                <span
+                                  className="min-w-0 font-semibold break-words"
+                                  data-testid="dup-member-name"
+                                >
                                   #{m.id} · {m.name}
                                   {m.nickname ? ` (${m.nickname})` : ""}
                                 </span>
                                 {!m.isActive && (
-                                  <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">
+                                  <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-sm">
                                     inactive
                                   </span>
                                 )}
                               </div>
-                              <div className="text-muted-foreground text-xs">
+                              <div className="text-muted-foreground text-sm">
                                 {m.ledgerCount} giao dịch ·{" "}
                                 <span
                                   className={cn(
@@ -256,8 +261,8 @@ export function DuplicateMembersBanner({
                   </ul>
                   <div className="flex justify-end gap-2 pt-1">
                     <Button
-                      size="sm"
                       variant="outline"
+                      className="min-h-11"
                       onClick={() => handleIgnore(group)}
                       disabled={pending}
                     >
@@ -265,7 +270,7 @@ export function DuplicateMembersBanner({
                       Bỏ qua
                     </Button>
                     <Button
-                      size="sm"
+                      className="min-h-11"
                       onClick={() => openConfirm(group)}
                       disabled={pending}
                     >

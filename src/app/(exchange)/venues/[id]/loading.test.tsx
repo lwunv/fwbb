@@ -17,4 +17,17 @@ describe("venue detail loading", () => {
       container.querySelector('[data-testid="venues-overlay"]'),
     ).toBeNull();
   });
+
+  // Task 25 carry (Task 21 review): khối đánh giá hiện ra sau khi tải mà
+  // skeleton không giữ chỗ thì thanh cuộn nhảy.
+  it("reserves the reviews block with one review card", () => {
+    const { container } = render(<Loading />);
+    const block = container.querySelector(
+      '[data-skeleton-section="venue-reviews"]',
+    );
+    expect(block).not.toBeNull();
+    expect(
+      block!.querySelectorAll('[data-testid="review-skeleton"] > div'),
+    ).toHaveLength(1);
+  });
 });

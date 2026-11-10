@@ -107,7 +107,7 @@ export function VenueReviewList({
           ))}
         </AnimatePresence>
       </ul>
-      {q.isFetchingNextPage && <ReviewSkeleton />}
+      {q.isFetchingNextPage && <ReviewSkeleton report={signedIn} />}
       {q.hasNextPage && (
         <button
           type="button"

@@ -26,6 +26,7 @@ import { ReportSheet } from "@/components/exchange/report-sheet";
 import { FeedbackSheet } from "@/components/reputation/feedback-sheet";
 import { HostReputation } from "@/components/reputation/host-reputation";
 import { MemberAvatar } from "@/components/shared/member-avatar";
+import { TruncatedName } from "@/components/shared/truncated-name";
 import { exchangeWhenLabel } from "@/lib/exchange/format";
 import type { PublicExchangeEvent } from "@/lib/exchange/public-event";
 import type { HostLine } from "@/lib/reputation/host-line";
@@ -311,13 +312,17 @@ export function EventPost({
               avatarKey={event.host.avatarKey}
               size={32}
             />
-            <p className="min-w-0 flex-1 truncate text-base">
-              <span className="font-semibold">{event.host.name}</span>
+            {/* Tên host dài bị cắt "...": chạm hoặc rê chuột hiện đủ tên. */}
+            <div className="flex min-w-0 flex-1 items-center text-base">
+              <TruncatedName
+                name={event.host.name}
+                className="min-h-11 font-semibold"
+              />
               <span
-                className="text-muted-foreground"
+                className="text-muted-foreground shrink-0 whitespace-pre"
                 suppressHydrationWarning
               >{` · ${agoLabel(event.createdAt, locale)}`}</span>
-            </p>
+            </div>
             <span
               className={cn(
                 "shrink-0 rounded-full px-3 py-1 text-sm font-semibold",

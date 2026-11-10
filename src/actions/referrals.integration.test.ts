@@ -15,6 +15,8 @@ import {
   members,
   rateLimitBuckets,
   referrals,
+  sessionAttendees,
+  sessions,
   venues,
 } from "@/db/schema";
 import { repTag } from "@/lib/reputation/constants";
@@ -449,6 +451,40 @@ describe("referMember: writes", () => {
     });
     expect(await rowsFor(n.id)).toHaveLength(0);
     expect((await getMyReferralState())?.eligible).toBe(false);
+  });
+
+  // Task 25 carry (Task 12 Minor 1): buổi nhóm đã chốt được cộng vào số buổi
+  // đã đến, còn điểm danh ở buổi bị ẩn thì không.
+  it("one exchange check-in plus two completed group sessions is enough to refer", async () => {
+    const m = await referrer(1);
+    for (const date of ["2019-03-01", "2019-03-02"]) {
+      const [s] = await testDb
+        .insert(sessions)
+        .values({ date, status: "completed" })
+        .returning({ id: sessions.id });
+      await testDb.insert(sessionAttendees).values({
+        sessionId: s.id,
+        memberId: m.id,
+        isGuest: false,
+        attendsPlay: true,
+        attendsDine: false,
+      });
+    }
+    const n = await newMember();
+    asMember(m);
+    expect(await referMember(input(n.publicCode!))).toEqual({ success: true });
+    expect(await rowsFor(n.id)).toHaveLength(1);
+  });
+
+  it("a check-in at a hidden event does not count: 1 of 3 hidden gets referralNotEligible", async () => {
+    const m = await referrer(2);
+    await addReg((await mkEvent({ hiddenAt: iso(NOW - DAY) })).id, m.id);
+    const n = await newMember();
+    asMember(m);
+    expect(await referMember(input(n.publicCode!))).toEqual({
+      error: "referralNotEligible",
+    });
+    expect(await rowsFor(n.id)).toHaveLength(0);
   });
 });
 

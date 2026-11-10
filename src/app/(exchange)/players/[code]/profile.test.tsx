@@ -63,7 +63,21 @@ vi.mock("@/components/exchange/report-sheet", () => ({
     ) : null,
 }));
 
-import PlayerProfilePage from "./page";
+vi.mock("next-intl/server", () => ({
+  getTranslations: async (ns: string) => {
+    const base = ns
+      .split(".")
+      .reduce(
+        (o: unknown, k) => (o as Record<string, unknown>)[k],
+        viMessages,
+      ) as Record<string, string>;
+    return (k: string, v: Record<string, string> = {}) =>
+      (base[k] ?? k).replace(/\{(\w+)\}/g, (_, n: string) => v[n] ?? "");
+  },
+}));
+
+import PlayerProfilePage, { generateMetadata } from "./page";
+import ProfileLoading from "./loading";
 import PlayersLayout, { metadata } from "../layout";
 
 const CODE = "abcdefgh23";
@@ -422,6 +436,28 @@ describe("player profile page", () => {
       expect(html, secret).not.toContain(secret);
     }
     expect(mocks.getMyReferralState).not.toHaveBeenCalled();
+  });
+});
+
+// Task 25 carry (Task 17 review).
+describe("player profile title and skeleton", () => {
+  it("the tab title names the player; an unknown code sets no title", async () => {
+    mocks.getPublicProfile.mockResolvedValue(profile());
+    expect(
+      await generateMetadata({ params: Promise.resolve({ code: CODE }) }),
+    ).toEqual({ title: "Hồ sơ của Nguyễn Văn Minh Có Một Cái Tên Rất Dài" });
+
+    mocks.getPublicProfile.mockResolvedValue(null);
+    expect(
+      await generateMetadata({ params: Promise.resolve({ code: CODE }) }),
+    ).toEqual({});
+  });
+
+  it("the skeleton head has the name and skill lines only, no chip row", () => {
+    render(<ProfileLoading />);
+    const head = screen.getByTestId("profile-head-skeleton");
+    expect(head.children).toHaveLength(2);
+    expect(head.querySelector(".rounded-full")).toBeNull();
   });
 });
 
