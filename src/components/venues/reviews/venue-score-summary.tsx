@@ -9,8 +9,9 @@ import { cn } from "@/lib/utils";
 
 /**
  * Điểm sân: số lớn (1/10 điểm, theo locale), sao, số đánh giá và 6 tiêu chí.
- * Dưới 3 đánh giá server trả `overall = null`: chỉ hiện "Chưa đủ đánh giá" và
- * số lượng, không có điểm nào để tránh suy ra từng người chấm.
+ * Dưới 3 đánh giá server trả `overall = null`: khối tổng chỉ hiện "Chưa đủ đánh
+ * giá" và số lượng, không có điểm tổng hay điểm trung bình từng tiêu chí. Điểm
+ * của từng đánh giá vẫn hiện trong danh sách bên dưới; chỉ phần gộp bị ẩn.
  */
 export function VenueScoreSummary({
   summary,

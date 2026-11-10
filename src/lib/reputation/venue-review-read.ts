@@ -234,7 +234,7 @@ export async function getVenueReviewPage(
   venueId: number,
   offset: number,
 ): Promise<VenueReviewPage> {
-  if (!validId(venueId)) return EMPTY_PAGE;
+  if (!validId(venueId)) return { ...EMPTY_PAGE };
   try {
     return await unstable_cache(
       async () => {

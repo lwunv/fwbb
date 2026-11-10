@@ -263,6 +263,39 @@ describe("venue reviews section", () => {
     expect(screen.getByRole("button", { name: "Xem thêm" })).toBeTruthy();
   });
 
+  it("with the app's query defaults a page-2 error fails at once after one call", async () => {
+    // Đúng `defaultOptions` của `src/components/providers.tsx` (không có
+    // `retry: false` như `wrap`): mặc định react-query thử lại 3 lần, khung giả
+    // quay khoảng 7 giây và gọi action 4 lần trước khi báo lỗi.
+    mocks.list.mockResolvedValue({ error: "Lỗi máy chủ" });
+    const app = new QueryClient({
+      defaultOptions: {
+        queries: { staleTime: 60 * 1000, refetchOnWindowFocus: false },
+      },
+    });
+    render(
+      <QueryClientProvider client={app}>
+        <NextIntlClientProvider locale="vi" messages={viMessages}>
+          <VenueReviewsSection
+            venueId={7}
+            venueName="Sân Cầu Giấy"
+            signedIn={false}
+            summary={score()}
+            initialPage={pageOf([1, 2, 3], 10)}
+          />
+        </NextIntlClientProvider>
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Xem thêm" }));
+    await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledTimes(1), {
+      timeout: 800,
+    });
+    expect(mocks.list).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("review-skeleton")).toBeNull();
+    expect(screen.getAllByText(/^Nhận xét số \d+$/)).toHaveLength(3);
+  });
+
   it("no reviews yet shows the empty line", () => {
     renderSection({
       summary: { ...NOT_ENOUGH, count: 0 },

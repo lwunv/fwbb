@@ -45,6 +45,9 @@ export function VenueReviewList({
     initialData: { pages: [initialPage], pageParams: [0] },
     getNextPageParam: (p) => p.nextOffset,
     staleTime: 60_000,
+    // Người dùng tự bấm lại "Xem thêm": thử lại ngầm (mặc định 3 lần) chỉ giữ
+    // khung giả vài giây và gọi action thêm 3 lần trước khi báo lỗi.
+    retry: false,
   });
 
   // Có đánh giá mới chen vào giữa hai lần tải thì offset trượt: khử trùng theo id.
