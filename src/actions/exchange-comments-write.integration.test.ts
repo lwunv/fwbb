@@ -18,6 +18,7 @@ import {
   members,
   notifications,
   rateLimitBuckets,
+  referrals,
   venues,
 } from "@/db/schema";
 
@@ -293,6 +294,22 @@ describe("addComment", () => {
 
     const regular = await newMember();
     asMember(regular);
+    for (let i = 0; i < 30; i++) {
+      expect("success" in (await post(ev.publicCode))).toBe(true);
+      tick();
+    }
+    expect(await post(ev.publicCode)).toEqual({ error: "rateLimited" });
+  });
+
+  it("a referred account gets the 30-a-day comment limit", async () => {
+    const ev = await mkEvent();
+    const referred = await newMember({ approvalStatus: "pending" });
+    await testDb.insert(referrals).values({
+      referrerMemberId: host.id,
+      refereeMemberId: referred.id,
+      createdAt: iso(0),
+    });
+    asMember(referred);
     for (let i = 0; i < 30; i++) {
       expect("success" in (await post(ev.publicCode))).toBe(true);
       tick();

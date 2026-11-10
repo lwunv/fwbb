@@ -1134,7 +1134,14 @@
       "feedbackNotYet": "This exchange has not ended yet, so it cannot be rated.",
       "feedbackClosed": "The rating period for this exchange has ended.",
       "feedbackNotAllowed": "You cannot rate this exchange.",
-      "feedbackSaveFailed": "Your ratings could not be saved. Please try again."
+      "feedbackSaveFailed": "Your ratings could not be saved. Please try again.",
+      "referralNotEligible": "You need at least 3 attended sessions and an attendance rate of 80% or more to refer someone.",
+      "referralQuota": "You have already referred {max, plural, one {# person} other {# people}} this month.",
+      "referralBlocked": "You can't refer anyone until {date}.",
+      "referralTargetInvalid": "This account can't be referred. Only new accounts that haven't been checked in at any session can be referred.",
+      "referralTaken": "Someone else has already referred this account.",
+      "referralSaveFailed": "Your referral couldn't be saved. Please try again.",
+      "profileCodeFailed": "Your profile link couldn't be created. Please try again."
     },
     "search": {
       "viewSwitch": "View mode",

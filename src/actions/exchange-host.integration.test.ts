@@ -5,6 +5,7 @@ import {
   exchangeRegistrations,
   hostBlocks,
   notifications,
+  referrals,
   scheduledJobs,
   venues,
   members,
@@ -35,7 +36,7 @@ vi.mock("@/lib/notifications/after", () => ({
   },
 }));
 
-const { db: testDb } = await createTestDb();
+const { db: testDb, client } = await createTestDb();
 vi.mock("@/db", () => ({ db: testDb }));
 
 const {
@@ -456,6 +457,43 @@ describe("host actions", () => {
     expect(json).not.toContain("0900000001");
     expect(json).not.toContain("a@b.c");
     expect(json).not.toMatch(/phone|email/i);
+  });
+
+  it("manage rows carry referred with one extra query", async () => {
+    const ev = await mkEvent();
+    const referred = await newMember({ approvalStatus: "pending" });
+    const fresh = await newMember({ approvalStatus: "pending" });
+    const regular = await newMember();
+    for (const m of [referred, fresh, regular])
+      await addReg(ev.id, m.id, "pending");
+    await testDb.insert(referrals).values({
+      referrerMemberId: host2.id,
+      refereeMemberId: referred.id,
+      createdAt: iso(0),
+    });
+
+    const exec = vi.spyOn(client, "execute");
+    let view: Awaited<ReturnType<typeof getManageView>>;
+    try {
+      view = await getManageView(ev.publicCode);
+      const sqlOf = (a: unknown) =>
+        typeof a === "string" ? a : String((a as { sql?: string })?.sql ?? "");
+      const hits = exec.mock.calls.filter(([a]) =>
+        /"referrals"/.test(sqlOf(a)),
+      );
+      expect(hits).toHaveLength(1);
+    } finally {
+      exec.mockRestore();
+    }
+    const byName = (n: string) => view!.regs.find((r) => r.name === n)!;
+    // Nhãn "Mới" vẫn hiện cùng chip "Được giới thiệu" (quyết định 46).
+    expect(byName(referred.name)).toMatchObject({
+      referred: true,
+      isNewAccount: true,
+    });
+    expect(byName(fresh.name).referred).toBe(false);
+    expect(byName(regular.name).referred).toBe(false);
+    expect(JSON.stringify(view)).not.toContain(host2.name);
   });
 
   it("blockRegistrant is idempotent and leaves the registration alone", async () => {

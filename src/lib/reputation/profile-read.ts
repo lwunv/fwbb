@@ -2,7 +2,7 @@ import "server-only";
 import { eq, sql, type SQL } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
 import { db } from "@/db";
-import { members } from "@/db/schema";
+import { members, referrals } from "@/db/schema";
 import type { DbOrTx } from "@/db/tx";
 import { CHARGEABLE_STATUSES } from "@/lib/exchange/constants";
 import { isExchangeEnabled } from "@/lib/exchange-flag";
@@ -208,7 +208,7 @@ const toSkill = (v: unknown): SkillLevel | null =>
 /**
  * Uy tín đầy đủ của một member: đọc member, số liệu đến, dòng chấm người chơi,
  * và (nếu từng tổ chức hay huỷ buổi) số liệu host. `host` null khi chưa tổ
- * chức hay huỷ buổi nào. `referred` do Task 12 điền.
+ * chức hay huỷ buổi nào. `referred`: đã có người giới thiệu (không nói là ai).
  */
 export async function loadReputation(
   dbx: DbOrTx,
@@ -288,6 +288,14 @@ export async function loadReputation(
     };
   }
 
+  // Chỉ cần biết có dòng giới thiệu hay không; người giới thiệu không bao giờ
+  // ra khỏi đây (quyết định 46).
+  const [ref] = await dbx
+    .select({ id: referrals.id })
+    .from(referrals)
+    .where(eq(referrals.refereeMemberId, memberId))
+    .limit(1);
+
   return {
     member: {
       name: m.name,
@@ -300,7 +308,7 @@ export async function loadReputation(
     attendance,
     peer: summarizePeer(peerRows),
     host,
-    referred: false,
+    referred: !!ref,
   };
 }
 

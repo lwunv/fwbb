@@ -1134,7 +1134,14 @@
       "feedbackNotYet": "Buổi này chưa kết thúc nên chưa đánh giá được.",
       "feedbackClosed": "Đã hết thời gian đánh giá buổi này.",
       "feedbackNotAllowed": "Bạn không có quyền đánh giá buổi này.",
-      "feedbackSaveFailed": "Chưa lưu được đánh giá. Vui lòng thử lại."
+      "feedbackSaveFailed": "Chưa lưu được đánh giá. Vui lòng thử lại.",
+      "referralNotEligible": "Bạn cần đã đến ít nhất 3 buổi và có tỉ lệ đến từ 80% mới giới thiệu được.",
+      "referralQuota": "Bạn đã giới thiệu đủ {max} người trong tháng này.",
+      "referralBlocked": "Bạn tạm không giới thiệu được tới {date}.",
+      "referralTargetInvalid": "Không giới thiệu được tài khoản này. Chỉ giới thiệu được tài khoản mới chưa được điểm danh buổi nào.",
+      "referralTaken": "Tài khoản này đã được người khác giới thiệu.",
+      "referralSaveFailed": "Chưa lưu được lời giới thiệu. Vui lòng thử lại.",
+      "profileCodeFailed": "Chưa tạo được link hồ sơ. Vui lòng thử lại."
     },
     "search": {
       "viewSwitch": "Chế độ xem",

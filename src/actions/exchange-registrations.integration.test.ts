@@ -7,6 +7,7 @@ import {
   hostBlocks,
   memberIpSignals,
   notifications,
+  referrals,
   sessionDebts,
   venues,
   members,
@@ -377,6 +378,59 @@ describe("registerForExchange", () => {
     expect(await registerForExchange(input(e3.publicCode))).toEqual({
       error: "newAccountLimit",
     });
+  });
+
+  it("a referred new account may register with a companion and hold a third pending registration", async () => {
+    const plus = await mkEvent({ allowPlusOnes: true });
+    const e1 = await mkEvent();
+    const e2 = await mkEvent();
+    const e3 = await mkEvent();
+    const n = await newMember({ approvalStatus: "pending" });
+    await testDb.insert(referrals).values({
+      referrerMemberId: host.id,
+      refereeMemberId: n.id,
+      createdAt: iso(-DAY),
+    });
+    asMember(n);
+    expect(
+      await registerForExchange(input(plus.publicCode, { maleCount: 2 })),
+    ).toMatchObject({ success: true });
+    for (const ev of [e1, e2, e3]) {
+      expect(await registerForExchange(input(ev.publicCode))).toMatchObject({
+        success: true,
+      });
+    }
+  });
+
+  it("after the referral breaks the account is limited again", async () => {
+    const n = await newMember({ approvalStatus: "pending" });
+    await testDb.insert(referrals).values({
+      referrerMemberId: host.id,
+      refereeMemberId: n.id,
+      createdAt: iso(-10 * DAY),
+    });
+    const past = (startOffset: number) =>
+      mkEvent({
+        startAt: iso(startOffset),
+        endAt: iso(startOffset + 2 * 3_600_000),
+        registerDeadline: iso(startOffset - DAY),
+        cancelDeadline: iso(startOffset - DAY),
+        status: "done",
+      });
+    const p1 = await past(-5 * DAY);
+    await addReg(p1.id, n.id, "no_show", 1, 0);
+    const p2 = await past(-2 * DAY);
+    const lc = await addReg(p2.id, n.id, "late_cancelled", 1, 0);
+    await testDb
+      .update(exchangeRegistrations)
+      .set({ cancelledAt: iso(-3 * DAY) })
+      .where(eq(exchangeRegistrations.id, lc.id));
+
+    const plus = await mkEvent({ allowPlusOnes: true });
+    asMember(n);
+    expect(
+      await registerForExchange(input(plus.publicCode, { maleCount: 2 })),
+    ).toEqual({ error: "cannotRegister" });
   });
 
   it("after registerDeadline rejected (TZ=UTC)", async () => {

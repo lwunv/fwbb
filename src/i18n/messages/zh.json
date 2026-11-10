@@ -1134,7 +1134,14 @@
       "feedbackNotYet": "这场活动尚未结束，暂时无法评价。",
       "feedbackClosed": "这场活动的评价时间已结束。",
       "feedbackNotAllowed": "你无法评价这场活动。",
-      "feedbackSaveFailed": "评价未能保存，请重试。"
+      "feedbackSaveFailed": "评价未能保存，请重试。",
+      "referralNotEligible": "至少到场 3 次且到场率不低于 80% 才能推荐他人。",
+      "referralQuota": "你本月已推荐满 {max} 人。",
+      "referralBlocked": "你在 {date} 之前暂时无法推荐他人。",
+      "referralTargetInvalid": "无法推荐该账号。只能推荐尚未在任何活动中签到的新账号。",
+      "referralTaken": "该账号已被其他人推荐。",
+      "referralSaveFailed": "推荐未能保存，请重试。",
+      "profileCodeFailed": "个人主页链接未能生成，请重试。"
     },
     "search": {
       "viewSwitch": "查看方式",
