@@ -1,11 +1,11 @@
 // Gom tín hiệu nick trùng của tài khoản giao lưu (quyết định 53). Hàm thuần:
 // action đọc dòng tín hiệu 30 ngày rồi gọi vào đây; client import được kiểu.
-import { normalizeVietnamese } from "@/lib/utils";
 import {
   DUP_BURST_MIN,
   DUP_BURST_WINDOW_MS,
   type IpSignalKind,
 } from "./constants";
+import { foldAscii } from "./review-text";
 
 export type DupSignalReason = "same_name_network" | "network_burst";
 
@@ -39,13 +39,6 @@ export type DupSignalGroupView = {
     code: string | null;
   }[];
 };
-
-/** Tên so khớp: bỏ dấu, `đ` thành `d`, chữ thường, ký tự lạ thành dấu cách. */
-function foldName(s: string): string {
-  return normalizeVietnamese(s)
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
 
 const pairKey = (a: number, b: number) => `${Math.min(a, b)}-${Math.max(a, b)}`;
 
@@ -89,7 +82,7 @@ export function findDupSignalGroups(
   // một hash, rồi gom thành phần liên thông (union-find).
   const byNetName = new Map<string, Set<number>>();
   for (const r of rows) {
-    const k = `${r.ipHash}\u0000${foldName(r.name)}`;
+    const k = `${r.ipHash}\u0000${foldAscii(r.name)}`;
     const set = byNetName.get(k) ?? new Set<number>();
     set.add(r.memberId);
     byNetName.set(k, set);
