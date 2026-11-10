@@ -87,6 +87,8 @@ function makeReg(over: Partial<ManageReg> = {}): ManageReg {
     skillOutOfRange: false,
     isNewAccount: false,
     referred: false,
+    memberCode: null,
+    attendance: { attended: 0, approvedPast: 0, lateCancels: 0, noShows: 0 },
     accountLocked: false,
     maleCount: 1,
     femaleCount: 0,
@@ -337,6 +339,69 @@ describe("ManageClient", () => {
     );
     expect(screen.getByText("Tài khoản đã bị khoá")).toBeTruthy();
     expect(screen.getByText("Mới")).toBeTruthy();
+  });
+
+  it("the manage row shows the attendance line and a 44px profile link; a new account shows only Mới", () => {
+    renderManage(
+      makeView({
+        regs: [
+          makeReg({
+            id: 1,
+            name: "Lan Anh",
+            memberCode: "lananh0001",
+            attendance: {
+              attended: 3,
+              approvedPast: 4,
+              lateCancels: 1,
+              noShows: 0,
+            },
+          }),
+          makeReg({
+            id: 2,
+            name: "Bao Tran",
+            isNewAccount: true,
+            memberCode: null,
+          }),
+        ],
+      }),
+    );
+    // Vế bằng 0 bị bỏ: không có "0 vắng".
+    expect(hasText("Đến 3/4 buổi · 1 huỷ muộn")).toBe(true);
+    expect(hasText("vắng")).toBe(false);
+    const link = screen.getByRole("link", { name: "Hồ sơ của Lan Anh" });
+    expect(link.getAttribute("href")).toBe("/players/lananh0001");
+    expect(link.className).toContain("min-h-11");
+    expect(screen.getByText("Hồ sơ")).toBeTruthy();
+
+    // Nick mới: chỉ chip "Mới", không dòng số liệu, không link khi chưa có mã.
+    const fresh = screen.getByText("Bao Tran").closest("li")!;
+    expect(within(fresh).getByText("Mới")).toBeTruthy();
+    expect(within(fresh).queryByText(/^Đến /)).toBeNull();
+    expect(within(fresh).queryByRole("link")).toBeNull();
+    cleanup();
+
+    // Thành viên có số nhưng chỉ vắng: chỉ vế vắng và vế đến.
+    renderManage(
+      makeView({
+        regs: [
+          makeReg({
+            attendance: {
+              attended: 0,
+              approvedPast: 2,
+              lateCancels: 0,
+              noShows: 2,
+            },
+          }),
+        ],
+      }),
+    );
+    expect(hasText("Đến 0/2 buổi · 2 vắng")).toBe(true);
+    expect(hasText("huỷ muộn")).toBe(false);
+    cleanup();
+
+    // Chưa có buổi nào và không có vế nào khác 0: không dòng nào.
+    renderManage(makeView({ regs: [makeReg()] }));
+    expect(screen.queryByText(/^Đến /)).toBeNull();
   });
 
   it("check-in toggle disabled outside the window", () => {

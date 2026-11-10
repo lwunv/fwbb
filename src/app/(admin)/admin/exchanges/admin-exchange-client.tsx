@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -12,6 +12,7 @@ import {
   Flag,
   Handshake,
   MessageSquare,
+  ShieldCheck,
   Trash2,
   X,
 } from "lucide-react";
@@ -36,8 +37,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmSheet } from "@/components/exchange/confirm-sheet";
 import { EmptyState } from "@/components/shared/empty-state";
 import { TabSegment } from "@/components/shared/tab-segment";
+import type { ReviewFilter } from "./admin-reputation-panel";
 
-type Tab = "events" | "reports" | "comments";
+// Tab Uy tín tải riêng khi mở: hiếm dùng, khỏi nặng trang mặc định.
+const AdminReputationPanel = lazy(() =>
+  import("./admin-reputation-panel").then((m) => ({
+    default: m.AdminReputationPanel,
+  })),
+);
+
+export type AdminExchangeTab = "events" | "reports" | "comments" | "reputation";
+type Tab = AdminExchangeTab;
 type CommentFilter = "held" | "hidden" | "reported";
 type CommentAction = "approve" | "unhide" | "delete" | "dismiss";
 const COMMENT_FILTERS: CommentFilter[] = ["held", "hidden", "reported"];
@@ -62,12 +72,17 @@ function matchesFilter(r: AdminExchangeRow, f: AdminExchangeFilter) {
 export function AdminExchangeClient({
   initialEvents,
   initialReports,
+  initialTab = "events",
 }: {
   initialEvents: AdminExchangeRow[];
   initialReports: AdminReportRow[];
+  /** Từ `?tab=` của trang, để link "Xem ở tab Uy tín" mở thẳng đúng tab. */
+  initialTab?: Tab;
 }) {
   const t = useTranslations("exchange.admin");
-  const [tab, setTab] = useState<Tab>("events");
+  const [tab, setTab] = useState<Tab>(initialTab);
+  // Mục con của tab Uy tín khi mở từ một báo cáo đánh giá: "Bị báo cáo".
+  const [repFilter, setRepFilter] = useState<ReviewFilter>("held");
   const [filter, setFilter] = useState<AdminExchangeFilter>("upcoming");
   const [reportStatus, setReportStatus] = useState<ReportStatus>("open");
   const qc = useQueryClient();
@@ -289,6 +304,7 @@ export function AdminExchangeClient({
           { value: "events", label: t("tabEvents"), icon: Handshake },
           { value: "reports", label: t("tabReports"), icon: Flag },
           { value: "comments", label: t("tabComments"), icon: MessageSquare },
+          { value: "reputation", label: t("tabReputation"), icon: ShieldCheck },
         ]}
       />
 
@@ -318,6 +334,10 @@ export function AdminExchangeClient({
             </div>
           )}
         </>
+      ) : tab === "reputation" ? (
+        <Suspense fallback={<ListSkeleton />}>
+          <AdminReputationPanel initialFilter={repFilter} />
+        </Suspense>
       ) : tab === "comments" ? (
         <>
           <TabSegment
@@ -372,6 +392,10 @@ export function AdminExchangeClient({
                     key={r.id}
                     row={r}
                     onResolve={(s) => resolve(r, s)}
+                    onOpenReputation={() => {
+                      setRepFilter("reported");
+                      setTab("reputation");
+                    }}
                   />
                 ))}
               </AnimatePresence>
@@ -507,9 +531,11 @@ function EventCard({
 function ReportCard({
   row,
   onResolve,
+  onOpenReputation,
 }: {
   row: AdminReportRow;
   onResolve: (status: "resolved" | "dismissed") => void;
+  onOpenReputation: () => void;
 }) {
   const t = useTranslations("exchange.admin");
   const tReason = useTranslations("notifications.reportReasons");
@@ -525,14 +551,26 @@ function ReportCard({
     >
       <div className="space-y-1">
         <p className="text-base font-semibold">{tReason(row.reason)}</p>
-        <p className="text-sm">
+        <p className="text-sm break-words">
           {row.targetType === "event"
             ? t("targetEvent")
             : row.targetType === "comment"
               ? t("targetComment")
-              : t("targetMember")}
+              : row.targetType === "review"
+                ? t("targetReview")
+                : row.targetType === "venue"
+                  ? t("targetVenue")
+                  : t("targetMember")}
           {": "}
-          {row.eventCode ? (
+          {row.venueId !== null &&
+          (row.targetType === "review" || row.targetType === "venue") ? (
+            <Link
+              href={`/venues/${row.venueId}`}
+              className="underline underline-offset-2"
+            >
+              {row.targetName}
+            </Link>
+          ) : row.eventCode ? (
             <Link
               href={`/exchanges/${row.eventCode}${row.targetType === "comment" ? "#comments" : ""}`}
               className="underline underline-offset-2"
@@ -547,6 +585,24 @@ function ReportCard({
           <p className="bg-muted rounded-lg px-3 py-2 text-base break-words whitespace-pre-wrap">
             {row.commentExcerpt}
           </p>
+        )}
+        {row.reviewExcerpt !== null && (
+          <p className="bg-muted rounded-lg px-3 py-2 text-base break-words whitespace-pre-wrap">
+            {row.reviewExcerpt}
+          </p>
+        )}
+        {row.targetType === "review" && (
+          <Link
+            href="/admin/exchanges?tab=reputation"
+            onClick={(e) => {
+              // Đổi tab tại chỗ, không tải lại trang (khỏi đọc lại DB).
+              e.preventDefault();
+              onOpenReputation();
+            }}
+            className="text-primary inline-flex min-h-11 items-center text-sm font-medium underline underline-offset-2"
+          >
+            {t("openReputation")}
+          </Link>
         )}
         <p className="text-muted-foreground text-sm">
           {t("reporter")}: {row.reporterName} ·{" "}

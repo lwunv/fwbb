@@ -395,6 +395,131 @@ describe("listExchangeComments: guests and the public cache", () => {
     expect(cachedEntries()).toHaveLength(1);
   });
 
+  it("a pending commenter with no check-in shows Mới, an approved member does not, placeholders carry no flag", async () => {
+    const ev = await mkEvent();
+    const other = await mkEvent();
+    const fresh = await newMember({ approvalStatus: "pending" });
+    const came = await newMember({ approvalStatus: "pending" });
+    const regular = await newMember();
+    await addReg(ev.id, fresh.id, "pending");
+    await testDb.insert(exchangeRegistrations).values({
+      eventId: other.id,
+      memberId: came.id,
+      status: "approved",
+      maleCount: 1,
+      femaleCount: 0,
+      checkedIn: true,
+      createdAt: iso(0),
+      updatedAt: iso(0),
+    });
+    const c1 = await seedComment({ eventId: ev.id, authorMemberId: fresh.id });
+    tick();
+    const c2 = await seedComment({ eventId: ev.id, authorMemberId: came.id });
+    tick();
+    const c3 = await seedComment({
+      eventId: ev.id,
+      authorMemberId: regular.id,
+    });
+    tick();
+    const gone = await seedComment({
+      eventId: ev.id,
+      authorMemberId: fresh.id,
+      status: "hidden",
+      body: "gone",
+    });
+    tick();
+    await seedComment({
+      eventId: ev.id,
+      authorMemberId: regular.id,
+      parentId: gone.id,
+      body: "reply",
+    });
+
+    asGuest();
+    const page = await list(ev.publicCode, { sort: "new" });
+    const byId = (id: number) => page.roots.find((r) => r.id === id)!;
+    expect(byId(c1.id).author?.isNew).toBe(true);
+    expect(byId(c2.id).author?.isNew).toBe(false);
+    expect(byId(c3.id).author?.isNew).toBe(false);
+    expect(byId(gone.id).author).toBeNull();
+    expect(byId(gone.id).replies[0].author?.isNew).toBe(false);
+
+    const stored = JSON.parse(cachedEntries()[0].json) as {
+      rows: Record<string, unknown>[];
+    };
+    const flagOf = (id: number) =>
+      stored.rows.find((r) => r.id === id)?.authorIsNew;
+    expect(flagOf(c1.id)).toBe(true);
+    expect(flagOf(c3.id)).toBe(false);
+    expect(flagOf(gone.id)).toBeNull();
+
+    // Được điểm danh rồi thì lần đọc DB sau (cache hết hạn) không còn "Mới".
+    await testDb
+      .update(exchangeRegistrations)
+      .set({ checkedIn: true, status: "approved" })
+      .where(eq(exchangeRegistrations.memberId, fresh.id));
+    mocks.store.clear();
+    const after = await list(ev.publicCode, { sort: "new" });
+    expect(after.roots.find((r) => r.id === c1.id)?.author?.isNew).toBe(false);
+  });
+
+  it("the cached qa payload still has no member id", async () => {
+    const ev = await mkEvent();
+    const fresh = await newMember({ approvalStatus: "pending" });
+    const regular = await newMember();
+    await addReg(ev.id, fresh.id, "pending");
+    const root = await seedComment({
+      eventId: ev.id,
+      authorMemberId: fresh.id,
+    });
+    await seedComment({
+      eventId: ev.id,
+      authorMemberId: regular.id,
+      parentId: root.id,
+      replyToMemberId: fresh.id,
+      body: "reply",
+    });
+    for (const status of ["held", "deleted", "hidden"] as const) {
+      const r = await seedComment({
+        eventId: ev.id,
+        authorMemberId: fresh.id,
+        status,
+      });
+      await seedComment({
+        eventId: ev.id,
+        authorMemberId: regular.id,
+        parentId: r.id,
+        body: "kid",
+      });
+    }
+
+    asGuest();
+    const page = await list(ev.publicCode, { sort: "new" });
+    const stored = JSON.parse(cachedEntries()[0].json) as {
+      rows: Record<string, unknown>[];
+    };
+    for (const r of stored.rows) {
+      if (r.body === null) {
+        expect(r.authorMemberId).toBeNull();
+        expect(r.authorIsNew).toBeNull();
+      }
+    }
+    const keys = new Set<string>();
+    const walk = (x: unknown) => {
+      if (Array.isArray(x)) x.forEach(walk);
+      else if (x && typeof x === "object")
+        for (const [k, v] of Object.entries(x)) {
+          keys.add(k);
+          walk(v);
+        }
+    };
+    walk(page);
+    for (const k of keys) expect(k).not.toMatch(/member|email|phone/i);
+    expect(
+      Object.keys(page.roots.find((r) => r.author)!.author!).sort(),
+    ).toEqual(["avatarKey", "avatarUrl", "isHost", "isNew", "name"]);
+  });
+
   it("without updateTag a second read returns the cached page; after deleteComment it shows the placeholder", async () => {
     const ev = await mkEvent();
     const m1 = await newMember();

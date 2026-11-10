@@ -14,6 +14,7 @@ function row(p: Partial<CommentRow> = {}): CommentRow {
     authorName: "An",
     authorAvatarUrl: null,
     authorAvatarKey: null,
+    authorIsNew: false,
     replyToName: null,
     body: "hi",
     status: "visible",
@@ -159,6 +160,26 @@ describe("buildThreads", () => {
       opts(),
     );
     expect(out.map((v) => v.id)).toEqual([1]);
+  });
+
+  it("a pending commenter with no check-in shows Mới, an approved member does not, placeholders carry no flag", () => {
+    const fresh = row({ id: 1, authorMemberId: 20, authorIsNew: true });
+    const known = row({ id: 2, authorMemberId: 21, authorIsNew: false });
+    const gone = row({
+      id: 3,
+      authorMemberId: null,
+      authorName: null,
+      authorIsNew: null,
+      body: null,
+      status: "hidden",
+    });
+    const kid = row({ id: 4, parentId: 3, authorIsNew: true });
+    const out = buildThreads([fresh, known, gone, kid], opts({ sort: "new" }));
+    const byId = (id: number) => out.find((v) => v.id === id)!;
+    expect(byId(1).author?.isNew).toBe(true);
+    expect(byId(2).author?.isNew).toBe(false);
+    expect(byId(3).author).toBeNull();
+    expect(byId(3).replies[0].author?.isNew).toBe(true);
   });
 
   it("output contains no member id field", () => {

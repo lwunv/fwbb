@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { MoreHorizontal } from "lucide-react";
 import { motion } from "framer-motion";
@@ -34,6 +35,30 @@ export type RowHandlers = {
 const BTN =
   "inline-flex min-h-11 items-center justify-center rounded-xl border px-4 text-base font-medium disabled:opacity-50";
 const CHIP = "rounded-full px-2.5 py-1 text-sm font-medium";
+
+/**
+ * Dòng số liệu đến cho host (G2d quyết định 19), bỏ vế bằng 0. Nick mới
+ * không có dòng này: chip "Mới" đã nói đủ. Không còn vế nào thì `null`.
+ */
+function attendanceText(
+  reg: ManageReg,
+  t: ReturnType<typeof useTranslations<"exchange.reputation">>,
+): string | null {
+  if (reg.isNewAccount) return null;
+  const a = reg.attendance;
+  const parts: string[] = [];
+  if (a.approvedPast > 0)
+    parts.push(
+      t("attendanceLine", {
+        attended: a.attended,
+        approvedPast: a.approvedPast,
+      }),
+    );
+  if (a.lateCancels > 0)
+    parts.push(t("lateCancelsLine", { count: a.lateCancels }));
+  if (a.noShows > 0) parts.push(t("noShowsLine", { count: a.noShows }));
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
 
 /** Nút bật/tắt dạng công tắc: `aria-pressed` cho người dùng đọc màn hình và cho test. */
 function Toggle({
@@ -79,7 +104,9 @@ export function RegistrationRow({
   handlers: RowHandlers;
 }) {
   const t = useTranslations("exchange.manage");
+  const tr = useTranslations("exchange.reputation");
   const h = handlers;
+  const attendance = attendanceText(reg, tr);
   const money = (n: number) => formatVND(n);
   const hasDeposit = ctx.depositAmount > 0;
   const received = reg.paid ? reg.received : null;
@@ -110,7 +137,7 @@ export function RegistrationRow({
           size={44}
         />
         <div className="min-w-0 flex-1 space-y-1">
-          <p className="truncate text-base font-semibold">{reg.name}</p>
+          <p className="text-base font-semibold break-words">{reg.name}</p>
           <p className="text-muted-foreground text-base">
             {t("headsLine", { male: reg.maleCount, female: reg.femaleCount })}
           </p>
@@ -141,6 +168,20 @@ export function RegistrationRow({
               </span>
             )}
           </div>
+          {attendance && (
+            <p className="text-muted-foreground text-base tabular-nums">
+              {attendance}
+            </p>
+          )}
+          {reg.memberCode && (
+            <Link
+              href={`/players/${reg.memberCode}`}
+              aria-label={tr("profileOf", { name: reg.name })}
+              className="text-primary -ml-1 inline-flex min-h-11 items-center rounded-xl px-1 text-base font-medium underline-offset-4 hover:underline"
+            >
+              {tr("profileLink")}
+            </Link>
+          )}
           {reg.waitlistPos !== null && reg.status === "waitlist" && (
             <p className="text-muted-foreground text-base">
               {t("waitPos", { pos: reg.waitlistPos })}
