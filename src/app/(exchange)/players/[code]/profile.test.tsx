@@ -158,6 +158,12 @@ describe("player profile page", () => {
     expect(mocks.getPublicProfile).toHaveBeenCalledWith(CODE);
   });
 
+  it("unknown code is a 404 and never reads the viewer", async () => {
+    // Bot dò mã không được tốn một lần đọc DB không cache cho người xem.
+    await expect(renderPage(null)).rejects.toThrow("notFound");
+    expect(mocks.getExchangeViewer).not.toHaveBeenCalled();
+  });
+
   it("host block only for someone who hosted", async () => {
     await renderPage(profile());
     expect(screen.queryByText("Khi làm host")).toBeNull();

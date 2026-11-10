@@ -16,11 +16,10 @@ export default async function PlayerProfilePage({
   params: Promise<{ code: string }>;
 }) {
   const { code } = await params;
-  const [profile, viewer] = await Promise.all([
-    getPublicProfile(code),
-    getExchangeViewer(),
-  ]);
+  // Hồ sơ (có cache) trước: mã lạ 404 ngay, không tốn lần đọc người xem.
+  const profile = await getPublicProfile(code);
   if (!profile) notFound();
+  const viewer = await getExchangeViewer();
 
   const isSelf = viewer.status === "ok" && viewer.member.publicCode === code;
   const canReport = viewer.status === "ok" && !isSelf;
