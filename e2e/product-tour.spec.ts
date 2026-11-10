@@ -235,7 +235,11 @@ test("từ /venues mở menu, bấm Hướng dẫn → về / và thấy bước
   });
 
   await page.goto("/venues", { waitUntil: "domcontentloaded" });
-  await page.locator('[data-tour="nav-menu"]').click();
+  // HTML của /venues hiện trước khi React gắn onClick: bấm sớm thì ngăn kéo
+  // không mở. Chờ nút menu báo đã hydrate rồi mới bấm.
+  const menu = page.locator('[data-tour="nav-menu"][data-hydrated]');
+  await expect(menu).toBeVisible({ timeout: 15_000 });
+  await menu.click();
   await page.locator('[data-tour="nav-guide"]').click();
 
   await expect(page).toHaveURL(/\/$/, { timeout: 15_000 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -88,6 +88,8 @@ const exchangeNavItems = [
   },
 ];
 
+const noopSubscribe = () => () => {};
+
 // Ý định "mở tour" phải sống qua lần đổi layout: /venues nằm ở (exchange), trang
 // chủ ở (public), nên đi /venues → / thì NavDrawer bị unmount và mất state.
 const TOUR_PENDING_KEY = "fwbb:tourPending";
@@ -127,6 +129,13 @@ export function NavDrawer({
   exchangeEnabled?: boolean;
 } = {}) {
   const [open, setOpen] = useState(false);
+  // Server và lượt hydrate trả false, chỉ thành true khi nút đã gắn onClick.
+  // Bấm trước lúc đó thì không mở được ngăn kéo, nên e2e chờ data-hydrated.
+  const hydrated = useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false,
+  );
   // Tour đang điều khiển ngăn kéo: tắt modal + chặn bấm-ra-ngoài-để-đóng, vì
   // popover của tour nằm NGOÀI ngăn kéo (bấm "Tiếp" sẽ đóng nó / bị inert).
   const [tourOpen, setTourOpen] = useState(false);
@@ -197,6 +206,7 @@ export function NavDrawer({
         onClick={() => setOpen(true)}
         aria-label={t("menu")}
         data-tour="nav-menu"
+        data-hydrated={hydrated ? "" : undefined}
         className="hover:bg-muted -ml-1 flex h-11 w-11 items-center justify-center rounded-xl transition-colors"
       >
         <Menu className="h-6 w-6" />
