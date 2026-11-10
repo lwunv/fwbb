@@ -202,6 +202,41 @@ describe("getExchangeEvent", () => {
     expect(d?.viewer.hostContact).toBeNull();
   });
 
+  it("guest JSON has no attendee code; an approved registrant gets attendee codes", async () => {
+    await testDb
+      .update(members)
+      .set({ publicCode: "hostcode22" })
+      .where(eq(members.id, host.id));
+    const coded = await seedMember("Coded", { publicCode: "attcode234" });
+    const plain = await seedMember("Plain");
+    const e = await seedEvent();
+    await seedReg(e.id, coded.id);
+    await seedReg(e.id, plain.id);
+
+    const g = await getExchangeEvent(e.publicCode);
+    expect(g?.event.host.code).toBe("hostcode22");
+    expect(g?.viewer.attendees).toBeNull();
+    expect(JSON.stringify(g)).not.toContain("attcode234");
+
+    asViewer(coded);
+    const r = await getExchangeEvent(e.publicCode);
+    expect(r?.viewer.attendees?.map((a) => [a.name, a.code])).toEqual([
+      ["Coded", "attcode234"],
+      ["Plain", null],
+    ]);
+    expect(r?.event.host.code).toBe("hostcode22");
+  });
+
+  it("a host without a code is shown with code null", async () => {
+    await testDb
+      .update(members)
+      .set({ publicCode: null })
+      .where(eq(members.id, host.id));
+    const e = await seedEvent();
+    const r = await getExchangeEvent(e.publicCode);
+    expect(r?.event.host).toHaveProperty("code", null);
+  });
+
   it("payout stays visible on a done event while the member still owes, and goes away once paid", async () => {
     const e = await seedEvent({ status: "done", depositAmount: 20_000 });
     await seedReg(e.id, alice.id, { feeAmount: 50_000, depositPaid: true });

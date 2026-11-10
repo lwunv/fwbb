@@ -43,7 +43,13 @@ export type PublicExchangeEvent = {
     lng: number;
     mapLink: string | null;
   };
-  host: { name: string; avatarUrl: string | null; avatarKey: string | null };
+  host: {
+    name: string;
+    avatarUrl: string | null;
+    avatarKey: string | null;
+    /** Mã hồ sơ công khai; `null` khi host chưa có. */
+    code: string | null;
+  };
   skillMin: SkillLevel | null;
   skillMax: SkillLevel | null;
   slotsTotal: number;
@@ -232,7 +238,12 @@ export function buildCounts(
 export function toPublicExchangeEvent(input: {
   event: EventRow;
   venue: VenueRow;
-  host: { name: string; avatarUrl: string | null; avatarKey: string | null };
+  host: {
+    name: string;
+    avatarUrl: string | null;
+    avatarKey: string | null;
+    code?: string | null;
+  };
   regs: readonly RegLike[];
   attendeeAvatars: { avatarUrl: string | null; avatarKey: string | null }[];
   now: Date;
@@ -259,6 +270,7 @@ export function toPublicExchangeEvent(input: {
       name: host.name,
       avatarUrl: host.avatarUrl ?? null,
       avatarKey: host.avatarKey ?? null,
+      code: host.code ?? null,
     },
     skillMin: e.skillMin ?? null,
     skillMax: e.skillMax ?? null,

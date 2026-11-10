@@ -132,6 +132,39 @@ describe("toPublicExchangeEvent", () => {
     expect(out.fee).toEqual({ kind: "fixed", male: 50_000, female: 50_000 });
   });
 
+  it("public event carries host.code and the same top-level keys", () => {
+    const withCode = toPublicExchangeEvent({
+      event: event as never,
+      venue: venue as never,
+      host: { ...host, code: "hostcode22" },
+      regs,
+      attendeeAvatars: [],
+      now,
+    });
+    expect(Object.keys(withCode).sort()).toEqual(
+      [...PUBLIC_EXCHANGE_EVENT_KEYS].sort(),
+    );
+    expect(withCode.host).toEqual({
+      name: "H",
+      avatarUrl: null,
+      avatarKey: null,
+      code: "hostcode22",
+    });
+    // An input without a code (older callers) maps to null, never undefined.
+    const without = toPublicExchangeEvent({
+      event: event as never,
+      venue: venue as never,
+      host,
+      regs,
+      attendeeAvatars: [],
+      now,
+    });
+    expect(without.host).toHaveProperty("code", null);
+    expect(Object.keys(without.host).sort()).toEqual(
+      ["avatarKey", "avatarUrl", "code", "name"].sort(),
+    );
+  });
+
   it("split fee carries estimate, current and the cap flag", () => {
     const out = toPublicExchangeEvent({
       event: {
