@@ -27,6 +27,7 @@ import {
 } from "@/lib/reputation/constants";
 import { hostFlagRowsQuery } from "@/lib/reputation/host-flag-rows";
 import { findCaptiveHosts } from "@/lib/reputation/host-flags";
+import { linkableProfileCode } from "@/lib/reputation/public-profile";
 
 // Tab Uy tín của admin. Mọi export là endpoint POST nên mỗi hàm tự kiểm: cờ,
 // rồi admin từ cookie phiên, rồi zod (thứ tự G2b). Danh sách chỉ có tên, mã
@@ -349,7 +350,13 @@ export async function adminListHostFlags(): Promise<
   const ids = hosts.map((h) => h.hostId);
   const [info, reviewed] = await Promise.all([
     db
-      .select({ id: members.id, name: members.name, code: members.publicCode })
+      .select({
+        id: members.id,
+        name: members.name,
+        publicCode: members.publicCode,
+        isActive: members.isActive,
+        approvalStatus: members.approvalStatus,
+      })
       .from(members)
       .where(inArray(members.id, ids)),
     db
@@ -371,7 +378,8 @@ export async function adminListHostFlags(): Promise<
     rows.push({
       hostMemberId: h.hostId,
       hostName: m.name,
-      hostCode: m.code,
+      // Host bị khoá hay bị từ chối: hồ sơ 404, không có link.
+      hostCode: linkableProfileCode(m),
       captives: h.captives,
       events: h.events,
       reviewedCaptives: seen,

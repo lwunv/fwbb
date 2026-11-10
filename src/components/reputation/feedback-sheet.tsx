@@ -68,6 +68,9 @@ function sameAnswer(a: Answer, b: Answer): boolean {
  *
  * `idempotencyKey` sống ở đây (không ở form) để gửi lại sau lỗi vẫn cùng khoá
  * dù form có mount lại; thành công thì bỏ khoá để lần sửa sau có khoá mới.
+ * Khoá gắn với nội dung gửi: lần đầu có thể đã lưu mà mất phản hồi, nên nếu
+ * người dùng đổi câu trả lời rồi gửi lại thì phải là khoá mới, không thì server
+ * coi là gửi lại và bỏ câu trả lời mới (giống phiếu đánh giá sân).
  */
 export function FeedbackSheet({
   open,
@@ -82,7 +85,7 @@ export function FeedbackSheet({
   const queryClient = useQueryClient();
   const router = useRouter();
   const queryKey = ["exchange-feedback", code];
-  const keyRef = useRef<string | null>(null);
+  const keyRef = useRef<{ sig: string; key: string } | null>(null);
   const [reportCode, setReportCode] = useState<string | null>(null);
   // Mỗi lần mở là một form mới (trạng thái "Đã gửi", token, câu trả lời chưa
   // gửi). Đổi state ngay trong render theo mẫu "điều chỉnh state khi prop đổi".
@@ -104,9 +107,9 @@ export function FeedbackSheet({
     staleTime: 60_000,
   });
 
-  function takeKey(): string {
-    keyRef.current ??= newKey();
-    return keyRef.current;
+  function takeKey(sig: string): string {
+    if (keyRef.current?.sig !== sig) keyRef.current = { sig, key: newKey() };
+    return keyRef.current.key;
   }
 
   function onSaved() {
@@ -195,7 +198,7 @@ function FeedbackFormView({
   onOpenChange: (open: boolean) => void;
   code: string;
   data: FeedbackForm;
-  takeKey: () => string;
+  takeKey: (sig: string) => string;
   onSaved: () => void;
   onReport: (code: string) => void;
 }) {
@@ -238,13 +241,16 @@ function FeedbackFormView({
     // Token dùng một lần: lần gửi sau phải chờ Turnstile cấp token mới.
     setToken(null);
     setSent(true);
-    const input = {
+    const payload = {
       code,
       host: { asDescribed: v.asDescribed, feeAsPromised: v.feeAsPromised },
       // Chỉ người đã đổi so với lúc mở; người không gửi thì server giữ nguyên,
       // còn người bị xoá hết câu trả lời thì gửi dòng rỗng để server xoá.
       peers: v.peers.filter((p, i) => !sameAnswer(p, initial[i])),
-      idempotencyKey: takeKey(),
+    };
+    const input = {
+      ...payload,
+      idempotencyKey: takeKey(JSON.stringify(payload)),
       turnstileToken,
     };
     const release = () => {

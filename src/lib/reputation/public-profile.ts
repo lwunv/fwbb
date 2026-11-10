@@ -116,3 +116,17 @@ export function toPublicPlayerProfile(
       : null,
   };
 }
+
+/**
+ * Mã hồ sơ được phép làm link trong danh sách (người tham gia, người đăng ký,
+ * host). Tài khoản bị khoá hay bị từ chối có hồ sơ trả 404 (`getPublicProfile`),
+ * nên trả null để không render link chết.
+ */
+export function linkableProfileCode(m: {
+  publicCode: string | null;
+  isActive: boolean;
+  approvalStatus: string;
+}): string | null {
+  if (!m.isActive || m.approvalStatus === "rejected") return null;
+  return m.publicCode ?? null;
+}

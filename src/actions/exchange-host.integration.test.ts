@@ -496,6 +496,29 @@ describe("host actions", () => {
     expect(JSON.stringify(view)).not.toContain(host2.name);
   });
 
+  // Final review M4: hồ sơ của tài khoản bị khoá hay bị từ chối trả 404.
+  it("manage view gives a locked or rejected registrant no profile code", async () => {
+    const ev = await mkEvent();
+    const ok = await newMember({ publicCode: "okcode0001" });
+    const locked = await newMember({
+      publicCode: "lockcode01",
+      isActive: false,
+    });
+    const rejected = await newMember({
+      publicCode: "rejcode001",
+      approvalStatus: "rejected",
+    });
+    for (const m of [ok, locked, rejected])
+      await addReg(ev.id, m.id, "pending");
+
+    const view = await getManageView(ev.publicCode);
+    const codeOf = (m: Member) =>
+      view!.regs.find((r) => r.name === m.name)!.memberCode;
+    expect(codeOf(ok)).toBe("okcode0001");
+    expect(codeOf(locked)).toBeNull();
+    expect(codeOf(rejected)).toBeNull();
+  });
+
   it("manage view gives each registrant attendance numbers and a code with one extra query", async () => {
     const ev = await mkEvent();
     const vet = await newMember({

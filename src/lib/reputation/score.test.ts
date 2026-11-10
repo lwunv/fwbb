@@ -272,17 +272,115 @@ describe("summarizePeer", () => {
 });
 
 describe("summarizeHost", () => {
-  it("host percent is weighted: two full-weight yes and one 1/5 no at one event → 91", () => {
+  // Final review I2 (đổi quyết định, 10/11): phần trăm host từng nặng theo
+  // trọng số người chấm, mà trọng số gần như công khai, nên host đọc ngược được
+  // người mới trả lời gì (5/5/1 → 0/9/45/55/91/100; 5/5/5/5/1 → 90% chỉ khi
+  // người nặng 1 nói "không"). Giờ mỗi người chấm tính 1 (câu mới nhất), chỉ
+  // hiện từ 5 người chấm và làm tròn xuống bậc 10%.
+  it("host percent is unweighted and floored to 10%: four full-weight yes and one 1/5 no → 80", () => {
     const rows = [
-      host({ eventId: 1, fromId: 10 }),
-      host({ eventId: 1, fromId: 11 }),
-      host({ eventId: 1, fromId: 12, w5: 1, asDescribed: false }),
+      ...[10, 11, 12, 13].map((fromId) => host({ eventId: 1, fromId })),
+      host({ eventId: 1, fromId: 14, w5: 1, asDescribed: false }),
     ];
     expect(summarizeHost(rows)).toEqual({
-      raters: 3,
-      asDescribedPct: 91,
+      raters: 5,
+      asDescribedPct: 80,
       feeAsPromisedPct: 100,
     });
+  });
+
+  it("weights 5/5/5/5/1: a single no gives the same output whoever said it", () => {
+    const weights = [5, 5, 5, 5, 1];
+    const outputs = new Set<string>();
+    for (let no = 0; no < weights.length; no++) {
+      const rows = weights.map((w5, i) =>
+        host({ eventId: 1, fromId: 10 + i, w5, asDescribed: i !== no }),
+      );
+      outputs.add(JSON.stringify(summarizeHost(rows)));
+    }
+    expect([...outputs]).toEqual([
+      JSON.stringify({ raters: 5, asDescribedPct: 80, feeAsPromisedPct: 100 }),
+    ]);
+  });
+
+  it("one no among N raters gives the same percent regardless of which rater (or weight) said it", () => {
+    for (const n of [5, 7, 12]) {
+      const pcts = new Set<number | null>();
+      for (let no = 0; no < n; no++) {
+        const rows = Array.from({ length: n }, (_, i) =>
+          host({
+            eventId: 1,
+            fromId: 100 + i,
+            w5: (i % 5) + 1,
+            feeAsPromised: i !== no,
+          }),
+        );
+        pcts.add(summarizeHost(rows).feeAsPromisedPct);
+      }
+      expect([...pcts]).toHaveLength(1);
+    }
+  });
+
+  it("floors, never rounds up: 19/20 → 90, 1/20 → 0, 2/20 → 10", () => {
+    const at = (yes: number) =>
+      summarizeHost(
+        Array.from({ length: 20 }, (_, i) =>
+          host({ eventId: 1, fromId: 100 + i, asDescribed: i < yes }),
+        ),
+      ).asDescribedPct;
+    expect(at(19)).toBe(90);
+    expect(at(1)).toBe(0);
+    expect(at(2)).toBe(10);
+    expect(at(20)).toBe(100);
+  });
+
+  it("three or four distinct raters: raters is shown, percentages stay null", () => {
+    for (const n of [3, 4]) {
+      const rows = Array.from({ length: n }, (_, i) =>
+        host({ eventId: 1, fromId: 10 + i, asDescribed: i > 0 }),
+      );
+      expect(summarizeHost(rows)).toEqual({
+        raters: n,
+        asDescribedPct: null,
+        feeAsPromisedPct: null,
+      });
+    }
+  });
+
+  it("five rows from four distinct raters (one edited twice) still hide the percentages", () => {
+    const rows = [
+      ...[10, 11, 12, 13].map((fromId) => host({ eventId: 1, fromId })),
+      host({
+        eventId: 1,
+        fromId: 13,
+        updatedAt: "2026-11-02T14:00:00.000Z",
+        asDescribed: false,
+      }),
+    ];
+    expect(summarizeHost(rows).asDescribedPct).toBeNull();
+  });
+
+  it("reviewer example: weights 5/5/1, every answer combination gives the same output", () => {
+    const outputs = new Set<string>();
+    for (let mask = 0; mask < 8; mask++) {
+      const rows = [5, 5, 1].map((w5, i) =>
+        host({
+          eventId: 1,
+          fromId: 10 + i,
+          w5,
+          asDescribed: Boolean(mask & (1 << i)),
+          feeAsPromised: !(mask & (1 << i)),
+        }),
+      );
+      outputs.add(JSON.stringify(summarizeHost(rows)));
+    }
+    expect([...outputs]).toEqual([
+      JSON.stringify({
+        raters: 3,
+        asDescribedPct: null,
+        feeAsPromisedPct: null,
+      }),
+    ]);
   });
 
   it("under three raters every field is null", () => {

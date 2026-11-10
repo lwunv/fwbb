@@ -615,6 +615,22 @@ describe("getPublicProfile", () => {
     expect(fresh!.attendance.attended).toBe(1);
   });
 
+  // Final review M2: bot dò mã ngẫu nhiên đúng dạng không được đẻ ra một mục
+  // cache cho mỗi mã (như id sân không tồn tại ở Task 9).
+  it("an unknown well-formed code returns null and caches nothing; it resolves once the code exists", async () => {
+    const code = codeFor(++seq);
+    expect(await getPublicProfile(code)).toBeNull();
+    expect(await getPublicProfile("zzzzzzzzzz")).toBeNull();
+    expect(
+      [...cache.store.keys()].filter((k) => k.includes('"pcode"')),
+    ).toEqual([]);
+
+    const t = await seedMember({ name: "Late Code", publicCode: code });
+    expect(await getPublicProfile(code)).toMatchObject({ name: "Late Code" });
+    const entries = [...cache.store].filter(([k]) => k.includes('"pcode"'));
+    expect(entries.map(([, v]) => JSON.parse(v.json))).toEqual([{ id: t }]);
+  });
+
   it("locked, rejected, unknown or malformed code returns null; flag off returns null before any DB read", async () => {
     const locked = await profiled();
     await testDb
@@ -657,6 +673,118 @@ describe("getPublicProfile", () => {
   });
 });
 
+// Final review M5: trần 500 dòng từng cắt TRƯỚC bước lọc "buổi có ít nhất 3
+// người chấm", nên ở biên trần một buổi bị tách và rơi khỏi điểm dù đủ người.
+describe("row cap at 500 for a very active member", () => {
+  /** `events` buổi, mỗi buổi `perEvent` người chấm mới; ghi lô cho nhanh. */
+  async function filler(
+    target: number,
+    events: number,
+    perEvent: number,
+    kind: "peer" | "host",
+  ) {
+    const host = kind === "host" ? target : undefined;
+    const raters = await testDb
+      .insert(members)
+      .values(
+        Array.from({ length: perEvent }, () => ({
+          name: `f${++seq}`,
+          approvalStatus: "pending" as const,
+        })),
+      )
+      .returning({ id: members.id });
+    for (let e = 0; e < events; e++) {
+      const ev = await seedEvent({ host });
+      const regs = raters.map((r) => r.id);
+      if (kind === "peer") regs.push(target);
+      await testDb.insert(exchangeRegistrations).values(
+        regs.map((memberId) => ({
+          eventId: ev.id,
+          memberId,
+          status: "approved" as const,
+          maleCount: 1,
+          checkedIn: true,
+          createdAt: CLOSED_START,
+          updatedAt: CLOSED_START,
+        })),
+      );
+      const rows = raters.map((r) => {
+        const at = iso((fbClock += 1000));
+        return { eventId: ev.id, fromMemberId: r.id, at };
+      });
+      if (kind === "peer") {
+        await testDb.insert(peerFeedback).values(
+          rows.map((r) => ({
+            eventId: r.eventId,
+            fromMemberId: r.fromMemberId,
+            toMemberId: target,
+            playAgain: false,
+            tags: "[]",
+            raterWeight: 5,
+            createdAt: r.at,
+            updatedAt: r.at,
+          })),
+        );
+      } else {
+        await testDb.insert(hostFeedback).values(
+          rows.map((r) => ({
+            eventId: r.eventId,
+            fromMemberId: r.fromMemberId,
+            asDescribed: true,
+            feeAsPromised: true,
+            raterWeight: 5,
+            createdAt: r.at,
+            updatedAt: r.at,
+          })),
+        );
+      }
+    }
+  }
+
+  it("peer: the newest rater of an event whose other raters fall past the cap still counts", async () => {
+    const t = await seedMember();
+    const ev = await seedEvent();
+    await reg(ev.id, t);
+    const [a, b, c] = [
+      await seedMember(),
+      await seedMember(),
+      await seedMember(),
+    ];
+    for (const r of [a, b, c]) await reg(ev.id, r);
+    await peer(ev.id, b, t, { playAgain: false, tags: [] });
+    await peer(ev.id, c, t, { playAgain: false, tags: [] });
+    await filler(t, 4, 125, "peer"); // 500 dòng mới hơn b, c
+    await peer(ev.id, a, t, { playAgain: false, tags: ["fair_play"] });
+
+    const rep = await loadReputation(testDb, t, NOW);
+    expect(rep!.peer.tags).toEqual([{ tag: "fair_play", count: 1 }]);
+  });
+
+  it("host: the newest answer of an event whose other raters fall past the cap still counts", async () => {
+    const h = await seedMember({ approvalStatus: "approved" });
+    const ev = await seedEvent({ host: h });
+    const [a, b, c] = [
+      await seedMember(),
+      await seedMember(),
+      await seedMember(),
+    ];
+    for (const r of [a, b, c]) await reg(ev.id, r);
+    await hostFb(ev.id, b, true, true);
+    await hostFb(ev.id, c, true, true);
+    await filler(h, 4, 125, "host");
+    await hostFb(ev.id, a, false, true);
+
+    const host = (await loadReputation(testDb, h, NOW))!.host!;
+    // 125 người chấm đệm (mỗi người một dòng mới nhất) "có" + a "không".
+    expect(host.raters).toBe(126);
+    expect(host.asDescribedPct).toBe(90);
+    const kept = await testDb.all<{ fromId: number }>(
+      hostRowsQuery(h, iso(NOW.getTime() - 7 * DAY)),
+    );
+    expect(kept.map((r) => Number(r.fromId))).toContain(a);
+  });
+});
+
 describe("query plans", () => {
   it("EXPLAIN QUERY PLAN of peer rows, host rows and attendance has no SCAN of peer_feedback, host_feedback or exchange_registrations", async () => {
     const cutoff = iso(NOW.getTime() - 7 * DAY);
@@ -676,6 +804,11 @@ describe("query plans", () => {
     );
     expect(plans.host.join("\n")).toMatch(/exchange_events_host_start_idx/);
     expect(plans.host.join("\n")).toMatch(/host_feedback_event_from_unique/);
+    // M5: truy vấn con lọc buổi (>= 3 người chấm) cũng đi theo index.
+    const uses = (lines: string[], idx: string) =>
+      lines.filter((d) => d.includes(idx)).length;
+    expect(uses(plans.peer, "peer_feedback_to_updated_idx")).toBe(2);
+    expect(uses(plans.host, "exchange_events_host_start_idx")).toBe(2);
     expect(plans.hostCounts.join("\n")).toMatch(
       /exchange_events_host_start_idx/,
     );

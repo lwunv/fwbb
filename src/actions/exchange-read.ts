@@ -41,6 +41,7 @@ import {
   toCard,
   type Candidate,
 } from "@/lib/exchange/cards";
+import { linkableProfileCode } from "@/lib/reputation/public-profile";
 
 export type ViewerExtras = {
   role: "guest" | "member" | "host";
@@ -150,7 +151,11 @@ const getPublicEventCached = unstable_cache(
           name: row.hostName,
           avatarUrl: row.hostAvatarUrl,
           avatarKey: row.hostAvatarKey,
-          code: row.hostCode,
+          code: linkableProfileCode({
+            publicCode: row.hostCode,
+            isActive: row.hostActive,
+            approvalStatus: row.hostApproval,
+          }),
         },
         regs,
         attendeeAvatars: avatars,
@@ -332,12 +337,14 @@ export async function getExchangeEvent(
     if (isHost || approved) {
       extras.hostContact = priv?.hostContact ?? null;
       extras.zaloGroupLink = priv?.zaloGroupLink ?? null;
-      extras.attendees = await db
+      const attendeeRows = await db
         .select({
           name: members.name,
           avatarUrl: members.avatarUrl,
           avatarKey: members.avatarKey,
-          code: members.publicCode,
+          publicCode: members.publicCode,
+          isActive: members.isActive,
+          approvalStatus: members.approvalStatus,
         })
         .from(exchangeRegistrations)
         .innerJoin(members, eq(members.id, exchangeRegistrations.memberId))
@@ -348,6 +355,13 @@ export async function getExchangeEvent(
           ),
         )
         .orderBy(asc(exchangeRegistrations.id));
+      // Chỉ trường hiển thị; mã null khi hồ sơ không mở được (khoá, từ chối).
+      extras.attendees = attendeeRows.map((a) => ({
+        name: a.name,
+        avatarUrl: a.avatarUrl,
+        avatarKey: a.avatarKey,
+        code: linkableProfileCode(a),
+      }));
     } else if (owesOrOwed) {
       extras.hostContact = priv?.hostContact ?? null;
     }

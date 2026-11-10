@@ -7,6 +7,8 @@ import { SKILL_LEVELS, type SkillLevel } from "@/lib/skill-level";
 import {
   BAYES_VIRTUAL_VOTES,
   FEEDBACK_WINDOW_DAYS,
+  HOST_PCT_MIN_RATERS,
+  HOST_PCT_STEP,
   MIN_RATERS_PER_EVENT,
   MIN_RATERS_SHOWN,
   PEER_TAGS,
@@ -156,10 +158,22 @@ export type PeerSummary = {
 const PEER_TAG_SET: ReadonlySet<string> = new Set(PEER_TAGS);
 
 /** Lọc theo buổi rồi theo người chấm; null khi còn dưới ngưỡng hiện. */
+export type SummarizeOptions = {
+  /**
+   * Dòng đã qua bước "buổi có ít nhất `MIN_RATERS_PER_EVENT` người chấm" (SQL
+   * của `profile-read.ts` làm trước trần 500 dòng). Bỏ bước đó ở đây: làm lại
+   * trên dòng đã cắt trần sẽ tách một buổi ở biên trần (final review M5).
+   */
+  eventsFiltered?: boolean;
+};
+
 function countedRows<
   T extends { id: number; eventId: number; fromId: number; updatedAt: string },
->(rows: T[]): T[] | null {
-  const kept = latestPerRater(keepEventsWithRaters(rows, MIN_RATERS_PER_EVENT));
+>(rows: T[], opts: SummarizeOptions): T[] | null {
+  const perEvent = opts.eventsFiltered
+    ? rows
+    : keepEventsWithRaters(rows, MIN_RATERS_PER_EVENT);
+  const kept = latestPerRater(perEvent);
   return kept.length < MIN_RATERS_SHOWN ? null : kept;
 }
 
@@ -168,8 +182,11 @@ function countedRows<
  * tròn xuống theo lượt đủ nặng; không bấm không phải là chê nên không có phần
  * trăm (quyết định 8).
  */
-export function summarizePeer(rows: PeerRow[]): PeerSummary {
-  const kept = countedRows(rows);
+export function summarizePeer(
+  rows: PeerRow[],
+  opts: SummarizeOptions = {},
+): PeerSummary {
+  const kept = countedRows(rows, opts);
   if (!kept) return { raters: null, playAgain: null, tags: [], skill: null };
 
   let playAgainW = 0;
@@ -219,27 +236,50 @@ export type HostRow = {
   feeAsPromised: boolean;
 };
 
-/** Phần trăm "đúng như mô tả" và "phí đúng như đã báo", có trọng số. */
-export function summarizeHost(rows: HostRow[]): {
+/**
+ * Phần trăm làm tròn XUỐNG bậc `HOST_PCT_STEP` (95% → 90%; 100%
+ * chỉ khi mọi lượt đều "có"). Số nguyên từ đầu tới cuối.
+ */
+export function flooredPercent(part: number, whole: number): number | null {
+  if (whole <= 0) return null;
+  const steps = 100 / HOST_PCT_STEP;
+  return Math.floor((steps * part) / whole) * HOST_PCT_STEP;
+}
+
+/**
+ * Phần trăm "đúng như mô tả" và "phí đúng như đã báo". KHÔNG nhân trọng số:
+ * trọng số gần như công khai (số buổi đã đến), nên phần trăm có trọng số cho
+ * host đọc ngược được ai trả lời gì (5/5/5/5/1: 90% chỉ khi người nặng 1 nói
+ * "không"). Mỗi người chấm tính 1 với câu mới nhất, nên một câu "không" cho
+ * cùng một số bất kể ai nói (quyết định 9 thắng; chống nick ảo cho host đã có
+ * điểm danh mới được chấm và cờ host vòng kín). `raters` hiện từ 3 người như
+ * mọi chỉ số; phần trăm chỉ từ `HOST_PCT_MIN_RATERS` người, bậc 10% (final
+ * review I2). Lời khen người chơi, trình độ và điểm sân vẫn có trọng số.
+ */
+export function summarizeHost(
+  rows: HostRow[],
+  opts: SummarizeOptions = {},
+): {
   raters: number | null;
   asDescribedPct: number | null;
   feeAsPromisedPct: number | null;
 } {
-  const kept = countedRows(rows);
+  const kept = countedRows(rows, opts);
   if (!kept)
     return { raters: null, asDescribedPct: null, feeAsPromisedPct: null };
-  let total = 0;
+  // `kept` đã là một dòng mỗi người chấm (`latestPerRater`).
+  const total = kept.length;
   let described = 0;
   let fee = 0;
   for (const r of kept) {
-    total += r.w5;
-    if (r.asDescribed) described += r.w5;
-    if (r.feeAsPromised) fee += r.w5;
+    if (r.asDescribed) described += 1;
+    if (r.feeAsPromised) fee += 1;
   }
+  const shown = kept.length >= HOST_PCT_MIN_RATERS;
   return {
     raters: kept.length,
-    asDescribedPct: percent(described, total),
-    feeAsPromisedPct: percent(fee, total),
+    asDescribedPct: shown ? flooredPercent(described, total) : null,
+    feeAsPromisedPct: shown ? flooredPercent(fee, total) : null,
   };
 }
 

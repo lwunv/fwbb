@@ -257,6 +257,35 @@ describe("FeedbackSheet", () => {
     );
   });
 
+  // Final review M1: lần đầu có thể đã commit mà mất phản hồi. Nếu gửi lại
+  // câu trả lời KHÁC với cùng khoá, server coi là gửi lại và bỏ câu mới.
+  it("after an error a changed answer gets a new idempotencyKey, an identical resend keeps it", async () => {
+    mocks.submit
+      .mockResolvedValueOnce({ error: "Chưa lưu được đánh giá" })
+      .mockResolvedValueOnce({ error: "Chưa lưu được đánh giá" })
+      .mockResolvedValue({ success: true, data: { saved: 1 } });
+    renderSheet(formData());
+    await screen.findByText("An Nguyễn");
+    answerHost("Có", "Có");
+    token();
+    fireEvent.click(submitBtn());
+    await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledTimes(1));
+
+    answerHost("Có", "Không");
+    token();
+    fireEvent.click(submitBtn());
+    await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledTimes(2));
+
+    token();
+    fireEvent.click(submitBtn());
+    await waitFor(() => expect(mocks.submit).toHaveBeenCalledTimes(3));
+    const [first, changed, same] = mocks.submit.mock.calls.map((c) => c[0]);
+    expect(changed.host).toEqual({ asDescribed: true, feeAsPromised: false });
+    expect(changed.idempotencyKey).toMatch(UUID);
+    expect(changed.idempotencyKey).not.toBe(first.idempotencyKey);
+    expect(same.idempotencyKey).toBe(changed.idempotencyKey);
+  });
+
   it("an error rolls back the sent state with the server message", async () => {
     let resolve!: (v: unknown) => void;
     mocks.submit.mockReturnValueOnce(new Promise((r) => (resolve = r)));

@@ -1,13 +1,17 @@
 "use server";
 
+import { unstable_cache } from "next/cache";
 import { and, desc, eq, gte } from "drizzle-orm";
 import { db } from "@/db";
 import { dupIgnoredPairs, memberIpSignals, members } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
 import { isExchangeAccount } from "@/lib/exchange-account";
 import { isExchangeEnabled } from "@/lib/exchange-flag";
+import { linkableProfileCode } from "@/lib/reputation/public-profile";
 import {
   DUP_SIGNAL_ROW_CAP,
+  DUP_SIGNALS_REVALIDATE_S,
+  DUP_SIGNALS_TAG,
   IP_SIGNAL_RETENTION_DAYS,
 } from "@/lib/reputation/constants";
 import {
@@ -30,7 +34,18 @@ export async function findExchangeDuplicateSignals(): Promise<
   if (!(await isExchangeEnabled())) return [];
   const auth = await requireAdmin();
   if ("error" in auth) return [];
+  // Cờ và quyền kiểm ngoài cache; bên trong chỉ là dữ liệu chung của admin.
+  return unstable_cache(loadSignalGroups, ["dupsig"], {
+    tags: [DUP_SIGNALS_TAG],
+    revalidate: DUP_SIGNALS_REVALIDATE_S,
+  })();
+}
 
+/**
+ * Đọc thật bảng tín hiệu (tối đa `DUP_SIGNAL_ROW_CAP` dòng) và cặp đã bỏ qua.
+ * Chỉ chạy khi cache hết hạn hoặc bị làm mới, không theo nhịp tự làm mới.
+ */
+async function loadSignalGroups(): Promise<DupSignalGroupView[]> {
   // Dòng quá 30 ngày có thể chưa kịp dọn: lúc đọc luôn bỏ qua (quyết định 55).
   const cutoff = new Date(
     Date.now() - IP_SIGNAL_RETENTION_DAYS * DAY_MS,
@@ -96,7 +111,12 @@ export async function findExchangeDuplicateSignals(): Promise<
           avatarKey: m.avatarKey,
           isExchange: isExchangeAccount(m),
           createdAt: m.createdAt,
-          code: m.code,
+          // Truy vấn chỉ lấy tài khoản đang mở; bị từ chối thì hồ sơ 404.
+          code: linkableProfileCode({
+            publicCode: m.code,
+            isActive: true,
+            approvalStatus: m.approvalStatus,
+          }),
         },
       ];
     }),

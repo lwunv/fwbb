@@ -57,6 +57,7 @@ const {
   updateMyAvatar,
   updateMyProfile,
   updateMySkillLevel,
+  ignoreDuplicateGroup,
 } = await import("./members");
 const { getFundBalance } = await import("@/lib/fund-calculator");
 
@@ -881,5 +882,60 @@ describe("reputation caches on member edits (G2d)", () => {
         "vrev:all",
       ]),
     );
+  });
+
+  // Final review M3: banner tín hiệu nick trùng được cache (không đọc lại mỗi
+  // lượt tự làm mới). Thao tác admin làm đổi banner phải làm mới cache đó.
+  it("ignoring a group, locking or merging a member refreshes the duplicate-signal cache", async () => {
+    const a = await seedMember("Trung A");
+    const b = await seedMember("Trung B");
+    const c = await seedMember("Trung C");
+    expect(await ignoreDuplicateGroup([a, b])).toEqual({ success: true });
+    expect(await tags()).toContain("dupsig");
+
+    await clearTags();
+    expect(await toggleMemberActive(a)).toEqual({ success: true });
+    expect(await tags()).toContain("dupsig");
+
+    await clearTags();
+    expect(await mergeMember(b, c)).toEqual({ success: true });
+    expect(await tags()).toContain("dupsig");
+  });
+
+  it("a failing cache refresh after commit still returns success, revalidates /admin/fund first and logs only ids", async () => {
+    const m = await seedMember("Bi khoa");
+    const v = await mkVenue();
+    await mkReview(v, m);
+    const { updateTag, revalidatePath } = await import("next/cache");
+    vi.mocked(revalidatePath).mockClear();
+    vi.mocked(updateTag).mockImplementationOnce(() => {
+      throw new Error("socket hang up");
+    });
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(await toggleMemberActive(m)).toEqual({ success: true });
+
+      const row = await testDb.query.members.findFirst({
+        where: eq(members.id, m),
+      });
+      expect(row?.isActive).toBe(false);
+      const paths = vi.mocked(revalidatePath).mock.calls.map((c) => c[0]);
+      expect(paths).toEqual(
+        expect.arrayContaining(["/admin/fund", "/my-fund", "/admin/members"]),
+      );
+      // Làm mới trang quỹ trước, cache uy tín sau (best effort).
+      const lastRevalidate = Math.max(
+        ...vi.mocked(revalidatePath).mock.invocationCallOrder,
+      );
+      const firstTag = Math.min(
+        ...vi.mocked(updateTag).mock.invocationCallOrder,
+      );
+      expect(lastRevalidate).toBeLessThan(firstTag);
+      expect(err).toHaveBeenCalledWith("[Reputation] invalidate_failed", {
+        memberIds: [m],
+      });
+    } finally {
+      err.mockRestore();
+    }
   });
 });
