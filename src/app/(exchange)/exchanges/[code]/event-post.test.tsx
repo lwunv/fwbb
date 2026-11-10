@@ -201,4 +201,38 @@ describe("EventPost", () => {
     });
     expect(screen.getByText("Phí cao hơn số đã hiện lúc đăng ký")).toBeTruthy();
   });
+
+  it("the host line links to /players/{code}, shows Host mới when nothing was organized, and is absent without a code", () => {
+    renderPost({
+      hostLine: {
+        code: "hostcode22",
+        organized: 3,
+        asDescribedPct: 90,
+        feeAsPromisedPct: null,
+      },
+    });
+    const link = screen.getByRole("link", { name: /Đã tổ chức 3 buổi/ });
+    expect(link.getAttribute("href")).toBe("/players/hostcode22");
+    expect(screen.getByText("Đúng mô tả 90%")).toBeTruthy();
+    expect(screen.queryByText(/Đúng phí/)).toBeNull();
+    cleanup();
+
+    renderPost({
+      hostLine: {
+        code: "hostcode22",
+        organized: 0,
+        asDescribedPct: null,
+        feeAsPromisedPct: null,
+      },
+    });
+    expect(
+      screen.getByRole("link", { name: /Host mới/ }).getAttribute("href"),
+    ).toBe("/players/hostcode22");
+    cleanup();
+
+    // Không mã hồ sơ thì trang truyền `hostLine` null: không có dòng nào.
+    const { container } = renderPost({ hostLine: null });
+    expect(container.querySelector('a[href^="/players/"]')).toBeNull();
+    expect(screen.queryByText("Host mới")).toBeNull();
+  });
 });

@@ -1282,6 +1282,13 @@
       "reportSent": "Đã gửi báo cáo. Cảm ơn bạn.",
       "reportFailed": "Chưa gửi được báo cáo. Thử lại nhé."
     },
+    "reputation": {
+      "newBadge": "Mới",
+      "hostNew": "Host mới",
+      "hostOrganized": "Đã tổ chức {count} buổi",
+      "hostAsDescribed": "Đúng mô tả {pct}%",
+      "hostFeeAsPromised": "Đúng phí {pct}%"
+    },
     "manage": {
       "title": "Quản lý buổi",
       "back": "Về bài đăng",

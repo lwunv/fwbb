@@ -1282,6 +1282,13 @@
       "reportSent": "Report sent. Thank you.",
       "reportFailed": "Could not send the report. Please try again."
     },
+    "reputation": {
+      "newBadge": "New",
+      "hostNew": "New host",
+      "hostOrganized": "Organized {count, plural, one {# event} other {# events}}",
+      "hostAsDescribed": "As described {pct}%",
+      "hostFeeAsPromised": "Fee as promised {pct}%"
+    },
     "manage": {
       "title": "Manage event",
       "back": "Back to post",

@@ -1282,6 +1282,13 @@
       "reportSent": "举报已提交,谢谢。",
       "reportFailed": "举报未能发送,请重试。"
     },
+    "reputation": {
+      "newBadge": "新",
+      "hostNew": "新组织者",
+      "hostOrganized": "已组织 {count} 场",
+      "hostAsDescribed": "与描述相符 {pct}%",
+      "hostFeeAsPromised": "费用相符 {pct}%"
+    },
     "manage": {
       "title": "管理活动",
       "back": "返回活动页",
