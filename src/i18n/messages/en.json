@@ -1359,7 +1359,8 @@
         "limitedCard": "New accounts are limited: at most {pending} pending registrations, no companions, {comments} comments a day. Ask someone you know who has played {sessions} or more sessions to refer you and lift the limits.",
         "share": "Share my profile",
         "linkCopied": "Profile link copied",
-        "shareFailed": "Your profile couldn't be shared. Please try again."
+        "shareFailed": "Your profile couldn't be shared. Please try again.",
+        "codeReady": "Your profile link is ready. Tap share again to send it."
       }
     },
     "manage": {

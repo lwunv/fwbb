@@ -1359,7 +1359,8 @@
         "limitedCard": "Tài khoản mới bị giới hạn: tối đa {pending} đăng ký đang chờ, không dắt thêm người, {comments} bình luận mỗi ngày. Nhờ người quen đã chơi từ {sessions} buổi giới thiệu để bỏ giới hạn.",
         "share": "Chia sẻ hồ sơ của tôi",
         "linkCopied": "Đã chép link hồ sơ",
-        "shareFailed": "Chưa chia sẻ được hồ sơ, thử lại sau."
+        "shareFailed": "Chưa chia sẻ được hồ sơ, thử lại sau.",
+        "codeReady": "Đã tạo link hồ sơ. Bấm chia sẻ lần nữa để gửi."
       }
     },
     "manage": {

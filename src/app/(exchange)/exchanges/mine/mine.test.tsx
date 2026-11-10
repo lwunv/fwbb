@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
   referralState: vi.fn(),
   ensureCode: vi.fn(),
+  refresh: vi.fn(),
 }));
 
 vi.mock("@/lib/member-auth", () => ({
@@ -32,7 +33,7 @@ vi.mock("next/navigation", () => ({
   redirect: (to: string) => {
     throw new Error(`REDIRECT:${to}`);
   },
-  useRouter: () => ({ refresh: vi.fn() }),
+  useRouter: () => ({ refresh: mocks.refresh }),
 }));
 vi.mock("next-intl/server", () => ({
   getTranslations: async (ns: string) => {
@@ -343,42 +344,55 @@ describe("MyExchanges", () => {
       limit: 5,
       blockedDate: null,
     };
-    const order: string[] = [];
-    mocks.ensureCode.mockImplementation(async () => {
-      order.push("ensure");
-      return { code: "mycode0001" };
-    });
-    const share = vi.fn(async () => {
-      order.push("share");
-    });
+    mocks.ensureCode.mockResolvedValue({ code: "mycode0001" });
+    const share = vi.fn(async () => {});
     Object.defineProperty(navigator, "share", {
       value: share,
       configurable: true,
     });
-    render(
+    const card = (myCode: string | null) =>
       withIntl(
         <MyExchanges
           registrations={[]}
           hosting={[]}
           blocks={[]}
+          myCode={myCode}
           referral={limited}
         />,
-      ),
-    );
+      );
+
+    // Chưa có mã: tạo mã ở server, làm mới trang, chưa chia sẻ (đã mất lượt
+    // chạm của người dùng nên Safari/Zalo sẽ chặn) và bảo bấm lại.
+    const { rerender } = render(card(null));
     expect(
       screen.getByText(
         "Tài khoản mới bị giới hạn: tối đa 2 đăng ký đang chờ, không dắt thêm người, 5 bình luận mỗi ngày. Nhờ người quen đã chơi từ 3 buổi giới thiệu để bỏ giới hạn.",
       ),
     ).toBeTruthy();
-    const btn = screen.getByRole("button", { name: "Chia sẻ hồ sơ của tôi" });
-    expect(btn.className).toMatch(/min-h-11/);
-    fireEvent.click(btn);
-    await vi.waitFor(() => expect(share).toHaveBeenCalledTimes(1));
-    expect(order).toEqual(["ensure", "share"]);
+    const btn = () =>
+      screen.getByRole("button", { name: "Chia sẻ hồ sơ của tôi" });
+    expect(btn().className).toMatch(/min-h-11/);
+    fireEvent.click(btn());
+    await vi.waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(1));
+    expect(mocks.ensureCode).toHaveBeenCalledTimes(1);
+    expect(share).not.toHaveBeenCalled();
+    expect(mocks.toastSuccess).toHaveBeenCalledWith(
+      "Đã tạo link hồ sơ. Bấm chia sẻ lần nữa để gửi.",
+    );
+
+    // Sau khi làm mới đã có mã: chia sẻ ngay trong lúc chạm, không chờ server.
+    rerender(card("mycode0001"));
+    await vi.waitFor(() =>
+      expect((btn() as HTMLButtonElement).disabled).toBe(false),
+    );
+    mocks.ensureCode.mockClear();
+    fireEvent.click(btn());
+    expect(share).toHaveBeenCalledTimes(1);
+    expect(mocks.ensureCode).not.toHaveBeenCalled();
     const arg = (share.mock.calls[0] as unknown as [{ url: string }])[0];
     expect(arg.url).toBe(`${window.location.origin}/players/mycode0001`);
 
-    // Không có Web Share: chép link và báo.
+    // Không có Web Share: chép link ngay trong lúc chạm và báo.
     Object.defineProperty(navigator, "share", {
       value: undefined,
       configurable: true,
@@ -388,23 +402,25 @@ describe("MyExchanges", () => {
       value: { writeText },
       configurable: true,
     });
-    fireEvent.click(btn);
-    await vi.waitFor(() =>
-      expect(writeText).toHaveBeenCalledWith(
-        `${window.location.origin}/players/mycode0001`,
-      ),
+    fireEvent.click(btn());
+    expect(writeText).toHaveBeenCalledWith(
+      `${window.location.origin}/players/mycode0001`,
     );
+    expect(mocks.ensureCode).not.toHaveBeenCalled();
     await vi.waitFor(() =>
       expect(mocks.toastSuccess).toHaveBeenCalledWith("Đã chép link hồ sơ"),
     );
 
-    // Lỗi tạo mã: báo lỗi, không chia sẻ gì.
+    // Lỗi tạo mã: báo lỗi, không làm mới, không chia sẻ gì.
+    rerender(card(null));
+    mocks.refresh.mockClear();
     mocks.ensureCode.mockResolvedValueOnce({ error: "Không tạo được mã" });
     writeText.mockClear();
-    fireEvent.click(btn);
+    fireEvent.click(btn());
     await vi.waitFor(() =>
       expect(mocks.toastError).toHaveBeenCalledWith("Không tạo được mã"),
     );
+    expect(mocks.refresh).not.toHaveBeenCalled();
     expect(writeText).not.toHaveBeenCalled();
     cleanup();
 

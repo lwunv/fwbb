@@ -1359,7 +1359,8 @@
         "limitedCard": "新账号受限：最多 {pending} 个待审核报名，不能带同伴，每天 {comments} 条评论。请已参加 {sessions} 场以上的熟人推荐你以解除限制。",
         "share": "分享我的主页",
         "linkCopied": "已复制主页链接",
-        "shareFailed": "暂时无法分享主页，请稍后再试。"
+        "shareFailed": "暂时无法分享主页，请稍后再试。",
+        "codeReady": "主页链接已生成，请再点一次分享发送。"
       }
     },
     "manage": {

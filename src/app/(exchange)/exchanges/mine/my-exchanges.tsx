@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -73,37 +74,58 @@ export type MyReferralCard = {
 /**
  * Thẻ cho nick mới: nói rõ đang bị giới hạn gì và cho chia sẻ hồ sơ để người
  * quen mở ra giới thiệu. Mã hồ sơ chỉ được tạo khi bấm chia sẻ (quyết định 50).
+ *
+ * Safari iOS và webview Zalo chỉ cho `navigator.share`/`clipboard` chạy trong
+ * lúc người dùng đang chạm: có `await` server trước đó là mất quyền. Nên đã có
+ * mã thì chia sẻ ngay trong handler; chưa có thì tạo mã, làm mới trang và nhờ
+ * bấm lại.
  */
-function NewcomerCard() {
+function NewcomerCard({ myCode }: { myCode: string | null }) {
   const t = useTranslations("exchange.reputation.referral");
-  const [sharing, setSharing] = useState(false);
+  const router = useRouter();
+  const [creating, setCreating] = useState(false);
 
-  async function share() {
-    if (sharing) return;
-    setSharing(true);
+  function copyLink(url: string) {
+    navigator.clipboard
+      .writeText(url)
+      .then(() => toast.success(t("linkCopied")))
+      .catch(() => toast.error(t("shareFailed")));
+  }
+
+  function shareNow(code: string) {
+    const url = `${window.location.origin}/players/${code}`;
+    if (typeof navigator.share !== "function") {
+      copyLink(url);
+      return;
+    }
+    navigator.share({ title: t("share"), url }).catch((err: unknown) => {
+      // Người dùng tự đóng bảng chia sẻ: không phải lỗi, không chép link.
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      copyLink(url);
+    });
+  }
+
+  async function createCode() {
+    setCreating(true);
     try {
       const res = await ensureMyPublicCode();
       if ("error" in res) {
         toast.error(res.error);
         return;
       }
-      const url = `${window.location.origin}/players/${res.code}`;
-      if (typeof navigator.share === "function") {
-        try {
-          await navigator.share({ title: t("share"), url });
-          return;
-        } catch (err) {
-          // Người dùng tự đóng bảng chia sẻ: không phải lỗi, không chép link.
-          if (err instanceof DOMException && err.name === "AbortError") return;
-        }
-      }
-      await navigator.clipboard.writeText(url);
-      toast.success(t("linkCopied"));
+      toast.success(t("codeReady"));
+      router.refresh();
     } catch {
       toast.error(t("shareFailed"));
     } finally {
-      setSharing(false);
+      setCreating(false);
     }
+  }
+
+  function onShare() {
+    if (creating) return;
+    if (myCode) shareNow(myCode);
+    else void createCode();
   }
 
   return (
@@ -124,11 +146,11 @@ function NewcomerCard() {
       <motion.button
         type="button"
         whileTap={{ scale: 0.98 }}
-        onClick={share}
-        disabled={sharing}
+        onClick={onShare}
+        disabled={creating}
         className="bg-primary text-primary-foreground flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-4 text-base font-semibold disabled:opacity-70 sm:w-auto"
       >
-        {sharing ? (
+        {creating ? (
           <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
         ) : (
           <Share2 className="h-5 w-5" aria-hidden />
@@ -212,7 +234,7 @@ export function MyExchanges({
         </Link>
       )}
 
-      {referral?.limited && <NewcomerCard />}
+      {referral?.limited && <NewcomerCard myCode={myCode} />}
       {referral && (referral.eligible || referral.blockedDate) && (
         <ReferrerCard r={referral} />
       )}
