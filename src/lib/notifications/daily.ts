@@ -27,6 +27,7 @@ import { dayOfWeekVN, ymdInVN, ymdInVNAddDays } from "@/lib/date-format";
 import { computeBalanceFromTransactions } from "@/lib/fund-core";
 import { sendMail } from "@/lib/mailer";
 import { runReconcile } from "@/lib/reconcile-core";
+import { pruneIpSignalsDaily } from "@/lib/reputation/ip-signals";
 import { NOTIFICATION_CATALOG, NOTIFICATION_KINDS } from "./catalog";
 import {
   debtAgeDays,
@@ -79,6 +80,8 @@ export type DailyReport = {
   rentChecked: boolean;
   reconcileChecked: boolean;
   cleaned: number;
+  /** Số dòng tín hiệu mạng quá 30 ngày đã xoá (G2d). */
+  ipSignalsPruned: number;
   errors: string[];
 };
 
@@ -296,11 +299,9 @@ export async function runDailyNotifications(
     rentChecked: false,
     reconcileChecked: false,
     cleaned: 0,
+    ipSignalsPruned: 0,
     errors: [],
   };
-  if (!(await isNotificationsEnabled(db))) return report;
-
-  const today = ymdInVN(now);
   const step = async (code: string, fn: () => Promise<void>) => {
     try {
       await fn();
@@ -310,6 +311,16 @@ export async function runDailyNotifications(
       console.error("[Notify] daily_step_failed", { step: code, error });
     }
   };
+
+  // 0. Dọn tín hiệu mạng quá 30 ngày (G2d, quyết định 55). Đứng trước cổng
+  // thông báo: dữ liệu này phải hết hạn kể cả khi đang tắt thông báo.
+  await step("ip_signals", async () => {
+    report.ipSignalsPruned = await pruneIpSignalsDaily(db, now);
+  });
+
+  if (!(await isNotificationsEnabled(db))) return report;
+
+  const today = ymdInVN(now);
   // Sổ quỹ đọc một lần, dùng chung cho nhắc nợ và tóm tắt tuần.
   let debtStates: Promise<DebtState[]> | undefined;
   const getDebtStates = () => (debtStates ??= loadDebtStates(db, today));

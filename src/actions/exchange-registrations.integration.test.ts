@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
 import {
   exchangeEvents,
   exchangeRegistrations,
   financialTransactions,
   hostBlocks,
+  memberIpSignals,
   notifications,
   sessionDebts,
   venues,
@@ -690,5 +691,52 @@ describe("money", () => {
     await cancelMyRegistration({ code: ev.publicCode });
     expect((await testDb.select().from(financialTransactions)).length).toBe(f0);
     expect((await testDb.select().from(sessionDebts)).length).toBe(d0);
+  });
+});
+
+// G2d Task 13: đăng ký buổi ghi tín hiệu mạng đã băm. Mặc định không có header
+// IP (IP "unknown") nên các test ở trên không ghi gì.
+const reqHeaders = vi.hoisted(() => ({ current: new Headers() }));
+vi.mock("next/headers", () => ({
+  headers: vi.fn(async () => reqHeaders.current),
+}));
+const { ipSignalHash } = await import("@/lib/reputation/ip-signals");
+
+describe("registerForExchange ghi tín hiệu mạng (G2d)", () => {
+  const IP = "203.0.113.11";
+  beforeEach(async () => {
+    await testDb.delete(memberIpSignals);
+    reqHeaders.current = new Headers({ "x-real-ip": IP });
+  });
+  afterEach(() => {
+    reqHeaders.current = new Headers();
+  });
+
+  it("a failed Turnstile on register records nothing", async () => {
+    const ev = await mkEvent();
+    const m = await newMember();
+    asMember(m);
+    mocks.bot.mockResolvedValue({ error: "captcha" });
+    expect(await registerForExchange(input(ev.publicCode))).toEqual({
+      error: "captcha",
+    });
+    expect(await testDb.select().from(memberIpSignals)).toEqual([]);
+  });
+
+  it("a register past Turnstile and the rate limit records one register signal", async () => {
+    const ev = await mkEvent();
+    const m = await newMember();
+    asMember(m);
+    expect(await registerForExchange(input(ev.publicCode))).toMatchObject({
+      success: true,
+    });
+    const rows = await testDb.select().from(memberIpSignals);
+    expect(rows).toEqual([
+      expect.objectContaining({
+        memberId: m.id,
+        ipHash: ipSignalHash(IP),
+        kind: "register",
+      }),
+    ]);
   });
 });

@@ -22,6 +22,8 @@ import {
 } from "@/lib/exchange/guards";
 import { runSerial } from "@/lib/exchange/serial";
 import { ensureMemberPublicCode } from "@/lib/reputation/member-code";
+import { recordIpSignalQuietly } from "@/lib/reputation/ip-signals";
+import { getTrustedClientIp } from "@/lib/client-ip";
 import {
   autoApproves,
   settleEvent,
@@ -96,6 +98,14 @@ export async function registerForExchange(
     windowMs: RL_REGISTER.windowMs,
   });
   if ("error" in bot) return bot;
+
+  // Tín hiệu nick trùng (G2d): sau Turnstile và rate limit, ngoài transaction.
+  // Tự nuốt lỗi: đăng ký không được hỏng vì nó.
+  await recordIpSignalQuietly(
+    db,
+    { memberId: member.id, ip: getTrustedClientIp(), kind: "register" },
+    new Date(),
+  );
 
   const heads = f.maleCount + f.femaleCount;
   const note = f.note?.trim() || null;
