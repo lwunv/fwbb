@@ -20,6 +20,9 @@ const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
   bot: vi.fn(),
   updateTag: vi.fn(),
+  // Chạy trong transaction ngay sau khi đếm lại report_count: mô phỏng một
+  // instance khác ghi chen vào giữa bước kiểm `visible` và lệnh tự ẩn.
+  afterSync: vi.fn(),
 }));
 vi.mock("next/cache", () => ({
   updateTag: mocks.updateTag,
@@ -35,6 +38,18 @@ vi.mock("@/lib/exchange/guards", async (orig) => ({
   ...(await orig<typeof import("@/lib/exchange/guards")>()),
   checkBotAndRate: mocks.bot,
 }));
+vi.mock("@/lib/reputation/review-reports", async (orig) => {
+  const real = await orig<typeof import("@/lib/reputation/review-reports")>();
+  return {
+    syncReviewReportCount: async (
+      ...args: Parameters<typeof real.syncReviewReportCount>
+    ) => {
+      const n = await real.syncReviewReportCount(...args);
+      await mocks.afterSync(...args);
+      return n;
+    },
+  };
+});
 
 const { db: testDb } = await createTestDb();
 vi.mock("@/db", () => ({ db: testDb }));
@@ -521,6 +536,7 @@ describe("reportAbuse on players, venues and reviews", () => {
 
   beforeEach(async () => {
     await testDb.delete(venueReviews);
+    mocks.afterSync.mockReset();
   });
 
   it("player report by profile code maps to the member server-side; self, locked or unknown code rejected", async () => {
@@ -640,6 +656,48 @@ describe("reportAbuse on players, venues and reviews", () => {
       expect(
         mocks.updateTag.mock.calls.filter((a) => a[0] === `vrev:v${v.id}`),
       ).toHaveLength(1);
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("a report on a review another instance already hid does not hide it again (no second log, no second updateTag)", async () => {
+    const v = await mkVenue("approved");
+    const r = await seedReview(v.id, (await newMember()).id);
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      for (let i = 0; i < 3; i++) {
+        asMember(await newMember());
+        await reportReview(r.id);
+      }
+      expect(await reviewOf(r.id)).toEqual({ s: "hidden", n: 3 });
+      expect(hideLogs(log)).toHaveLength(1);
+      const vrevCalls = () =>
+        mocks.updateTag.mock.calls.filter((a) => a[0] === `vrev:v${v.id}`);
+      expect(vrevCalls()).toHaveLength(1);
+
+      // Người báo thứ tư qua bước kiểm khi đánh giá còn `visible` ở instance của
+      // họ; lúc lệnh tự ẩn chạy thì đánh giá đã `hidden` với 4 báo cáo mở của
+      // người đã quen. runSerial chỉ xếp hàng trong một process nên test đồng
+      // thời ở trên không bắt được nhánh này.
+      await testDb
+        .update(venueReviews)
+        .set({ status: "visible" })
+        .where(eq(venueReviews.id, r.id));
+      mocks.afterSync.mockImplementationOnce(
+        async (tx: typeof testDb, reviewId: number) => {
+          await tx
+            .update(venueReviews)
+            .set({ status: "hidden" })
+            .where(eq(venueReviews.id, reviewId));
+        },
+      );
+      asMember(await newMember());
+      expect(await reportReview(r.id)).toEqual({ success: true });
+      expect(mocks.afterSync).toHaveBeenCalledTimes(4);
+      expect(await reviewOf(r.id)).toEqual({ s: "hidden", n: 4 });
+      expect(hideLogs(log)).toHaveLength(1);
+      expect(vrevCalls()).toHaveLength(1);
     } finally {
       log.mockRestore();
     }
