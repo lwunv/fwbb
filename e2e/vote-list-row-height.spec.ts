@@ -45,6 +45,7 @@ function db() {
 /** Ba member với ba hình dạng khác nhau: đây mới là thứ bài này kiểm. */
 let shapes: { id: number; name: string }[] = [];
 const savedNicknames = new Map<number, string | null>();
+const savedSkills = new Map<number, string | null>();
 
 test.beforeAll(async () => {
   const c = db();
@@ -52,7 +53,7 @@ test.beforeAll(async () => {
 
   const rows = (
     await c.execute(
-      "SELECT id, name, nickname FROM members WHERE is_active=1 AND approval_status='approved' ORDER BY id LIMIT 3",
+      "SELECT id, name, nickname, skill_level FROM members WHERE is_active=1 AND approval_status='approved' ORDER BY id LIMIT 3",
     )
   ).rows;
   shapes = rows.map((r) => ({ id: Number(r.id), name: String(r.name) }));
@@ -61,6 +62,20 @@ test.beforeAll(async () => {
       Number(r.id),
       r.nickname == null ? null : String(r.nickname),
     );
+    savedSkills.set(
+      Number(r.id),
+      r.skill_level == null ? null : String(r.skill_level),
+    );
+  }
+
+  // Ba nhãn trình độ ba bề ngang: "Tập chơi" rộng hơn avatar, "TB" hẹp hơn,
+  // và người không khai. Cột avatar mà co giãn theo nhãn thì avatar lệch.
+  const skills: (string | null)[] = ["tapChoi", "tb", null];
+  for (let i = 0; i < 3; i++) {
+    await c.execute("UPDATE members SET skill_level=? WHERE id=?", [
+      skills[i],
+      shapes[i].id,
+    ]);
   }
 
   // Người thứ nhất KHÔNG biệt danh (một dòng chữ), hai người sau CÓ (hai
@@ -109,6 +124,9 @@ test.afterAll(async () => {
   await c.execute("DELETE FROM sessions WHERE date=?", [DATE]);
   for (const [id, nickname] of savedNicknames) {
     await c.execute("UPDATE members SET nickname=? WHERE id=?", [nickname, id]);
+  }
+  for (const [id, skill] of savedSkills) {
+    await c.execute("UPDATE members SET skill_level=? WHERE id=?", [skill, id]);
   }
   c.close();
 });
@@ -173,4 +191,37 @@ test("ba dòng vote ba hình dạng khác nhau vẫn cao bằng nhau, badge nằ
     Math.round(badgeBox.height),
     `cụm ba badge cao ${Math.round(badgeBox.height)}px, phải là hai hàng`,
   ).toBeGreaterThan(30);
+});
+
+test("trên điện thoại, avatar mọi dòng thẳng một hàng dọc dù nhãn trình độ dài ngắn khác nhau", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+
+  const chips = page.getByRole("button", { name: /Thứ/ });
+  await expect(chips).toHaveCount(3, { timeout: 20_000 });
+  await chips.nth(CHIP_INDEX).click();
+
+  const rows = page.locator("[data-slot='vote-row']");
+  await expect(rows).toHaveCount(3, { timeout: 20_000 });
+  await page.waitForTimeout(500);
+
+  // Đo chính avatar (con đầu của cột), không đo cả cột: cột rộng cố định
+  // mà avatar bên trong lệch thì vẫn là lỗi.
+  const xs: number[] = [];
+  for (let i = 0; i < 3; i++) {
+    const box = await rows
+      .nth(i)
+      .locator("[data-slot='vote-row-avatar'] > :first-child")
+      .boundingBox();
+    if (!box) throw new Error(`khong do duoc avatar dong ${i}`);
+    xs.push(Math.round(box.x));
+  }
+  expect(new Set(xs).size, `mép trái avatar: ${xs.join("px, ")}px`).toBe(1);
+
+  if (process.env.VOTE_LIST_SHOT) {
+    await rows.first().scrollIntoViewIfNeeded();
+    await page.screenshot({ path: process.env.VOTE_LIST_SHOT });
+  }
 });

@@ -106,8 +106,8 @@
     "genderGroupsTitle": "Separate rates for female groups"
   },
   "adminMisc": {
-    "minDeductionAria": "Toggle 60K minimum rule for members with low fund",
-    "minDeductionLabel": "60K minimum when fund is low",
+    "minDeductionAria": "Toggle {amount} minimum rule for members with low fund",
+    "minDeductionLabel": "{amount} minimum when fund is low",
     "minDeductionExempt": "· {count} exempt",
     "addGuest": "Add guest",
     "guestCountSummary": "({count} guests)",
@@ -229,7 +229,8 @@
     "recalcWithCurrentHint": "This session still uses the cost settings from when it was first finalized. Tick this and the next finalize will use today's settings, which may change what each person owes.",
     "editTime": "Change time",
     "editTimeTitle": "Change playing time",
-    "editTimeSave": "Save time"
+    "editTimeSave": "Save time",
+    "voteBlockedByDebt": "You owe the fund {limit} or more, so you can't vote yet. Once you top up, you can vote again right away."
   },
   "voting": {
     "play": "Badminton",
@@ -540,7 +541,8 @@
       "tbk": "A bit below average"
     },
     "skillInvalid": "That skill level is not valid.",
-    "skillNone": "Not set"
+    "skillNone": "Not set",
+    "partnerAllowedNote": "An admin has allowed you to bring a partner"
   },
   "dashboard": {
     "overview": "Overview",
@@ -872,7 +874,7 @@
     "toastApproved": "Approved",
     "toastRejected": "Rejected",
     "toastMerged": "Merged into {name}",
-    "memberWithPartner": "Two people",
+    "memberWithPartner": "Allow plus one",
     "sendInvite": "Send set-password invite email",
     "sendInviteHint": "Only sent if an email is entered",
     "partnerOn": "2 people",
@@ -885,7 +887,7 @@
     "colMonth": "Last 30d",
     "colYear": "Games/yr",
     "colLastPlayed": "Time away",
-    "colPartner": "Plus one",
+    "colPartner": "Allow plus one",
     "colActions": "",
     "restDays": "away {days} days",
     "restToday": "played today",
@@ -909,7 +911,13 @@
       "viewProfile": "View profile",
       "ignore": "Ignore",
       "ignoredToast": "This group was ignored"
-    }
+    },
+    "sortSkillDesc": "Skill high → low",
+    "sortSkillAsc": "Skill low → high",
+    "skillFilterLabel": "Skill",
+    "changeSkillAria": "change skill level",
+    "skillFilterAria": "filter by skill level",
+    "toastSkillSaved": "Skill level saved"
   },
   "adminAccount": {
     "title": "Account",
@@ -2035,7 +2043,9 @@
     "deadlineMustBeFuture": "Deadline must be in the future",
     "invalidExtendHours": "Extend hours must be 2 or 24",
     "venueSubmitLimit": "You have suggested 3 venues in the last 24 hours. Please try again tomorrow.",
-    "venueGeocodeUnavailable": "The address search is busy right now. Try again in a few minutes or tap \"Use my location\"."
+    "venueGeocodeUnavailable": "The address search is busy right now. Try again in a few minutes or tap \"Use my location\".",
+    "partnerNotAllowed": "You're not allowed to bring a partner yet. Ask an admin if you'd like to.",
+    "voteBlockedByDebt": "You owe the fund {debt}. Members who owe {limit} or more can't vote. Please top up your fund first."
   },
   "adminShuttlecockFinance": {
     "title": "Shuttlecock finance",
@@ -2097,14 +2107,15 @@
     "adminGuests": "Admin's guests:",
     "paid": "Paid",
     "unpaid": "Unpaid",
-    "exemptOn": "Exempted from 60K min — click to re-apply",
-    "exemptOff": "60K min applied — click to exempt this member",
+    "exemptOn": "Exempted from {amount} min — click to re-apply",
+    "exemptOff": "{amount} min applied — click to exempt this member",
     "guests": "Guests:",
     "guestUnit": "guests",
     "removeTitle": "Remove {name}?",
     "removeDesc": "Remove from this session's list?",
-    "min60k": "Min 60K: {from} → {to}",
-    "ofWhichFemale": "of which female"
+    "min60k": "Min {amount}: {from} → {to}",
+    "ofWhichFemale": "of which female",
+    "overDebtLimit": "Over debt limit"
   },
   "tour": {
     "open": "Guide",
@@ -2641,5 +2652,44 @@
     "editLockedUntil": "You can edit it again from {date}",
     "loadMineError": "We couldn't load your review. Please try again later.",
     "retry": "Try again"
+  },
+  "adminNotifications": {
+    "bellLabel": "Notifications",
+    "bellLabelCount": "Notifications, {count} unread",
+    "owingTitle": "Owing the fund",
+    "overLimit": "Over limit",
+    "viewAll": "See all notifications",
+    "empty": "Nobody owes the fund",
+    "loadError": "Couldn't load notifications, try reloading the page",
+    "pageTitle": "Notifications",
+    "limitNote": "Members who owe {limit} or more can't vote",
+    "historyTitle": "Debt history",
+    "historyEmpty": "Nobody has owed the fund yet",
+    "historyItem": "Balance {before} → {after}",
+    "owingCount": "{count} members",
+    "retry": "Try again",
+    "markAllSeen": "Mark all as seen",
+    "statOwing": "Owing",
+    "statTotalDebt": "Total debt",
+    "statOverLimit": "Over limit",
+    "tabActivity": "Activity",
+    "tabOwing": "Owing",
+    "searchPlaceholder": "Search by name or nickname",
+    "levelAll": "All",
+    "levelOver": "Over limit",
+    "levelUnder": "Under limit",
+    "rangeAll": "All",
+    "rangeDays": "{days} days",
+    "crossedNegative": "went into debt",
+    "unread": "Unseen",
+    "loadMore": "Load more",
+    "group": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "week": "This week",
+      "earlier": "Earlier"
+    },
+    "historyEmptyRange": "Nobody went into debt in the last {days} days",
+    "noMatch": "No matching results"
   }
 }

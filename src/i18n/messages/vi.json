@@ -106,8 +106,8 @@
     "genderGroupsTitle": "Mức riêng cho nhóm nữ"
   },
   "adminMisc": {
-    "minDeductionAria": "Bật/tắt rule tối thiểu 60K cho member thiếu quỹ",
-    "minDeductionLabel": "Tối thiểu 60K khi thiếu quỹ",
+    "minDeductionAria": "Bật/tắt rule tối thiểu {amount} cho member thiếu quỹ",
+    "minDeductionLabel": "Tối thiểu {amount} khi thiếu quỹ",
     "minDeductionExempt": "· miễn {count}",
     "addGuest": "Thêm khách",
     "guestCountSummary": "({count} khách)",
@@ -229,7 +229,8 @@
     "recalcWithCurrentHint": "Buổi này đang giữ cài đặt chia tiền của lần chốt đầu. Tích vào đây thì lần chốt tới tính lại theo cài đặt hiện tại, số tiền của từng người có thể đổi.",
     "editTime": "Đổi giờ chơi",
     "editTimeTitle": "Đổi giờ chơi",
-    "editTimeSave": "Lưu giờ"
+    "editTimeSave": "Lưu giờ",
+    "voteBlockedByDebt": "Bạn đang nợ quỹ từ {limit} trở lên nên chưa vote được. Nạp quỹ xong là vote lại được ngay."
   },
   "voting": {
     "play": "Cầu lông",
@@ -540,7 +541,8 @@
       "tbk": "Trung bình kém"
     },
     "skillInvalid": "Mức trình độ không hợp lệ.",
-    "skillNone": "Chưa khai"
+    "skillNone": "Chưa khai",
+    "partnerAllowedNote": "Admin đã cho bạn đi 2 mình"
   },
   "dashboard": {
     "overview": "Tổng quan",
@@ -872,7 +874,7 @@
     "toastApproved": "Đã duyệt",
     "toastRejected": "Đã từ chối",
     "toastMerged": "Đã gộp vào {name}",
-    "memberWithPartner": "Đi 2 mình",
+    "memberWithPartner": "Cho đi 2 mình",
     "sendInvite": "Gửi mail mời đặt mật khẩu",
     "sendInviteHint": "Chỉ gửi khi đã nhập email",
     "partnerOn": "2 người",
@@ -885,7 +887,7 @@
     "colMonth": "30 ngày gần đây",
     "colYear": "Buổi đi 1 năm",
     "colLastPlayed": "Bao lâu k đi",
-    "colPartner": "Đi 2 mình",
+    "colPartner": "Cho đi 2 mình",
     "colActions": "",
     "restDays": "nghỉ {days} ngày rồi",
     "restToday": "đi hôm nay",
@@ -909,7 +911,13 @@
       "viewProfile": "Xem hồ sơ",
       "ignore": "Bỏ qua",
       "ignoredToast": "Đã bỏ qua nhóm này"
-    }
+    },
+    "sortSkillDesc": "Trình độ cao → thấp",
+    "sortSkillAsc": "Trình độ thấp → cao",
+    "skillFilterLabel": "Trình độ",
+    "changeSkillAria": "Đổi trình độ",
+    "skillFilterAria": "Lọc theo trình độ",
+    "toastSkillSaved": "Đã lưu trình độ"
   },
   "adminAccount": {
     "title": "Tài khoản",
@@ -2035,7 +2043,9 @@
     "deadlineMustBeFuture": "Deadline phải sau thời điểm hiện tại",
     "invalidExtendHours": "Số giờ extend phải là 2 hoặc 24",
     "venueSubmitLimit": "Bạn đã đề xuất 3 sân trong 24 giờ qua. Hãy thử lại vào ngày mai.",
-    "venueGeocodeUnavailable": "Dịch vụ tìm địa chỉ đang bận. Thử lại sau ít phút hoặc bấm \"Dùng vị trí của tôi\"."
+    "venueGeocodeUnavailable": "Dịch vụ tìm địa chỉ đang bận. Thử lại sau ít phút hoặc bấm \"Dùng vị trí của tôi\".",
+    "partnerNotAllowed": "Bạn chưa được cho đi 2 mình. Liên hệ admin nếu muốn dắt thêm người.",
+    "voteBlockedByDebt": "Bạn đang nợ quỹ {debt}. Nợ từ {limit} trở lên thì không vote được, vui lòng nạp quỹ trước."
   },
   "adminShuttlecockFinance": {
     "title": "Tiền cầu",
@@ -2097,14 +2107,15 @@
     "adminGuests": "Khách của admin:",
     "paid": "Đã thanh toán",
     "unpaid": "Chưa thanh toán",
-    "exemptOn": "Đã miễn 60K min — click để áp dụng lại",
-    "exemptOff": "Đang áp dụng 60K min — click để miễn member này",
+    "exemptOn": "Đã miễn {amount} min — click để áp dụng lại",
+    "exemptOff": "Đang áp dụng {amount} min — click để miễn member này",
     "guests": "Khách:",
     "guestUnit": "khách",
     "removeTitle": "Xóa {name}?",
     "removeDesc": "Xóa khỏi danh sách buổi chơi này?",
-    "min60k": "Min 60K: {from} → {to}",
-    "ofWhichFemale": "trong đó nữ"
+    "min60k": "Min {amount}: {from} → {to}",
+    "ofWhichFemale": "trong đó nữ",
+    "overDebtLimit": "Nợ quá hạn mức"
   },
   "tour": {
     "open": "Hướng dẫn",
@@ -2641,5 +2652,44 @@
     "editLockedUntil": "Sửa lại được từ {date}",
     "loadMineError": "Không tải được đánh giá của bạn. Thử lại sau nhé.",
     "retry": "Thử lại"
+  },
+  "adminNotifications": {
+    "bellLabel": "Thông báo",
+    "bellLabelCount": "Thông báo, {count} chưa đọc",
+    "owingTitle": "Đang âm quỹ",
+    "overLimit": "Quá hạn mức",
+    "viewAll": "Xem tất cả thông báo",
+    "empty": "Không ai đang âm quỹ",
+    "loadError": "Không tải được thông báo, thử tải lại trang",
+    "pageTitle": "Thông báo",
+    "limitNote": "Nợ từ {limit} trở lên thì bị chặn vote",
+    "historyTitle": "Lịch sử âm quỹ",
+    "historyEmpty": "Chưa có ai từng âm quỹ",
+    "historyItem": "Số dư {before} → {after}",
+    "owingCount": "{count} thành viên",
+    "retry": "Thử lại",
+    "markAllSeen": "Đánh dấu đã xem",
+    "statOwing": "Đang âm quỹ",
+    "statTotalDebt": "Tổng nợ",
+    "statOverLimit": "Quá hạn mức",
+    "tabActivity": "Hoạt động",
+    "tabOwing": "Đang nợ",
+    "searchPlaceholder": "Tìm theo tên hoặc biệt danh",
+    "levelAll": "Tất cả",
+    "levelOver": "Quá hạn mức",
+    "levelUnder": "Dưới hạn mức",
+    "rangeAll": "Tất cả",
+    "rangeDays": "{days} ngày",
+    "crossedNegative": "vừa âm quỹ",
+    "unread": "Chưa xem",
+    "loadMore": "Xem thêm",
+    "group": {
+      "today": "Hôm nay",
+      "yesterday": "Hôm qua",
+      "week": "Tuần này",
+      "earlier": "Trước đó"
+    },
+    "historyEmptyRange": "Không có ai âm quỹ trong {days} ngày qua",
+    "noMatch": "Không có kết quả phù hợp"
   }
 }

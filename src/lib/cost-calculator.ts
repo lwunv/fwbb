@@ -83,6 +83,10 @@ export interface MemberDebt {
   guestPlayCount: number;
   guestDineAmount: number;
   totalAmount: number;
+  /** Phần của người đi kèm ("đi 2 người") ĐÃ NẰM TRONG `playAmount`. Tách riêng
+   *  để sàn thiếu quỹ chỉ áp phần của chính member, không nuốt mất phần đi kèm.
+   *  Thiếu → 0 (member đi 1 mình). */
+  partnerPlayAmount?: number;
 }
 
 export interface CostBreakdown {
@@ -167,9 +171,14 @@ export function applyMinDeductionFloor(
   // Chỉ floor PLAY của CHÍNH member: người chơi, thiếu quỹ, và share < floor.
   // KHÔNG floor khách (khách-admin đã sàn 60K ở calculateSessionCosts; khách-member
   // chia đều, không sàn).
+  // Đi 2 người: sàn chỉ so/thay phần của CHÍNH member, phần người đi kèm cộng
+  // lại nguyên (bug 6/11/2026: so cả tổng 2 người với sàn 1 người → đi kèm
+  // thành miễn phí).
+  const partner = debt.partnerPlayAmount ?? 0;
+  const own = debt.playAmount - partner;
   const playAmount =
-    debt.playAmount > 0 && balance < debt.playAmount && debt.playAmount < floor
-      ? floor
+    own > 0 && balance < debt.playAmount && own < floor
+      ? floor + partner
       : debt.playAmount;
 
   if (playAmount === debt.playAmount) {
@@ -223,8 +232,9 @@ export function computePredictedMinDeductionSurplus(input: {
     const balance = input.memberBalances[memberId] ?? 0;
     const headcount = input.playingMemberHeadcounts?.[memberId] ?? 1;
     const playAmount = input.playCostPerHead * headcount;
-    if (balance < playAmount && playAmount < floor) {
-      surplus += floor - playAmount;
+    // Sàn chỉ áp phần của chính member (1 đầu), giống applyMinDeductionFloor.
+    if (balance < playAmount && input.playCostPerHead < floor) {
+      surplus += floor - input.playCostPerHead;
     }
   }
   // Khách KHÔNG tạo surplus quỹ: khách-admin trả sàn 60K nhưng phần dư giảm cho
@@ -801,6 +811,9 @@ export function calculateSessionCosts(
         guestPlayCount: guestsPlayRows.length,
         guestDineAmount,
         totalAmount,
+        ...(memberPlays && extraHeads > 0
+          ? { partnerPlayAmount: ratesByGroup.guestMember * extraHeads }
+          : {}),
       });
     }
   }

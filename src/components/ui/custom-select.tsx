@@ -39,6 +39,9 @@ interface CustomSelectProps {
   /** Show a search box at the top of the dropdown when option count exceeds this. */
   searchable?: boolean;
   searchPlaceholder?: string;
+  /** Tên đọc cho nút mở (trình đọc màn hình). Cần khi giá trị đang hiện trên
+   *  nút trùng với một nhãn khác cạnh nó, ví dụ chip trình độ. */
+  ariaLabel?: string;
 }
 
 export function CustomSelect({
@@ -51,6 +54,7 @@ export function CustomSelect({
   name,
   searchable,
   searchPlaceholder,
+  ariaLabel,
 }: CustomSelectProps) {
   const tCommon = useTranslations("common");
   const usedPlaceholder = placeholder ?? tCommon("selectPlaceholder");
@@ -153,6 +157,7 @@ export function CustomSelect({
       <button
         ref={triggerRef}
         type="button"
+        aria-label={ariaLabel}
         disabled={disabled}
         onClick={() => {
           if (open) closeAndReset();

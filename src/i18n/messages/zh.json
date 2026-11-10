@@ -106,8 +106,8 @@
     "genderGroupsTitle": "女性分组的单独金额"
   },
   "adminMisc": {
-    "minDeductionAria": "为资金不足的成员开启/关闭 60K 最低扣费规则",
-    "minDeductionLabel": "资金不足时最低 60K",
+    "minDeductionAria": "为资金不足的成员开启/关闭 {amount} 最低扣费规则",
+    "minDeductionLabel": "资金不足时最低 {amount}",
     "minDeductionExempt": "· 豁免 {count}",
     "addGuest": "添加嘉宾",
     "guestCountSummary": "({count} 位嘉宾)",
@@ -229,7 +229,8 @@
     "recalcWithCurrentHint": "本场次仍沿用首次结算时的分摊设置。勾选后，下次结算将改用当前设置，每人金额可能变化。",
     "editTime": "修改时间",
     "editTimeTitle": "修改打球时间",
-    "editTimeSave": "保存时间"
+    "editTimeSave": "保存时间",
+    "voteBlockedByDebt": "你欠基金达到 {limit} 或以上，暂时无法投票。充值后即可重新投票。"
   },
   "voting": {
     "play": "羽毛球",
@@ -540,7 +541,8 @@
       "tbk": "中等偏下"
     },
     "skillInvalid": "水平选项无效。",
-    "skillNone": "未填写"
+    "skillNone": "未填写",
+    "partnerAllowedNote": "管理员已允许你带一位同伴"
   },
   "dashboard": {
     "overview": "概览",
@@ -872,7 +874,7 @@
     "toastApproved": "已批准",
     "toastRejected": "已拒绝",
     "toastMerged": "已合并到 {name}",
-    "memberWithPartner": "两人同行",
+    "memberWithPartner": "允许带一人",
     "sendInvite": "发送设置密码邀请邮件",
     "sendInviteHint": "仅在填写邮箱时发送",
     "partnerOn": "两人",
@@ -885,7 +887,7 @@
     "colMonth": "近30天",
     "colYear": "本年场次",
     "colLastPlayed": "多久没打",
-    "colPartner": "带一人",
+    "colPartner": "允许带一人",
     "colActions": "",
     "restDays": "已 {days} 天未打",
     "restToday": "今天打过",
@@ -909,7 +911,13 @@
       "viewProfile": "查看资料",
       "ignore": "忽略",
       "ignoredToast": "已忽略该组"
-    }
+    },
+    "sortSkillDesc": "水平从高到低",
+    "sortSkillAsc": "水平从低到高",
+    "skillFilterLabel": "水平",
+    "changeSkillAria": "修改水平",
+    "skillFilterAria": "按水平筛选",
+    "toastSkillSaved": "已保存水平"
   },
   "adminAccount": {
     "title": "账户",
@@ -2035,7 +2043,9 @@
     "deadlineMustBeFuture": "截止时间必须是未来时间",
     "invalidExtendHours": "延长小时数必须是 2 或 24",
     "venueSubmitLimit": "您在过去 24 小时内已推荐 3 个场馆，请明天再试。",
-    "venueGeocodeUnavailable": "地址搜索服务正忙。请几分钟后重试，或点击“使用我的位置”。"
+    "venueGeocodeUnavailable": "地址搜索服务正忙。请几分钟后重试，或点击“使用我的位置”。",
+    "partnerNotAllowed": "你还没有被允许带同伴。如需带人请联系管理员。",
+    "voteBlockedByDebt": "你目前欠基金 {debt}。欠款达到 {limit} 或以上时无法投票，请先充值基金。"
   },
   "adminShuttlecockFinance": {
     "title": "球品收支",
@@ -2097,14 +2107,15 @@
     "adminGuests": "管理员的客人：",
     "paid": "已付款",
     "unpaid": "未付款",
-    "exemptOn": "已豁免 60K 下限 — 点击重新应用",
-    "exemptOff": "正在应用 60K 下限 — 点击豁免此成员",
+    "exemptOn": "已豁免 {amount} 下限 — 点击重新应用",
+    "exemptOff": "正在应用 {amount} 下限 — 点击豁免此成员",
     "guests": "客人：",
     "guestUnit": "位客人",
     "removeTitle": "移除 {name}？",
     "removeDesc": "从本场名单中移除？",
-    "min60k": "下限 60K：{from} → {to}",
-    "ofWhichFemale": "其中女性"
+    "min60k": "下限 {amount}：{from} → {to}",
+    "ofWhichFemale": "其中女性",
+    "overDebtLimit": "欠款超限"
   },
   "tour": {
     "open": "引导",
@@ -2641,5 +2652,44 @@
     "editLockedUntil": "{date} 起可以再次修改",
     "loadMineError": "无法加载你的评价，请稍后再试。",
     "retry": "重试"
+  },
+  "adminNotifications": {
+    "bellLabel": "通知",
+    "bellLabelCount": "通知，{count} 条未读",
+    "owingTitle": "欠基金",
+    "overLimit": "超出限额",
+    "viewAll": "查看全部通知",
+    "empty": "没有人欠基金",
+    "loadError": "无法加载通知，请刷新页面",
+    "pageTitle": "通知",
+    "limitNote": "欠款达到 {limit} 或以上将无法投票",
+    "historyTitle": "欠款记录",
+    "historyEmpty": "还没有人欠过基金",
+    "historyItem": "余额 {before} → {after}",
+    "owingCount": "{count} 位成员",
+    "retry": "重试",
+    "markAllSeen": "全部标为已读",
+    "statOwing": "欠款人数",
+    "statTotalDebt": "欠款总额",
+    "statOverLimit": "超出限额",
+    "tabActivity": "动态",
+    "tabOwing": "欠款",
+    "searchPlaceholder": "按姓名或昵称搜索",
+    "levelAll": "全部",
+    "levelOver": "超出限额",
+    "levelUnder": "未超限额",
+    "rangeAll": "全部",
+    "rangeDays": "{days} 天",
+    "crossedNegative": "开始欠基金",
+    "unread": "未读",
+    "loadMore": "加载更多",
+    "group": {
+      "today": "今天",
+      "yesterday": "昨天",
+      "week": "本周",
+      "earlier": "更早"
+    },
+    "historyEmptyRange": "过去 {days} 天内没有人欠基金",
+    "noMatch": "没有符合条件的结果"
   }
 }

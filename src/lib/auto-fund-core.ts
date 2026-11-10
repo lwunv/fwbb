@@ -5,6 +5,10 @@ import { revalidatePath } from "next/cache";
 import { isFundMember } from "@/lib/fund-calculator";
 import { computeBalanceFromTransactions } from "@/lib/fund-core";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
+import {
+  afterMemberMoneyChange,
+  snapshotBalances,
+} from "@/lib/debt-vote-block";
 
 export interface AutoApplyResult {
   appliedCount: number;
@@ -44,6 +48,7 @@ export async function autoApplyFundToDebts(
 
   try {
     await db.transaction(async (tx) => {
+      const moneyChanges = await snapshotBalances(tx, [memberId]);
       // Đọc balance INSIDE transaction (AGENTS.md rule: race-condition nếu
       // đọc balance outside rồi write inside — 2 autoApply concurrent đều
       // thấy stale balance → over-deduct).
@@ -132,6 +137,7 @@ export async function autoApplyFundToDebts(
         appliedCount++;
       }
       finalBalance = balance;
+      await afterMemberMoneyChange(tx, moneyChanges);
     });
   } catch (err) {
     // AGENTS.md rule #8: never silently swallow errors in financial flows.

@@ -35,6 +35,10 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { getTranslations } from "next-intl/server";
 import { getSettings } from "@/actions/settings";
 import {
+  afterMemberMoneyChange,
+  snapshotBalances,
+} from "@/lib/debt-vote-block";
+import {
   resolveSessionSettings,
   serializeSnapshot,
 } from "@/lib/session-money-settings";
@@ -242,6 +246,12 @@ export async function finalizeSession(
           ),
         },
       );
+      // Số dư ĐẦU thao tác (trước bước đảo khoản cũ) của mọi member có dòng sổ
+      // trong lần chốt này, cho bước chặn vote khi nợ ở cuối tx.
+      const moneyChanges = await snapshotBalances(tx, [
+        ...priorFundDeductions.map((f) => f.memberId),
+        ...breakdown.memberDebts.map((d) => d.memberId),
+      ]);
       for (const ftx of priorFundDeductions) {
         const alreadyReversed = await tx.query.financialTransactions.findFirst({
           where: eq(financialTransactions.reversalOfId, ftx.id),
@@ -304,7 +314,7 @@ export async function finalizeSession(
               memberId: ptx.memberId,
               sessionId: ptx.sessionId,
               reversalOfId: ptx.id,
-              description: `Hoàn lại phần dư min-60K khi chốt lại buổi ${session.date}`,
+              description: `Hoàn lại phần dư sàn tối thiểu khi chốt lại buổi ${session.date}`,
               idempotencyKey: `finalize-reverse-penalty-${ptx.id}`,
             },
             tx,
@@ -543,7 +553,7 @@ export async function finalizeSession(
                 memberId: adminMemberId,
                 sessionId: data.sessionId,
                 debtId: insertedDebt.id,
-                description: `Phần dư min-60K buổi ${session.date} (member ${debt.memberId})`,
+                description: `Phần dư sàn tối thiểu buổi ${session.date} (member ${debt.memberId})`,
                 idempotencyKey: `min-deduction-penalty-${data.sessionId}-${debt.memberId}-${insertedDebt.id}`,
               },
               tx,
@@ -581,6 +591,8 @@ export async function finalizeSession(
         adminMemberId,
         notificationsOn,
       );
+      // 6. Sau khi ghi xong MỌI dòng sổ: bỏ phiếu của member vừa nợ quá hạn mức.
+      await afterMemberMoneyChange(tx, moneyChanges);
     });
   } catch (err) {
     return {
@@ -821,6 +833,7 @@ export async function confirmPaymentByMember(
 
   try {
     await db.transaction(async (tx) => {
+      const moneyChanges = await snapshotBalances(tx, [debt.memberId]);
       await tx
         .update(sessionDebts)
         .set({
@@ -870,6 +883,7 @@ export async function confirmPaymentByMember(
         dedupBase: `paymember:d${debtId}:${idempotencyKey}`,
         entity: { type: "session", id: debt.sessionId },
       });
+      await afterMemberMoneyChange(tx, moneyChanges);
     });
   } catch (err) {
     return {
@@ -930,6 +944,7 @@ export async function confirmPaymentByAdmin(
 
   try {
     await db.transaction(async (tx) => {
+      const moneyChanges = await snapshotBalances(tx, [debt.memberId]);
       await tx
         .update(sessionDebts)
         .set({
@@ -976,6 +991,7 @@ export async function confirmPaymentByAdmin(
         dedupBase: `paycf:d${debtId}:${idempotencyKey}`,
         entity: { type: "session", id: debt.sessionId },
       });
+      await afterMemberMoneyChange(tx, moneyChanges);
     });
   } catch (err) {
     return {
@@ -1006,6 +1022,7 @@ export async function undoPaymentByAdmin(debtId: number) {
 
   try {
     await db.transaction(async (tx) => {
+      const moneyChanges = await snapshotBalances(tx, [debt.memberId]);
       // BLOCKER fix: trong merged Quỹ+Nợ model, finalize đã ghi
       // `fund_deduction` cho debt này. Trước đây undo CHỈ flip flags + ghi
       // `debt_undo` neutral → ledger vẫn giữ deduction → autoApplyFundToDebts
@@ -1178,6 +1195,7 @@ export async function undoPaymentByAdmin(debtId: number) {
           lastReversedId: undoneDeductionId,
         });
       }
+      await afterMemberMoneyChange(tx, moneyChanges);
     });
   } catch (err) {
     return {

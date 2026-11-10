@@ -40,6 +40,10 @@ import { AVATAR_EMOJI_COUNT } from "@/lib/member-avatar-emoji";
 import { computeBalanceFromTransactions } from "@/lib/fund-core";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
 import {
+  afterMemberMoneyChange,
+  snapshotBalances,
+} from "@/lib/debt-vote-block";
+import {
   foldOAuthIntoTarget,
   countLoginMethods,
   isUsablePassword,
@@ -378,11 +382,10 @@ export async function updateMyProfile(
     return { error: t("nicknameTooLong") };
   }
   const nickname = nicknameRaw.length === 0 ? null : nicknameRaw;
-  const defaultWithPartner = formData.get("withPartner") === "1";
-
+  // KHÔNG nhận withPartner từ member: "Cho đi 2 mình" là quyền admin cấp
+  // (yêu cầu user 6/11/2026), member tự gửi field này cũng bị bỏ qua.
   const setValues: Partial<typeof members.$inferInsert> = {
     nickname,
-    defaultWithPartner,
   };
 
   // Username (login đa kênh): tùy chọn, lowercase, 3-32 ký tự [a-z0-9._],
@@ -493,6 +496,34 @@ export async function updateMySkillLevel(
   // Sau commit và sau revalidatePath: làm mới cache uy tín chỉ là cố gắng
   // tốt nhất (TTL 600 giây), lỗi không được biến lần ghi thành thất bại.
   await invalidateMemberReputationQuietly(db, [user.memberId]);
+  return { success: true };
+}
+
+/**
+ * Admin đổi trình độ một member ngay trên dòng ở /admin/members (yêu cầu
+ * 6/11/2026). Chỉ ghi `skill_level`: không qua `updateMember` vì hàm đó bắt
+ * gửi tên và luôn ghi đè biệt danh. Chuỗi rỗng = xoá khai báo.
+ */
+export async function setMemberSkillLevel(
+  memberId: number,
+  raw: string,
+): Promise<{ success: true } | { error: string }> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return { error: auth.error };
+  const t = await getTranslations("serverErrors");
+  if (!Number.isInteger(memberId) || memberId <= 0) {
+    return { error: t("invalidMemberId") };
+  }
+  const lv = typeof raw === "string" ? raw.trim() : "";
+  if (lv !== "" && !isSkillLevel(lv)) {
+    return { error: t("invalidData", { detail: "skillLevel" }) };
+  }
+  await db
+    .update(members)
+    .set({ skillLevel: parseSkillLevel(lv) })
+    .where(eq(members.id, memberId));
+  revalidatePath("/admin/members");
+  revalidatePath("/");
   return { success: true };
 }
 
@@ -1026,6 +1057,7 @@ export async function mergeMember(sourceId: number, targetId: number) {
 
   let droppedRatedIds: number[] = [];
   await db.transaction(async (tx) => {
+    const moneyChanges = await snapshotBalances(tx, [sourceId, targetId]);
     // 1. votes — UNIQUE (sessionId, memberId). Lấy danh sách session mà target
     //    đã có vote → xóa source ở các session đó (giữ target). Còn lại update.
     const targetVoteSessionIds = (
@@ -1253,6 +1285,7 @@ export async function mergeMember(sourceId: number, targetId: number) {
 
     // 7. Xóa member nguồn.
     await tx.delete(members).where(eq(members.id, sourceId));
+    await afterMemberMoneyChange(tx, moneyChanges);
   });
 
   revalidatePath("/admin/members");

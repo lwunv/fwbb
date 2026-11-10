@@ -13,6 +13,10 @@ import {
   type SettingKey,
 } from "@/lib/settings-registry";
 import { resolveGlobal, serializeSetting } from "@/lib/settings-resolve";
+import {
+  enforceDebtVoteBlock,
+  findMembersWithOpenVotes,
+} from "@/lib/debt-vote-block";
 
 export async function getAppName(): Promise<string> {
   const row = await db.query.appSettings.findFirst({
@@ -250,13 +254,36 @@ export async function updateSetting<K extends SettingKey>(
   }
 
   const serialized = serializeSetting(key, parsed.data as AppSettings[K]);
-  await db
-    .insert(appSettings)
-    .values({ key: def.key, value: serialized })
-    .onConflictDoUpdate({
-      target: appSettings.key,
-      set: { value: serialized },
-    });
+  await db.transaction(async (tx) => {
+    // Hạ hạn mức nợ chặn vote thì người vừa thành "quá hạn mức" phải mất phiếu
+    // ở buổi còn mở vote ngay, giống khi thao tác tiền đẩy họ qua hạn mức
+    // (spec 2026-11-06-debt-vote-block-design.md mục 4.3).
+    const lowering =
+      key === "voteBlockDebtThreshold"
+        ? resolveGlobal(
+            await tx
+              .select({ key: appSettings.key, value: appSettings.value })
+              .from(appSettings)
+              .where(eq(appSettings.key, def.key)),
+          ).voteBlockDebtThreshold > (parsed.data as number)
+        : false;
+
+    await tx
+      .insert(appSettings)
+      .values({ key: def.key, value: serialized })
+      .onConflictDoUpdate({
+        target: appSettings.key,
+        set: { value: serialized },
+      });
+
+    if (lowering) {
+      await enforceDebtVoteBlock(
+        tx,
+        await findMembersWithOpenVotes(tx),
+        parsed.data as number,
+      );
+    }
+  });
 
   for (const path of def.revalidate) revalidatePath(path);
   return { success: true };

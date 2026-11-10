@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { votes, sessions } from "@/db/schema";
+import { votes, sessions, members } from "@/db/schema";
 import {
   PUBLIC_MEMBER_COLUMNS,
   type VoteWithMember,
@@ -12,6 +12,10 @@ import { requireApprovedMember } from "@/lib/member-auth";
 import { requireAdmin } from "@/lib/auth";
 import { adminGuestCountSchema, voteSchema } from "@/lib/validators";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { getFundBalance } from "@/lib/fund-calculator";
+import { isVoteBlockedByDebt } from "@/lib/fund-core";
+import { getSettings } from "@/actions/settings";
+import { formatVND } from "@/lib/utils";
 import {
   MAX_PLAY_SLOTS,
   playHeadcount,
@@ -78,6 +82,24 @@ export async function submitVote(
     };
   }
 
+  // Nợ quá hạn mức thì không được vote CHƠI hoặc NHẬU, dù vào từ trang nào
+  // (trang chủ, link /vote/[id], gọi thẳng action). Bỏ vote thì vẫn cho.
+  // Spec 2026-11-06-debt-vote-block-design.md mục 4.2.
+  if (data.willPlay || data.willDine) {
+    const [{ balance }, settings] = await Promise.all([
+      getFundBalance(user.memberId),
+      getSettings(),
+    ]);
+    if (isVoteBlockedByDebt(balance, settings.voteBlockDebtThreshold)) {
+      return {
+        error: t("voteBlockedByDebt", {
+          debt: formatVND(-balance),
+          limit: formatVND(settings.voteBlockDebtThreshold),
+        }),
+      };
+    }
+  }
+
   // Rate-limit SAU validation + gate: chỉ đếm attempt hợp lệ thật sự đi tới
   // mutation. Trước đây increment ngay đầu → call bị reject (input sai / session
   // đóng / quá deadline) cũng đốt budget 60/phút và có thể tự khóa member.
@@ -107,6 +129,19 @@ export async function submitVote(
   );
   const others = countableVotes.filter((v) => v.memberId !== user.memberId);
   const selfVote = allVotes.find((v) => v.memberId === user.memberId);
+
+  // "Cho đi 2 mình" là quyền admin cấp (members.default_with_partner, yêu cầu
+  // user 6/11/2026). Chỉ chặn khi member tự BẬT thêm: phiếu đã đi 2 mình từ
+  // trước (admin bật hộ, hoặc trước khi bị tắt quyền) vẫn sửa tiếp được.
+  if (data.withPartner && !selfVote?.withPartner) {
+    const me = await db.query.members.findFirst({
+      where: eq(members.id, user.memberId),
+      columns: { defaultWithPartner: true },
+    });
+    if (!me?.defaultWithPartner) {
+      return { error: t("partnerNotAllowed") };
+    }
+  }
   const base = playHeadcount(others, session.adminGuestPlayCount ?? 0);
   const existingMine = selfVote ? votePlayContribution(selfVote) : 0;
   const newMine = votePlayContribution({

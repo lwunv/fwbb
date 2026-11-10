@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isVoteBlockedByDebt,
   LOW_FUND_THRESHOLD,
   getFundStatus,
   computeBalancesForMembers,
@@ -82,4 +83,17 @@ describe("computeBalancesForMembers", () => {
     ];
     expect(computeBalancesForMembers([1], txs)).toEqual({ 1: 50_000 });
   });
+});
+
+describe("isVoteBlockedByDebt", () => {
+  it("nợ đúng bằng hạn mức → chặn", () =>
+    expect(isVoteBlockedByDebt(-100_000, 100_000)).toBe(true));
+  it("nợ thiếu 1 đồng so với hạn mức → không chặn", () =>
+    expect(isVoteBlockedByDebt(-99_999, 100_000)).toBe(false));
+  it("nợ vượt hạn mức → chặn", () =>
+    expect(isVoteBlockedByDebt(-188_000, 100_000)).toBe(true));
+  it("còn quỹ → không chặn", () =>
+    expect(isVoteBlockedByDebt(50_000, 100_000)).toBe(false));
+  it("hạn mức 0 → số dư 0 bị chặn (giữ hành vi trang chủ)", () =>
+    expect(isVoteBlockedByDebt(0, 0)).toBe(true));
 });

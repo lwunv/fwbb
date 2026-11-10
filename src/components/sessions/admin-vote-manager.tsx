@@ -15,7 +15,7 @@ import { NumberStepper } from "@/components/ui/number-stepper";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { SearchInput } from "@/components/shared/search-input";
 import { formatK } from "@/lib/utils";
-import { getFundStatus } from "@/lib/fund-core";
+import { getFundStatus, isVoteBlockedByDebt } from "@/lib/fund-core";
 import { FundStatusIcon } from "@/components/shared/fund-status-icon";
 import { useSettings } from "@/components/settings-provider";
 import {
@@ -139,6 +139,7 @@ export function AdminVoteManager({
     groupPolicies,
     minDeductionAmount,
     genderPricingEnabled,
+    voteBlockDebtThreshold,
   } = useSettings();
   const [search, setSearch] = useState("");
   const [removeTarget, setRemoveTarget] = useState<{
@@ -606,6 +607,8 @@ export function AdminVoteManager({
       guestPlayCount: gp,
       guestDineAmount,
       totalAmount: playAmount + dineAmount + guestPlayAmount + guestDineAmount,
+      // Phần người đi kèm: sàn thiếu quỹ không được nuốt mất phần này.
+      partnerPlayAmount: willPlay ? playPerHead * Math.max(0, hc - 1) : 0,
     };
   }
 
@@ -846,6 +849,18 @@ export function AdminVoteManager({
                             👫 +2
                           </span>
                         )}
+                        {/* Nợ quá hạn mức: member không tự vote được và phiếu ở
+                            buổi còn mở vote tự bị bỏ; admin vẫn thêm tay được
+                            nên cần thấy rõ để tự quyết (spec 2026-11-06 mục 4.2). */}
+                        {memberBalances[member.id] !== undefined &&
+                          isVoteBlockedByDebt(
+                            memberBalances[member.id],
+                            voteBlockDebtThreshold,
+                          ) && (
+                            <span className="border-destructive/40 bg-destructive/10 text-destructive inline-flex shrink-0 items-center rounded border px-1.5 text-sm font-semibold">
+                              {tA("overDebtLimit")}
+                            </span>
+                          )}
                       </span>
                       {(() => {
                         if (memberBalances[member.id] === undefined)
@@ -916,6 +931,7 @@ export function AdminVoteManager({
                               <span
                                 className="text-xs text-orange-500 dark:text-orange-400"
                                 title={tA("min60k", {
+                                  amount: `${minDeductionAmount / 1000}K`,
                                   from: formatK(raw.totalAmount),
                                   to: formatK(after.totalAmount),
                                 })}
@@ -1088,8 +1104,12 @@ export function AdminVoteManager({
                         onClick={() => handleToggleExempt(member.id)}
                         title={
                           getExempt(member.id)
-                            ? tA("exemptOn")
-                            : tA("exemptOff")
+                            ? tA("exemptOn", {
+                                amount: `${minDeductionAmount / 1000}K`,
+                              })
+                            : tA("exemptOff", {
+                                amount: `${minDeductionAmount / 1000}K`,
+                              })
                         }
                         className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors ${
                           getExempt(member.id)

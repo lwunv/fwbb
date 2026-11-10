@@ -109,7 +109,8 @@ export async function signupWithPassword(input: {
         nickname,
         phoneNumber,
         bankAccountNo,
-        defaultWithPartner: input.defaultWithPartner === true,
+        // "Cho đi 2 mình" chỉ admin cấp (6/11/2026): đăng ký luôn là chưa cho.
+        defaultWithPartner: false,
         approvalStatus: "pending",
       })
       .returning();

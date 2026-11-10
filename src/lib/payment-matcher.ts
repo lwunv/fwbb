@@ -23,6 +23,10 @@ import { revalidatePath } from "next/cache";
 import { parseMemoIntent, type ParsedTimoPayment } from "./timo-parser";
 import { isFundMember } from "./fund-calculator";
 import { recordFinancialTransaction } from "./financial-ledger";
+import {
+  afterMemberMoneyChange,
+  snapshotBalances,
+} from "@/lib/debt-vote-block";
 import { restoreVoidedLedgerForDebt } from "./ledger-restore";
 import { formatVND, roundToThousand } from "./utils";
 import { isNotificationsEnabled, notify } from "./notifications/notify";
@@ -193,7 +197,9 @@ async function matchFundContribution(
 
   let txId: number | undefined;
   try {
-    await db.transaction(async (innerTx) => {
+    await db.transaction(async (tx) => {
+      const moneyChanges = await snapshotBalances(tx, [member.id]);
+      const innerTx = tx;
       const r = await recordFinancialTransaction(
         {
           type: "fund_contribution",
@@ -222,6 +228,7 @@ async function matchFundContribution(
           entity: { type: "transaction", id: r.id },
         });
       }
+      await afterMemberMoneyChange(tx, moneyChanges);
     });
   } catch (err) {
     return {
@@ -400,6 +407,7 @@ async function matchAllDebts(
     await db.transaction(async (tx) => {
       // Công tắc thông báo đọc 1 lần cho cả lần chuyển khoản, không mỗi debt.
       const notifyOn = await isNotificationsEnabled(tx);
+      const moneyChanges = await snapshotBalances(tx, [memberId]);
       for (const debt of unpaid) {
         // Bank webhook is a strong-authenticity signal (Pub/Sub OIDC + Gmail
         // DKIM): once tiền đã thực sự về tài khoản admin, BOTH flags should
@@ -530,6 +538,7 @@ async function matchAllDebts(
         debtId: unpaid[0].id,
         transactionId: firstTxId,
       });
+      await afterMemberMoneyChange(tx, moneyChanges);
     });
   } catch (err) {
     return {
@@ -641,6 +650,7 @@ async function confirmDebtFromBankTransfer(
 
   try {
     await db.transaction(async (tx) => {
+      const moneyChanges = await snapshotBalances(tx, [debt.memberId]);
       // Bank money has actually arrived in admin's account — flip both flags.
       // Member said "yes I paid" (memberConfirmed) AND admin's bank confirms
       // receipt (adminConfirmed). This avoids leaving the debt as
@@ -772,6 +782,7 @@ async function confirmDebtFromBankTransfer(
         debtId: debt.id,
         transactionId: txId,
       });
+      await afterMemberMoneyChange(tx, moneyChanges);
     });
   } catch (err) {
     return {

@@ -131,3 +131,58 @@ test("admin đặt trình độ và giới tính LGBT cho member rồi lưu xu�
     timeout: 10_000,
   });
 });
+
+// Yêu cầu 6/11/2026: đổi trình độ NGAY trên dòng, lọc và sắp theo trình độ.
+test("admin đổi trình độ ngay trên dòng, lọc và sắp theo trình độ", async ({
+  page,
+}) => {
+  await page.goto("/admin/members", { waitUntil: "domcontentloaded" });
+  // Gõ lại tới khi danh sách lọc đúng: trang stream + hydrate, gõ quá sớm thì
+  // chữ bị mất, dòng đầu là người khác và bài đổi nhầm trình độ của họ
+  // (dính 6/11/2026).
+  const row = page.locator("tbody tr").first();
+  await expect(async () => {
+    await page
+      .getByPlaceholder(/Tìm theo tên/)
+      .last()
+      .fill(memberName);
+    await expect(row).toContainText(memberName, { timeout: 3_000 });
+  }).toPass({ timeout: 30_000 });
+  const inline = row.getByRole("button", { name: "Đổi trình độ" });
+  await expect(inline).toBeVisible({ timeout: 20_000 });
+  await inline.click();
+  // Menu trình độ mới (base-ui): mỗi mức là menuitem, tên kèm câu mô tả.
+  await page.getByRole("menuitem", { name: /^TBK/ }).click();
+  await expect.poll(() => read("skill_level"), { timeout: 10_000 }).toBe("tbk");
+  // Chip màu cạnh dropdown cập nhật ngay (optimistic), không cần reload.
+  await expect(row.locator("td").nth(1)).toContainText("TBK");
+
+  // Lọc TBK: còn member này; lọc "Chưa khai": member này biến mất.
+  await page.getByRole("button", { name: "Lọc theo trình độ" }).click();
+  await page.getByRole("button", { name: "TBK", exact: true }).last().click();
+  await expect(page.locator("tbody tr").first()).toContainText(memberName);
+  await page.getByRole("button", { name: "Lọc theo trình độ" }).click();
+  await page
+    .getByRole("button", { name: "Chưa khai", exact: true })
+    .last()
+    .click();
+  await expect(page.locator("tbody tr", { hasText: memberName })).toHaveCount(
+    0,
+  );
+
+  // Bỏ lọc + bỏ tìm, sắp theo cột Trình độ (lần bấm đầu = cao → thấp): dòng
+  // đầu phải là một người TBK, mức cao nhất đang có.
+  await page.getByRole("button", { name: "Lọc theo trình độ" }).click();
+  await page
+    .getByRole("button", { name: "Tất cả", exact: true })
+    .last()
+    .click();
+  await page
+    .getByPlaceholder(/Tìm theo tên/)
+    .last()
+    .fill("");
+  await page.getByRole("columnheader", { name: "Trình độ" }).click();
+  await expect(
+    page.locator("tbody tr").first().locator("td").nth(1),
+  ).toContainText("TBK");
+});

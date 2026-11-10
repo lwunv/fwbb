@@ -12,7 +12,11 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getTranslations } from "next-intl/server";
+import { formatVND } from "@/lib/utils";
 import { isVoteOpen, type SessionStatus } from "@/lib/session-status";
+import { getFundBalance } from "@/lib/fund-calculator";
+import { isVoteBlockedByDebt } from "@/lib/fund-core";
+import { FundBalanceBanner } from "@/components/finance/fund-balance-banner";
 
 export default async function VoteSessionPage({
   params,
@@ -38,10 +42,11 @@ export default async function VoteSessionPage({
 
   if (!session) notFound();
 
-  const [votes, members, settings] = await Promise.all([
+  const [votes, members, settings, fund] = await Promise.all([
     getSessionVotes(session.id),
     getActiveMembers(),
     getSettings(),
+    getFundBalance(user.memberId),
   ]);
 
   // Helper canonical (deadline-aware) — khớp gate server-side của submitVote.
@@ -51,6 +56,11 @@ export default async function VoteSessionPage({
     status: session.status as SessionStatus,
     voteDeadline: session.voteDeadline ?? null,
   }).open;
+  // Link này hay được admin gửi vào nhóm: phải chặn giống trang chủ khi member
+  // nợ quá hạn mức (spec 2026-11-06-debt-vote-block-design.md mục 4.2).
+  const blockedByDebt =
+    isVotingOpen &&
+    isVoteBlockedByDebt(fund.balance, settings.voteBlockDebtThreshold);
 
   return (
     <div className="mx-auto w-full max-w-lg space-y-4">
@@ -74,6 +84,17 @@ export default async function VoteSessionPage({
         </Card>
       )}
 
+      {blockedByDebt && (
+        <div className="space-y-2">
+          <FundBalanceBanner balance={fund.balance} memberId={user.memberId} />
+          <p className="text-muted-foreground px-1 text-base">
+            {t("voteBlockedByDebt", {
+              limit: formatVND(settings.voteBlockDebtThreshold),
+            })}
+          </p>
+        </div>
+      )}
+
       <SessionVoteOptimisticPanel
         sessionId={session.id}
         session={{
@@ -87,7 +108,7 @@ export default async function VoteSessionPage({
         votes={votes}
         members={members}
         currentMemberId={user?.memberId ?? null}
-        isVotingOpen={isVotingOpen}
+        isVotingOpen={isVotingOpen && !blockedByDebt}
         voteDeadline={session.voteDeadline}
         adminGuestPlayCount={session.adminGuestPlayCount ?? 0}
         adminGuestDineCount={session.adminGuestDineCount ?? 0}

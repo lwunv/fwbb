@@ -33,6 +33,8 @@ async function seedMember(
   opts: {
     isActive?: boolean;
     approvalStatus?: "pending" | "approved" | "rejected";
+    /** Admin "Cho đi 2 mình" (từ 6/11/2026 là quyền, không cấp thì bị chặn). */
+    partnerAllowed?: boolean;
   } = {},
 ) {
   const [m] = await testDb
@@ -42,6 +44,7 @@ async function seedMember(
       facebookId: "fb-a",
       isActive: opts.isActive ?? true,
       approvalStatus: opts.approvalStatus ?? "approved",
+      defaultWithPartner: opts.partnerAllowed ?? false,
     })
     .returning({ id: members.id });
   userMock.getUserFromCookie.mockResolvedValue({
@@ -224,7 +227,8 @@ describe("submitVote — giới hạn 16 người chơi cầu (Hết slot)", () 
   });
 
   it("chặn 'đi 2 mình' khi chỉ còn 1 slot", async () => {
-    await seedMember();
+    // Có quyền đi 2 mình, để ca này đỏ vì HẾT SLOT chứ không vì thiếu quyền.
+    await seedMember({ partnerAllowed: true });
     const s = await seedSession("voting");
     await seedPlayers(s, 15); // còn 1 slot
 
@@ -233,7 +237,7 @@ describe("submitVote — giới hạn 16 người chơi cầu (Hết slot)", () 
   });
 
   it("cho 'đi 2 mình' khi còn đúng 2 slot", async () => {
-    await seedMember();
+    await seedMember({ partnerAllowed: true });
     const s = await seedSession("voting");
     await seedPlayers(s, 14); // còn 2 slot
 

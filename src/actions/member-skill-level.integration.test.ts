@@ -38,7 +38,8 @@ vi.mock("@/lib/user-identity", () => identity);
 const { db: testDb, client } = await createTestDb();
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { updateMySkillLevel, updateMember } = await import("./members");
+const { updateMySkillLevel, updateMember, setMemberSkillLevel } =
+  await import("./members");
 
 let memberId: number;
 
@@ -190,5 +191,42 @@ describe("giới tính LGBT", () => {
     const r = await updateMember(memberId, infoForm("khac"));
     expect(r).toHaveProperty("error");
     expect((await row())?.gender).toBe("female");
+  });
+});
+
+// Đổi trình độ NGAY trên dòng ở /admin/members (yêu cầu 6/11/2026): chỉ đụng
+// skill_level, không bắt gửi tên, không xoá biệt danh hay quyền đi 2 mình.
+describe("setMemberSkillLevel (admin, đổi trên dòng)", () => {
+  it("đặt trình độ mà không đụng tên, biệt danh, quyền đi 2 mình", async () => {
+    const r = await setMemberSkillLevel(memberId, "tbk");
+    expect(r).toEqual({ success: true });
+    const m = await row();
+    expect(m?.skillLevel).toBe("tbk");
+    expect(m?.name).toBe("Người test");
+    expect(m?.nickname).toBe("Bi");
+    expect(m?.defaultWithPartner).toBe(true);
+  });
+
+  it("chuỗi rỗng = xoá khai báo", async () => {
+    await setMemberSkillLevel(memberId, "tb");
+    expect(await setMemberSkillLevel(memberId, "")).toEqual({ success: true });
+    expect((await row())?.skillLevel).toBeNull();
+  });
+
+  it("mức không hợp lệ → error, giữ nguyên giá trị cũ", async () => {
+    await setMemberSkillLevel(memberId, "tb");
+    const r = await setMemberSkillLevel(memberId, "pro");
+    expect(r).toHaveProperty("error");
+    expect((await row())?.skillLevel).toBe("tb");
+  });
+
+  it("không phải admin → error, không ghi", async () => {
+    const { requireAdmin } = await import("@/lib/auth");
+    vi.mocked(requireAdmin).mockResolvedValueOnce({
+      error: "unauthorized",
+    } as never);
+    const r = await setMemberSkillLevel(memberId, "tbk");
+    expect(r).toHaveProperty("error");
+    expect((await row())?.skillLevel).toBeNull();
   });
 });

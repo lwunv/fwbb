@@ -64,6 +64,11 @@ import {
 } from "@/lib/date-format";
 import { admins } from "@/db/schema";
 import { recordFinancialTransaction } from "@/lib/financial-ledger";
+import {
+  afterMemberMoneyChange,
+  sessionLedgerMemberIds,
+  snapshotBalances,
+} from "@/lib/debt-vote-block";
 import { computeCourtTotal } from "@/lib/cost-calculator";
 import { countVoteParticipation } from "@/lib/vote-list-utils";
 import {
@@ -587,6 +592,7 @@ export async function cancelSession(
       // Điều kiện trạng thái nằm ngay trong UPDATE: hai lần hủy chạy song song
       // đều qua được bước đọc ở trên, nhưng chỉ một lần đổi được dòng. Lần còn
       // lại không ghi tiền pass, không gửi tin, trả kết quả như hủy lặp lại.
+      const moneyChanges = await snapshotBalances(tx, [adminMemberId]);
       const updated = await tx
         .update(sessions)
         .set({
@@ -641,6 +647,7 @@ export async function cancelSession(
       }
 
       await notifySessionCancelled(tx, sessionId, token);
+      await afterMemberMoneyChange(tx, moneyChanges);
     });
   } catch (err) {
     return {
@@ -742,6 +749,9 @@ export async function reopenSession(sessionId: number) {
   const token = new Date().toISOString();
   try {
     await db.transaction(async (tx) => {
+      const moneyChanges = await snapshotBalances(tx, [
+        passContribution?.memberId,
+      ]);
       if (passContribution) {
         const r = await recordFinancialTransaction(
           {
@@ -782,6 +792,7 @@ export async function reopenSession(sessionId: number) {
       if (updated.length === 0) throw new ReopenRaceLost();
 
       await notifySessionReopened(tx, sessionId, token);
+      await afterMemberMoneyChange(tx, moneyChanges);
     });
   } catch (err) {
     if (err instanceof ReopenRaceLost) {
@@ -839,6 +850,10 @@ export async function unlockSession(
 
   try {
     await db.transaction(async (tx) => {
+      const moneyChanges = await snapshotBalances(
+        tx,
+        await sessionLedgerMemberIds(tx, sessionId),
+      );
       // 1. Reverse fund_deductions (idempotent)
       const priorDeductions = await tx.query.financialTransactions.findMany({
         where: and(
@@ -909,7 +924,7 @@ export async function unlockSession(
             memberId: ptx.memberId,
             sessionId: ptx.sessionId,
             reversalOfId: ptx.id,
-            description: `Hoàn lại phần dư min-60K khi mở lại buổi ${session.date}`,
+            description: `Hoàn lại phần dư sàn tối thiểu khi mở lại buổi ${session.date}`,
             metadata: { source: "session_unlocked", sessionId },
             idempotencyKey: `unlock-reverse-penalty-${ptx.id}`,
           },
@@ -967,6 +982,7 @@ export async function unlockSession(
           updatedAt: new Date().toISOString(),
         })
         .where(eq(sessions.id, sessionId));
+      await afterMemberMoneyChange(tx, moneyChanges);
     });
   } catch (err) {
     return {
@@ -1031,6 +1047,10 @@ export async function deleteSession(sessionId: number) {
         refundDeltas.set(memberId, (refundDeltas.get(memberId) ?? 0) + delta);
       };
 
+      const moneyChanges = await snapshotBalances(
+        tx,
+        await sessionLedgerMemberIds(tx, sessionId),
+      );
       // Reverse any fund_deduction that hasn't been reversed yet, so members
       // who already paid this session via their fund balance get the money
       // back when the session is deleted. The reversal row stays in the
@@ -1180,6 +1200,7 @@ export async function deleteSession(sessionId: number) {
         .where(eq(sessionShuttlecocks.sessionId, sessionId));
       await tx.delete(votes).where(eq(votes.sessionId, sessionId));
       await tx.delete(sessions).where(eq(sessions.id, sessionId));
+      await afterMemberMoneyChange(tx, moneyChanges);
     });
   } catch (err) {
     return {

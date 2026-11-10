@@ -156,14 +156,6 @@ export function MeClient({
     setEmailDraft(memberEmail ?? "");
   }
 
-  // "Đi 2 người" mặc định của acc — sync theo prop sau revalidate (cùng pattern).
-  const [withPartner, setWithPartner] = useState(defaultWithPartner);
-  const [prevWithPartner, setPrevWithPartner] = useState(defaultWithPartner);
-  if (defaultWithPartner !== prevWithPartner) {
-    setPrevWithPartner(defaultWithPartner);
-    setWithPartner(defaultWithPartner);
-  }
-
   // Pending + "đã lưu" feedback cho nút Lưu: trước đây bấm xong im lặng (không
   // spinner, không toast) → user không biết đã lưu chưa.
   const [saving, setSaving] = useState(false);
@@ -179,7 +171,6 @@ export function MeClient({
     setJustSaved(false);
     const fd = new FormData();
     fd.set("nickname", nicknameDraft);
-    fd.set("withPartner", withPartner ? "1" : "0");
     fd.set("username", usernameDraft);
     fd.set("phoneNumber", phoneDraft);
     fd.set("email", emailDraft);
@@ -327,37 +318,15 @@ export function MeClient({
                       maxLength={200}
                     />
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setWithPartner((v) => !v)}
-                    aria-pressed={withPartner}
-                    className={cn(
-                      "flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5 text-left transition-colors",
-                      withPartner
-                        ? "border-primary bg-primary/[0.06]"
-                        : "border-border bg-background hover:border-primary/40",
-                    )}
-                  >
-                    <span className="flex items-center gap-2 text-sm">
+                  {/* "Cho đi 2 mình" do admin cấp (6/11/2026): member chỉ xem. */}
+                  {defaultWithPartner && (
+                    <p className="text-muted-foreground flex min-h-11 items-center gap-2 text-base">
                       <span className="text-lg leading-none" aria-hidden>
                         👫
                       </span>
-                      {tMe("withPartnerLabel")}
-                    </span>
-                    <span
-                      className={cn(
-                        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
-                        withPartner ? "bg-primary" : "bg-muted-foreground/30",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "inline-block h-5 w-5 transform rounded-full bg-white transition-transform",
-                          withPartner ? "translate-x-5" : "translate-x-0.5",
-                        )}
-                      />
-                    </span>
-                  </button>
+                      {tMe("partnerAllowedNote")}
+                    </p>
+                  )}
                   <Button
                     type="submit"
                     className="w-full"

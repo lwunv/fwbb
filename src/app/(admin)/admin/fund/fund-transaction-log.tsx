@@ -17,6 +17,7 @@ import { MemberAvatar } from "@/components/shared/member-avatar";
 import { TabSegment } from "@/components/shared/tab-segment";
 import { EmptyState } from "@/components/shared/empty-state";
 import { SearchInput } from "@/components/shared/search-input";
+import { useQueryState } from "nuqs";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { fireAction } from "@/lib/optimistic-action";
 import { reverseFinancialTransaction } from "@/actions/fund";
@@ -155,7 +156,13 @@ interface Props {
 
 export function FundTransactionLog({ transactions }: Props) {
   const t = useTranslations("fundAdmin");
-  const [search, setSearch] = useState("");
+  // Ô tìm nằm trên URL (?q=) để chuông / trang thông báo mở thẳng sổ quỹ đã
+  // lọc theo tên member (yêu cầu user 6/11/2026).
+  const [searchParam, setSearchParam] = useQueryState("q", {
+    defaultValue: "",
+  });
+  const search = searchParam;
+  const setSearch = (v: string) => void setSearchParam(v || null);
   const [sourceFilter, setSourceFilter] = useState<"all" | "auto" | "admin">(
     "all",
   );

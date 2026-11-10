@@ -21,6 +21,7 @@ import {
   Handshake,
 } from "lucide-react";
 import { logout } from "@/actions/auth";
+import { AdminDebtBell } from "@/components/layout/admin-debt-bell";
 import { LanguageSelector } from "@/components/shared/language-selector";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -96,10 +97,10 @@ export function AdminSidebar({
           <img src="/fwbb-wordmark.svg" alt={appName} className="h-8 w-auto" />
         </Link>
         <h1 className="text-xl font-bold">Admin</h1>
+        {/* Chuông thông báo cạnh logo (yêu cầu user 6/11/2026). */}
+        <AdminDebtBell className="ml-auto" />
         {showBell && (
-          <span className="ml-auto">
-            <NotificationBell scope="admin" zaloGroupUrl={zaloGroupUrl} />
-          </span>
+          <NotificationBell scope="admin" zaloGroupUrl={zaloGroupUrl} />
         )}
       </div>
       <nav className="flex-1 space-y-1 px-3">
