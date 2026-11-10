@@ -3,6 +3,9 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import {
   DEFAULT_CENTER,
   LAST_AREA_KEY,
+  LIST_RETURN_KEY,
+  readListReturn,
+  writeListReturn,
   exactVenueMatch,
   filterVenues,
   matchVenuesByName,
@@ -174,5 +177,43 @@ describe("name matching", () => {
       "Sân cầu lông Cầu Giấy",
     );
     expect(exactVenueMatch(venues, "Cầu Giấy")).toBeNull();
+  });
+});
+
+// Final review F6: the detail page's back link keeps the list filters only
+// when it was opened from that list for the same venue.
+describe("list return marker", () => {
+  afterEach(() => sessionStorage.clear());
+
+  it("returns the remembered list URL only for the same venue", () => {
+    writeListReturn(3, "/venues?r=10&open=true");
+    expect(readListReturn(3)).toBe("/venues?r=10&open=true");
+    expect(readListReturn(4)).toBeNull();
+  });
+
+  it("rejects anything that is not a /venues list URL", () => {
+    for (const href of [
+      "https://evil.example/venues",
+      "//evil.example/venues",
+      "/venues/3",
+      "/exchanges",
+      "/venuesx",
+    ]) {
+      sessionStorage.setItem(LIST_RETURN_KEY, JSON.stringify({ id: 3, href }));
+      expect(readListReturn(3)).toBeNull();
+    }
+    sessionStorage.setItem(LIST_RETURN_KEY, "{not json");
+    expect(readListReturn(3)).toBeNull();
+  });
+
+  it("blocked storage is not an error", () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    expect(() => writeListReturn(3, "/venues")).not.toThrow();
+    expect(readListReturn(3)).toBeNull();
   });
 });

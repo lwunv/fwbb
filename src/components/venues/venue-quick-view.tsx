@@ -1,5 +1,6 @@
 "use client";
 
+import type { MouseEvent } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
@@ -133,6 +134,7 @@ export function VenueQuickView({
   now,
   onClose,
   closeLabel,
+  onViewDetails,
 }: {
   venue: PublicVenue & { distanceM?: number };
   locale: "vi" | "en" | "zh";
@@ -141,6 +143,8 @@ export function VenueQuickView({
   now: Date;
   onClose: () => void;
   closeLabel: "close" | "back";
+  /** Bấm "Xem chi tiết"; màn cha có thể `preventDefault` để tự điều hướng. */
+  onViewDetails?: (e: MouseEvent<HTMLAnchorElement>) => void;
 }) {
   const t = useTranslations("venues");
   const activeLocale = useLocale();
@@ -234,7 +238,11 @@ export function VenueQuickView({
           <Share2 className="size-5" aria-hidden />
           {t("share")}
         </button>
-        <Link href={`/venues/${venue.id}`} className={actionClass}>
+        <Link
+          href={`/venues/${venue.id}`}
+          onClick={onViewDetails}
+          className={actionClass}
+        >
           {t("viewDetails")}
         </Link>
       </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { createSerializer } from "nuqs";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { listVenuesNear } from "@/actions/venues";
 import type { LatLng } from "@/lib/geo";
@@ -16,12 +17,15 @@ import {
   readStoredArea,
   resolveCenter,
   roundCoord,
+  writeListReturn,
   writeStoredArea,
   type StoredArea,
   type VenueRadius,
 } from "@/lib/venues/directory-state";
 import { useUserLocation } from "@/components/venues/use-user-location";
-import { useVenueUrlState } from "./use-venue-url-state";
+import { useVenueUrlState, venueUrlParsers } from "./use-venue-url-state";
+
+const serializeListUrl = createSerializer(venueUrlParsers);
 
 /** Sân trong kết quả `listVenuesNear`, kèm khoảng cách tới tâm tìm (mét). */
 export type DirectoryVenue = PublicVenue & { distanceM: number };
@@ -279,11 +283,31 @@ export function useVenueDirectoryState({
     if (!awaitingFix.current) return;
     if (loc.status === "ok") {
       awaitingFix.current = false;
+      // Mục `?venue=` đã push (nếu có) giờ mang vùng mới: đóng thẻ xem nhanh
+      // phải xoá bằng replace, lùi lại sẽ về vùng cũ.
+      pushedVenue.current = false;
       void setUrl({ lat: null, lng: null });
     } else if (loc.status === "denied" || loc.status === "unsupported") {
       awaitingFix.current = false;
     }
   }, [loc.status, locateSeq, setUrl]);
+
+  // Bản đồ chỉ tự bay khi tâm tìm đổi giá trị. Tìm lại đúng chỗ cũ sau khi
+  // kéo đi, hay "Vị trí của tôi" khi tâm đã là vị trí đó, không đổi tâm, nên
+  // mỗi lần tìm hoặc định vị thành công tăng số này để bản đồ bay về.
+  const [recenterSeq, setRecenterSeq] = useState(0);
+  // Lần "Vị trí của tôi" đã được đưa bản đồ về (so với `locateSeq`). Xét trong
+  // lúc render (cùng kiểu đoạn link ở trên) để khỏi set state trong effect.
+  const [locateRecentered, setLocateRecentered] = useState(0);
+  if (
+    locateRequested &&
+    loc.status === "ok" &&
+    locateSeq !== locateRecentered
+  ) {
+    setLocateRecentered(locateSeq);
+    setRecenterSeq((n) => n + 1);
+    setMapCenter(null);
+  }
   const locating = locateRequested && loc.status === "asking";
   const locateFailed =
     locateRequested &&
@@ -291,28 +315,42 @@ export function useVenueDirectoryState({
 
   // Hàm thường, không useCallback: MapView đọc callback qua ref mới nhất nên
   // đổi identity không dựng lại bản đồ, và React Compiler tự memo khi được.
+  // Đổi bộ lọc khi đang mở thẻ xem nhanh: lần ghi (replace) đè lên mục đã
+  // push, nên mục đó không còn là "mục riêng của thẻ". Đóng thẻ phải xoá
+  // `?venue=` bằng replace; history.back() sẽ về mục trước khi đổi và lặng lẽ
+  // trả bộ lọc cũ.
   function setRadius(r: VenueRadius) {
     // Bản đồ về lại tâm tìm, nên nút "Tìm ở khu vực này" cũ phải ẩn.
     setMapCenter(null);
+    pushedVenue.current = false;
     void setUrl({ r });
   }
   function setAmenities(next: VenueAmenity[]) {
+    pushedVenue.current = false;
     void setUrl({ amenities: next.length > 0 ? next : null });
   }
   function setExchange(on: boolean) {
+    pushedVenue.current = false;
     void setUrl({ exchange: on ? true : null });
   }
   function setOpenNow(on: boolean) {
     setNow(new Date());
+    pushedVenue.current = false;
     void setUrl({ open: on ? true : null });
+  }
+  /** Bỏ mọi chip lọc (tiện ích, giao lưu, đang mở) trong một lần ghi URL. */
+  function clearFilters() {
+    pushedVenue.current = false;
+    void setUrl({ amenities: null, exchange: null, open: null });
   }
 
   function select(id: number) {
     // Back trên điện thoại đóng thẻ xem nhanh, nên lần chọn đầu ghi bằng push.
     // Đang mở một sân mà bấm sân khác thì thay mục đó, để mỗi thẻ xem nhanh chỉ
-    // có đúng một mục lịch sử.
-    const push = !pushedVenue.current;
-    pushedVenue.current = true;
+    // có đúng một mục lịch sử. Sân mở từ link (`?venue=` có sẵn, không do trang
+    // này push) cũng thay, kẻo đóng thẻ lại lùi về sân của link.
+    const push = !pushedVenue.current && venueParam === null;
+    pushedVenue.current = pushedVenue.current || push;
     void setUrl({ venue: id }, { history: push ? "push" : "replace" });
     const v = venues.find((x) => x.id === id);
     if (v) {
@@ -329,6 +367,19 @@ export function useVenueDirectoryState({
       return;
     }
     void setUrl({ venue: null });
+  }
+
+  /**
+   * Gọi ngay trước khi rời thẻ xem nhanh sang trang chi tiết. Ghi nhớ URL danh
+   * sách (bỏ `venue`) cho nút "Danh sách sân" của trang chi tiết, và trả `true`
+   * khi mục lịch sử hiện tại do chính thẻ này push: khi đó trang chi tiết nên
+   * thay mục đó (replace), để một lần Back về thẳng danh sách cùng bộ lọc.
+   */
+  function prepareDetail(id: number): boolean {
+    writeListReturn(id, serializeListUrl("/venues", { ...url, venue: null }));
+    const replace = pushedVenue.current;
+    pushedVenue.current = false;
+    return replace;
   }
 
   function onMoveEnd(c: LatLng) {
@@ -348,6 +399,7 @@ export function useVenueDirectoryState({
     // Mục đã push giờ mang vùng mới (replace), không còn là mục của thẻ xem
     // nhanh nữa.
     pushedVenue.current = false;
+    setRecenterSeq((n) => n + 1);
     void setUrl({ lat: area.lat, lng: area.lng, venue: null });
   }
   function searchHere() {
@@ -383,6 +435,7 @@ export function useVenueDirectoryState({
     setExchange,
     openNow,
     setOpenNow,
+    clearFilters,
     /** Mốc giờ dùng cho chip "Đang mở"; thẻ sân nên dùng cùng mốc để khớp. */
     now,
     query,
@@ -397,7 +450,10 @@ export function useVenueDirectoryState({
     select,
     clearSelection,
     focus,
+    /** Tăng mỗi lần tìm chỗ hoặc định vị thành công: bản đồ bay về tâm tìm. */
+    recenterSeq,
     openedFromLink,
+    prepareDetail,
     onMoveEnd,
     showSearchHere,
     searchHere,
