@@ -386,6 +386,30 @@ describe("venue review moderation", () => {
 });
 
 describe("host flags", () => {
+  // Final review M4: hồ sơ host bị khoá hay bị từ chối trả 404, không có link.
+  it("a locked or rejected flagged host has hostCode null", async () => {
+    await seedThree(-30 * DAY);
+    const codeNow = async () => ok(await adminListHostFlags()).rows[0].hostCode;
+    expect(await codeNow()).toBe("hostrep001");
+    try {
+      await testDb
+        .update(members)
+        .set({ isActive: false })
+        .where(eq(members.id, host.id));
+      expect(await codeNow()).toBeNull();
+      await testDb
+        .update(members)
+        .set({ isActive: true, approvalStatus: "rejected" })
+        .where(eq(members.id, host.id));
+      expect(await codeNow()).toBeNull();
+    } finally {
+      await testDb
+        .update(members)
+        .set({ isActive: true, approvalStatus: host.approvalStatus })
+        .where(eq(members.id, host.id));
+    }
+  });
+
   /** 3 khách quen ở 2 buổi trong cửa sổ + buổi thứ ba do `third` quyết định. */
   async function seedThree(
     thirdOffsetMs: number,

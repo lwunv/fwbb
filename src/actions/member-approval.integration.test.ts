@@ -432,4 +432,31 @@ describe("approve and reject refresh reputation caches (G2d)", () => {
       expect.arrayContaining(expected),
     );
   });
+
+  it("a failing cache refresh after approve or reject still returns success and revalidates the pending page", async () => {
+    const [m] = await testDb
+      .insert(members)
+      .values({ name: "Cho duyet", approvalStatus: "pending" })
+      .returning({ id: members.id });
+    const { updateTag, revalidatePath } = await import("next/cache");
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      for (const run of [approveMember, rejectMember]) {
+        vi.mocked(revalidatePath).mockClear();
+        vi.mocked(updateTag).mockImplementationOnce(() => {
+          throw new Error("socket hang up");
+        });
+        expect(await run(m.id)).toEqual({ success: true });
+        expect(vi.mocked(revalidatePath).mock.calls.map((c) => c[0])).toEqual(
+          expect.arrayContaining(["/admin/members", "/pending-approval"]),
+        );
+      }
+      expect((await memberById(m.id))?.approvalStatus).toBe("rejected");
+      expect(err).toHaveBeenCalledWith("[Reputation] invalidate_failed", {
+        memberIds: [m.id],
+      });
+    } finally {
+      err.mockRestore();
+    }
+  });
 });

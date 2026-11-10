@@ -9,6 +9,7 @@ import { isExchangeEnabled } from "@/lib/exchange-flag";
 import { SKILL_LEVELS, type SkillLevel } from "@/lib/skill-level";
 import {
   FEEDBACK_WINDOW_DAYS,
+  MIN_RATERS_PER_EVENT,
   PROFILE_REVALIDATE_S,
   repTag,
 } from "./constants";
@@ -124,51 +125,81 @@ export async function attendanceSummaries(
 }
 
 /**
- * Dòng chấm người chơi đã qua mọi bộ lọc "Lượt chấm được cộng" trừ ngưỡng 3
- * người mỗi buổi (`summarizePeer` làm bước đó): buổi đã đóng chấm, không ẩn,
- * không huỷ; người chấm và người được chấm còn điểm danh hợp lệ; người chấm
- * không bị khoá, không bị từ chối; không dòng nào dính tới host của buổi. Đi
- * theo index `peer_feedback(to_member_id, updated_at)`.
+ * FROM + WHERE của dòng chấm người chơi hợp lệ, alias theo hậu tố `s` để dùng
+ * hai lần trong cùng câu (truy vấn ngoài và truy vấn con lọc buổi).
+ */
+function validPeerFrom(s: string, memberId: number, closedBeforeIso: string) {
+  const a = (name: string) => sql.raw(`${name}${s}`);
+  return sql`FROM peer_feedback ${a("pf")}
+    INNER JOIN exchange_events ${a("e")} ON ${a("e")}.id = ${a("pf")}.event_id
+    INNER JOIN exchange_registrations ${a("fr")}
+      ON ${a("fr")}.event_id = ${a("pf")}.event_id
+      AND ${a("fr")}.member_id = ${a("pf")}.from_member_id
+    INNER JOIN exchange_registrations ${a("tr")}
+      ON ${a("tr")}.event_id = ${a("pf")}.event_id
+      AND ${a("tr")}.member_id = ${a("pf")}.to_member_id
+    INNER JOIN members ${a("fm")} ON ${a("fm")}.id = ${a("pf")}.from_member_id
+    WHERE ${a("pf")}.to_member_id = ${memberId}
+      AND ${a("e")}.end_at <= ${closedBeforeIso}
+      AND ${a("e")}.host_member_id <> ${a("pf")}.from_member_id
+      AND ${a("e")}.host_member_id <> ${a("pf")}.to_member_id
+      AND ${validReg(`fr${s}`, `e${s}`)}
+      AND ${a("tr")}.checked_in = 1 AND ${a("tr")}.status = 'approved'
+      AND ${a("fm")}.is_active = 1 AND ${a("fm")}.approval_status <> 'rejected'`;
+}
+
+/**
+ * Dòng chấm người chơi được cộng, trừ bước "mỗi người chấm lấy dòng mới nhất"
+ * (`summarizePeer` làm): buổi đã đóng chấm, không ẩn, không huỷ; người chấm và
+ * người được chấm còn điểm danh hợp lệ; người chấm không bị khoá, không bị từ
+ * chối; không dòng nào dính tới host của buổi; buổi có ít nhất
+ * `MIN_RATERS_PER_EVENT` người chấm hợp lệ. Lọc buổi nằm trong SQL, TRƯỚC trần
+ * `FEEDBACK_ROW_CAP`: cắt trước thì ở biên trần một buổi bị tách và rơi khỏi
+ * điểm dù đủ người (final review M5). Trần chỉ bỏ dòng cũ nhất; dòng mới nhất
+ * của một người luôn đứng trước dòng cũ của họ nên vẫn đúng "lấy dòng mới
+ * nhất". Đi theo index `peer_feedback(to_member_id, updated_at)`.
  */
 export function peerRowsQuery(memberId: number, closedBeforeIso: string): SQL {
   return sql`SELECT pf.id AS id, pf.event_id AS eventId,
       pf.from_member_id AS fromId, pf.updated_at AS updatedAt,
       pf.rater_weight AS w5, pf.play_again AS playAgain, pf.tags AS tags,
       pf.skill_level AS skill
-    FROM peer_feedback pf
-    INNER JOIN exchange_events e ON e.id = pf.event_id
-    INNER JOIN exchange_registrations fr
-      ON fr.event_id = pf.event_id AND fr.member_id = pf.from_member_id
-    INNER JOIN exchange_registrations tr
-      ON tr.event_id = pf.event_id AND tr.member_id = pf.to_member_id
-    INNER JOIN members fm ON fm.id = pf.from_member_id
-    WHERE pf.to_member_id = ${memberId}
-      AND e.end_at <= ${closedBeforeIso}
-      AND e.host_member_id <> pf.from_member_id
-      AND e.host_member_id <> pf.to_member_id
-      AND ${validReg("fr", "e")}
-      AND tr.checked_in = 1 AND tr.status = 'approved'
-      AND fm.is_active = 1 AND fm.approval_status <> 'rejected'
+    ${validPeerFrom("", memberId, closedBeforeIso)}
+      AND pf.event_id IN (SELECT pf2.event_id
+        ${validPeerFrom("2", memberId, closedBeforeIso)}
+        GROUP BY pf2.event_id
+        HAVING COUNT(DISTINCT pf2.from_member_id) >= ${MIN_RATERS_PER_EVENT})
     ORDER BY pf.updated_at DESC, pf.id DESC
     LIMIT ${FEEDBACK_ROW_CAP}`;
 }
 
-/** Như `peerRowsQuery` cho câu trả lời về host, đi từ buổi của host. */
+/** Như `validPeerFrom` cho câu trả lời về host, đi từ buổi của host. */
+function validHostFrom(s: string, hostId: number, closedBeforeIso: string) {
+  const a = (name: string) => sql.raw(`${name}${s}`);
+  return sql`FROM exchange_events ${a("e")}
+    INNER JOIN host_feedback ${a("hf")} ON ${a("hf")}.event_id = ${a("e")}.id
+    INNER JOIN exchange_registrations ${a("fr")}
+      ON ${a("fr")}.event_id = ${a("hf")}.event_id
+      AND ${a("fr")}.member_id = ${a("hf")}.from_member_id
+    INNER JOIN members ${a("fm")} ON ${a("fm")}.id = ${a("hf")}.from_member_id
+    WHERE ${a("e")}.host_member_id = ${hostId}
+      AND ${a("e")}.end_at <= ${closedBeforeIso}
+      AND ${a("hf")}.from_member_id <> ${a("e")}.host_member_id
+      AND ${validReg(`fr${s}`, `e${s}`)}
+      AND ${a("fm")}.is_active = 1 AND ${a("fm")}.approval_status <> 'rejected'`;
+}
+
+/** Như `peerRowsQuery` cho câu trả lời về host (lọc buổi trước trần). */
 export function hostRowsQuery(hostId: number, closedBeforeIso: string): SQL {
   return sql`SELECT hf.id AS id, hf.event_id AS eventId,
       hf.from_member_id AS fromId, hf.updated_at AS updatedAt,
       hf.rater_weight AS w5, hf.as_described AS asDescribed,
       hf.fee_as_promised AS feeAsPromised
-    FROM exchange_events e
-    INNER JOIN host_feedback hf ON hf.event_id = e.id
-    INNER JOIN exchange_registrations fr
-      ON fr.event_id = hf.event_id AND fr.member_id = hf.from_member_id
-    INNER JOIN members fm ON fm.id = hf.from_member_id
-    WHERE e.host_member_id = ${hostId}
-      AND e.end_at <= ${closedBeforeIso}
-      AND hf.from_member_id <> e.host_member_id
-      AND ${validReg("fr", "e")}
-      AND fm.is_active = 1 AND fm.approval_status <> 'rejected'
+    ${validHostFrom("", hostId, closedBeforeIso)}
+      AND hf.event_id IN (SELECT hf2.event_id
+        ${validHostFrom("2", hostId, closedBeforeIso)}
+        GROUP BY hf2.event_id
+        HAVING COUNT(DISTINCT hf2.from_member_id) >= ${MIN_RATERS_PER_EVENT})
     ORDER BY hf.updated_at DESC, hf.id DESC
     LIMIT ${FEEDBACK_ROW_CAP}`;
 }
@@ -284,7 +315,8 @@ export async function loadReputation(
       organized,
       cancelled,
       cancelPct: percent(cancelled, organized + cancelled),
-      ...summarizeHost(hostRows),
+      // Lọc buổi đã làm trong SQL (trước trần); làm lại ở đây sẽ tách buổi.
+      ...summarizeHost(hostRows, { eventsFiltered: true }),
     };
   }
 
@@ -306,19 +338,41 @@ export async function loadReputation(
       isActive: m.isActive,
     },
     attendance,
-    peer: summarizePeer(peerRows),
+    peer: summarizePeer(peerRows, { eventsFiltered: true }),
     host,
     referred: !!ref,
   };
 }
 
-async function memberIdByCode(code: string): Promise<{ id: number } | null> {
+/**
+ * Mã không có ai: ném trong hàm được cache để `unstable_cache` không lưu kết
+ * quả rỗng. Không thì bot dò mã ngẫu nhiên đúng dạng đẻ ra một mục Data Cache
+ * cho mỗi mã (cùng cách với `VenueNotListed`).
+ */
+class UnknownProfileCode extends Error {}
+
+async function memberIdByCode(code: string): Promise<{ id: number }> {
   const [row] = await db
     .select({ id: members.id })
     .from(members)
     .where(eq(members.publicCode, code))
     .limit(1);
-  return row ? { id: row.id } : null;
+  if (!row) throw new UnknownProfileCode();
+  return { id: row.id };
+}
+
+async function cachedMemberIdByCode(
+  code: string,
+): Promise<{ id: number } | null> {
+  try {
+    return await unstable_cache(() => memberIdByCode(code), ["pcode", code], {
+      tags: ["exchange"],
+      revalidate: PROFILE_REVALIDATE_S,
+    })();
+  } catch (e) {
+    if (e instanceof UnknownProfileCode) return null;
+    throw e;
+  }
 }
 
 /**
@@ -332,11 +386,7 @@ export async function getPublicProfile(
 ): Promise<PublicPlayerProfile | null> {
   if (!(await isExchangeEnabled())) return null;
   if (!PROFILE_CODE_RE.test(code)) return null;
-  const ref = await unstable_cache(
-    () => memberIdByCode(code),
-    ["pcode", code],
-    { tags: ["exchange"], revalidate: PROFILE_REVALIDATE_S },
-  )();
+  const ref = await cachedMemberIdByCode(code);
   if (!ref) return null;
   const rep = await unstable_cache(
     () => loadReputation(db, ref.id, new Date()),

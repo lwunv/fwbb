@@ -32,7 +32,10 @@ import {
 import { cancelEventCore } from "@/lib/exchange/cancel";
 import { scheduleRatingReminderAfterCommit } from "@/lib/reputation/rating-jobs";
 import { attendanceSummaries } from "@/lib/reputation/profile-read";
-import type { AttendanceSummary } from "@/lib/reputation/public-profile";
+import {
+  linkableProfileCode,
+  type AttendanceSummary,
+} from "@/lib/reputation/public-profile";
 import {
   exchangeGate,
   loadHostedEvent,
@@ -878,7 +881,7 @@ export async function getManageView(code: string): Promise<ManageView | null> {
       ),
       isNewAccount: sum?.isNew ?? r.approvalStatus !== "approved",
       referred: referredIds.has(r.reg.memberId),
-      memberCode: r.publicCode ?? null,
+      memberCode: linkableProfileCode(r),
       attendance: {
         attended: sum?.attended ?? 0,
         approvedPast: sum?.approvedPast ?? 0,

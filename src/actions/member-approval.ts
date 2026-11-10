@@ -21,7 +21,7 @@ import {
 import { repointExchangeRows } from "@/lib/exchange/member-rows";
 import {
   invalidateAfterMerge,
-  invalidateMemberReputation,
+  invalidateMemberReputationQuietly,
 } from "@/lib/reputation/invalidate";
 
 /** Helper: normalize Vietnamese name for fuzzy matching (lowercase + strip
@@ -363,11 +363,13 @@ export async function approveMember(memberId: number) {
       });
     }
   });
-  await invalidateMemberReputation(db, [memberId], { asRater: true });
 
   revalidatePath("/admin/members");
   revalidatePath("/pending-approval");
   revalidatePath("/");
+  // Sau commit và sau revalidatePath: làm mới cache uy tín chỉ là cố gắng
+  // tốt nhất (TTL 600 giây), lỗi không được biến lần ghi thành thất bại.
+  await invalidateMemberReputationQuietly(db, [memberId], { asRater: true });
   return { success: true };
 }
 
@@ -410,10 +412,12 @@ export async function rejectMember(memberId: number) {
       });
     }
   });
-  await invalidateMemberReputation(db, [memberId], { asRater: true });
 
   revalidatePath("/admin/members");
   revalidatePath("/pending-approval");
+  // Sau commit và sau revalidatePath: làm mới cache uy tín chỉ là cố gắng
+  // tốt nhất (TTL 600 giây), lỗi không được biến lần ghi thành thất bại.
+  await invalidateMemberReputationQuietly(db, [memberId], { asRater: true });
   return { success: true };
 }
 

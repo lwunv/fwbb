@@ -228,6 +228,32 @@ describe("getExchangeEvent", () => {
     expect(r?.event.host.code).toBe("hostcode22");
   });
 
+  // Final review M4: hồ sơ của tài khoản bị khoá hay bị từ chối trả 404, nên
+  // không được có link tới nó.
+  it("a locked or rejected attendee gets code null so no profile link 404s", async () => {
+    const coded = await seedMember("Coded", { publicCode: "attcode345" });
+    const locked = await seedMember("Locked", {
+      publicCode: "lockcode23",
+      isActive: false,
+    });
+    const rejected = await seedMember("Rejected", {
+      publicCode: "rejcode234",
+      approvalStatus: "rejected",
+    });
+    const e = await seedEvent();
+    for (const m of [coded, locked, rejected]) await seedReg(e.id, m.id);
+
+    asViewer(coded);
+    const r = await getExchangeEvent(e.publicCode);
+    expect(r?.viewer.attendees?.map((a) => [a.name, a.code])).toEqual([
+      ["Coded", "attcode345"],
+      ["Locked", null],
+      ["Rejected", null],
+    ]);
+    expect(JSON.stringify(r)).not.toContain("lockcode23");
+    expect(JSON.stringify(r)).not.toContain("rejcode234");
+  });
+
   it("a host without a code is shown with code null", async () => {
     await testDb
       .update(members)

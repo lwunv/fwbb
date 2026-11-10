@@ -8,7 +8,12 @@ import {
   venueReviews,
 } from "@/db/schema";
 import type { DbOrTx } from "@/db/tx";
-import { VENUE_REVIEWS_TAG, repTag, venueReviewTag } from "./constants";
+import {
+  DUP_SIGNALS_TAG,
+  VENUE_REVIEWS_TAG,
+  repTag,
+  venueReviewTag,
+} from "./constants";
 
 /**
  * Trần số tag làm mới theo người chấm. Mỗi lần đọc theo index
@@ -64,6 +69,11 @@ export type InvalidateOptions = {
    * mới hồ sơ của họ.
    */
   rated?: number[];
+  /**
+   * Khoá/mở hay gộp: banner tín hiệu nick trùng (cache `DUP_SIGNALS_TAG`)
+   * chỉ có tài khoản đang mở và còn tồn tại.
+   */
+  dupSignals?: boolean;
 };
 
 /**
@@ -80,6 +90,7 @@ export async function invalidateMemberReputation(
   const tags = new Set(ids.map(repTag));
 
   for (const id of opts.rated ?? []) tags.add(repTag(id));
+  if (opts.dupSignals) tags.add(DUP_SIGNALS_TAG);
 
   const reviewed = await reviewedVenuesQuery(db, ids);
   for (const r of reviewed) tags.add(venueReviewTag(r.venueId));
@@ -101,6 +112,26 @@ export async function invalidateMemberReputation(
 }
 
 /**
+ * Bản cố gắng tốt nhất của `invalidateMemberReputation` cho các thao tác sửa
+ * member (khoá/mở, duyệt/từ chối, sửa hồ sơ). Người gọi gọi SAU commit và SAU
+ * các `revalidatePath`: lần ghi đã xong, nên một lần đọc fan-out lỗi (Turso
+ * chập chờn) không được biến thao tác thành "thất bại" (admin bấm lại sẽ đảo
+ * ngược) hay bỏ qua làm mới trang. Tag nào sót tự hết hạn sau
+ * `PROFILE_REVALIDATE_S` (600 giây). Log chỉ id, không nội dung lỗi.
+ */
+export async function invalidateMemberReputationQuietly(
+  db: DbOrTx,
+  memberIds: number[],
+  opts: InvalidateOptions = {},
+): Promise<void> {
+  try {
+    await invalidateMemberReputation(db, memberIds, opts);
+  } catch {
+    console.error("[Reputation] invalidate_failed", { memberIds });
+  }
+}
+
+/**
  * Làm mới cache sau khi gộp member. Người gọi gọi hàm này SAU commit và SAU các
  * `revalidatePath`: lần gộp đã ghi xong, nên lỗi cache không được biến nó thành
  * "thất bại" hay bỏ qua bước làm mới trang quỹ. Làm mới ở đây chỉ là cố gắng
@@ -118,6 +149,7 @@ export async function invalidateAfterMerge(
       asRater: true,
       codes: true,
       rated,
+      dupSignals: true,
     });
   } catch {
     console.error("[Reputation] merge-invalidate-failed", {

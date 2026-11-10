@@ -16,7 +16,8 @@ import {
   passwordResetTokens,
 } from "@/db/schema";
 import { eq, sql, or, ne, and, inArray, isNull } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
+import { DUP_SIGNALS_TAG } from "@/lib/reputation/constants";
 import { after } from "next/server";
 import { getTranslations } from "next-intl/server";
 import { getUserFromCookie } from "@/lib/user-identity";
@@ -30,7 +31,7 @@ import {
 import { checkRateLimit } from "@/lib/rate-limit";
 import {
   invalidateAfterMerge,
-  invalidateMemberReputation,
+  invalidateMemberReputationQuietly,
 } from "@/lib/reputation/invalidate";
 import { memberSchema } from "@/lib/validators";
 import { normalizeUsername } from "@/lib/username";
@@ -340,7 +341,6 @@ export async function updateMyAvatar(
     .update(members)
     .set({ avatarKey: next })
     .where(eq(members.id, user.memberId));
-  await invalidateMemberReputation(db, [user.memberId]);
 
   revalidatePath("/me");
   revalidatePath("/");
@@ -351,6 +351,9 @@ export async function updateMyAvatar(
   revalidatePath("/admin/members");
   revalidatePath("/admin/finance");
   revalidatePath("/admin/dashboard");
+  // Sau commit và sau revalidatePath: làm mới cache uy tín chỉ là cố gắng
+  // tốt nhất (TTL 600 giây), lỗi không được biến lần ghi thành thất bại.
+  await invalidateMemberReputationQuietly(db, [user.memberId]);
   return { success: true };
 }
 
@@ -441,12 +444,14 @@ export async function updateMyProfile(
     if (/email/i.test(msg)) return { error: t("emailTaken") };
     throw e; // lỗi khác không nuốt
   }
-  await invalidateMemberReputation(db, [user.memberId]);
 
   revalidatePath("/me");
   revalidatePath("/");
   revalidatePath("/history");
   revalidatePath("/my-debts");
+  // Sau commit và sau revalidatePath: làm mới cache uy tín chỉ là cố gắng
+  // tốt nhất (TTL 600 giây), lỗi không được biến lần ghi thành thất bại.
+  await invalidateMemberReputationQuietly(db, [user.memberId]);
   return { success: true };
 }
 
@@ -483,9 +488,11 @@ export async function updateMySkillLevel(
     .update(members)
     .set({ skillLevel: parseSkillLevel(raw) })
     .where(eq(members.id, user.memberId));
-  await invalidateMemberReputation(db, [user.memberId]);
 
   revalidatePath("/me");
+  // Sau commit và sau revalidatePath: làm mới cache uy tín chỉ là cố gắng
+  // tốt nhất (TTL 600 giây), lỗi không được biến lần ghi thành thất bại.
+  await invalidateMemberReputationQuietly(db, [user.memberId]);
   return { success: true };
 }
 
@@ -585,8 +592,10 @@ export async function updateMember(id: number, formData: FormData) {
     if (/username/i.test(msg)) return { error: t("usernameTaken") };
     throw e;
   }
-  await invalidateMemberReputation(db, [id]);
   revalidatePath("/admin/members");
+  // Sau commit và sau revalidatePath: làm mới cache uy tín chỉ là cố gắng
+  // tốt nhất (TTL 600 giây), lỗi không được biến lần ghi thành thất bại.
+  await invalidateMemberReputationQuietly(db, [id]);
   return { success: true };
 }
 
@@ -706,9 +715,6 @@ export async function toggleMemberActive(id: number) {
     .update(members)
     .set({ isActive: !member.isActive })
     .where(eq(members.id, id));
-  // Khoá/mở người chấm: lượt chấm và đánh giá sân của họ rơi khỏi (hoặc trở
-  // lại) điểm của người khác ngay.
-  await invalidateMemberReputation(db, [id], { asRater: true });
   // Khóa/mở member = rời/vào quỹ (roster derive từ isActive). KHÔNG auto-hoàn —
   // balance đóng băng. Revalidate mọi surface phụ thuộc roster quỹ.
   revalidatePath("/admin/members");
@@ -716,6 +722,14 @@ export async function toggleMemberActive(id: number) {
   revalidatePath("/admin/dashboard");
   revalidatePath("/my-fund");
   revalidatePath("/");
+  // Khoá/mở người chấm: lượt chấm và đánh giá sân của họ rơi khỏi (hoặc trở
+  // lại) điểm của người khác. Chạy sau cùng và nuốt lỗi có chủ ý: khoá đã
+  // commit, nếu báo lỗi thì admin bấm lại sẽ mở khoá; tag sót hết hạn sau 600 giây.
+  // `dupSignals`: banner nick trùng (cache) chỉ có tài khoản đang mở.
+  await invalidateMemberReputationQuietly(db, [id], {
+    asRater: true,
+    dupSignals: true,
+  });
   return { success: true };
 }
 
@@ -925,6 +939,14 @@ export async function ignoreDuplicateGroup(memberIds: number[]) {
   await db.insert(dupIgnoredPairs).values(pairs).onConflictDoNothing();
 
   revalidatePath("/admin/members");
+  // Banner tín hiệu nick trùng đọc cùng bảng bỏ qua và được cache. Cặp đã
+  // ghi xong nên lỗi làm mới không được thành "thất bại"; cache tự hết hạn
+  // sau DUP_SIGNALS_REVALIDATE_S.
+  try {
+    updateTag(DUP_SIGNALS_TAG);
+  } catch {
+    console.error("[DupSignal] invalidate_failed", { memberIds: ids });
+  }
   return { success: true };
 }
 

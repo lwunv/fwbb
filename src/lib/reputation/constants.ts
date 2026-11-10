@@ -31,6 +31,14 @@ export const WEIGHT_FULL_AT = 5;
 export const MIN_RATERS_SHOWN = 3;
 /** Một buổi chỉ được cộng khi có ít nhất ngần này người chấm hợp lệ cho đúng đối tượng. */
 export const MIN_RATERS_PER_EVENT = 3;
+/**
+ * Phần trăm host ("đúng mô tả", "đúng phí") nặng theo trọng số người chấm, mà
+ * trọng số gần như công khai (số buổi đã đến). Với ít người chấm, mỗi tổ hợp
+ * câu trả lời ra một số riêng nên host đọc ngược được ai trả lời gì. Vì vậy chỉ
+ * hiện khi đủ ngần này người chấm khác nhau, và làm tròn xuống bậc `HOST_PCT_STEP`.
+ */
+export const HOST_PCT_MIN_RATERS = 5;
+export const HOST_PCT_STEP = 10;
 export const FEEDBACK_WINDOW_DAYS = 7;
 export const FEEDBACK_MAX_PEERS = 50;
 export const MAX_PEER_TAGS = 4;
@@ -66,6 +74,14 @@ export const IP_SIGNAL_PRUNE_BATCH = 200;
 export const DUP_BURST_MIN = 3;
 export const DUP_BURST_WINDOW_MS = 86_400_000;
 export const DUP_SIGNAL_ROW_CAP = 5000;
+/**
+ * Cache banner tín hiệu nick trùng ở trang thành viên. Trang đó tự làm mới mỗi
+ * 5 phút nên không được đọc lại bảng tín hiệu mỗi lượt (sự cố hạn mức 2/11).
+ * Làm mới theo sự kiện: tín hiệu mới, "Bỏ qua", khoá/mở và gộp member; TTL chỉ
+ * để bắt các đổi nhỏ còn lại (đổi tên, `last_seen_at`).
+ */
+export const DUP_SIGNALS_TAG = "dupsig";
+export const DUP_SIGNALS_REVALIDATE_S = 3600;
 
 export const RATING_REMINDER_DELAY_MS = 3_600_000;
 export const RATING_JOB_KIND = "exchange_rate_reminder";

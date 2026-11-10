@@ -1,10 +1,12 @@
 import "server-only";
 import { createHmac } from "crypto";
+import { revalidateTag } from "next/cache";
 import { asc, inArray, lt } from "drizzle-orm";
 import { memberIpSignals } from "@/db/schema";
 import type { DbOrTx } from "@/db/tx";
 import { ipRateLimitKey } from "@/lib/ip-rate-limit-key";
 import {
+  DUP_SIGNALS_TAG,
   IP_SIGNAL_PRUNE_BATCH,
   IP_SIGNAL_RETENTION_DAYS,
   type IpSignalKind,
@@ -87,7 +89,7 @@ export async function recordIpSignal(
 ): Promise<void> {
   if (input.ip === "unknown") return;
   const nowIso = now.toISOString();
-  await db
+  const [row] = await db
     .insert(memberIpSignals)
     .values({
       memberId: input.memberId,
@@ -103,8 +105,26 @@ export async function recordIpSignal(
         memberIpSignals.kind,
       ],
       set: { lastSeenAt: nowIso },
-    });
+    })
+    .returning({ firstSeenAt: memberIpSignals.firstSeenAt });
+  // Chỉ dòng mới mới đổi được nhóm trên banner; đăng nhập lại cùng mạng chỉ
+  // đổi `last_seen_at` nên không làm mới cache (mỗi lần đăng nhập là một lần
+  // admin phải đọc lại tới 5.000 dòng).
+  if (row?.firstSeenAt === nowIso) refreshDupSignals();
   await pruneIpSignals(db, now);
+}
+
+/**
+ * Hết hạn ngay cache banner tín hiệu. Chạy được cả trong server action lẫn
+ * route handler (Zalo). Ngoài request (cron, script, test) Next ném lỗi: bỏ
+ * qua có chủ đích, cache tự hết hạn sau `DUP_SIGNALS_REVALIDATE_S`.
+ */
+function refreshDupSignals(): void {
+  try {
+    revalidateTag(DUP_SIGNALS_TAG, { expire: 0 });
+  } catch {
+    // Không có request: không có cache để làm mới.
+  }
 }
 
 /**
