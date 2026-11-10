@@ -147,6 +147,13 @@ export function RegistrationRow({
                 {t("badgeNew")}
               </span>
             )}
+            {reg.referred && (
+              <span
+                className={cn(CHIP, "bg-secondary text-secondary-foreground")}
+              >
+                {tr("referred")}
+              </span>
+            )}
             {reg.skillOutOfRange && (
               <span
                 className={cn(

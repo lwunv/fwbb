@@ -78,3 +78,16 @@ export function vnMonthBounds(now: Date): { from: string; to: string } {
     to: new Date(Date.UTC(y, m + 1, 1) - VN_OFFSET_MS).toISOString(),
   };
 }
+
+/**
+ * `dd/MM/yyyy` theo lịch Việt Nam của một mốc ISO UTC, cho câu "tạm không giới
+ * thiệu được tới {date}". Định dạng ở server để máy người xem đặt múi giờ khác
+ * cũng thấy đúng ngày.
+ */
+export function vnDisplayDate(isoStr: string): string {
+  const [y, m, d] = new Date(Date.parse(isoStr) + VN_OFFSET_MS)
+    .toISOString()
+    .slice(0, 10)
+    .split("-");
+  return `${d}/${m}/${y}`;
+}

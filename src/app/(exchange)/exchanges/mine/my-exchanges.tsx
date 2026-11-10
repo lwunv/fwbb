@@ -2,20 +2,34 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   CalendarSearch,
+  Loader2,
   MessageCircle,
   Settings2,
+  Share2,
+  ShieldAlert,
+  Star,
+  UserRound,
+  UserRoundCheck,
   UserRoundX,
 } from "lucide-react";
+import { toast } from "sonner";
 import { unblockMember } from "@/actions/exchange-host";
 import type { MyExchanges as MyExchangesData } from "@/actions/exchange-mine";
+import { ensureMyPublicCode } from "@/actions/referrals";
 import { ExchangeCard } from "@/components/exchange/exchange-card";
 import { Card, CardContent } from "@/components/ui/card";
-import { CHARGEABLE_STATUSES } from "@/lib/exchange/constants";
+import {
+  CHARGEABLE_STATUSES,
+  NEW_ACCOUNT_MAX_WAITING,
+  RL_COMMENT_DAY_NEW,
+} from "@/lib/exchange/constants";
 import { fireAction } from "@/lib/optimistic-action";
+import { REFERRAL_MIN_ATTENDED } from "@/lib/reputation/constants";
 import { formatVND } from "@/lib/utils";
 
 const cardLink =
@@ -47,6 +61,129 @@ function NewCommentsBadge({ code, count }: { code: string; count: number }) {
 
 const CHARGEABLE = new Set<string>(CHARGEABLE_STATUSES);
 
+/** Trạng thái giới thiệu của chính người xem, server đã định dạng ngày khoá. */
+export type MyReferralCard = {
+  limited: boolean;
+  eligible: boolean;
+  used: number;
+  limit: number;
+  /** `dd/MM/yyyy` giờ Việt Nam khi đang bị khoá giới thiệu. */
+  blockedDate: string | null;
+};
+
+/**
+ * Thẻ cho nick mới: nói rõ đang bị giới hạn gì và cho chia sẻ hồ sơ để người
+ * quen mở ra giới thiệu. Mã hồ sơ chỉ được tạo khi bấm chia sẻ (quyết định 50).
+ *
+ * Safari iOS và webview Zalo chỉ cho `navigator.share`/`clipboard` chạy trong
+ * lúc người dùng đang chạm: có `await` server trước đó là mất quyền. Nên đã có
+ * mã thì chia sẻ ngay trong handler; chưa có thì tạo mã, làm mới trang và nhờ
+ * bấm lại.
+ */
+function NewcomerCard({ myCode }: { myCode: string | null }) {
+  const t = useTranslations("exchange.reputation.referral");
+  const router = useRouter();
+  const [creating, setCreating] = useState(false);
+
+  function copyLink(url: string) {
+    navigator.clipboard
+      .writeText(url)
+      .then(() => toast.success(t("linkCopied")))
+      .catch(() => toast.error(t("shareFailed")));
+  }
+
+  function shareNow(code: string) {
+    const url = `${window.location.origin}/players/${code}`;
+    if (typeof navigator.share !== "function") {
+      copyLink(url);
+      return;
+    }
+    navigator.share({ title: t("share"), url }).catch((err: unknown) => {
+      // Người dùng tự đóng bảng chia sẻ: không phải lỗi, không chép link.
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      copyLink(url);
+    });
+  }
+
+  async function createCode() {
+    setCreating(true);
+    try {
+      const res = await ensureMyPublicCode();
+      if ("error" in res) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success(t("codeReady"));
+      router.refresh();
+    } catch {
+      toast.error(t("shareFailed"));
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  function onShare() {
+    if (creating) return;
+    if (myCode) shareNow(myCode);
+    else void createCode();
+  }
+
+  return (
+    <section className="space-y-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 backdrop-blur">
+      <p className="flex gap-2 text-base">
+        <ShieldAlert
+          className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300"
+          aria-hidden
+        />
+        <span>
+          {t("limitedCard", {
+            pending: NEW_ACCOUNT_MAX_WAITING,
+            comments: RL_COMMENT_DAY_NEW.limit,
+            sessions: REFERRAL_MIN_ATTENDED,
+          })}
+        </span>
+      </p>
+      <motion.button
+        type="button"
+        whileTap={{ scale: 0.98 }}
+        onClick={onShare}
+        disabled={creating}
+        className="bg-primary text-primary-foreground flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-4 text-base font-semibold disabled:opacity-70 sm:w-auto"
+      >
+        {creating ? (
+          <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+        ) : (
+          <Share2 className="h-5 w-5" aria-hidden />
+        )}
+        {t("share")}
+      </motion.button>
+    </section>
+  );
+}
+
+/** Thẻ cho người giới thiệu được: lượt đã dùng trong tháng và ngày hết khoá. */
+function ReferrerCard({ r }: { r: MyReferralCard }) {
+  const t = useTranslations("exchange.reputation.referral");
+  return (
+    <section className="bg-card/80 space-y-1 rounded-2xl border p-4 backdrop-blur">
+      <h2 className="flex items-center gap-2 text-lg font-semibold">
+        <UserRoundCheck className="text-primary h-5 w-5" aria-hidden />
+        {t("title")}
+      </h2>
+      {r.eligible && (
+        <p className="text-base">
+          {t("used", { used: r.used, limit: r.limit })}
+        </p>
+      )}
+      {r.blockedDate && (
+        <p className="text-destructive text-base font-medium">
+          {t("blocked", { date: r.blockedDate })}
+        </p>
+      )}
+    </section>
+  );
+}
+
 const STATUS_KEY: Record<string, StatusKey> = {
   pending: "statusPending",
   approved: "statusApproved",
@@ -60,13 +197,19 @@ const STATUS_KEY: Record<string, StatusKey> = {
 /**
  * Nội dung "Giao lưu của tôi": buổi đã đăng ký (kèm trạng thái và tiền còn
  * thiếu hoặc cần hoàn, lấy từ server), buổi mình mở, và người đã chặn. Bỏ chặn
- * là lạc quan: gỡ dòng ngay, lỗi thì trả lại và báo.
+ * là lạc quan: gỡ dòng ngay, lỗi thì trả lại và báo. Buổi còn chưa chấm có
+ * huy hiệu "Chưa đánh giá" mở thẳng phiếu chấm.
  */
 export function MyExchanges({
   registrations,
   hosting,
   blocks: initialBlocks,
-}: MyExchangesData) {
+  myCode = null,
+  referral = null,
+}: Omit<MyExchangesData, "myCode"> & {
+  myCode?: string | null;
+  referral?: MyReferralCard | null;
+}) {
   const t = useTranslations("exchange.mine");
   const [blocks, setBlocks] = useState(initialBlocks);
 
@@ -81,6 +224,21 @@ export function MyExchanges({
 
   return (
     <div className="space-y-8">
+      {myCode && (
+        <Link
+          href={`/players/${myCode}`}
+          className="bg-card/80 hover:bg-accent flex min-h-11 w-full items-center gap-2 rounded-xl border px-4 text-base font-medium backdrop-blur sm:w-auto"
+        >
+          <UserRound className="h-5 w-5 shrink-0" aria-hidden />
+          {t("myProfile")}
+        </Link>
+      )}
+
+      {referral?.limited && <NewcomerCard myCode={myCode} />}
+      {referral && (referral.eligible || referral.blockedDate) && (
+        <ReferrerCard r={referral} />
+      )}
+
       <section className="space-y-3" aria-labelledby="mine-regs">
         <h2 id="mine-regs" className="text-lg font-semibold">
           {t("registrationsTitle")}
@@ -107,6 +265,15 @@ export function MyExchanges({
                 <div key={r.code} className="space-y-2">
                   <ExchangeCard event={r} />
                   <NewCommentsBadge code={r.code} count={r.newComments} />
+                  {r.feedback === "todo" && (
+                    <Link
+                      href={`/exchanges/${r.code}?feedback=1`}
+                      className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-amber-500/15 px-4 text-base font-medium text-amber-700 dark:text-amber-300"
+                    >
+                      <Star className="h-5 w-5" aria-hidden />
+                      {t("feedbackTodo")}
+                    </Link>
+                  )}
                   <div className="bg-card/80 space-y-1 rounded-xl border px-3 py-2 text-base backdrop-blur">
                     <p className="font-medium">
                       {key ? t(key, { pos: r.waitlistPos ?? 0 }) : r.myStatus}

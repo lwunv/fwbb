@@ -404,6 +404,26 @@ describe("ManageClient", () => {
     expect(screen.queryByText(/^Đến /)).toBeNull();
   });
 
+  it("the manage row shows Được giới thiệu", () => {
+    renderManage(
+      makeView({
+        regs: [
+          makeReg({ id: 1, name: "Có Người Giới Thiệu", referred: true }),
+          makeReg({ id: 2, name: "Chưa Ai Giới Thiệu", referred: false }),
+        ],
+      }),
+    );
+    const rows = screen.getAllByRole("listitem");
+    const row = (name: string) =>
+      rows.find((r) => within(r).queryByText(name))!;
+    expect(
+      within(row("Có Người Giới Thiệu")).getByText("Được giới thiệu"),
+    ).toBeTruthy();
+    expect(
+      within(row("Chưa Ai Giới Thiệu")).queryByText("Được giới thiệu"),
+    ).toBeNull();
+  });
+
   it("check-in toggle disabled outside the window", () => {
     const iso = (offsetMs: number) =>
       new Date(Date.now() + offsetMs).toISOString();

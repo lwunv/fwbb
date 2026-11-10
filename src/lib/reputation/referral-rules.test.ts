@@ -3,6 +3,7 @@ import {
   canRefer,
   referralBrokenAt,
   referrerBlockedUntil,
+  vnDisplayDate,
   vnMonthBounds,
 } from "./referral-rules";
 
@@ -76,5 +77,12 @@ describe("vnMonthBounds", () => {
       from: "2026-11-30T17:00:00.000Z",
       to: "2026-12-31T17:00:00.000Z",
     });
+  });
+});
+
+describe("vnDisplayDate", () => {
+  it("formats the Vietnam calendar day as dd/MM/yyyy", () => {
+    expect(vnDisplayDate("2026-12-14T20:00:00.000Z")).toBe("15/12/2026");
+    expect(vnDisplayDate("2026-12-14T16:59:59.000Z")).toBe("14/12/2026");
   });
 });

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { motion } from "framer-motion";
+import { parseAsStringLiteral, useQueryState } from "nuqs";
 import {
   ArrowLeft,
   CalendarClock,
@@ -22,6 +23,7 @@ import { ExchangePayQR } from "@/components/exchange/exchange-pay-qr";
 import { nameSeed, shortMoney } from "@/components/exchange/exchange-card";
 import { CommentSection } from "@/components/exchange/comments/comment-section";
 import { ReportSheet } from "@/components/exchange/report-sheet";
+import { FeedbackSheet } from "@/components/reputation/feedback-sheet";
 import { HostReputation } from "@/components/reputation/host-reputation";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { exchangeWhenLabel } from "@/lib/exchange/format";
@@ -63,6 +65,35 @@ const STATUS_KEY = {
 function safeHref(raw: string | null): string | null {
   if (!raw) return null;
   return /^https?:\/\//i.test(raw.trim()) ? raw.trim() : null;
+}
+
+const FEEDBACK_PARAM = parseAsStringLiteral(["1"] as const).withOptions({
+  history: "replace",
+});
+
+/**
+ * Phiếu chấm theo tham số `?feedback=1` (link trong tin nhắc chấm). Chỉ mount
+ * cho người đã được điểm danh, nên trang của khách hay người chưa đến không đọc
+ * URL và không tải phiếu. Đóng sheet thì bỏ tham số, thay URL không thêm lịch sử.
+ */
+function FeedbackParam({
+  code,
+  children,
+}: {
+  code: string;
+  children: (openRate: () => void) => React.ReactNode;
+}) {
+  const [param, setParam] = useQueryState("feedback", FEEDBACK_PARAM);
+  return (
+    <>
+      {children(() => void setParam("1"))}
+      <FeedbackSheet
+        open={param === "1"}
+        onOpenChange={(o) => void setParam(o ? "1" : null)}
+        code={code}
+      />
+    </>
+  );
 }
 
 /**
@@ -240,6 +271,17 @@ export function EventPost({
     return null;
   }
   const pay = payBlock();
+
+  const bar = (onRate?: () => void) => (
+    <MyRegistrationBar
+      event={event}
+      viewer={viewer}
+      reg={reg}
+      onChange={setReg}
+      onRegister={() => setRegisterOpen(true)}
+      onRate={onRate}
+    />
+  );
 
   const section = "bg-card/80 space-y-3 rounded-2xl border p-4 backdrop-blur";
   const chip =
@@ -512,13 +554,13 @@ export function EventPost({
         </div>
       </motion.article>
 
-      <MyRegistrationBar
-        event={event}
-        viewer={viewer}
-        reg={reg}
-        onChange={setReg}
-        onRegister={() => setRegisterOpen(true)}
-      />
+      {viewer.role === "member" && my?.checkedIn ? (
+        <FeedbackParam code={event.code}>
+          {(openRate) => bar(openRate)}
+        </FeedbackParam>
+      ) : (
+        bar()
+      )}
 
       {viewer.role === "member" && (
         <RegisterSheet
