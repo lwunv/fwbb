@@ -202,6 +202,8 @@ export interface NotificationPayloads {
     refundDue: number;
   };
   exchange_event_hidden: ExchangeEventRef;
+  /** Nhắc chấm 1 giờ sau giờ kết thúc (G2d), chỉ mã và tên buổi. */
+  exchange_rate_reminder: ExchangeEventRef;
   /** Mã đối tượng và lý do (dịch lúc hiển thị), không có tên ai. */
   exchange_reported: { targetType: string; reason: string };
   /**
@@ -313,6 +315,7 @@ export const NOTIFICATION_CATALOG: Record<NotificationKind, KindDef> = {
   exchange_fee_changed: def("member", "exchange", true, true, "now"),
   exchange_event_cancelled: def("member", "exchange", true, true, "now", true),
   exchange_event_hidden: def("member", "exchange", true, false, "now"),
+  exchange_rate_reminder: def("member", "exchange", false, true, "scheduled"),
   // Member, bình luận giao lưu (chỉ chuông, tắt được theo nhóm)
   exchange_comment_new: def("member", "exchange_comments", false, false, "now"),
   exchange_comment_reply: def(

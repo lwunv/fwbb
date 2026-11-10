@@ -39,6 +39,7 @@ import { commentTag } from "@/lib/exchange/comment-access";
 import { groupMemberIdsOf } from "@/lib/exchange/comment-group";
 import { cancelEventCore } from "@/lib/exchange/cancel";
 import { exchangeGate } from "@/lib/exchange/guards";
+import { scheduleRatingReminderAfterCommit } from "@/lib/reputation/rating-jobs";
 import { runSerial } from "@/lib/exchange/serial";
 import { notifyCommentVisible } from "@/lib/notifications/exchange-comments";
 import { notifyEventHidden } from "@/lib/notifications/exchange-events";
@@ -254,7 +255,11 @@ export async function adminSetExchangeHidden(input: unknown): Promise<Result> {
     console.error("[Exchange] admin", { action: "hide", eventId });
     return { error: t("saveFailed") };
   }
-  if ("success" in outcome) updateTag("exchange");
+  if ("success" in outcome) {
+    updateTag("exchange");
+    // Ẩn huỷ job nhắc chấm, bỏ ẩn trước giờ nhắc thì hồi sinh (G2d).
+    scheduleRatingReminderAfterCommit(eventId);
+  }
   return outcome;
 }
 
@@ -285,7 +290,11 @@ export async function adminCancelExchange(input: unknown): Promise<Result> {
     console.error("[Exchange] admin", { action: "cancel", eventId });
     return { error: t("saveFailed") };
   }
-  if ("success" in outcome) updateTag("exchange");
+  if ("success" in outcome) {
+    updateTag("exchange");
+    // Huỷ job nhắc chấm của buổi (G2d).
+    scheduleRatingReminderAfterCommit(eventId);
+  }
   return outcome;
 }
 

@@ -22,8 +22,10 @@ import { ExchangePayQR } from "@/components/exchange/exchange-pay-qr";
 import { nameSeed, shortMoney } from "@/components/exchange/exchange-card";
 import { CommentSection } from "@/components/exchange/comments/comment-section";
 import { ReportSheet } from "@/components/exchange/report-sheet";
+import { HostReputation } from "@/components/reputation/host-reputation";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import type { PublicExchangeEvent } from "@/lib/exchange/public-event";
+import type { HostLine } from "@/lib/reputation/host-line";
 import type { HeadRates } from "@/lib/exchange-fee";
 import type { Gender } from "@/lib/gender";
 import { SKILL_BADGE_CLASS } from "@/lib/skill-level";
@@ -91,10 +93,13 @@ export function EventPost({
   event,
   viewer,
   memberGender,
+  hostLine = null,
 }: {
   event: PublicExchangeEvent;
   viewer: ViewerExtras;
   memberGender: Gender | null;
+  /** Dòng uy tín host; null khi host chưa có mã hoặc hồ sơ không công khai. */
+  hostLine?: HostLine | null;
 }) {
   const t = useTranslations("exchange.event");
   const tSearch = useTranslations("exchange.search");
@@ -303,6 +308,7 @@ export function EventPost({
               </span>
             )}
           </div>
+          {hostLine && <HostReputation line={hostLine} />}
           <h1 className="text-2xl leading-snug font-bold break-words">
             {event.title}
           </h1>

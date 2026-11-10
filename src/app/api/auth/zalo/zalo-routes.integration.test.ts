@@ -635,3 +635,69 @@ describe("start → callback trọn vòng", () => {
     expect(body.get("code_verifier")).toBe(verifier);
   });
 });
+
+// --- tín hiệu mạng (G2d) ----------------------------------------------------
+
+const { ipSignalHash } = await import("@/lib/reputation/ip-signals");
+
+describe("callback ghi tín hiệu mạng đã băm", () => {
+  beforeEach(async () => {
+    await client.execute("DELETE FROM member_ip_signals");
+  });
+  afterEach(async () => {
+    await client.execute("DROP TRIGGER IF EXISTS ip_signal_boom");
+  });
+
+  const signals = async () =>
+    (
+      await client.execute(
+        "SELECT member_id, ip_hash, kind FROM member_ip_signals ORDER BY id",
+      )
+    ).rows.map((r) => ({
+      memberId: Number(r.member_id),
+      ipHash: String(r.ip_hash),
+      kind: String(r.kind),
+    }));
+
+  it("a new Zalo account records signup, a returning one records login", async () => {
+    const first = sealedState();
+    await GET(
+      callbackRequest({ code: "c", state: first.st.state }, first.cookie),
+    );
+    const again = sealedState({ state: "state-fedcba9876543210" });
+    const res = await GET(
+      callbackRequest({ code: "c", state: again.st.state }, again.cookie),
+    );
+    expect(res.status).toBe(303);
+
+    const [m] = await testDb.select({ id: members.id }).from(members);
+    expect(await signals()).toEqual([
+      { memberId: m.id, ipHash: ipSignalHash(IP), kind: "signup" },
+      { memberId: m.id, ipHash: ipSignalHash(IP), kind: "login" },
+    ]);
+    expect(JSON.stringify(await signals())).not.toContain(IP);
+  });
+
+  it("a recording failure does not fail the Zalo callback or the Google exchange login; the log has only the member id", async () => {
+    await client.execute(
+      "CREATE TRIGGER ip_signal_boom BEFORE INSERT ON member_ip_signals BEGIN SELECT RAISE(ABORT, 'boom'); END",
+    );
+    const { st, cookie } = sealedState();
+    const res = await GET(
+      callbackRequest({ code: "c", state: st.state }, cookie),
+    );
+
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe(`${ORIGIN}/exchanges/lich`);
+    expect(userCookieSets()).toHaveLength(1);
+    const [m] = await testDb.select({ id: members.id }).from(members);
+    expect(consoleError).toHaveBeenCalledWith("[DupSignal] record_failed", {
+      memberId: m.id,
+    });
+    expect(consoleError).toHaveBeenCalledTimes(1);
+    const logged = JSON.stringify(consoleError.mock.calls);
+    expect(logged).not.toContain(IP);
+    expect(logged).not.toContain("Lan Anh");
+    expect(logged).not.toContain("boom");
+  });
+});

@@ -10,7 +10,7 @@ import {
   exchangeComments,
   exchangeEvents,
 } from "@/db/schema";
-import { attendanceStats } from "@/lib/exchange/attendance";
+import { isLimitedNewAccount } from "@/lib/exchange/attendance";
 import {
   COMMENT_CHANNELS,
   COMMENT_CHANNEL_CAP,
@@ -219,9 +219,7 @@ export async function addComment(input: unknown): Promise<AddResult> {
     }
 
     if (!isHostHere) {
-      const isNew =
-        member.approvalStatus !== "approved" &&
-        (await attendanceStats(db, member.id)).checkedIn === 0;
+      const isNew = await isLimitedNewAccount(db, member, new Date());
       const day = isNew ? RL_COMMENT_DAY_NEW : RL_COMMENT_DAY;
       const rl = await checkRateLimit(
         `exchange-comment-day:${member.id}`,

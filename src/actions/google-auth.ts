@@ -20,6 +20,7 @@ import {
 import { verifyGoogleIdToken } from "@/lib/google-verify";
 import { isExchangeEnabled } from "@/lib/exchange-flag";
 import { verifyTurnstile } from "@/lib/turnstile";
+import { recordIpSignalQuietly } from "@/lib/reputation/ip-signals";
 
 /**
  * Turnstile action của widget duy nhất trên trang đăng nhập giao lưu. Route
@@ -134,6 +135,14 @@ export async function googleLogin(idToken: string, opts?: GoogleLoginOptions) {
     });
 
     await setUserCookie(existing.id, `g:${claims.sub}`);
+    // Tín hiệu nick trùng (G2d), chỉ ở trang giao lưu. Tự nuốt lỗi: đăng nhập
+    // không được hỏng vì nó.
+    if (isExchange)
+      await recordIpSignalQuietly(
+        db,
+        { memberId: existing.id, ip, kind: "login" },
+        new Date(),
+      );
     revalidatePath("/");
     if (isExchange) revalidatePath("/exchanges");
     return { success: true, memberName: existing.name };
@@ -193,6 +202,12 @@ export async function googleLogin(idToken: string, opts?: GoogleLoginOptions) {
     return created;
   });
   await setUserCookie(newMember.id, `g:${claims.sub}`);
+  if (isExchange)
+    await recordIpSignalQuietly(
+      db,
+      { memberId: newMember.id, ip, kind: "signup" },
+      new Date(),
+    );
   revalidatePath("/");
   if (isExchange) revalidatePath("/exchanges");
   return { success: true, memberName: newMember.name };

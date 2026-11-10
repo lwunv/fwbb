@@ -1,11 +1,13 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
 import {
   exchangeEvents,
   exchangeRegistrations,
   financialTransactions,
   hostBlocks,
+  memberIpSignals,
   notifications,
+  referrals,
   sessionDebts,
   venues,
   members,
@@ -378,6 +380,59 @@ describe("registerForExchange", () => {
     });
   });
 
+  it("a referred new account may register with a companion and hold a third pending registration", async () => {
+    const plus = await mkEvent({ allowPlusOnes: true });
+    const e1 = await mkEvent();
+    const e2 = await mkEvent();
+    const e3 = await mkEvent();
+    const n = await newMember({ approvalStatus: "pending" });
+    await testDb.insert(referrals).values({
+      referrerMemberId: host.id,
+      refereeMemberId: n.id,
+      createdAt: iso(-DAY),
+    });
+    asMember(n);
+    expect(
+      await registerForExchange(input(plus.publicCode, { maleCount: 2 })),
+    ).toMatchObject({ success: true });
+    for (const ev of [e1, e2, e3]) {
+      expect(await registerForExchange(input(ev.publicCode))).toMatchObject({
+        success: true,
+      });
+    }
+  });
+
+  it("after the referral breaks the account is limited again", async () => {
+    const n = await newMember({ approvalStatus: "pending" });
+    await testDb.insert(referrals).values({
+      referrerMemberId: host.id,
+      refereeMemberId: n.id,
+      createdAt: iso(-10 * DAY),
+    });
+    const past = (startOffset: number) =>
+      mkEvent({
+        startAt: iso(startOffset),
+        endAt: iso(startOffset + 2 * 3_600_000),
+        registerDeadline: iso(startOffset - DAY),
+        cancelDeadline: iso(startOffset - DAY),
+        status: "done",
+      });
+    const p1 = await past(-5 * DAY);
+    await addReg(p1.id, n.id, "no_show", 1, 0);
+    const p2 = await past(-2 * DAY);
+    const lc = await addReg(p2.id, n.id, "late_cancelled", 1, 0);
+    await testDb
+      .update(exchangeRegistrations)
+      .set({ cancelledAt: iso(-3 * DAY) })
+      .where(eq(exchangeRegistrations.id, lc.id));
+
+    const plus = await mkEvent({ allowPlusOnes: true });
+    asMember(n);
+    expect(
+      await registerForExchange(input(plus.publicCode, { maleCount: 2 })),
+    ).toEqual({ error: "cannotRegister" });
+  });
+
   it("after registerDeadline rejected (TZ=UTC)", async () => {
     const prev = process.env.TZ;
     process.env.TZ = "UTC";
@@ -690,5 +745,52 @@ describe("money", () => {
     await cancelMyRegistration({ code: ev.publicCode });
     expect((await testDb.select().from(financialTransactions)).length).toBe(f0);
     expect((await testDb.select().from(sessionDebts)).length).toBe(d0);
+  });
+});
+
+// G2d Task 13: đăng ký buổi ghi tín hiệu mạng đã băm. Mặc định không có header
+// IP (IP "unknown") nên các test ở trên không ghi gì.
+const reqHeaders = vi.hoisted(() => ({ current: new Headers() }));
+vi.mock("next/headers", () => ({
+  headers: vi.fn(async () => reqHeaders.current),
+}));
+const { ipSignalHash } = await import("@/lib/reputation/ip-signals");
+
+describe("registerForExchange ghi tín hiệu mạng (G2d)", () => {
+  const IP = "203.0.113.11";
+  beforeEach(async () => {
+    await testDb.delete(memberIpSignals);
+    reqHeaders.current = new Headers({ "x-real-ip": IP });
+  });
+  afterEach(() => {
+    reqHeaders.current = new Headers();
+  });
+
+  it("a failed Turnstile on register records nothing", async () => {
+    const ev = await mkEvent();
+    const m = await newMember();
+    asMember(m);
+    mocks.bot.mockResolvedValue({ error: "captcha" });
+    expect(await registerForExchange(input(ev.publicCode))).toEqual({
+      error: "captcha",
+    });
+    expect(await testDb.select().from(memberIpSignals)).toEqual([]);
+  });
+
+  it("a register past Turnstile and the rate limit records one register signal", async () => {
+    const ev = await mkEvent();
+    const m = await newMember();
+    asMember(m);
+    expect(await registerForExchange(input(ev.publicCode))).toMatchObject({
+      success: true,
+    });
+    const rows = await testDb.select().from(memberIpSignals);
+    expect(rows).toEqual([
+      expect.objectContaining({
+        memberId: m.id,
+        ipHash: ipSignalHash(IP),
+        kind: "register",
+      }),
+    ]);
   });
 });

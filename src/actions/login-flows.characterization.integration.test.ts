@@ -275,3 +275,87 @@ describe("signupWithPassword (hành vi hiện tại)", () => {
     expect(userMock.setUserCookie).toHaveBeenCalledWith(m.id, `pw:${m.id}`);
   });
 });
+
+// G2d Task 13: đăng nhập Google ở trang giao lưu ghi tín hiệu mạng đã băm.
+const nextHeaders = await import("next/headers");
+const { ipSignalHash } = await import("@/lib/reputation/ip-signals");
+
+describe("googleLogin giao lưu ghi tín hiệu mạng (G2d)", () => {
+  const IP = "203.0.113.9";
+  let consoleError: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(async () => {
+    await reset();
+    await client.execute("DELETE FROM member_ip_signals");
+    exchange.enabled = true;
+    exchange.verifyTurnstile.mockReset();
+    exchange.verifyTurnstile.mockResolvedValue({ ok: true });
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://fwbb.example.com");
+    vi.mocked(nextHeaders.headers).mockImplementation(
+      async () =>
+        new Headers({ "x-real-ip": IP }) as unknown as Awaited<
+          ReturnType<typeof nextHeaders.headers>
+        >,
+    );
+    consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(async () => {
+    exchange.enabled = false;
+    vi.unstubAllEnvs();
+    vi.mocked(nextHeaders.headers).mockImplementation(
+      async () =>
+        ({ get: () => null }) as unknown as Awaited<
+          ReturnType<typeof nextHeaders.headers>
+        >,
+    );
+    consoleError.mockRestore();
+    await client.execute("DROP TRIGGER IF EXISTS ip_signal_boom");
+  });
+
+  const signals = async () =>
+    (
+      await client.execute(
+        "SELECT member_id, ip_hash, kind FROM member_ip_signals ORDER BY id",
+      )
+    ).rows.map((r) => [Number(r.member_id), String(r.ip_hash), String(r.kind)]);
+  const exchangeOpts = { intent: "exchange" as const, turnstileToken: "ts" };
+
+  it("a new exchange Google account records signup, a returning one records login, a group login records nothing", async () => {
+    expect(await googleLogin(TOKEN, exchangeOpts)).toMatchObject({
+      success: true,
+    });
+    expect(await googleLogin(TOKEN, exchangeOpts)).toMatchObject({
+      success: true,
+    });
+    const [m] = await allMembers();
+    expect(await signals()).toEqual([
+      [m.id, ipSignalHash(IP), "signup"],
+      [m.id, ipSignalHash(IP), "login"],
+    ]);
+
+    await client.execute("DELETE FROM member_ip_signals");
+    expect(await googleLogin(TOKEN)).toMatchObject({ success: true });
+    exchange.enabled = false;
+    expect(await googleLogin(TOKEN, exchangeOpts)).toMatchObject({
+      success: true,
+    });
+    expect(await signals()).toEqual([]);
+  });
+
+  it("a recording failure does not fail the Zalo callback or the Google exchange login; the log has only the member id", async () => {
+    await client.execute(
+      "CREATE TRIGGER ip_signal_boom BEFORE INSERT ON member_ip_signals BEGIN SELECT RAISE(ABORT, 'boom'); END",
+    );
+    const r = await googleLogin(TOKEN, exchangeOpts);
+    expect(r).toEqual({ success: true, memberName: "Gia Lâm" });
+    const [m] = await allMembers();
+    expect(userMock.setUserCookie).toHaveBeenCalledWith(m.id, `g:${SUB}`);
+    expect(consoleError).toHaveBeenCalledWith("[DupSignal] record_failed", {
+      memberId: m.id,
+    });
+    const logged = JSON.stringify(consoleError.mock.calls);
+    expect(logged).not.toContain(IP);
+    expect(logged).not.toContain("Gia Lâm");
+    expect(logged).not.toContain("boom");
+  });
+});

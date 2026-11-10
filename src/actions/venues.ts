@@ -27,6 +27,7 @@ import { VENUE_AMENITIES, type VenueStatus } from "@/lib/venue-amenities";
 import { geocodeNominatim } from "@/lib/nominatim";
 import { getTrustedClientIp } from "@/lib/client-ip";
 import { ipRateLimitKey } from "@/lib/ip-rate-limit-key";
+import { VENUE_REVIEWS_TAG, venueReviewTag } from "@/lib/reputation/constants";
 
 /** Sân cách nhau dưới mức này coi là có thể trùng. */
 const DUPLICATE_RADIUS_M = 100;
@@ -492,6 +493,9 @@ export async function setVenueStatus(
   });
   if (!found) return { error: t("venueNotFound") };
   afterAdminVenueChange();
+  // Ẩn/hiện sân đổi cả trang đánh giá của sân lẫn trung bình chung (I10).
+  updateTag(venueReviewTag(id));
+  updateTag(VENUE_REVIEWS_TAG);
   return { success: true };
 }
 

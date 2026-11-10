@@ -102,6 +102,24 @@ describe("admin venue actions", () => {
     expect("venues" in r && r.venues).toEqual([]);
   });
 
+  it("hiding a venue refreshes its review caches and the prior", async () => {
+    await setVenueStatus(venueId, "approved");
+    cacheMock.updateTag.mockClear();
+    await setVenueStatus(venueId, "hidden");
+    expect(cacheMock.updateTag).toHaveBeenCalledWith(`vrev:v${venueId}`);
+    expect(cacheMock.updateTag).toHaveBeenCalledWith("vrev:all");
+    cacheMock.updateTag.mockClear();
+    await setVenueStatus(venueId, "approved");
+    expect(cacheMock.updateTag).toHaveBeenCalledWith(`vrev:v${venueId}`);
+    expect(cacheMock.updateTag).toHaveBeenCalledWith("vrev:all");
+  });
+
+  it("setVenueStatus với id không tồn tại không làm mới cache đánh giá", async () => {
+    cacheMock.updateTag.mockClear();
+    await setVenueStatus(999_999, "hidden");
+    expect(cacheMock.updateTag).not.toHaveBeenCalled();
+  });
+
   it("setVenueStatus với id không tồn tại → error", async () => {
     expect(await setVenueStatus(999_999, "approved")).toHaveProperty("error");
   });

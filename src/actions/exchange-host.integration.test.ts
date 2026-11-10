@@ -5,10 +5,13 @@ import {
   exchangeRegistrations,
   hostBlocks,
   notifications,
+  referrals,
+  scheduledJobs,
   venues,
   members,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { createHash } from "node:crypto";
 
 const mocks = vi.hoisted(() => ({
   flag: vi.fn(),
@@ -25,8 +28,15 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
   unstable_cache: (fn: unknown) => fn,
 }));
+// Bắt việc hẹn sau phản hồi (nhắc chấm, Task 14 G2d) để test tự chạy.
+const pendingAfter = vi.hoisted(() => [] as (() => Promise<unknown>)[]);
+vi.mock("@/lib/notifications/after", () => ({
+  runAfterResponse: (fn: () => Promise<unknown>) => {
+    pendingAfter.push(fn);
+  },
+}));
 
-const { db: testDb } = await createTestDb();
+const { db: testDb, client } = await createTestDb();
 vi.mock("@/db", () => ({ db: testDb }));
 
 const {
@@ -37,7 +47,9 @@ const {
   blockRegistrant,
   unblockMember,
   getManageView,
+  cancelExchangeEvent,
 } = await import("./exchange-host");
+const { scheduleRatingReminder } = await import("@/lib/reputation/rating-jobs");
 const { enableNotificationsForTest } =
   await import("@/lib/notifications/test-helpers");
 
@@ -447,6 +459,43 @@ describe("host actions", () => {
     expect(json).not.toMatch(/phone|email/i);
   });
 
+  it("manage rows carry referred with one extra query", async () => {
+    const ev = await mkEvent();
+    const referred = await newMember({ approvalStatus: "pending" });
+    const fresh = await newMember({ approvalStatus: "pending" });
+    const regular = await newMember();
+    for (const m of [referred, fresh, regular])
+      await addReg(ev.id, m.id, "pending");
+    await testDb.insert(referrals).values({
+      referrerMemberId: host2.id,
+      refereeMemberId: referred.id,
+      createdAt: iso(0),
+    });
+
+    const exec = vi.spyOn(client, "execute");
+    let view: Awaited<ReturnType<typeof getManageView>>;
+    try {
+      view = await getManageView(ev.publicCode);
+      const sqlOf = (a: unknown) =>
+        typeof a === "string" ? a : String((a as { sql?: string })?.sql ?? "");
+      const hits = exec.mock.calls.filter(([a]) =>
+        /"referrals"/.test(sqlOf(a)),
+      );
+      expect(hits).toHaveLength(1);
+    } finally {
+      exec.mockRestore();
+    }
+    const byName = (n: string) => view!.regs.find((r) => r.name === n)!;
+    // Nhãn "Mới" vẫn hiện cùng chip "Được giới thiệu" (quyết định 46).
+    expect(byName(referred.name)).toMatchObject({
+      referred: true,
+      isNewAccount: true,
+    });
+    expect(byName(fresh.name).referred).toBe(false);
+    expect(byName(regular.name).referred).toBe(false);
+    expect(JSON.stringify(view)).not.toContain(host2.name);
+  });
+
   it("blockRegistrant is idempotent and leaves the registration alone", async () => {
     const ev = await mkEvent();
     const m = await newMember();
@@ -532,5 +581,49 @@ describe("host actions", () => {
     expect(await testDb.select().from(notifications)).toHaveLength(0);
     expect(mocks.updateTag).not.toHaveBeenCalled();
     void mine;
+  });
+});
+
+async function flushAfter() {
+  while (pendingAfter.length > 0) await pendingAfter.shift()!();
+}
+const ratingKey = (id: number, endAt: string) =>
+  `xrate:${id}:${createHash("sha256").update(endAt).digest("hex").slice(0, 8)}`;
+const ratingRows = () =>
+  testDb
+    .select()
+    .from(scheduledJobs)
+    .where(eq(scheduledJobs.kind, "exchange_rate_reminder"));
+
+describe("cancelExchangeEvent rating reminder", () => {
+  it("host cancel cancels the rating reminder job", async () => {
+    await enableNotificationsForTest(testDb);
+    await testDb.delete(scheduledJobs);
+    pendingAfter.length = 0;
+    as(host);
+    const ev = await mkEvent();
+    await scheduleRatingReminder(testDb, ev, new Date());
+    expect((await ratingRows())[0]).toMatchObject({
+      jobKey: ratingKey(ev.id, ev.endAt),
+      status: "scheduled",
+    });
+    expect(await cancelExchangeEvent({ eventId: ev.id })).toMatchObject({
+      success: true,
+    });
+    await flushAfter();
+    const rows = await ratingRows();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe("cancelled");
+  });
+
+  it("a refused cancel schedules nothing", async () => {
+    await enableNotificationsForTest(testDb);
+    pendingAfter.length = 0;
+    as(host2);
+    const ev = await mkEvent();
+    expect(await cancelExchangeEvent({ eventId: ev.id })).toHaveProperty(
+      "error",
+    );
+    expect(pendingAfter).toHaveLength(0);
   });
 });

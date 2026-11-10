@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { runDailyNotifications } from "@/lib/notifications/daily";
 import { isNotificationsEnabled } from "@/lib/notifications/gate";
+import { pruneIpSignalsDaily } from "@/lib/reputation/ip-signals";
 
 export const maxDuration = 60;
 
@@ -24,6 +25,14 @@ export async function GET(request: NextRequest) {
   }
 
   if (!(await isNotificationsEnabled(db))) {
+    // Tín hiệu mạng vẫn phải hết hạn sau 30 ngày khi tắt thông báo (G2d,
+    // quyết định 55). Khi bật, runDailyNotifications tự dọn ở bước đầu. Lỗi
+    // dọn không đổi phản hồi `skipped`; lần chạy sau dọn tiếp.
+    try {
+      await pruneIpSignalsDaily(db, new Date());
+    } catch {
+      console.error("[DupSignal] prune_failed");
+    }
     return NextResponse.json({ skipped: "disabled" });
   }
   return NextResponse.json(await runDailyNotifications(db, new Date()));

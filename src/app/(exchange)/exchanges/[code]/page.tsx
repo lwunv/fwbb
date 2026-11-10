@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { getExchangeEvent } from "@/actions/exchange-read";
 import { getExchangeViewer } from "@/lib/member-auth";
 import { parseGender } from "@/lib/gender";
+import { toHostLine } from "@/lib/reputation/host-line";
+import { getPublicProfile } from "@/lib/reputation/profile-read";
 import { EventPost } from "./event-post";
 
 /**
@@ -22,6 +24,14 @@ export default async function ExchangeEventPage({
   ]);
   if (!data) notFound();
 
+  // Dòng uy tín host đọc qua cache hồ sơ (không truy vấn khi cache còn); host
+  // chưa có mã hồ sơ thì không đọc và không có dòng.
+  const hostCode = data.event.host.code;
+  const hostLine = toHostLine(
+    hostCode,
+    hostCode ? await getPublicProfile(hostCode) : null,
+  );
+
   const memberGender =
     viewer.status === "ok" ? parseGender(viewer.member.gender) : null;
 
@@ -30,6 +40,7 @@ export default async function ExchangeEventPage({
       event={data.event}
       viewer={data.viewer}
       memberGender={memberGender}
+      hostLine={hostLine}
     />
   );
 }
