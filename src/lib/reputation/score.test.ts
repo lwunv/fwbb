@@ -272,20 +272,53 @@ describe("summarizePeer", () => {
 });
 
 describe("summarizeHost", () => {
-  // Final review I2 (đổi quyết định, 10/11): phần trăm host nặng theo trọng số
-  // nên với ít người chấm, mỗi tổ hợp câu trả lời ra một số riêng (5/5/1 →
-  // 0/9/45/55/91/100) và host đọc ngược được người mới trả lời gì. Giờ chỉ hiện
-  // từ 5 người chấm và làm tròn xuống bậc 10%.
-  it("host percent is weighted and floored to 10%: four full-weight yes and one 1/5 no → 90 (20/21 = 95.2)", () => {
+  // Final review I2 (đổi quyết định, 10/11): phần trăm host từng nặng theo
+  // trọng số người chấm, mà trọng số gần như công khai, nên host đọc ngược được
+  // người mới trả lời gì (5/5/1 → 0/9/45/55/91/100; 5/5/5/5/1 → 90% chỉ khi
+  // người nặng 1 nói "không"). Giờ mỗi người chấm tính 1 (câu mới nhất), chỉ
+  // hiện từ 5 người chấm và làm tròn xuống bậc 10%.
+  it("host percent is unweighted and floored to 10%: four full-weight yes and one 1/5 no → 80", () => {
     const rows = [
       ...[10, 11, 12, 13].map((fromId) => host({ eventId: 1, fromId })),
       host({ eventId: 1, fromId: 14, w5: 1, asDescribed: false }),
     ];
     expect(summarizeHost(rows)).toEqual({
       raters: 5,
-      asDescribedPct: 90,
+      asDescribedPct: 80,
       feeAsPromisedPct: 100,
     });
+  });
+
+  it("weights 5/5/5/5/1: a single no gives the same output whoever said it", () => {
+    const weights = [5, 5, 5, 5, 1];
+    const outputs = new Set<string>();
+    for (let no = 0; no < weights.length; no++) {
+      const rows = weights.map((w5, i) =>
+        host({ eventId: 1, fromId: 10 + i, w5, asDescribed: i !== no }),
+      );
+      outputs.add(JSON.stringify(summarizeHost(rows)));
+    }
+    expect([...outputs]).toEqual([
+      JSON.stringify({ raters: 5, asDescribedPct: 80, feeAsPromisedPct: 100 }),
+    ]);
+  });
+
+  it("one no among N raters gives the same percent regardless of which rater (or weight) said it", () => {
+    for (const n of [5, 7, 12]) {
+      const pcts = new Set<number | null>();
+      for (let no = 0; no < n; no++) {
+        const rows = Array.from({ length: n }, (_, i) =>
+          host({
+            eventId: 1,
+            fromId: 100 + i,
+            w5: (i % 5) + 1,
+            feeAsPromised: i !== no,
+          }),
+        );
+        pcts.add(summarizeHost(rows).feeAsPromisedPct);
+      }
+      expect([...pcts]).toHaveLength(1);
+    }
   });
 
   it("floors, never rounds up: 19/20 → 90, 1/20 → 0, 2/20 → 10", () => {

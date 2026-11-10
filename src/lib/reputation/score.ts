@@ -237,7 +237,7 @@ export type HostRow = {
 };
 
 /**
- * Phần trăm có trọng số làm tròn XUỐNG bậc `HOST_PCT_STEP` (95% → 90%; 100%
+ * Phần trăm làm tròn XUỐNG bậc `HOST_PCT_STEP` (95% → 90%; 100%
  * chỉ khi mọi lượt đều "có"). Số nguyên từ đầu tới cuối.
  */
 export function flooredPercent(part: number, whole: number): number | null {
@@ -247,10 +247,14 @@ export function flooredPercent(part: number, whole: number): number | null {
 }
 
 /**
- * Phần trăm "đúng như mô tả" và "phí đúng như đã báo", có trọng số. `raters`
- * hiện từ 3 người chấm như mọi chỉ số; phần trăm chỉ hiện từ
- * `HOST_PCT_MIN_RATERS` người và theo bậc 10% để không ai suy ra được câu trả
- * lời của một người chấm (final review I2).
+ * Phần trăm "đúng như mô tả" và "phí đúng như đã báo". KHÔNG nhân trọng số:
+ * trọng số gần như công khai (số buổi đã đến), nên phần trăm có trọng số cho
+ * host đọc ngược được ai trả lời gì (5/5/5/5/1: 90% chỉ khi người nặng 1 nói
+ * "không"). Mỗi người chấm tính 1 với câu mới nhất, nên một câu "không" cho
+ * cùng một số bất kể ai nói (quyết định 9 thắng; chống nick ảo cho host đã có
+ * điểm danh mới được chấm và cờ host vòng kín). `raters` hiện từ 3 người như
+ * mọi chỉ số; phần trăm chỉ từ `HOST_PCT_MIN_RATERS` người, bậc 10% (final
+ * review I2). Lời khen người chơi, trình độ và điểm sân vẫn có trọng số.
  */
 export function summarizeHost(
   rows: HostRow[],
@@ -263,13 +267,13 @@ export function summarizeHost(
   const kept = countedRows(rows, opts);
   if (!kept)
     return { raters: null, asDescribedPct: null, feeAsPromisedPct: null };
-  let total = 0;
+  // `kept` đã là một dòng mỗi người chấm (`latestPerRater`).
+  const total = kept.length;
   let described = 0;
   let fee = 0;
   for (const r of kept) {
-    total += r.w5;
-    if (r.asDescribed) described += r.w5;
-    if (r.feeAsPromised) fee += r.w5;
+    if (r.asDescribed) described += 1;
+    if (r.feeAsPromised) fee += 1;
   }
   const shown = kept.length >= HOST_PCT_MIN_RATERS;
   return {

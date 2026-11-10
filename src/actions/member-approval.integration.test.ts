@@ -433,6 +433,23 @@ describe("approve and reject refresh reputation caches (G2d)", () => {
     );
   });
 
+  // Final review M3: banner tín hiệu nick trùng được cache và có cờ "giao
+  // lưu" (pending + exchange), nên duyệt hay từ chối phải làm mới nó.
+  it("approving or rejecting refreshes the duplicate-signal banner tag", async () => {
+    const [m] = await testDb
+      .insert(members)
+      .values({ name: "Cho duyet", approvalStatus: "pending" })
+      .returning({ id: members.id });
+    const { updateTag } = await import("next/cache");
+    for (const run of [approveMember, rejectMember]) {
+      vi.mocked(updateTag).mockClear();
+      expect(await run(m.id)).toEqual({ success: true });
+      expect(vi.mocked(updateTag).mock.calls.map((c) => c[0])).toContain(
+        "dupsig",
+      );
+    }
+  });
+
   it("a failing cache refresh after approve or reject still returns success and revalidates the pending page", async () => {
     const [m] = await testDb
       .insert(members)

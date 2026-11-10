@@ -32,10 +32,10 @@ export const MIN_RATERS_SHOWN = 3;
 /** Một buổi chỉ được cộng khi có ít nhất ngần này người chấm hợp lệ cho đúng đối tượng. */
 export const MIN_RATERS_PER_EVENT = 3;
 /**
- * Phần trăm host ("đúng mô tả", "đúng phí") nặng theo trọng số người chấm, mà
- * trọng số gần như công khai (số buổi đã đến). Với ít người chấm, mỗi tổ hợp
- * câu trả lời ra một số riêng nên host đọc ngược được ai trả lời gì. Vì vậy chỉ
- * hiện khi đủ ngần này người chấm khác nhau, và làm tròn xuống bậc `HOST_PCT_STEP`.
+ * Phần trăm host ("đúng mô tả", "đúng phí") đếm mỗi người chấm 1, không trọng
+ * số (trọng số gần như công khai, nhân vào thì host đọc ngược được ai trả lời
+ * gì). Chỉ hiện khi đủ ngần này người chấm khác nhau, làm tròn xuống bậc
+ * `HOST_PCT_STEP`.
  */
 export const HOST_PCT_MIN_RATERS = 5;
 export const HOST_PCT_STEP = 10;

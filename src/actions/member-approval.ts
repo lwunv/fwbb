@@ -369,7 +369,11 @@ export async function approveMember(memberId: number) {
   revalidatePath("/");
   // Sau commit và sau revalidatePath: làm mới cache uy tín chỉ là cố gắng
   // tốt nhất (TTL 600 giây), lỗi không được biến lần ghi thành thất bại.
-  await invalidateMemberReputationQuietly(db, [memberId], { asRater: true });
+  // `dupSignals`: banner nick trùng (cache) có cờ "giao lưu" theo trạng thái duyệt.
+  await invalidateMemberReputationQuietly(db, [memberId], {
+    asRater: true,
+    dupSignals: true,
+  });
   return { success: true };
 }
 
@@ -417,7 +421,11 @@ export async function rejectMember(memberId: number) {
   revalidatePath("/pending-approval");
   // Sau commit và sau revalidatePath: làm mới cache uy tín chỉ là cố gắng
   // tốt nhất (TTL 600 giây), lỗi không được biến lần ghi thành thất bại.
-  await invalidateMemberReputationQuietly(db, [memberId], { asRater: true });
+  // `dupSignals`: banner nick trùng (cache) có cờ "giao lưu" theo trạng thái duyệt.
+  await invalidateMemberReputationQuietly(db, [memberId], {
+    asRater: true,
+    dupSignals: true,
+  });
   return { success: true };
 }
 
