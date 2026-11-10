@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, useWatch } from "react-hook-form";
@@ -79,6 +80,7 @@ export function FeedbackSheet({
 }) {
   const t = useTranslations("exchange.reputation");
   const queryClient = useQueryClient();
+  const router = useRouter();
   const queryKey = ["exchange-feedback", code];
   const keyRef = useRef<string | null>(null);
   const [reportCode, setReportCode] = useState<string | null>(null);
@@ -110,6 +112,9 @@ export function FeedbackSheet({
   function onSaved() {
     keyRef.current = null;
     void queryClient.invalidateQueries({ queryKey });
+    // Action không revalidate trang: làm mới để huy hiệu "Chưa đánh giá" ở
+    // "Giao lưu của tôi" (và nút trên trang buổi) theo kịp. Chỉ khi đã lưu.
+    router.refresh();
     toast.success(t("feedbackSaved"));
     onOpenChange(false);
   }
@@ -220,11 +225,15 @@ function FeedbackFormView({
   const [token, setToken] = useState<string | null>(null);
   const [resetKey, setResetKey] = useState(0);
   const [sent, setSent] = useState(false);
+  // `sent` trong closure chưa đổi khi chạm lần hai trước lúc React vẽ lại;
+  // ref chặn ngay lập tức và chỉ mở lại khi action đã xong.
+  const inFlight = useRef(false);
 
   const hostAnswered = asDescribed !== null && feeAsPromised !== null;
 
   function onValid(v: FormOutput) {
-    if (sent || !token) return;
+    if (inFlight.current || sent || !token) return;
+    inFlight.current = true;
     const turnstileToken = token;
     // Token dùng một lần: lần gửi sau phải chờ Turnstile cấp token mới.
     setToken(null);
@@ -238,16 +247,20 @@ function FeedbackFormView({
       idempotencyKey: takeKey(),
       turnstileToken,
     };
+    const release = () => {
+      inFlight.current = false;
+      setResetKey((k) => k + 1);
+    };
     fireAction(
       () => submitEventFeedback(input),
       () => setSent(false),
       {
         retry: false,
         onSuccess: () => {
-          setResetKey((k) => k + 1);
+          release();
           onSaved();
         },
-        onError: () => setResetKey((k) => k + 1),
+        onError: release,
       },
     );
   }
@@ -283,7 +296,7 @@ function FeedbackFormView({
           <motion.button
             type="button"
             whileTap={{ scale: 0.98 }}
-            onClick={handleSubmit(onValid)}
+            onClick={() => void handleSubmit(onValid)()}
             disabled={sent || !token || !hostAnswered}
             className="bg-primary text-primary-foreground flex min-h-12 w-full items-center justify-center gap-2 rounded-xl text-base font-semibold disabled:opacity-50"
           >

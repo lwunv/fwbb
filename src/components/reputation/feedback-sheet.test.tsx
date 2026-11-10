@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   report: vi.fn(),
   toast: { error: vi.fn(), success: vi.fn() },
   tok: { n: 0 },
+  refresh: vi.fn(),
 }));
 vi.mock("@/actions/reputation", () => ({
   getEventFeedbackForm: mocks.form,
@@ -35,6 +36,9 @@ vi.mock("@/actions/reputation", () => ({
 }));
 vi.mock("@/actions/exchange-reports", () => ({ reportAbuse: mocks.report }));
 vi.mock("sonner", () => ({ toast: mocks.toast }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: mocks.refresh }),
+}));
 vi.mock("@/lib/use-is-mobile", () => ({ useIsMobile: () => true }));
 vi.mock("@/components/security/turnstile-widget", () => ({
   TurnstileWidget: (p: {
@@ -272,6 +276,45 @@ describe("FeedbackSheet", () => {
     token();
     expect((submitBtn() as HTMLButtonElement).disabled).toBe(false);
     expect(mocks.toast.success).not.toHaveBeenCalled();
+  });
+
+  it("a saved rating refreshes the page so the Chưa đánh giá badge goes away, a failed one does not", async () => {
+    mocks.submit
+      .mockResolvedValueOnce({ error: "Chưa lưu được đánh giá" })
+      .mockResolvedValueOnce({ success: true, data: { saved: 0 } });
+    const { onOpenChange } = renderSheet(formData());
+    await screen.findByText("An Nguyễn");
+    answerHost("Có", "Có");
+    token();
+    fireEvent.click(submitBtn());
+    await waitFor(() =>
+      expect(mocks.toast.error).toHaveBeenCalledWith("Chưa lưu được đánh giá"),
+    );
+    expect(mocks.refresh).not.toHaveBeenCalled();
+
+    token();
+    fireEvent.click(submitBtn());
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("a double tap sends the rating once", async () => {
+    let resolve!: (v: unknown) => void;
+    mocks.submit.mockReturnValueOnce(new Promise((r) => (resolve = r)));
+    renderSheet(formData());
+    await screen.findByText("An Nguyễn");
+    answerHost("Có", "Có");
+    token();
+    // Hai lần chạm trước khi React kịp vẽ lại nút "Đã gửi".
+    const btn = submitBtn();
+    fireEvent.click(btn);
+    fireEvent.click(btn);
+    await waitFor(() => expect(mocks.submit).toHaveBeenCalledTimes(1));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(mocks.submit).toHaveBeenCalledTimes(1);
+    resolve({ success: true, data: { saved: 0 } });
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(1));
+    expect(mocks.toast.error).not.toHaveBeenCalled();
   });
 
   it("reopening prefills the viewer's own answers", async () => {
