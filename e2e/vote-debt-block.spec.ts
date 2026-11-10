@@ -79,7 +79,9 @@ test.beforeAll(async () => {
     args: [EMAIL],
   });
   await c.execute({
-    sql: "UPDATE members SET password_hash=?, email=? WHERE id=?",
+    // Member mới nhất có thể là fixture của reset-password.spec (mật khẩu tạm
+    // đã hết hạn, bắt đổi mật khẩu): xoá hai cờ đó như product-tour.spec.
+    sql: "UPDATE members SET password_hash=?, email=?, must_change_password=0, password_reset_expires_at=NULL WHERE id=?",
     args: [hash, EMAIL, memberId],
   });
   await c.execute("DELETE FROM rate_limit_buckets");

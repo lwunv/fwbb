@@ -457,6 +457,10 @@ async function seedAll() {
         args: [ev[e].id, ids[from], at, at],
       });
     }
+    // Phần trăm host chỉ hiện từ HOST_PCT_MIN_RATERS (5) người chấm: thêm một
+    // buổi cũ đã đóng có đủ 3 người chấm (r1..r3 đều được điểm danh ở H1), cộng
+    // với p1..p3 ở E2 là 6 người, đều trả lời "có".
+    for (const u of ["r1", "r2", "r3"] as const) await hostAnswer("H1", u);
     // Đủ 3 người chấm ở buổi đã đóng: được cộng vào hồ sơ của p4 và host.
     for (const u of ["p1", "p2", "p3"] as const) {
       await peer("E2", u, "p4", ["on_time", "friendly"], "tb", true);
@@ -769,7 +773,7 @@ test("event page host line opens the host profile, which has no rater names", as
     .locator(`a[href="/players/${codes.host}"]`)
     .filter({ hasText: /Đã tổ chức \d+ buổi/ });
   await expect(line).toBeVisible({ timeout: 20_000 });
-  // Chỉ buổi đã đóng chấm có đủ 3 người chấm được tính.
+  // Chỉ buổi đã đóng chấm có đủ 3 người chấm được tính (E2 + H1 = 6 người).
   await expect(line).toContainText("Đúng mô tả 100%");
   await expect(line).toContainText("Đúng phí 100%");
   await line.click();

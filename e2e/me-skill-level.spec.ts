@@ -218,11 +218,15 @@ test.describe("trình độ hiện ở trang chủ", () => {
 
     // Tìm ĐÚNG dòng của member này rồi mới tìm nhãn bên trong, chứ không tìm
     // chữ "TB" trên cả trang: chữ đó ngắn và dễ trùng với thứ khác.
+    // Nhãn nằm dưới avatar của chính dòng đó (cột data-slot="vote-row-avatar"),
+    // tên là <span> của TruncatedName nên bám theo dòng chứ không theo <p>.
     const row = page
-      .locator("p", { hasText: new RegExp(memberName) })
-      .filter({ hasText: "TB" })
+      .locator('[data-slot="vote-row"]', { hasText: new RegExp(memberName) })
       .first();
     await expect(row).toBeVisible({ timeout: 20_000 });
+    await expect(
+      row.locator('[data-slot="vote-row-avatar"]', { hasText: "TB" }),
+    ).toBeVisible();
 
     // Bỏ khai thì nhãn phải biến mất, không để lại ô trống.
     const c = db();
@@ -235,13 +239,9 @@ test.describe("trình độ hiện ở trang chủ", () => {
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(chips).toHaveCount(3, { timeout: 20_000 });
     await chips.nth(2).click();
+    await expect(row).toBeVisible({ timeout: 20_000 });
     await expect(
-      page.locator("p", { hasText: new RegExp(memberName) }).first(),
-    ).toBeVisible({ timeout: 20_000 });
-    await expect(
-      page.locator("p", { hasText: new RegExp(memberName) }).filter({
-        hasText: "TB",
-      }),
+      row.locator('[data-slot="vote-row-avatar"]', { hasText: "TB" }),
     ).toHaveCount(0);
   });
 });
