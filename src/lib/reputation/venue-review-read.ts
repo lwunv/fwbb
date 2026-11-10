@@ -166,6 +166,26 @@ export async function loadVenueReviewPage(
 
 const validId = (id: number) => Number.isSafeInteger(id) && id > 0;
 
+const EMPTY_PAGE: VenueReviewPage = {
+  reviews: [],
+  hasMore: false,
+  nextOffset: null,
+};
+
+/**
+ * Ném trong hàm được cache khi sân không tồn tại hoặc không `approved`:
+ * `unstable_cache` không lưu lần ném, nên bot gọi id bừa không làm phình Data
+ * Cache bằng các mục rỗng (mỗi id × mỗi offset).
+ */
+class VenueNotListed extends Error {}
+
+async function isListedVenue(dbx: DbOrTx, venueId: number): Promise<boolean> {
+  const rows = await dbx.all<{ ok: number }>(
+    sql`SELECT 1 AS ok FROM venues WHERE id = ${venueId} AND status = 'approved'`,
+  );
+  return rows.length > 0;
+}
+
 /**
  * Điểm sân cho trang chi tiết. Cờ tắt hoặc sân không `approved` → null. Tổng
  * của sân theo tag `vrev:v{id}` (đánh giá mới xoá ngay); trung bình chung theo
@@ -177,12 +197,22 @@ export async function getVenueReviewSummary(
 ): Promise<VenueScore | null> {
   if (!(await isExchangeEnabled())) return null;
   if (!validId(venueId)) return null;
-  const sums = await unstable_cache(
-    () => loadVenueSums(db, venueId),
-    ["vrev-sum", String(venueId)],
-    { tags: [venueReviewTag(venueId)], revalidate: VENUE_REVALIDATE_S },
-  )();
-  if (!sums) return null;
+  let sums: VenueSums;
+  try {
+    sums = await unstable_cache(
+      async () => {
+        // Không có dòng = sân không tồn tại hoặc không approved: không cache.
+        const s = await loadVenueSums(db, venueId);
+        if (!s) throw new VenueNotListed();
+        return s;
+      },
+      ["vrev-sum", String(venueId)],
+      { tags: [venueReviewTag(venueId)], revalidate: VENUE_REVALIDATE_S },
+    )();
+  } catch (e) {
+    if (e instanceof VenueNotListed) return null;
+    throw e;
+  }
   // Dưới ngưỡng thì không cần trung bình chung: đỡ một lượt đọc quét bảng.
   if (sums.count < VENUE_MIN_REVIEWS) return venueScore(sums, sums);
   const prior = await unstable_cache(() => loadPriorSums(db), ["vrev-prior"], {
@@ -195,14 +225,27 @@ export async function getVenueReviewSummary(
 /**
  * Một trang đánh giá đang hiện của sân. Không kiểm cờ: người gọi (action
  * `listVenueReviews`, trang sân) kiểm trước. `offset` phải đã qua zod.
+ *
+ * Lần đọc chưa có cache kiểm sân trước (một dòng theo khoá chính): sân không
+ * tồn tại hoặc không `approved` trả trang rỗng mà không lưu cache. Lần trúng
+ * cache vẫn không đọc DB.
  */
 export async function getVenueReviewPage(
   venueId: number,
   offset: number,
 ): Promise<VenueReviewPage> {
-  return unstable_cache(
-    () => loadVenueReviewPage(db, venueId, offset),
-    ["vrev-page", String(venueId), String(offset)],
-    { tags: [venueReviewTag(venueId)], revalidate: VENUE_REVALIDATE_S },
-  )();
+  if (!validId(venueId)) return EMPTY_PAGE;
+  try {
+    return await unstable_cache(
+      async () => {
+        if (!(await isListedVenue(db, venueId))) throw new VenueNotListed();
+        return loadVenueReviewPage(db, venueId, offset);
+      },
+      ["vrev-page", String(venueId), String(offset)],
+      { tags: [venueReviewTag(venueId)], revalidate: VENUE_REVALIDATE_S },
+    )();
+  } catch (e) {
+    if (e instanceof VenueNotListed) return { ...EMPTY_PAGE };
+    throw e;
+  }
 }

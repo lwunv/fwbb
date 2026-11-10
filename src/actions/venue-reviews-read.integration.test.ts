@@ -373,6 +373,50 @@ describe("listVenueReviews", () => {
     });
   });
 
+  it("a venueId past the safe integer range is rejected before any DB read", async () => {
+    const exec = vi.spyOn(client, "execute");
+    try {
+      for (const venueId of [2 ** 53, Number.MAX_VALUE, 1.5]) {
+        expect(await listVenueReviews({ venueId, offset: 0 })).toEqual({
+          error: "invalidInput",
+        });
+      }
+      expect(exec).not.toHaveBeenCalled();
+      expect(cache.store.size).toBe(0);
+    } finally {
+      exec.mockRestore();
+    }
+  });
+
+  it("a missing, pending or hidden venue leaves no review cache entry", async () => {
+    const pending = await seedVenue("pending");
+    const hidden = await seedVenue();
+    for (let i = 0; i < 3; i++) await review(hidden);
+    await testDb
+      .update(venues)
+      .set({ status: "hidden" })
+      .where(eq(venues.id, hidden));
+    const empty = { reviews: [], hasMore: false, nextOffset: null };
+
+    for (const venueId of [987_654, pending, hidden]) {
+      for (const offset of [0, 10, 20]) {
+        expect(await listVenueReviews({ venueId, offset })).toEqual({
+          success: true,
+          data: empty,
+        });
+      }
+      expect(await getVenueReviewSummary(venueId)).toBeNull();
+    }
+    expect([...cache.store.keys()]).toEqual([]);
+
+    // Sân approved chưa có đánh giá vẫn được cache như cũ.
+    const fresh = await seedVenue();
+    expect(await page(fresh)).toEqual(empty);
+    expect([...cache.store.keys()].map((k) => JSON.parse(k)[0])).toEqual([
+      ["vrev-page", String(fresh), "0"],
+    ]);
+  });
+
   it("the last allowed page never offers a next offset past the cap", async () => {
     const v = await seedVenue();
     const r = await getVenueReviewPage(v, 490);

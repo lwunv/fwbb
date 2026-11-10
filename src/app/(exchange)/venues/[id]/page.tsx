@@ -13,6 +13,11 @@ import {
 import { getPublicVenue } from "@/actions/venues";
 import { listUpcomingAtVenue } from "@/actions/exchange-read";
 import { isExchangeEnabled } from "@/lib/exchange-flag";
+import {
+  getVenueReviewPage,
+  getVenueReviewSummary,
+} from "@/lib/reputation/venue-review-read";
+import { getUserFromCookie } from "@/lib/user-identity";
 import { directionsUrl } from "@/lib/maps-link";
 import { formatK } from "@/lib/utils";
 import { openStatus } from "@/lib/venues/open-hours";
@@ -23,14 +28,16 @@ import { AMENITY_ICONS } from "@/components/venues/amenity-icons";
 import { VenueMiniMap } from "@/components/venues/venue-mini-map";
 import { VenueOpenStatus } from "@/components/venues/venue-open-status";
 import { VenueShareButton } from "@/components/venues/venue-share-button";
+import { VenueReviewsSection } from "@/components/venues/reviews/venue-reviews-section";
 
 const ACTION =
   "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-base font-medium active:scale-95";
 const INFO_ROW = "py-3";
 
 /**
- * Trang chi tiết sân. Dữ liệu vẫn chỉ gồm sân, cờ giao lưu và các buổi sắp tới
- * như trước, không thêm truy vấn. Trạng thái mở cửa tính theo giờ Việt Nam lúc
+ * Trang chi tiết sân: sân, cờ giao lưu, các buổi sắp tới, và (cờ bật) tổng
+ * điểm cùng trang đánh giá đầu tiên, cả hai đọc qua cache theo tag của sân.
+ * Trạng thái mở cửa tính theo giờ Việt Nam lúc
  * render ở server (layout đọc cookie nên trang render theo từng request), rồi
  * `VenueOpenStatus` tự tính lại ở máy khi tab mở lại sau nhiều giờ.
  */
@@ -46,9 +53,14 @@ export default async function VenueDetailPage({
     getTranslations("venues"),
     isExchangeEnabled(),
   ]);
-  const exchanges = exchangeEnabled
-    ? await listUpcomingAtVenue(venue.id)
-    : null;
+  const [exchanges, summary, firstReviews, user] = exchangeEnabled
+    ? await Promise.all([
+        listUpcomingAtVenue(venue.id),
+        getVenueReviewSummary(venue.id),
+        getVenueReviewPage(venue.id, 0),
+        getUserFromCookie(),
+      ])
+    : [null, null, null, null];
 
   const address = venue.address?.trim() || null;
   const hours = venue.openHours?.trim() || null;
@@ -236,7 +248,7 @@ export default async function VenueDetailPage({
         </section>
       )}
 
-      {/* Chỗ của đánh giá sân (G2d): giữ id và data-section để thay ruột sau. */}
+      {/* Đánh giá sân (G2d): giữ id và data-section (link #reviews, e2e). */}
       <section
         id="reviews"
         data-section="venue-reviews"
@@ -246,10 +258,21 @@ export default async function VenueDetailPage({
         <h2 id="venue-reviews-title" className="text-lg font-semibold">
           {t("reviewsTitle")}
         </h2>
-        <p className="bg-muted/40 text-muted-foreground flex items-center gap-3 rounded-2xl border border-dashed p-4 text-base">
-          <MessageSquareText className="size-5 shrink-0" aria-hidden />
-          {t("reviewsSoon")}
-        </p>
+        {/* Tổng null (cờ tắt, hoặc sân vừa bị ẩn): giữ chỗ "sắp có" như cũ. */}
+        {summary && firstReviews ? (
+          <VenueReviewsSection
+            venueId={venue.id}
+            venueName={venue.name}
+            signedIn={user !== null}
+            summary={summary}
+            initialPage={firstReviews}
+          />
+        ) : (
+          <p className="bg-muted/40 text-muted-foreground flex items-center gap-3 rounded-2xl border border-dashed p-4 text-base">
+            <MessageSquareText className="size-5 shrink-0" aria-hidden />
+            {t("reviewsSoon")}
+          </p>
+        )}
       </section>
 
       {/* Điện thoại: thanh nút dính đáy trong tầm ngón cái, chừa vạch home. */}

@@ -2465,5 +2465,27 @@
       "no_show": "registered but did not show up",
       "other": "other reason"
     }
+  },
+  "venueReviews": {
+    "criteria": {
+      "surface": "Court surface",
+      "lighting": "Lighting",
+      "ventilation": "Ventilation",
+      "price": "Price",
+      "parking": "Parking",
+      "owner": "Owner"
+    },
+    "notEnough": "Not enough reviews yet",
+    "count": "{count, plural, one {# review} other {# reviews}}",
+    "overallAria": "Rated {score} out of 5 for {venue}",
+    "criteriaAria": "Score per criterion",
+    "playedHere": "Played here",
+    "month": "{month}/{year}",
+    "edited": "edited",
+    "report": "Report",
+    "reportVenue": "Report wrong venue info",
+    "empty": "No reviews yet.",
+    "loadMore": "Show more",
+    "loadMoreError": "Couldn't load more reviews. Please try again later."
   }
 }

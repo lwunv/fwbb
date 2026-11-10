@@ -76,6 +76,20 @@ vi.mock("@/components/venues/use-user-location", () => ({
   }),
 }));
 vi.mock("@/components/map/lazy-map-view", () => ({ LazyMapView: () => null }));
+// Trang sân (G2d) đọc điểm và trang đánh giá: không có tổng thì giữ khối "sắp có".
+vi.mock("@/lib/reputation/venue-review-read", () => ({
+  getVenueReviewSummary: vi.fn(async () => null),
+  getVenueReviewPage: vi.fn(async () => ({
+    reviews: [],
+    hasMore: false,
+    nextOffset: null,
+  })),
+}));
+vi.mock("@/lib/user-identity", () => ({
+  getUserFromCookie: vi.fn(async () => null),
+}));
+vi.mock("@/actions/venue-reviews", () => ({ listVenueReviews: vi.fn() }));
+vi.mock("@/actions/exchange-reports", () => ({ reportAbuse: vi.fn() }));
 // jsdom không có WebGL2; danh bạ ở đây là bố cục có bản đồ và ngăn kéo.
 vi.mock("@/lib/map/webgl", () => ({
   hasWebGL2: () => true,

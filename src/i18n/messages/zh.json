@@ -2465,5 +2465,27 @@
       "no_show": "报名后未到场",
       "other": "其他原因"
     }
+  },
+  "venueReviews": {
+    "criteria": {
+      "surface": "场地地面",
+      "lighting": "灯光",
+      "ventilation": "通风",
+      "price": "价格",
+      "parking": "停车",
+      "owner": "场主"
+    },
+    "notEnough": "评价数量不足",
+    "count": "{count} 条评价",
+    "overallAria": "{venue} 评分 {score}（满分 5）",
+    "criteriaAria": "各项评分",
+    "playedHere": "在此打过球",
+    "month": "{year}年{month}月",
+    "edited": "已编辑",
+    "report": "举报",
+    "reportVenue": "举报场馆信息有误",
+    "empty": "暂无评价。",
+    "loadMore": "查看更多",
+    "loadMoreError": "无法加载更多评价，请稍后再试。"
   }
 }

@@ -2465,5 +2465,27 @@
       "no_show": "đăng ký rồi không đến",
       "other": "lý do khác"
     }
+  },
+  "venueReviews": {
+    "criteria": {
+      "surface": "Mặt sân",
+      "lighting": "Ánh sáng",
+      "ventilation": "Thoáng mát",
+      "price": "Giá",
+      "parking": "Gửi xe",
+      "owner": "Chủ sân"
+    },
+    "notEnough": "Chưa đủ đánh giá",
+    "count": "{count} đánh giá",
+    "overallAria": "Điểm {score} trên 5 cho {venue}",
+    "criteriaAria": "Điểm từng tiêu chí",
+    "playedHere": "Đã chơi ở đây",
+    "month": "Tháng {month}/{year}",
+    "edited": "đã sửa",
+    "report": "Báo cáo",
+    "reportVenue": "Báo cáo thông tin sân sai",
+    "empty": "Chưa có đánh giá nào.",
+    "loadMore": "Xem thêm",
+    "loadMoreError": "Không tải thêm được đánh giá. Thử lại sau nhé."
   }
 }

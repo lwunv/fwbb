@@ -9,15 +9,23 @@ import {
   within,
 } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import viMessages from "@/i18n/messages/vi.json";
 import type { PublicVenue } from "@/lib/public-venue";
 import type { ExchangeCard } from "@/lib/exchange/public-event";
+import type { VenueScore } from "@/lib/reputation/score";
+import type { VenueReviewPage } from "@/lib/reputation/venue-review-read";
 
 const mocks = vi.hoisted(() => ({
   getPublicVenue: vi.fn(),
   listUpcomingAtVenue: vi.fn(),
   isExchangeEnabled: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn() },
+  summary: vi.fn(),
+  reviewPage: vi.fn(),
+  user: vi.fn(),
+  list: vi.fn(),
+  report: vi.fn(),
 }));
 
 vi.mock("@/actions/venues", () => ({ getPublicVenue: mocks.getPublicVenue }));
@@ -28,6 +36,25 @@ vi.mock("@/lib/exchange-flag", () => ({
   isExchangeEnabled: mocks.isExchangeEnabled,
 }));
 vi.mock("sonner", () => ({ toast: mocks.toast }));
+vi.mock("@/lib/reputation/venue-review-read", () => ({
+  getVenueReviewSummary: mocks.summary,
+  getVenueReviewPage: mocks.reviewPage,
+}));
+vi.mock("@/lib/user-identity", () => ({ getUserFromCookie: mocks.user }));
+vi.mock("@/actions/venue-reviews", () => ({ listVenueReviews: mocks.list }));
+vi.mock("@/actions/exchange-reports", () => ({ reportAbuse: mocks.report }));
+vi.mock("@/lib/use-is-mobile", () => ({ useIsMobile: () => true }));
+vi.mock("@/components/security/turnstile-widget", () => ({
+  TurnstileWidget: (p: { onToken: (t: string | null) => void }) => (
+    <button
+      type="button"
+      data-testid="turnstile"
+      onClick={() => p.onToken("tok")}
+    >
+      ts
+    </button>
+  ),
+}));
 vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("notFound");
@@ -99,10 +126,13 @@ function ev(code: string, title: string): ExchangeCard {
 async function renderPage(over: Partial<PublicVenue> = {}) {
   mocks.getPublicVenue.mockResolvedValue({ ...venue, ...over });
   const ui = await VenueDetailPage({ params: Promise.resolve({ id: "7" }) });
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <NextIntlClientProvider locale="vi" messages={viMessages}>
-      {ui}
-    </NextIntlClientProvider>,
+    <QueryClientProvider client={qc}>
+      <NextIntlClientProvider locale="vi" messages={viMessages}>
+        {ui}
+      </NextIntlClientProvider>
+    </QueryClientProvider>,
   );
 }
 
@@ -120,9 +150,47 @@ function fontSizeOf(el: HTMLElement): string | null {
 const hasClass = (el: Element, name: string) =>
   (el.getAttribute("class") ?? "").split(/\s+/).includes(name);
 
+const SCORE: VenueScore = {
+  count: 4,
+  overall: 43,
+  criteria: {
+    surface: 45,
+    lighting: 40,
+    ventilation: 38,
+    price: 42,
+    parking: 50,
+    owner: 41,
+  },
+};
+const PAGE: VenueReviewPage = {
+  reviews: [
+    {
+      id: 31,
+      scores: {
+        surface: 4,
+        lighting: 4,
+        ventilation: 4,
+        price: 4,
+        parking: 4,
+        owner: 4,
+      },
+      comment: "Sân thoáng, đèn sáng",
+      month: "2026-10",
+      edited: false,
+    },
+  ],
+  hasMore: false,
+  nextOffset: null,
+};
+
 beforeEach(() => {
   mocks.isExchangeEnabled.mockResolvedValue(true);
   mocks.listUpcomingAtVenue.mockResolvedValue([]);
+  // Mặc định không có tổng điểm: các test cũ thấy trang như trước G2d (khối
+  // "sắp có"), không đụng chữ "Gửi xe" của tiêu chí với tiện ích cùng tên.
+  mocks.summary.mockResolvedValue(null);
+  mocks.reviewPage.mockResolvedValue(PAGE);
+  mocks.user.mockResolvedValue(null);
 });
 afterEach(() => {
   cleanup();
@@ -222,7 +290,8 @@ describe("venue detail page", () => {
     }
   });
 
-  it("shows the reviews coming soon block", async () => {
+  it("shows the reviews coming soon block when the exchange flag is off", async () => {
+    mocks.isExchangeEnabled.mockResolvedValue(false);
     await renderPage();
     const block = document.querySelector('[data-section="venue-reviews"]');
     expect(block).not.toBeNull();
@@ -240,6 +309,69 @@ describe("venue detail page", () => {
     expect(
       screen.queryByRole("region", { name: "Giao lưu sắp tới" }),
     ).toBeNull();
+  });
+
+  it("flag on shows summary and reviews, flag off keeps the coming soon block", async () => {
+    mocks.summary.mockResolvedValue(SCORE);
+    await renderPage();
+    let block = document.querySelector(
+      '[data-section="venue-reviews"]',
+    ) as HTMLElement;
+    let reviews = within(block);
+    expect(reviews.getByRole("heading", { name: "Đánh giá sân" })).toBeTruthy();
+    expect(reviews.getByText("4,3")).toBeTruthy();
+    expect(reviews.getByText("4 đánh giá")).toBeTruthy();
+    expect(reviews.getByText("Sân thoáng, đèn sáng")).toBeTruthy();
+    expect(reviews.queryByText("Đánh giá sân: sắp có")).toBeNull();
+    expect(mocks.summary).toHaveBeenCalledWith(7);
+    expect(mocks.reviewPage).toHaveBeenCalledWith(7, 0);
+
+    // Sân vừa bị ẩn giữa chừng (tổng null): coi như cờ tắt.
+    cleanup();
+    mocks.summary.mockResolvedValue(null);
+    await renderPage();
+    block = document.querySelector(
+      '[data-section="venue-reviews"]',
+    ) as HTMLElement;
+    expect(within(block).getByText("Đánh giá sân: sắp có")).toBeTruthy();
+
+    cleanup();
+    vi.clearAllMocks();
+    mocks.isExchangeEnabled.mockResolvedValue(false);
+    await renderPage();
+    block = document.querySelector(
+      '[data-section="venue-reviews"]',
+    ) as HTMLElement;
+    reviews = within(block);
+    expect(reviews.getByText("Đánh giá sân: sắp có")).toBeTruthy();
+    expect(reviews.queryByText("4,3")).toBeNull();
+    expect(mocks.summary).not.toHaveBeenCalled();
+    expect(mocks.reviewPage).not.toHaveBeenCalled();
+    expect(mocks.user).not.toHaveBeenCalled();
+  });
+
+  it("signed-in viewer sees the venue report button and it sends a venue target", async () => {
+    mocks.summary.mockResolvedValue(SCORE);
+    await renderPage();
+    expect(
+      screen.queryByRole("button", { name: "Báo cáo thông tin sân sai" }),
+    ).toBeNull();
+
+    cleanup();
+    mocks.user.mockResolvedValue({ memberId: 3, externalId: "x" });
+    mocks.report.mockResolvedValue({ success: true });
+    await renderPage();
+    const btn = screen.getByRole("button", {
+      name: "Báo cáo thông tin sân sai",
+    });
+    expect(hasClass(btn, "min-h-11")).toBe(true);
+    fireEvent.click(btn);
+    fireEvent.click(await screen.findByTestId("turnstile"));
+    fireEvent.click(screen.getByRole("button", { name: "Gửi báo cáo" }));
+    await waitFor(() => expect(mocks.report).toHaveBeenCalledTimes(1));
+    expect(mocks.report.mock.calls[0][0]).toMatchObject({
+      target: { type: "venue", venueId: 7 },
+    });
   });
 
   it("exchange cards link to /exchanges/{code}", async () => {

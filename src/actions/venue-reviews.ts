@@ -411,7 +411,8 @@ export async function submitVenueReview(input: unknown): Promise<SubmitResult> {
 }
 
 const listSchema = z.object({
-  venueId: z.number().int().positive(),
+  // Số nguyên an toàn: id ngoài khoảng này không thể là sân thật.
+  venueId: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   offset: z
     .number()
     .int()
