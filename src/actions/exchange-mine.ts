@@ -1,11 +1,12 @@
 "use server";
 
-import { asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   exchangeEvents,
   exchangeRegistrations,
   hostBlocks,
+  hostFeedback,
   members,
   venues,
 } from "@/db/schema";
@@ -18,6 +19,7 @@ import {
   type NewCommentEvent,
 } from "@/lib/exchange/comment-reads";
 import type { ExchangeCard } from "@/lib/exchange/public-event";
+import { feedbackWindow, windowClosed } from "@/lib/reputation/score";
 
 const MINE_LIMIT = 50;
 
@@ -31,12 +33,19 @@ export type MyRegistration = ExchangeCard & {
   refundDue: number;
   /** Bình luận mới của người khác ở các khu mình đọc được, từ lần đọc trước. */
   newComments: number;
+  /**
+   * Phiếu chấm sau buổi: `null` khi không chấm được (không có điểm danh hợp lệ,
+   * ngoài cửa sổ 7 ngày, buổi ẩn hoặc huỷ); còn lại theo `host_feedback` của mình.
+   */
+  feedback: "todo" | "done" | null;
 };
 
 export type MyExchanges = {
   registrations: MyRegistration[];
   hosting: (ExchangeCard & { newComments: number })[];
   blocks: { id: number; name: string }[];
+  /** Mã hồ sơ công khai của chính mình (null khi chưa có). */
+  myCode: string | null;
 };
 
 /**
@@ -67,6 +76,7 @@ export async function getMyExchanges(): Promise<
       ...candidateColumns,
       cancelledAt: exchangeEvents.cancelledAt,
       depositAmount: exchangeEvents.depositAmount,
+      hiddenAt: exchangeEvents.hiddenAt,
       reg: exchangeRegistrations,
     })
     .from(exchangeRegistrations)
@@ -122,6 +132,34 @@ export async function getMyExchanges(): Promise<
     await newCommentsSince(db, me, [...events.values()], now),
   );
 
+  // Cùng điều kiện với `loadFeedbackContext`: điểm danh hợp lệ và cửa sổ còn mở
+  // (đúng mốc endAt + 7 ngày đã đóng). Một truy vấn cho mọi buổi còn chấm được.
+  const rateable = regRows
+    .filter(
+      (row) =>
+        row.reg.checkedIn &&
+        row.reg.status === "approved" &&
+        row.hiddenAt === null &&
+        row.status !== "cancelled" &&
+        feedbackWindow(row.endAt, now) === "open" &&
+        !windowClosed(row.endAt, now),
+    )
+    .map((row) => row.id);
+  const rated = new Set<number>();
+  if (rateable.length > 0) {
+    const rows = await db
+      .select({ eventId: hostFeedback.eventId })
+      .from(hostFeedback)
+      .where(
+        and(
+          eq(hostFeedback.fromMemberId, me),
+          inArray(hostFeedback.eventId, rateable),
+        ),
+      );
+    for (const r of rows) rated.add(r.eventId);
+  }
+  const rateableSet = new Set(rateable);
+
   const registrations = regRows.map((row, i): MyRegistration => {
     const s = registrationSettlement(row.reg, row.depositAmount, row.status);
     return {
@@ -133,6 +171,11 @@ export async function getMyExchanges(): Promise<
       remaining: s.remaining,
       refundDue: s.refundDue,
       newComments: newComments.get(row.id) ?? 0,
+      feedback: rateableSet.has(row.id)
+        ? rated.has(row.id)
+          ? "done"
+          : "todo"
+        : null,
     };
   });
 
@@ -143,5 +186,6 @@ export async function getMyExchanges(): Promise<
       newComments: newComments.get(hostRows[i].id) ?? 0,
     })),
     blocks: blockRows,
+    myCode: auth.member.publicCode ?? null,
   };
 }

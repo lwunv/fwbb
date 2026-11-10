@@ -268,4 +268,60 @@ describe("MyExchanges", () => {
     expect(badges[0].getAttribute("href")).toBe("/exchanges/r1#comments");
     expect(badges[1].getAttribute("href")).toBe("/exchanges/h1#comments");
   });
+
+  it("my exchanges shows Chưa đánh giá only for todo and the profile link when myCode is set", () => {
+    const reg = (code: string, feedback: "todo" | "done" | null) => ({
+      ...baseCard,
+      code,
+      status: "done",
+      myStatus: "approved",
+      feeAmount: null,
+      paid: false,
+      waitlistPos: null,
+      remaining: 0,
+      refundDue: 0,
+      newComments: 0,
+      feedback,
+    });
+    render(
+      withIntl(
+        <MyExchanges
+          registrations={
+            [
+              reg("todo1", "todo"),
+              reg("done1", "done"),
+              reg("none1", null),
+            ] as never
+          }
+          hosting={[]}
+          blocks={[]}
+          myCode="mycode0001"
+        />,
+      ),
+    );
+    const todo = screen.getAllByRole("link", { name: /Chưa đánh giá/ });
+    expect(todo).toHaveLength(1);
+    expect(todo[0].getAttribute("href")).toBe("/exchanges/todo1?feedback=1");
+    expect(
+      screen
+        .getByRole("link", { name: "Hồ sơ công khai của bạn" })
+        .getAttribute("href"),
+    ).toBe("/players/mycode0001");
+    cleanup();
+
+    render(
+      withIntl(
+        <MyExchanges
+          registrations={[reg("done1", "done")] as never}
+          hosting={[]}
+          blocks={[]}
+          myCode={null}
+        />,
+      ),
+    );
+    expect(screen.queryByRole("link", { name: /Chưa đánh giá/ })).toBeNull();
+    expect(
+      screen.queryByRole("link", { name: "Hồ sơ công khai của bạn" }),
+    ).toBeNull();
+  });
 });

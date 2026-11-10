@@ -56,6 +56,8 @@ export type ViewerExtras = {
     waitlistPos: number | null;
     remaining: number;
     refundDue: number;
+    /** Cờ điểm danh của chính đăng ký này (từ dòng đã đọc, không truy vấn thêm). */
+    checkedIn: boolean;
   } | null;
   skillWarning: "below" | "above" | null;
   hostContact: string | null;
@@ -304,6 +306,7 @@ export async function getExchangeEvent(
       waitlistPos: reg.waitlistPos ?? null,
       remaining: s.remaining,
       refundDue: s.refundDue,
+      checkedIn: reg.checkedIn,
     };
   }
 

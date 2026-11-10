@@ -7,6 +7,7 @@ import {
   exchangeEvents,
   exchangeRegistrations,
   hostBlocks,
+  hostFeedback,
   members,
   venues,
 } from "@/db/schema";
@@ -91,6 +92,7 @@ async function seedReg(
 }
 
 beforeEach(async () => {
+  await testDb.delete(hostFeedback);
   await testDb.delete(exchangeCommentReads);
   await testDb.delete(exchangeComments);
   await testDb.delete(hostBlocks);
@@ -312,5 +314,116 @@ describe("getMyExchanges: new comments", () => {
     expect(comments).toHaveLength(2);
     // Mốc đọc phải là cận dưới thật của index, không chỉ lọc sau khi đọc cả khu.
     for (const d of comments) expect(d).toContain("created_at>?");
+  });
+});
+
+describe("getMyExchanges: feedback", () => {
+  const H = 3_600_000;
+  const iso = (ms: number) => new Date(ms).toISOString();
+
+  async function ended(
+    agoMs: number,
+    o: Partial<typeof exchangeEvents.$inferInsert> = {},
+  ) {
+    const end = Date.now() - agoMs;
+    return seedEvent({
+      startAt: iso(end - 2 * H),
+      endAt: iso(end),
+      registerDeadline: iso(end - 3 * H),
+      cancelDeadline: iso(end - 3 * H),
+      status: "done",
+      ...o,
+    });
+  }
+
+  it("getMyExchanges marks todo and done with one extra query and null for a hidden event", async () => {
+    const todo = await ended(H);
+    const done = await ended(2 * H);
+    const hidden = await ended(H, { hiddenAt: iso(Date.now()) });
+    const cancelled = await ended(H, {
+      status: "cancelled",
+      cancelledAt: iso(Date.now() - 3 * H),
+    });
+    const tooOld = await ended(8 * 24 * H);
+    const future = await seedEvent();
+    const notCheckedIn = await ended(H);
+    const mergeCancelled = await ended(H);
+    await seedReg(todo.id, me.id, { checkedIn: true });
+    await seedReg(done.id, me.id, { checkedIn: true });
+    await seedReg(hidden.id, me.id, { checkedIn: true });
+    await seedReg(cancelled.id, me.id, { checkedIn: true });
+    await seedReg(tooOld.id, me.id, { checkedIn: true });
+    await seedReg(future.id, me.id, { checkedIn: true });
+    await seedReg(notCheckedIn.id, me.id);
+    await seedReg(mergeCancelled.id, me.id, {
+      checkedIn: true,
+      status: "cancelled",
+    });
+    await testDb.insert(hostFeedback).values({
+      eventId: done.id,
+      fromMemberId: me.id,
+      asDescribed: true,
+      feeAsPromised: true,
+      raterWeight: 1,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    // Phiếu của người khác ở buổi `todo` không làm mình thành "done".
+    await testDb.insert(hostFeedback).values({
+      eventId: todo.id,
+      fromMemberId: other.id,
+      asDescribed: true,
+      feeAsPromised: true,
+      raterWeight: 1,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+
+    const exec = vi.spyOn(client, "execute");
+    let r: Awaited<ReturnType<typeof getMyExchanges>>;
+    try {
+      r = await getMyExchanges();
+      const fbQueries = exec.mock.calls.filter((c) =>
+        JSON.stringify(c).includes("host_feedback"),
+      );
+      expect(fbQueries).toHaveLength(1);
+    } finally {
+      exec.mockRestore();
+    }
+    if ("error" in r) throw new Error(r.error);
+    const by = new Map(r.registrations.map((x) => [x.code, x.feedback]));
+    expect(by.get(todo.publicCode)).toBe("todo");
+    expect(by.get(done.publicCode)).toBe("done");
+    expect(by.get(hidden.publicCode)).toBeNull();
+    expect(by.get(cancelled.publicCode)).toBeNull();
+    expect(by.get(tooOld.publicCode)).toBeNull();
+    expect(by.get(future.publicCode)).toBeNull();
+    expect(by.get(notCheckedIn.publicCode)).toBeNull();
+    expect(by.get(mergeCancelled.publicCode)).toBeNull();
+    expect(r.myCode).toBeNull();
+  });
+
+  it("nothing to rate means no host_feedback query, and myCode is the viewer's public code", async () => {
+    const ev = await ended(H);
+    await seedReg(ev.id, me.id);
+    mocks.auth.mockResolvedValue({
+      user: { memberId: me.id, externalId: "x" },
+      member: { ...me, publicCode: "mycode0001" },
+    });
+    const exec = vi.spyOn(client, "execute");
+    let r: Awaited<ReturnType<typeof getMyExchanges>>;
+    try {
+      r = await getMyExchanges();
+      expect(
+        exec.mock.calls.filter((c) =>
+          JSON.stringify(c).includes("host_feedback"),
+        ),
+      ).toHaveLength(0);
+    } finally {
+      exec.mockRestore();
+    }
+    if ("error" in r) throw new Error(r.error);
+    expect(r.registrations[0].feedback).toBeNull();
+    expect(r.myCode).toBe("mycode0001");
   });
 });

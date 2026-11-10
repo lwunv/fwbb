@@ -9,6 +9,7 @@ import type { ViewerExtras } from "@/actions/exchange-read";
 import { ConfirmSheet } from "@/components/exchange/confirm-sheet";
 import type { PublicExchangeEvent } from "@/lib/exchange/public-event";
 import { fireAction } from "@/lib/optimistic-action";
+import { canRate, windowClosed } from "@/lib/reputation/score";
 
 /** Trạng thái đăng ký đang hiển thị (đã gồm bước lạc quan "sending"). */
 export type RegState = { status: string; waitlistPos: number | null };
@@ -19,7 +20,8 @@ const ACTIVE = ["pending", "approved", "waitlist"];
  * Thanh dính đáy: một nút chính theo vai trò và trạng thái. Hủy trước hạn đi
  * thẳng; người đã duyệt huỷ sau hạn thì hỏi lại vì vẫn bị tính phí (cùng quy
  * tắc với server, xét lúc bấm). Hủy là lạc quan: đổi ngay, lỗi thì hoàn lại
- * và `fireAction` hiện toast.
+ * và `fireAction` hiện toast. Người được điểm danh, trong 7 ngày sau giờ kết
+ * thúc, có nút chính "Đánh giá buổi này" (khi cha truyền `onRate`).
  */
 export function MyRegistrationBar({
   event,
@@ -27,14 +29,18 @@ export function MyRegistrationBar({
   reg,
   onChange,
   onRegister,
+  onRate,
 }: {
   event: PublicExchangeEvent;
   viewer: ViewerExtras;
   reg: RegState | null;
   onChange: (next: RegState | null) => void;
   onRegister: () => void;
+  /** Mở phiếu chấm; không truyền thì không có nút chấm. */
+  onRate?: () => void;
 }) {
   const t = useTranslations("exchange.event");
+  const tRep = useTranslations("exchange.reputation");
   const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
   // Chụp giờ một lần lúc mount: chỉ để ẩn nút đăng ký, server mới là nơi chặn.
@@ -46,6 +52,19 @@ export function MyRegistrationBar({
       reg?.status === "approved" &&
       Date.now() > new Date(event.cancelDeadline).getTime()
     );
+  }
+
+  /**
+   * Cùng điều kiện với server: điểm danh hợp lệ, buổi không ẩn, không huỷ, cửa
+   * sổ còn mở (đúng mốc endAt + 7 ngày server đã coi là đóng). Xét theo giờ lúc mount.
+   */
+  function rateable(): boolean {
+    const at = new Date(now);
+    const my =
+      reg?.status === "approved" && viewer.myRegistration
+        ? { checkedIn: viewer.myRegistration.checkedIn }
+        : null;
+    return canRate(event, my, at) && !windowClosed(event.endAt, at);
   }
 
   function cancel() {
@@ -88,6 +107,12 @@ export function MyRegistrationBar({
       >
         {t("loginCta")}
       </Link>
+    );
+  } else if (onRate && rateable()) {
+    body = (
+      <button type="button" onClick={onRate} className={primary}>
+        {tRep("feedbackRate")}
+      </button>
     );
   } else if (reg?.status === "sending") {
     body = (

@@ -80,6 +80,7 @@ export function makeReg(
     waitlistPos: null,
     remaining: 0,
     refundDue: 0,
+    checkedIn: false,
     ...over,
   };
 }

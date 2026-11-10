@@ -162,3 +162,79 @@ describe("MyRegistrationBar states", () => {
     expect(screen.queryByText(/Danh sách chờ/)).toBeNull();
   });
 });
+
+describe("MyRegistrationBar rating", () => {
+  const END = Date.parse("2030-01-15T14:00:00.000Z");
+  const DAY = 86_400_000;
+  afterEach(() => vi.useRealTimers());
+
+  function renderAt(
+    nowMs: number,
+    o: {
+      checkedIn?: boolean;
+      status?: string;
+      event?: Parameters<typeof makeEvent>[0];
+      onRate?: () => void;
+    } = {},
+  ) {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(nowMs);
+    const status = o.status ?? "approved";
+    render(
+      <NextIntlClientProvider locale="vi" messages={viMessages}>
+        <MyRegistrationBar
+          event={makeEvent({ status: "done", ...o.event })}
+          viewer={makeViewer({
+            role: "member",
+            myRegistration: makeReg({ status, checkedIn: o.checkedIn ?? true }),
+          })}
+          reg={{ status, waitlistPos: null }}
+          onChange={() => {}}
+          onRegister={() => {}}
+          onRate={"onRate" in o ? o.onRate : vi.fn()}
+        />
+      </NextIntlClientProvider>,
+    );
+    const btn = screen.queryByRole("button", { name: "Đánh giá buổi này" });
+    cleanup();
+    vi.useRealTimers();
+    return btn;
+  }
+
+  it("the bar shows Đánh giá buổi này only from endAt to endAt plus 7 days for a checked-in registrant, never on a hidden or cancelled event", () => {
+    expect(renderAt(END - 1)).toBeNull();
+    expect(renderAt(END)).not.toBeNull();
+    expect(renderAt(END + 3 * DAY)).not.toBeNull();
+    // Đúng mốc endAt + 7 ngày server đã coi là đóng (windowClosed).
+    expect(renderAt(END + 7 * DAY - 1)).not.toBeNull();
+    expect(renderAt(END + 7 * DAY)).toBeNull();
+    expect(renderAt(END + DAY, { checkedIn: false })).toBeNull();
+    expect(renderAt(END + DAY, { status: "cancelled" })).toBeNull();
+    expect(renderAt(END + DAY, { event: { hidden: true } })).toBeNull();
+    expect(renderAt(END + DAY, { event: { status: "cancelled" } })).toBeNull();
+    expect(renderAt(END + DAY, { onRate: undefined })).toBeNull();
+  });
+
+  it("tapping Đánh giá buổi này calls onRate", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(END + DAY);
+    const onRate = vi.fn();
+    render(
+      <NextIntlClientProvider locale="vi" messages={viMessages}>
+        <MyRegistrationBar
+          event={makeEvent({ status: "done" })}
+          viewer={makeViewer({
+            role: "member",
+            myRegistration: makeReg({ checkedIn: true }),
+          })}
+          reg={approved}
+          onChange={() => {}}
+          onRegister={() => {}}
+          onRate={onRate}
+        />
+      </NextIntlClientProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Đánh giá buổi này" }));
+    expect(onRate).toHaveBeenCalledTimes(1);
+  });
+});

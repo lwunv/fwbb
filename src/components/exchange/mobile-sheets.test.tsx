@@ -50,6 +50,11 @@ vi.mock("@/actions/exchange-registrations", () => ({
   cancelMyRegistration: vi.fn(async () => ({ success: true })),
 }));
 vi.mock("@/actions/exchange-reports", () => ({ reportAbuse: vi.fn() }));
+// EventPost kéo theo phiếu chấm (Task 18); action thật cần DB.
+vi.mock("@/actions/reputation", () => ({
+  getEventFeedbackForm: vi.fn(),
+  submitEventFeedback: vi.fn(),
+}));
 vi.mock("@/actions/exchange-host", () => ({
   increaseSlots: vi.fn(),
   lockExchangeFees: vi.fn(),

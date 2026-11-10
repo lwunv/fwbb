@@ -8,6 +8,8 @@ import {
   CalendarSearch,
   MessageCircle,
   Settings2,
+  Star,
+  UserRound,
   UserRoundX,
 } from "lucide-react";
 import { unblockMember } from "@/actions/exchange-host";
@@ -60,13 +62,15 @@ const STATUS_KEY: Record<string, StatusKey> = {
 /**
  * Nội dung "Giao lưu của tôi": buổi đã đăng ký (kèm trạng thái và tiền còn
  * thiếu hoặc cần hoàn, lấy từ server), buổi mình mở, và người đã chặn. Bỏ chặn
- * là lạc quan: gỡ dòng ngay, lỗi thì trả lại và báo.
+ * là lạc quan: gỡ dòng ngay, lỗi thì trả lại và báo. Buổi còn chưa chấm có
+ * huy hiệu "Chưa đánh giá" mở thẳng phiếu chấm.
  */
 export function MyExchanges({
   registrations,
   hosting,
   blocks: initialBlocks,
-}: MyExchangesData) {
+  myCode = null,
+}: Omit<MyExchangesData, "myCode"> & { myCode?: string | null }) {
   const t = useTranslations("exchange.mine");
   const [blocks, setBlocks] = useState(initialBlocks);
 
@@ -81,6 +85,16 @@ export function MyExchanges({
 
   return (
     <div className="space-y-8">
+      {myCode && (
+        <Link
+          href={`/players/${myCode}`}
+          className="bg-card/80 hover:bg-accent flex min-h-11 w-full items-center gap-2 rounded-xl border px-4 text-base font-medium backdrop-blur sm:w-auto"
+        >
+          <UserRound className="h-5 w-5 shrink-0" aria-hidden />
+          {t("myProfile")}
+        </Link>
+      )}
+
       <section className="space-y-3" aria-labelledby="mine-regs">
         <h2 id="mine-regs" className="text-lg font-semibold">
           {t("registrationsTitle")}
@@ -107,6 +121,15 @@ export function MyExchanges({
                 <div key={r.code} className="space-y-2">
                   <ExchangeCard event={r} />
                   <NewCommentsBadge code={r.code} count={r.newComments} />
+                  {r.feedback === "todo" && (
+                    <Link
+                      href={`/exchanges/${r.code}?feedback=1`}
+                      className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-amber-500/15 px-4 text-base font-medium text-amber-700 dark:text-amber-300"
+                    >
+                      <Star className="h-5 w-5" aria-hidden />
+                      {t("feedbackTodo")}
+                    </Link>
+                  )}
                   <div className="bg-card/80 space-y-1 rounded-xl border px-3 py-2 text-base backdrop-blur">
                     <p className="font-medium">
                       {key ? t(key, { pos: r.waitlistPos ?? 0 }) : r.myStatus}

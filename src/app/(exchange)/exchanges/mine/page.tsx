@@ -58,6 +58,7 @@ export default async function MyExchangesPage() {
           registrations={data.registrations}
           hosting={data.hosting}
           blocks={data.blocks}
+          myCode={data.myCode}
         />
       )}
 

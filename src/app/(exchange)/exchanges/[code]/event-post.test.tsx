@@ -6,8 +6,16 @@
  * 3. Phí đã chốt cao hơn số đã hiện thì nói đúng một câu, không nêu lý do.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import {
+  render,
+  screen,
+  cleanup,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { NuqsTestingAdapter, type UrlUpdateEvent } from "nuqs/adapters/testing";
 import viMessages from "@/i18n/messages/vi.json";
 import { getVietQRUrl } from "@/lib/vietqr";
 import { makeEvent, makeReg, makeViewer } from "./fixtures";
@@ -32,6 +40,11 @@ vi.mock("@/components/exchange/comments/comment-section", () => ({
 }));
 vi.mock("@/components/security/turnstile-widget", () => ({
   TurnstileWidget: () => <div data-testid="turnstile" />,
+}));
+const feedback = vi.hoisted(() => ({ form: vi.fn() }));
+vi.mock("@/actions/reputation", () => ({
+  getEventFeedbackForm: feedback.form,
+  submitEventFeedback: vi.fn(),
 }));
 
 const { EventPost } = await import("./event-post");
@@ -234,5 +247,79 @@ describe("EventPost", () => {
     const { container } = renderPost({ hostLine: null });
     expect(container.querySelector('a[href^="/players/"]')).toBeNull();
     expect(screen.queryByText("Host mới")).toBeNull();
+  });
+});
+
+describe("EventPost rating", () => {
+  const END = Date.parse("2030-01-15T14:00:00.000Z");
+  afterEach(() => vi.useRealTimers());
+
+  function renderRating(search: string, onUrlUpdate = vi.fn()) {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(END + 86_400_000);
+    feedback.form.mockReset();
+    feedback.form.mockResolvedValue({
+      success: true,
+      data: {
+        state: "open",
+        closesAt: "2030-01-22T14:00:00.000Z",
+        host: {
+          name: "Minh Host",
+          avatarUrl: null,
+          avatarKey: null,
+          code: null,
+        },
+        hostAnswer: null,
+        peers: [],
+      },
+    });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NuqsTestingAdapter searchParams={search} onUrlUpdate={onUrlUpdate}>
+          <NextIntlClientProvider locale="vi" messages={viMessages}>
+            <EventPost
+              event={makeEvent({ status: "done" })}
+              viewer={makeViewer({
+                role: "member",
+                myRegistration: makeReg({ checkedIn: true }),
+              })}
+              memberGender={null}
+            />
+          </NextIntlClientProvider>
+        </NuqsTestingAdapter>
+      </QueryClientProvider>,
+    );
+    return onUrlUpdate;
+  }
+
+  it("?feedback=1 opens the sheet", async () => {
+    const onUrlUpdate = renderRating("?feedback=1");
+    expect(
+      await screen.findByText("Trả lời 2 câu về host để gửi"),
+    ).toBeTruthy();
+    expect(feedback.form).toHaveBeenCalledWith("ABCD1234");
+    // Đóng sheet thì bỏ tham số, thay URL chứ không thêm lịch sử.
+    fireEvent.keyDown(document.activeElement ?? document.body, {
+      key: "Escape",
+    });
+    await waitFor(() => expect(onUrlUpdate).toHaveBeenCalled());
+    const last = onUrlUpdate.mock.calls.at(-1)![0] as UrlUpdateEvent;
+    expect(last.searchParams.get("feedback")).toBeNull();
+    expect(last.options.history).toBe("replace");
+  });
+
+  it("the rate button opens the sheet and sets feedback=1", async () => {
+    const onUrlUpdate = renderRating("");
+    expect(feedback.form).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Đánh giá buổi này" }));
+    await waitFor(() => expect(onUrlUpdate).toHaveBeenCalled());
+    const last = onUrlUpdate.mock.calls.at(-1)![0] as UrlUpdateEvent;
+    expect(last.queryString).toBe("?feedback=1");
+    expect(
+      await screen.findByText("Trả lời 2 câu về host để gửi"),
+    ).toBeTruthy();
   });
 });
