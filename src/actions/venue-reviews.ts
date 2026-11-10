@@ -333,7 +333,13 @@ export async function submitVenueReview(input: unknown): Promise<SubmitResult> {
         let status: VenueReviewStatus = "visible";
         let holdReason: ReviewHoldReason | null = null;
         const text = f.comment ? checkReviewText(f.comment) : null;
-        if (text?.hold) {
+        if (old?.status === "held" && old.holdReason === "anomaly") {
+          // Xét trước nội dung: nếu lý do đổi sang "contact"/"banned" thì một
+          // lần sửa sạch sau đó sẽ hiện được, tức rửa được cờ bất thường. Admin
+          // vẫn đọc nội dung khi duyệt nên giữ nguyên "anomaly".
+          status = "held";
+          holdReason = "anomaly";
+        } else if (text?.hold) {
           status = "held";
           holdReason = text.reason;
         } else if (!old) {
@@ -341,10 +347,6 @@ export async function submitVenueReview(input: unknown): Promise<SubmitResult> {
             status = "held";
             holdReason = "anomaly";
           }
-        } else if (old.status === "held" && old.holdReason === "anomaly") {
-          // Sửa chỉ kiểm nội dung; đang chờ vì bất thường thì vẫn chờ admin.
-          status = "held";
-          holdReason = "anomaly";
         }
 
         const values = {

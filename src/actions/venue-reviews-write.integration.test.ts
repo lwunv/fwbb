@@ -442,18 +442,25 @@ describe("submitVenueReview: writes", () => {
   it("the fifth new review in 24 hours is held for anomaly, an edit is not", async () => {
     const venue = await newVenue();
     const early: Member[] = [];
-    for (let i = 0; i < 4; i += 1) {
+    for (let i = 0; i < 3; i += 1) {
       const m = await player(venue, 5);
       early.push(m);
       await seedReview(venue, m, { createdAt: iso(NOW - (i + 1) * HOUR) });
     }
-    // Dòng bị ẩn và dòng quá 24 giờ không tính.
+    // Dòng bị ẩn và dòng quá 24 giờ không tính: nếu tính một trong hai thì
+    // lượt gửi thứ tư dưới đây đã thành thứ năm và bị giữ.
     await seedReview(venue, await player(venue, 5), {
       createdAt: iso(NOW - 2 * HOUR),
       status: "hidden",
     });
     await seedReview(venue, await player(venue, 5), {
       createdAt: iso(NOW - DAY - MIN),
+    });
+
+    const fourth = await player(venue, 5);
+    expect(await submitAs(fourth, venue.id)).toMatchObject({
+      success: true,
+      data: { status: "visible" },
     });
 
     const fifth = await player(venue, 5);
@@ -702,6 +709,50 @@ describe("submitVenueReview: writes", () => {
     ).toMatchObject({ data: { status: "held" } });
     row = await rowOf(venue.id, anomalyBy.id);
     expect(row).toMatchObject({ status: "held", holdReason: "anomaly" });
+  });
+
+  it("a review held for anomaly stays held through an edit with a phone and a clean edit after it", async () => {
+    const venue = await newVenue();
+    for (let i = 0; i < 4; i += 1)
+      await seedReview(venue, await player(venue, 5), {
+        createdAt: iso(NOW - (i + 1) * HOUR),
+      });
+    const by = await player(venue, 5);
+    expect(await submitAs(by, venue.id)).toMatchObject({
+      data: { status: "held" },
+    });
+    const held = { status: "held", holdReason: "anomaly" };
+    expect(await rowOf(venue.id, by.id)).toMatchObject(held);
+
+    // Gửi lại trong 1 phút (nhánh hai tab, không thành lần sửa).
+    vi.setSystemTime(NOW + 10_000);
+    expect(
+      await submitAs(by, venue.id, { comment: "goi 0912 345 678" }),
+    ).toMatchObject({ data: { status: "held" } });
+    expect(await rowOf(venue.id, by.id)).toMatchObject({
+      ...held,
+      editedAt: null,
+    });
+    vi.setSystemTime(NOW + 20_000);
+    expect(await submitAs(by, venue.id, { comment: "Sân tốt" })).toMatchObject({
+      data: { status: "held" },
+    });
+    expect(await rowOf(venue.id, by.id)).toMatchObject({
+      ...held,
+      comment: "Sân tốt",
+    });
+
+    // Qua hai lần sửa cách nhau 30 ngày cũng vậy.
+    vi.setSystemTime(NOW + 31 * DAY);
+    expect(
+      await submitAs(by, venue.id, { comment: "zalo.me/x" }),
+    ).toMatchObject({ data: { status: "held" } });
+    expect(await rowOf(venue.id, by.id)).toMatchObject(held);
+    vi.setSystemTime(NOW + 62 * DAY);
+    expect(await submitAs(by, venue.id, { comment: "Sân ổn" })).toMatchObject({
+      data: { status: "held" },
+    });
+    expect(await rowOf(venue.id, by.id)).toMatchObject(held);
   });
 
   it("updateTag gets vrev:v{id} only", async () => {
