@@ -1139,6 +1139,7 @@
       "reviewNotEligible": "只有在这个场馆打过球的人才能评价。",
       "reviewEditTooSoon": "你最近修改过评价，{date} 起可以再次修改。",
       "reviewHidden": "这条评价已被隐藏，无法修改。",
+      "reviewNotFound": "这条评价已不存在。",
       "reviewSaveFailed": "场馆评价未能保存，请重试。"
     },
     "search": {
@@ -2435,6 +2436,8 @@
       "member": "一位成员",
       "event": "一场交流活动",
       "comment": "一条评论",
+      "review": "一条场馆评价",
+      "venue": "一个场馆",
       "other": "一项内容"
     },
     "reportReasons": {

@@ -1139,6 +1139,7 @@
       "reviewNotEligible": "Chỉ người đã chơi ở sân này mới đánh giá được.",
       "reviewEditTooSoon": "Bạn đã sửa đánh giá gần đây. Bạn có thể sửa lại từ ngày {date}.",
       "reviewHidden": "Đánh giá này đang bị ẩn nên không sửa được.",
+      "reviewNotFound": "Đánh giá này không còn hiển thị.",
       "reviewSaveFailed": "Chưa lưu được đánh giá sân. Vui lòng thử lại."
     },
     "search": {
@@ -2435,6 +2436,8 @@
       "member": "một thành viên",
       "event": "một buổi giao lưu",
       "comment": "một bình luận",
+      "review": "một đánh giá sân",
+      "venue": "một sân",
       "other": "một nội dung"
     },
     "reportReasons": {

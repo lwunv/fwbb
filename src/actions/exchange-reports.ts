@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, exists, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { updateTag } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { z } from "zod";
@@ -11,6 +11,8 @@ import {
   exchangeEvents,
   exchangeRegistrations,
   members,
+  venueReviews,
+  venues,
 } from "@/db/schema";
 import { requireExchangeMember } from "@/lib/member-auth";
 import {
@@ -28,9 +30,16 @@ import { checkBotAndRate, exchangeGate } from "@/lib/exchange/guards";
 import { runSerial } from "@/lib/exchange/serial";
 import { notifyReported } from "@/lib/notifications/exchange-events";
 import { isNotificationsEnabled } from "@/lib/notifications/notify";
+import {
+  REVIEW_REPORT_HIDE_THRESHOLD,
+  venueReviewTag,
+} from "@/lib/reputation/constants";
+import { establishedMemberSql } from "@/lib/reputation/eligibility";
+import { syncReviewReportCount } from "@/lib/reputation/review-reports";
 
 // Chỉ export action tự kiểm quyền: người báo luôn lấy từ cookie phiên, và
-// client không bao giờ gửi member id. Server tự dịch target ra (member|event, id).
+// client không bao giờ gửi member id. Server tự dịch target ra
+// (member|event|comment|review|venue, id); người chơi chỉ được nêu bằng mã hồ sơ.
 
 type ReportResult = { success: true } | { error: string };
 
@@ -45,6 +54,19 @@ const reportSchema = z.object({
     z.object({
       type: z.literal("comment"),
       commentId: z.number().int().positive(),
+    }),
+    z.object({
+      type: z.literal("player"),
+      // Mã hồ sơ do `newPublicCode` sinh, luôn đủ 10 ký tự.
+      code: z.string().length(10),
+    }),
+    z.object({
+      type: z.literal("venue"),
+      venueId: z.number().int().positive(),
+    }),
+    z.object({
+      type: z.literal("review"),
+      reviewId: z.number().int().positive(),
     }),
   ]),
   reason: z.enum(REPORT_REASONS),
@@ -79,6 +101,7 @@ export async function reportAbuse(input: unknown): Promise<ReportResult> {
   // Chỉ gán khi UPDATE có dòng trả về: báo đồng thời chỉ ẩn, ghi log, làm mới cache một lần.
   let hiddenEventId: number | null = null;
   let hiddenCommentId = 0;
+  let hiddenReview: { reviewId: number; venueId: number } | null = null;
 
   try {
     const result = await runSerial(() =>
@@ -89,11 +112,66 @@ export async function reportAbuse(input: unknown): Promise<ReportResult> {
           eventId: number;
           authorIsHost: boolean;
         } | null = null;
+        let reviewCtx: { reviewId: number; venueId: number } | null = null;
 
         let targetType: ReportTargetType;
         let targetId: number;
 
-        if (f.target.type === "comment") {
+        if (f.target.type === "player") {
+          // Khoá hay bị từ chối thì hồ sơ không còn công khai: cùng lỗi với mã sai.
+          const [m] = await tx
+            .select({
+              id: members.id,
+              isActive: members.isActive,
+              approvalStatus: members.approvalStatus,
+            })
+            .from(members)
+            .where(eq(members.publicCode, f.target.code))
+            .limit(1);
+          if (!m || !m.isActive || m.approvalStatus === "rejected")
+            return { error: t("notFound") };
+          if (m.id === member.id) return { error: t("cannotReport") };
+          targetType = "member";
+          targetId = m.id;
+        } else if (f.target.type === "venue") {
+          // Sân bị báo không tự ẩn (quyết định 31): chỉ ghi để admin xem.
+          const [v] = await tx
+            .select({ id: venues.id })
+            .from(venues)
+            .where(
+              and(
+                eq(venues.id, f.target.venueId),
+                eq(venues.status, "approved"),
+              ),
+            )
+            .limit(1);
+          if (!v) return { error: t("reviewVenueNotFound") };
+          targetType = "venue";
+          targetId = v.id;
+        } else if (f.target.type === "review") {
+          // Chỉ đánh giá khách đang thấy được: `visible` ở sân `approved`.
+          const [r] = await tx
+            .select({
+              id: venueReviews.id,
+              venueId: venueReviews.venueId,
+              memberId: venueReviews.memberId,
+            })
+            .from(venueReviews)
+            .innerJoin(venues, eq(venues.id, venueReviews.venueId))
+            .where(
+              and(
+                eq(venueReviews.id, f.target.reviewId),
+                eq(venueReviews.status, "visible"),
+                eq(venues.status, "approved"),
+              ),
+            )
+            .limit(1);
+          if (!r) return { error: t("reviewNotFound") };
+          if (r.memberId === member.id) return { error: t("cannotReport") };
+          targetType = "review";
+          targetId = r.id;
+          reviewCtx = { reviewId: r.id, venueId: r.venueId };
+        } else if (f.target.type === "comment") {
           // Cùng quyền đọc với người xem: bình luận không thấy được thì coi như không có.
           const found = await loadCommentWithContext(
             tx,
@@ -202,17 +280,7 @@ export async function reportAbuse(input: unknown): Promise<ReportResult> {
                 eq(abuseReports.targetType, "comment"),
                 eq(abuseReports.targetId, commentCtx.commentId),
                 eq(abuseReports.status, "open"),
-                sql`(${members.approvalStatus} = 'approved' OR ${exists(
-                  tx
-                    .select({ one: sql`1` })
-                    .from(exchangeRegistrations)
-                    .where(
-                      and(
-                        eq(exchangeRegistrations.memberId, members.id),
-                        eq(exchangeRegistrations.checkedIn, true),
-                      ),
-                    ),
-                )})`,
+                establishedMemberSql(members.id, members.approvalStatus),
               ),
             );
           if (Number(n) >= COMMENT_REPORT_HIDE_THRESHOLD) {
@@ -232,6 +300,25 @@ export async function reportAbuse(input: unknown): Promise<ReportResult> {
             }
           }
         }
+
+        // Đánh giá sân: đếm lại từ nguồn rồi mới xét ngưỡng; `WHERE status =
+        // 'visible'` để báo đồng thời chỉ ẩn một lần.
+        if (row && reviewCtx) {
+          const n = await syncReviewReportCount(tx, reviewCtx.reviewId);
+          if (n >= REVIEW_REPORT_HIDE_THRESHOLD) {
+            const hidden = await tx
+              .update(venueReviews)
+              .set({ status: "hidden" })
+              .where(
+                and(
+                  eq(venueReviews.id, reviewCtx.reviewId),
+                  eq(venueReviews.status, "visible"),
+                ),
+              )
+              .returning({ id: venueReviews.id });
+            if (hidden.length > 0) hiddenReview = reviewCtx;
+          }
+        }
         return { success: true };
       }),
     );
@@ -240,6 +327,13 @@ export async function reportAbuse(input: unknown): Promise<ReportResult> {
         commentId: hiddenCommentId,
       });
       updateTag(commentTag(hiddenEventId));
+    }
+    const review = hiddenReview as { reviewId: number; venueId: number } | null;
+    if (review) {
+      console.error("[Reputation] review_hidden", {
+        reviewId: review.reviewId,
+      });
+      updateTag(venueReviewTag(review.venueId));
     }
     return result;
   } catch {

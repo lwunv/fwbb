@@ -21,6 +21,7 @@ import {
   exchangeEvents,
   exchangeRegistrations,
   members,
+  venueReviews,
   venues,
 } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
@@ -42,6 +43,7 @@ import { runSerial } from "@/lib/exchange/serial";
 import { notifyCommentVisible } from "@/lib/notifications/exchange-comments";
 import { notifyEventHidden } from "@/lib/notifications/exchange-events";
 import { isNotificationsEnabled } from "@/lib/notifications/notify";
+import { syncReviewReportCount } from "@/lib/reputation/review-reports";
 
 // Mọi export là endpoint POST nên mỗi hàm tự kiểm: cờ, rồi admin từ cookie
 // phiên (không bao giờ nhận từ input), rồi zod. Danh sách chỉ có tên, mã buổi,
@@ -69,12 +71,16 @@ export type AdminExchangeRow = {
 export type AdminReportRow = {
   id: number;
   targetType: ReportTargetType;
-  /** Tên buổi (target event, comment) hoặc tên member (target member). */
+  /** Tên buổi (target event, comment), tên member (target member) hoặc tên sân (target review, venue). */
   targetName: string;
   /** Mã buổi để dẫn link /exchanges/{code}; `null` khi đối tượng là member. */
   eventCode: string | null;
   /** 120 ký tự đầu của bình luận bị báo (cả khi đã xoá); null với target khác. */
   commentExcerpt: string | null;
+  /** Id sân để dẫn link khi target là review hoặc venue; null với target khác. */
+  venueId: number | null;
+  /** 120 ký tự đầu của nhận xét đánh giá sân bị báo; null với target khác hoặc khi không có nhận xét. */
+  reviewExcerpt: string | null;
   reason: ReportReason;
   note: string | null;
   status: ReportStatus;
@@ -316,7 +322,13 @@ export async function adminListReports(
   const commentIds = reports
     .filter((r) => r.targetType === "comment")
     .map((r) => r.targetId);
-  const [evs, mems, comments] = await Promise.all([
+  const reviewIds = reports
+    .filter((r) => r.targetType === "review")
+    .map((r) => r.targetId);
+  const venueIds = reports
+    .filter((r) => r.targetType === "venue")
+    .map((r) => r.targetId);
+  const [evs, mems, comments, reviews, vens] = await Promise.all([
     eventIds.length
       ? db
           .select({
@@ -349,7 +361,28 @@ export async function adminListReports(
           )
           .where(inArray(exchangeComments.id, commentIds))
       : [],
+    // Đánh giá sân ở mọi trạng thái (kể cả đã ẩn): admin cần thấy cái bị báo.
+    reviewIds.length
+      ? db
+          .select({
+            id: venueReviews.id,
+            venueId: venueReviews.venueId,
+            comment: venueReviews.comment,
+            venueName: venues.name,
+          })
+          .from(venueReviews)
+          .innerJoin(venues, eq(venues.id, venueReviews.venueId))
+          .where(inArray(venueReviews.id, reviewIds))
+      : [],
+    venueIds.length
+      ? db
+          .select({ id: venues.id, name: venues.name })
+          .from(venues)
+          .where(inArray(venues.id, venueIds))
+      : [],
   ]);
+  const reviewById = new Map(reviews.map((r) => [r.id, r]));
+  const venueById = new Map(vens.map((v) => [v.id, v.name]));
   const commentById = new Map(comments.map((c) => [c.id, c]));
   const evById = new Map(evs.map((e) => [e.id, e]));
   const memById = new Map(mems.map((m) => [m.id, m.name]));
@@ -364,6 +397,29 @@ export async function adminListReports(
           targetName: c?.title ?? "",
           eventCode: c?.code ?? null,
           commentExcerpt: c ? c.body.slice(0, COMMENT_EXCERPT_LEN) : null,
+          venueId: null,
+          reviewExcerpt: null,
+        };
+      }
+      if (r.targetType === "review") {
+        const rv = reviewById.get(targetId);
+        return {
+          ...r,
+          targetName: rv?.venueName ?? "",
+          eventCode: null,
+          commentExcerpt: null,
+          venueId: rv?.venueId ?? null,
+          reviewExcerpt: rv?.comment?.slice(0, COMMENT_EXCERPT_LEN) ?? null,
+        };
+      }
+      if (r.targetType === "venue") {
+        return {
+          ...r,
+          targetName: venueById.get(targetId) ?? "",
+          eventCode: null,
+          commentExcerpt: null,
+          venueId: targetId,
+          reviewExcerpt: null,
         };
       }
       const ev = r.targetType === "event" ? evById.get(targetId) : undefined;
@@ -375,6 +431,8 @@ export async function adminListReports(
             : (memById.get(targetId) ?? ""),
         eventCode: ev?.code ?? null,
         commentExcerpt: null,
+        venueId: null,
+        reviewExcerpt: null,
       };
     }),
   };
@@ -384,13 +442,31 @@ export async function adminResolveReport(input: unknown): Promise<Result> {
   const g = await guard(resolveSchema, input);
   if ("error" in g) return g;
   const t = await getTranslations("exchange.errors");
-  const updated = await db
-    .update(abuseReports)
-    .set({ status: g.data.status, resolvedAt: new Date().toISOString() })
-    .where(eq(abuseReports.id, g.data.reportId))
-    .returning({ id: abuseReports.id });
-  if (updated.length === 0) return { error: t("notFound") };
-  return { success: true };
+  const { reportId, status } = g.data;
+  try {
+    return await runSerial(() =>
+      db.transaction(async (tx): Promise<Result> => {
+        const [updated] = await tx
+          .update(abuseReports)
+          .set({ status, resolvedAt: new Date().toISOString() })
+          .where(eq(abuseReports.id, reportId))
+          .returning({
+            targetType: abuseReports.targetType,
+            targetId: abuseReports.targetId,
+          });
+        if (!updated) return { error: t("notFound") };
+        // Đóng báo cáo ở tab Báo cáo chỉ hạ số đếm (quyết định 29); đánh giá
+        // đang ẩn vẫn ẩn, bỏ ẩn chỉ ở tab Uy tín. Số đếm không có trong payload
+        // công khai nên không cần làm mới cache sân.
+        if (updated.targetType === "review")
+          await syncReviewReportCount(tx, updated.targetId);
+        return { success: true };
+      }),
+    );
+  } catch {
+    console.error("[Exchange] resolve_report_failed", { reportId });
+    return { error: t("saveFailed") };
+  }
 }
 
 export async function adminListComments(

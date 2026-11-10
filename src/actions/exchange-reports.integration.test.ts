@@ -9,6 +9,7 @@ import {
   exchangeEvents,
   exchangeRegistrations,
   notifications,
+  venueReviews,
   venues,
   members,
 } from "@/db/schema";
@@ -468,5 +469,225 @@ describe("reportAbuse on comments", () => {
     await reportComment(c.id);
     expect((await statusOf(c.id)).s).toBe("visible");
     expect(await allReports()).toHaveLength(5);
+  });
+});
+
+describe("reportAbuse on players, venues and reviews", () => {
+  let codeN = 0;
+  const profileCode = () => `pc${String(++codeN).padStart(8, "0")}`;
+  async function mkVenue(status: "pending" | "approved" | "hidden") {
+    const [v] = await testDb
+      .insert(venues)
+      .values({ name: `San ${status}`, lat: 10, lng: 106, status })
+      .returning();
+    return v;
+  }
+  async function seedReview(
+    venueId: number,
+    memberId: number,
+    over: Partial<typeof venueReviews.$inferInsert> = {},
+  ) {
+    const [r] = await testDb
+      .insert(venueReviews)
+      .values({
+        venueId,
+        memberId,
+        scoreSurface: 4,
+        scoreLighting: 4,
+        scoreVentilation: 4,
+        scorePrice: 4,
+        scoreParking: 4,
+        scoreOwner: 4,
+        comment: "san tot",
+        raterWeight: 5,
+        createdAt: iso(-DAY),
+        updatedAt: iso(-DAY),
+        ...over,
+      })
+      .returning();
+    return r;
+  }
+  const reviewOf = async (id: number) =>
+    (
+      await testDb
+        .select({ s: venueReviews.status, n: venueReviews.reportCount })
+        .from(venueReviews)
+        .where(eq(venueReviews.id, id))
+    )[0];
+  const reportReview = (reviewId: number) =>
+    reportAbuse(rep({ type: "review", reviewId }));
+  const hideLogs = (log: { mock: { calls: unknown[][] } }) =>
+    log.mock.calls.filter((c) => c[0] === "[Reputation] review_hidden");
+
+  beforeEach(async () => {
+    await testDb.delete(venueReviews);
+  });
+
+  it("player report by profile code maps to the member server-side; self, locked or unknown code rejected", async () => {
+    const target = await newMember({
+      approvalStatus: "pending",
+      publicCode: profileCode(),
+    });
+    const me = await newMember({ publicCode: profileCode() });
+    asMember(me);
+    expect(
+      await reportAbuse(rep({ type: "player", code: target.publicCode })),
+    ).toEqual({ success: true });
+    const [row] = await allReports();
+    expect(row).toMatchObject({
+      targetType: "member",
+      targetId: target.id,
+      reporterMemberId: me.id,
+    });
+    expect(await reportNotices()).toHaveLength(1);
+
+    expect(
+      await reportAbuse(rep({ type: "player", code: me.publicCode })),
+    ).toEqual({ error: "cannotReport" });
+    const locked = await newMember({
+      isActive: false,
+      publicCode: profileCode(),
+    });
+    const rejected = await newMember({
+      approvalStatus: "rejected",
+      publicCode: profileCode(),
+    });
+    for (const code of [locked.publicCode, rejected.publicCode, "zzzzzzzzzz"])
+      expect(await reportAbuse(rep({ type: "player", code }))).toEqual({
+        error: "notFound",
+      });
+    expect(await reportAbuse(rep({ type: "player", code: "short" }))).toEqual({
+      error: "invalidInput",
+    });
+    expect(
+      await reportAbuse(rep({ type: "player", memberId: target.id })),
+    ).toEqual({ error: "invalidInput" });
+    expect(await allReports()).toHaveLength(1);
+  });
+
+  it("venue report needs an approved venue", async () => {
+    asMember(await newMember());
+    const ok = await mkVenue("approved");
+    expect(await reportAbuse(rep({ type: "venue", venueId: ok.id }))).toEqual({
+      success: true,
+    });
+    const [row] = await allReports();
+    expect(row).toMatchObject({ targetType: "venue", targetId: ok.id });
+    const pending = await mkVenue("pending");
+    const hidden = await mkVenue("hidden");
+    for (const venueId of [pending.id, hidden.id, 999999])
+      expect(await reportAbuse(rep({ type: "venue", venueId }))).toEqual({
+        error: "reviewVenueNotFound",
+      });
+    expect(await allReports()).toHaveLength(1);
+
+    // Sân không bao giờ tự ẩn, kể cả khi nhiều người đã quen cùng báo.
+    for (let i = 0; i < 3; i++) {
+      asMember(await newMember());
+      await reportAbuse(rep({ type: "venue", venueId: ok.id }));
+    }
+    const [v] = await testDb
+      .select({ status: venues.status })
+      .from(venues)
+      .where(eq(venues.id, ok.id));
+    expect(v.status).toBe("approved");
+    expect(mocks.updateTag).not.toHaveBeenCalled();
+  });
+
+  it("third report by established members hides the review and sets report_count to 3", async () => {
+    const v = await mkVenue("approved");
+    const r = await seedReview(v.id, (await newMember()).id);
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      for (let i = 0; i < 3; i++) {
+        asMember(await newMember());
+        expect(await reportReview(r.id)).toEqual({ success: true });
+        expect(await reviewOf(r.id)).toEqual({
+          s: i < 2 ? "visible" : "hidden",
+          n: i + 1,
+        });
+      }
+      expect(hideLogs(log)).toEqual([
+        ["[Reputation] review_hidden", { reviewId: r.id }],
+      ]);
+      expect(mocks.updateTag).toHaveBeenCalledWith(`vrev:v${v.id}`);
+      const rows = await allReports();
+      expect(rows.every((x) => x.targetType === "review")).toBe(true);
+      expect(await reportNotices()).toHaveLength(3);
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("three concurrent reports hide it once (one log, one updateTag)", async () => {
+    const v = await mkVenue("approved");
+    const r = await seedReview(v.id, (await newMember()).id);
+    const reporters = [await newMember(), await newMember(), await newMember()];
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      let n = 0;
+      mocks.auth.mockImplementation(async () => {
+        const m = reporters[n++ % 3];
+        return { user: { memberId: m.id, externalId: "x" }, member: m };
+      });
+      await Promise.all([
+        reportReview(r.id),
+        reportReview(r.id),
+        reportReview(r.id),
+      ]);
+      expect(await reviewOf(r.id)).toEqual({ s: "hidden", n: 3 });
+      expect(hideLogs(log)).toHaveLength(1);
+      expect(
+        mocks.updateTag.mock.calls.filter((a) => a[0] === `vrev:v${v.id}`),
+      ).toHaveLength(1);
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("reports by new accounts are kept but do not hide it", async () => {
+    const v = await mkVenue("approved");
+    const r = await seedReview(v.id, (await newMember()).id);
+    for (let i = 0; i < 3; i++) {
+      asMember(await newMember({ approvalStatus: "pending" }));
+      expect(await reportReview(r.id)).toEqual({ success: true });
+    }
+    expect(await reviewOf(r.id)).toEqual({ s: "visible", n: 0 });
+    expect(
+      (await allReports()).filter(
+        (x) => x.targetType === "review" && x.status === "open",
+      ),
+    ).toHaveLength(3);
+    expect(mocks.updateTag).not.toHaveBeenCalled();
+
+    // Một người báo hai lần chỉ được tính một.
+    asMember(await newMember());
+    await reportReview(r.id);
+    await reportReview(r.id);
+    expect(await reviewOf(r.id)).toEqual({ s: "visible", n: 1 });
+  });
+
+  it("own, held or hidden review cannot be reported", async () => {
+    const v = await mkVenue("approved");
+    const author = await newMember();
+    const own = await seedReview(v.id, author.id);
+    asMember(author);
+    expect(await reportReview(own.id)).toEqual({ error: "cannotReport" });
+
+    const held = await seedReview(v.id, (await newMember()).id, {
+      status: "held",
+      holdReason: "contact",
+    });
+    const hidden = await seedReview(v.id, (await newMember()).id, {
+      status: "hidden",
+    });
+    const atHiddenVenue = await seedReview(
+      (await mkVenue("hidden")).id,
+      (await newMember()).id,
+    );
+    asMember(await newMember());
+    for (const id of [held.id, hidden.id, atHiddenVenue.id, 999999])
+      expect(await reportReview(id)).toEqual({ error: "reviewNotFound" });
+    expect(await allReports()).toHaveLength(0);
   });
 });
