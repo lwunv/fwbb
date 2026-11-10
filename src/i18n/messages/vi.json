@@ -1140,7 +1140,14 @@
       "reviewEditTooSoon": "Bạn đã sửa đánh giá gần đây. Bạn có thể sửa lại từ ngày {date}.",
       "reviewHidden": "Đánh giá này đang bị ẩn nên không sửa được.",
       "reviewNotFound": "Đánh giá này không còn hiển thị.",
-      "reviewSaveFailed": "Chưa lưu được đánh giá sân. Vui lòng thử lại."
+      "reviewSaveFailed": "Chưa lưu được đánh giá sân. Vui lòng thử lại.",
+      "referralNotEligible": "Bạn cần đã đến ít nhất 3 buổi và có tỉ lệ đến từ 80% mới giới thiệu được.",
+      "referralQuota": "Bạn đã giới thiệu đủ {max} người trong tháng này.",
+      "referralBlocked": "Bạn tạm không giới thiệu được tới {date}.",
+      "referralTargetInvalid": "Không giới thiệu được tài khoản này. Chỉ giới thiệu được tài khoản mới chưa được điểm danh buổi nào.",
+      "referralTaken": "Tài khoản này đã được người khác giới thiệu.",
+      "referralSaveFailed": "Chưa lưu được lời giới thiệu. Vui lòng thử lại.",
+      "profileCodeFailed": "Chưa tạo được link hồ sơ. Vui lòng thử lại."
     },
     "search": {
       "viewSwitch": "Chế độ xem",
@@ -2078,7 +2085,6 @@
     "linkedDirectory": "Danh bạ:",
     "notLinked": "Chưa nối",
     "directions": "Chỉ đường",
-    "directionsTo": "Chỉ đường tới {name}",
     "pageTitle": "Sân quanh đây",
     "radius": "Bán kính",
     "radiusValue": "{km} km",
@@ -2425,6 +2431,10 @@
       "venue_review_held": {
         "title": "Có đánh giá sân chờ duyệt",
         "body": "Sân {venueName} có đánh giá đang chờ bạn duyệt."
+      },
+      "exchange_rate_reminder": {
+        "title": "Chấm buổi giao lưu vừa chơi",
+        "body": "Buổi \"{eventTitle}\" đã xong. Bạn chấm người chơi cùng và host trong 7 ngày nhé."
       }
     },
     "unsubscribe": {

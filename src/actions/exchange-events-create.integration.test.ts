@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
-import { venues, exchangeEvents, members } from "@/db/schema";
+import { createHash } from "node:crypto";
+import { venues, exchangeEvents, members, scheduledJobs } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 const mocks = vi.hoisted(() => ({
@@ -20,6 +21,13 @@ vi.mock("next/cache", () => ({
 vi.mock("@/lib/exchange/guards", async (orig) => ({
   ...(await orig<typeof import("@/lib/exchange/guards")>()),
   checkBotAndRate: mocks.bot,
+}));
+// Bắt việc hẹn sau phản hồi (nhắc chấm, Task 14 G2d) để test tự chạy.
+const pendingAfter = vi.hoisted(() => [] as (() => Promise<unknown>)[]);
+vi.mock("@/lib/notifications/after", () => ({
+  runAfterResponse: (fn: () => Promise<unknown>) => {
+    pendingAfter.push(fn);
+  },
 }));
 
 const { db: testDb } = await createTestDb();
@@ -396,5 +404,46 @@ describe("updateExchangeEvent", () => {
       await updateExchangeEvent({ eventId: 1, title: "Tên mới cho buổi" }),
     ).toEqual({ error: "notFound" });
     expect(mocks.auth).not.toHaveBeenCalled();
+  });
+});
+
+async function flushAfter() {
+  while (pendingAfter.length > 0) await pendingAfter.shift()!();
+}
+const ratingKey = (id: number, endAt: string) =>
+  `xrate:${id}:${createHash("sha256").update(endAt).digest("hex").slice(0, 8)}`;
+const ratingRows = () =>
+  testDb
+    .select()
+    .from(scheduledJobs)
+    .where(eq(scheduledJobs.kind, "exchange_rate_reminder"));
+
+describe("createExchangeEvent rating reminder", () => {
+  it("creating an event schedules one reminder at endAt plus 1 hour with the fingerprint", async () => {
+    const { enableNotificationsForTest } =
+      await import("@/lib/notifications/test-helpers");
+    await enableNotificationsForTest(testDb);
+    await testDb.delete(scheduledJobs);
+    pendingAfter.length = 0;
+    try {
+      const f = form();
+      expect(await createExchangeEvent(f)).toMatchObject({ success: true });
+      // Gửi lại cùng khoá: vẫn chỉ một job.
+      expect(await createExchangeEvent(f)).toMatchObject({ success: true });
+      await flushAfter();
+      const [ev] = await testDb.select().from(exchangeEvents);
+      const rows = await ratingRows();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        jobKey: ratingKey(ev.id, ev.endAt),
+        runAt: new Date(Date.parse(ev.endAt) + 3_600_000).toISOString(),
+        status: "scheduled",
+        messageId: null,
+      });
+    } finally {
+      await testDb.delete(scheduledJobs);
+      const { appSettings } = await import("@/db/schema");
+      await testDb.delete(appSettings);
+    }
   });
 });

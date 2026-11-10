@@ -68,9 +68,12 @@ describe("catalog", () => {
   });
 
   it("catalog: every exchange kind has vi/en/zh title and body", () => {
-    // Tin bình luận có test riêng bên dưới.
+    // Tin bình luận và nhắc chấm (G2d) có test riêng bên dưới.
     const exchange = NOTIFICATION_KINDS.filter(
-      (k) => k.startsWith("exchange_") && !k.startsWith("exchange_comment_"),
+      (k) =>
+        k.startsWith("exchange_") &&
+        !k.startsWith("exchange_comment_") &&
+        k !== "exchange_rate_reminder",
     );
     expect(exchange).toHaveLength(11);
     for (const bundle of [vi, en, zh]) {
@@ -245,6 +248,31 @@ describe("catalog venue reviews", () => {
       email: false,
       level: "now",
       quietHoursBypassSameDay: false,
+    });
+  });
+});
+
+describe("catalog rating reminder", () => {
+  it("catalog: exchange_rate_reminder has vi/en/zh title and body", () => {
+    expect(NOTIFICATION_CATALOG.exchange_rate_reminder).toEqual({
+      audience: "member",
+      group: "exchange",
+      mandatory: false,
+      email: true,
+      level: "scheduled",
+      quietHoursBypassSameDay: false,
+    });
+    for (const bundle of [vi, en, zh]) {
+      const kinds = (bundle as unknown as Bundle).notifications.kinds;
+      const k = kinds.exchange_rate_reminder;
+      expect(k?.title).toBeTruthy();
+      expect(k?.body).toContain("{eventTitle}");
+      expect(`${k?.title ?? ""}${k?.body ?? ""}`).not.toMatch(/[\u2013\u2014]/);
+    }
+    const viKinds = (vi as unknown as Bundle).notifications.kinds;
+    expect(viKinds.exchange_rate_reminder).toEqual({
+      title: "Chấm buổi giao lưu vừa chơi",
+      body: 'Buổi "{eventTitle}" đã xong. Bạn chấm người chơi cùng và host trong 7 ngày nhé.',
     });
   });
 });

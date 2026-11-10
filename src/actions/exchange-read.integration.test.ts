@@ -4,6 +4,7 @@ import {
   exchangeEvents,
   exchangeRegistrations,
   members,
+  referrals,
   venues,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -393,6 +394,23 @@ describe("getExchangeEvent", () => {
     expect(r?.viewer.skillWarning).toBe("below");
     expect(r?.viewer.isNewAccount).toBe(true);
     asViewer(alice);
+    expect((await getExchangeEvent(e.publicCode))?.viewer.isNewAccount).toBe(
+      false,
+    );
+  });
+
+  it("viewer.isNewAccount is false for a referred account", async () => {
+    const e = await seedEvent();
+    const fresh = await seedMember("Fresh", { approvalStatus: "pending" });
+    asViewer(fresh);
+    expect((await getExchangeEvent(e.publicCode))?.viewer.isNewAccount).toBe(
+      true,
+    );
+    await testDb.insert(referrals).values({
+      referrerMemberId: alice.id,
+      refereeMemberId: fresh.id,
+      createdAt: NOW,
+    });
     expect((await getExchangeEvent(e.publicCode))?.viewer.isNewAccount).toBe(
       false,
     );

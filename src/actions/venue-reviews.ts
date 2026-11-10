@@ -20,6 +20,8 @@ import {
   REVIEW_DOUBLE_SUBMIT_MS,
   REVIEW_EDIT_COOLDOWN_DAYS,
   REVIEW_LOW_REP_BELOW,
+  REVIEW_MAX_OFFSET,
+  REVIEW_PAGE_SIZE,
   RL_REVIEW,
   TS_REVIEW,
   VENUE_CRITERIA,
@@ -37,6 +39,10 @@ import {
   normalizeReviewComment,
 } from "@/lib/reputation/review-text";
 import { isReviewAnomalous, vnMonth } from "@/lib/reputation/score";
+import {
+  getVenueReviewPage,
+  type VenueReviewPage,
+} from "@/lib/reputation/venue-review-read";
 
 // Chỉ export action tự kiểm quyền: người viết luôn lấy từ cookie phiên, input
 // không có memberId. Ghi xong chỉ làm mới tag của đúng sân này; trung bình chung
@@ -402,4 +408,32 @@ export async function submitVenueReview(input: unknown): Promise<SubmitResult> {
 
   if ("success" in result) updateTag(venueReviewTag(f.venueId));
   return result;
+}
+
+const listSchema = z.object({
+  venueId: z.number().int().positive(),
+  offset: z
+    .number()
+    .int()
+    .min(0)
+    .max(REVIEW_MAX_OFFSET)
+    .multipleOf(REVIEW_PAGE_SIZE),
+});
+
+/**
+ * Trang đánh giá công khai của một sân (khách gọi được). Cờ trước mọi thứ,
+ * rồi zod, rồi cache. Sân ẩn hay chờ duyệt cho trang rỗng (I10).
+ */
+export async function listVenueReviews(
+  input: unknown,
+): Promise<{ success: true; data: VenueReviewPage } | { error: string }> {
+  const gate = await exchangeGate();
+  if ("error" in gate) return gate;
+  const parsed = listSchema.safeParse(input);
+  if (!parsed.success) {
+    const t = await getTranslations("exchange.errors");
+    return { error: t("invalidInput") };
+  }
+  const { venueId, offset } = parsed.data;
+  return { success: true, data: await getVenueReviewPage(venueId, offset) };
 }

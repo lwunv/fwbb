@@ -1140,7 +1140,14 @@
       "reviewEditTooSoon": "你最近修改过评价，{date} 起可以再次修改。",
       "reviewHidden": "这条评价已被隐藏，无法修改。",
       "reviewNotFound": "这条评价已不存在。",
-      "reviewSaveFailed": "场馆评价未能保存，请重试。"
+      "reviewSaveFailed": "场馆评价未能保存，请重试。",
+      "referralNotEligible": "至少到场 3 次且到场率不低于 80% 才能推荐他人。",
+      "referralQuota": "你本月已推荐满 {max} 人。",
+      "referralBlocked": "你在 {date} 之前暂时无法推荐他人。",
+      "referralTargetInvalid": "无法推荐该账号。只能推荐尚未在任何活动中签到的新账号。",
+      "referralTaken": "该账号已被其他人推荐。",
+      "referralSaveFailed": "推荐未能保存，请重试。",
+      "profileCodeFailed": "个人主页链接未能生成，请重试。"
     },
     "search": {
       "viewSwitch": "查看方式",
@@ -2078,7 +2085,6 @@
     "linkedDirectory": "目录：",
     "notLinked": "未关联",
     "directions": "导航",
-    "directionsTo": "导航到 {name}",
     "pageTitle": "附近的球馆",
     "radius": "范围",
     "radiusValue": "{km} 公里",
@@ -2425,6 +2431,10 @@
       "venue_review_held": {
         "title": "有场馆评价待审核",
         "body": "{venueName} 有一条评价等你审核。"
+      },
+      "exchange_rate_reminder": {
+        "title": "给刚结束的交流活动评分",
+        "body": "\"{eventTitle}\" 已结束。请在 7 天内给一起打球的人和主办人评分。"
       }
     },
     "unsubscribe": {

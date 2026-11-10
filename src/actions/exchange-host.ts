@@ -11,6 +11,7 @@ import {
   exchangeRegistrations,
   hostBlocks,
   members,
+  referrals,
   venues,
 } from "@/db/schema";
 import { requireApprovedMember } from "@/lib/member-auth";
@@ -29,6 +30,7 @@ import {
   MAX_SLOTS,
 } from "@/lib/exchange/constants";
 import { cancelEventCore } from "@/lib/exchange/cancel";
+import { scheduleRatingReminderAfterCommit } from "@/lib/reputation/rating-jobs";
 import {
   exchangeGate,
   loadHostedEvent,
@@ -686,14 +688,26 @@ export async function finishExchangeEvent(input: unknown): Promise<Result> {
 
 /** Host huỷ buổi của mình. Admin huỷ qua `cancelEventCore` với quyền admin riêng. */
 export async function cancelExchangeEvent(input: unknown): Promise<Result> {
-  return hostAction(eventOnlySchema, input, "cancel", async (h, f) => {
-    const { t, tx, now, notifyOn, hostId } = h;
-    const ev = await loadHostedEvent(tx, f.eventId, hostId);
-    if (!ev) return { error: t("notAllowed") };
-    if (!(await cancelEventCore(tx, ev, now, notifyOn)))
-      return { error: t("eventClosed") };
-    return { success: true };
-  });
+  let eventId: number | null = null;
+  const result = await hostAction(
+    eventOnlySchema,
+    input,
+    "cancel",
+    async (h, f) => {
+      const { t, tx, now, notifyOn, hostId } = h;
+      const ev = await loadHostedEvent(tx, f.eventId, hostId);
+      if (!ev) return { error: t("notAllowed") };
+      if (!(await cancelEventCore(tx, ev, now, notifyOn)))
+        return { error: t("eventClosed") };
+      eventId = ev.id;
+      return { success: true };
+    },
+  );
+  // Huỷ job nhắc chấm sau commit (G2d); chỉ khi huỷ thật sự thành công.
+  if ("success" in result && eventId !== null) {
+    scheduleRatingReminderAfterCommit(eventId);
+  }
+  return result;
 }
 
 export type ManageReg = {
@@ -706,6 +720,8 @@ export type ManageReg = {
   skillLevel: SkillLevel | null;
   skillOutOfRange: boolean;
   isNewAccount: boolean;
+  /** Đã có người giới thiệu (G2d); không bao giờ kèm người giới thiệu là ai. */
+  referred: boolean;
   accountLocked: boolean;
   maleCount: number;
   femaleCount: number;
@@ -817,6 +833,18 @@ export async function getManageView(code: string): Promise<ManageView | null> {
     for (const r of rows) attended.add(r.memberId);
   }
 
+  // Chip "Được giới thiệu" (G2d quyết định 46): một truy vấn cho cả danh sách.
+  // Cùng nghĩa với `referred` của hồ sơ: có dòng giới thiệu là đủ.
+  const regMemberIds = [...new Set(regRows.map((r) => r.reg.memberId))];
+  const referredIds = new Set<number>();
+  if (regMemberIds.length > 0) {
+    const rows = await db
+      .select({ memberId: referrals.refereeMemberId })
+      .from(referrals)
+      .where(inArray(referrals.refereeMemberId, regMemberIds));
+    for (const r of rows) referredIds.add(r.memberId);
+  }
+
   const blockRows = await db
     .select({ id: hostBlocks.id, name: members.name })
     .from(hostBlocks)
@@ -847,6 +875,7 @@ export async function getManageView(code: string): Promise<ManageView | null> {
       ),
       isNewAccount:
         r.approvalStatus !== "approved" && !attended.has(r.reg.memberId),
+      referred: referredIds.has(r.reg.memberId),
       accountLocked: !r.isActive || r.approvalStatus === "rejected",
       maleCount: r.reg.maleCount,
       femaleCount: r.reg.femaleCount,

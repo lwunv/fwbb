@@ -86,6 +86,7 @@ function makeReg(over: Partial<ManageReg> = {}): ManageReg {
     skillLevel: "tb",
     skillOutOfRange: false,
     isNewAccount: false,
+    referred: false,
     accountLocked: false,
     maleCount: 1,
     femaleCount: 0,

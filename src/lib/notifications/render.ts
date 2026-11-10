@@ -219,6 +219,10 @@ export function notificationHref(
   if (scope === "member" && group === "exchange") {
     const code = item.payload?.eventCode;
     if (typeof code !== "string" || !code) return "/exchanges";
+    // Nhắc chấm mở thẳng phiếu chấm của buổi.
+    if (item.kind === "exchange_rate_reminder") {
+      return `/exchanges/${code}?feedback=1`;
+    }
     return EXCHANGE_HOST_KINDS.has(item.kind)
       ? `/exchanges/${code}/manage`
       : `/exchanges/${code}`;

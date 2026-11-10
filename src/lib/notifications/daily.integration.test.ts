@@ -796,3 +796,147 @@ describe("runMorningMail", () => {
     expect(mailer.sendMail).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("ip signal cleanup (G2d)", () => {
+  const SECRET = "cron-secret-for-ip-signal-tests";
+
+  async function seedSignals(now: Date) {
+    await client.execute("DELETE FROM member_ip_signals");
+    const m = await addMember();
+    const at = (days: number) =>
+      new Date(now.getTime() - days * DAY_MS).toISOString();
+    const rows: [string, string][] = [
+      ["old-1", at(31)],
+      ["old-2", at(90)],
+      ["fresh", at(29)],
+    ];
+    for (const [hash, seen] of rows) {
+      await client.execute({
+        sql: "INSERT INTO member_ip_signals (member_id, ip_hash, kind, first_seen_at, last_seen_at) VALUES (?, ?, 'login', ?, ?)",
+        args: [m, hash, seen, seen],
+      });
+    }
+  }
+  const hashes = async () =>
+    (
+      await client.execute(
+        "SELECT ip_hash FROM member_ip_signals ORDER BY ip_hash",
+      )
+    ).rows.map((r) => String(r.ip_hash));
+
+  beforeEach(async () => {
+    await reset();
+    vi.stubEnv("CRON_SECRET", SECRET);
+  });
+
+  it("with the notifications flag off the daily cron still deletes rows older than 30 days and keeps newer ones", async () => {
+    const now = new Date();
+    await seedSignals(now);
+    const { NextRequest } = await import("next/server");
+    const { GET } = await import("@/app/api/cron/notifications-daily/route");
+    const res = await GET(
+      new NextRequest("https://fwbb.test/api/cron/notifications-daily", {
+        headers: { authorization: `Bearer ${SECRET}` },
+      }),
+    );
+    // Phản hồi khi tắt thông báo giữ nguyên như cũ.
+    expect(await res.json()).toEqual({ skipped: "disabled" });
+    expect(await hashes()).toEqual(["fresh"]);
+
+    // Gọi thẳng runDailyNotifications khi tắt cờ cũng dọn trước cổng.
+    await seedSignals(now);
+    const report = await runDailyNotifications(testDb, now);
+    expect(report).toMatchObject({ ipSignalsPruned: 2, errors: [] });
+    expect(await hashes()).toEqual(["fresh"]);
+    expect(await testDb.select().from(notifications)).toHaveLength(0);
+  });
+
+  it("with the flag on the daily step prunes in batches and reports a failure without stopping", async () => {
+    await enableNotificationsForTest(testDb);
+    const now = cronAt("2026-11-03");
+    await seedSignals(now);
+    const report = await runDailyNotifications(testDb, now);
+    expect(report).toMatchObject({ ipSignalsPruned: 2, errors: [] });
+    expect(await hashes()).toEqual(["fresh"]);
+
+    await seedSignals(now);
+    await client.execute(
+      "CREATE TRIGGER ip_signal_prune_boom BEFORE DELETE ON member_ip_signals BEGIN SELECT RAISE(ABORT, 'boom'); END",
+    );
+    try {
+      const failed = await runDailyNotifications(testDb, now);
+      expect(failed.errors).toEqual([expect.stringMatching(/^ip_signals:/)]);
+      expect(failed.reconcileChecked).toBe(true);
+    } finally {
+      await client.execute("DROP TRIGGER IF EXISTS ip_signal_prune_boom");
+    }
+  });
+});
+
+describe("daily exchange_rating step", () => {
+  beforeEach(async () => {
+    await reset();
+    await enableNotificationsForTest(testDb);
+  });
+
+  it("the daily step publishes reminders for events ending within 8 days, not later, cancelled or hidden ones", async () => {
+    const { exchangeEvents, venues } = await import("@/db/schema");
+    await testDb
+      .insert(appSettings)
+      .values({ key: "exchangeEnabled", value: "true" });
+    qstash.state.configured = true;
+    const now = cronAt("2026-11-10");
+    const host = await addMember();
+    const [venue] = await testDb
+      .insert(venues)
+      .values({ name: "V", lat: 10, lng: 106, status: "approved" })
+      .returning({ id: venues.id });
+    const mk = async (
+      code: string,
+      endInDays: number,
+      over: Partial<typeof exchangeEvents.$inferInsert> = {},
+    ) => {
+      const endAt = new Date(now.getTime() + endInDays * DAY_MS).toISOString();
+      const [ev] = await testDb
+        .insert(exchangeEvents)
+        .values({
+          publicCode: code,
+          hostMemberId: host,
+          venueId: venue.id,
+          title: "t",
+          startAt: endAt,
+          endAt,
+          slotsTotal: 4,
+          feeMode: "fixed",
+          registerDeadline: endAt,
+          cancelDeadline: endAt,
+          status: "open",
+          createdAt: endAt,
+          updatedAt: endAt,
+          ...over,
+        })
+        .returning({ id: exchangeEvents.id });
+      return ev.id;
+    };
+    try {
+      const soon = await mk("dr00000001", 3);
+      await mk("dr00000002", 9);
+      await mk("dr00000003", 3, { status: "cancelled" });
+      await mk("dr00000004", 3, { hiddenAt: now.toISOString() });
+      await mk("dr00000005", -1);
+      const report = await runDailyNotifications(testDb, now);
+      expect(report.errors).toEqual([]);
+      const rows = await testDb
+        .select()
+        .from(scheduledJobs)
+        .where(eq(scheduledJobs.kind, "exchange_rate_reminder"));
+      expect(rows).toHaveLength(1);
+      expect(rows[0].jobKey.startsWith(`xrate:${soon}:`)).toBe(true);
+      expect(rows[0].messageId).toMatch(/^msg-/);
+    } finally {
+      await client.execute("DELETE FROM scheduled_jobs");
+      await client.execute("DELETE FROM exchange_events");
+      await client.execute("DELETE FROM venues");
+    }
+  });
+});

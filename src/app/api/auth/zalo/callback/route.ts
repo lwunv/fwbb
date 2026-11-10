@@ -15,6 +15,7 @@ import {
   type ZaloOAuthState,
 } from "@/lib/zalo-oauth-state";
 import { loginOrCreateZaloMember } from "@/lib/zalo-login";
+import { recordIpSignalQuietly } from "@/lib/reputation/ip-signals";
 import { setUserCookie } from "@/lib/user-identity";
 import {
   ZALO_RATE_LIMIT,
@@ -132,6 +133,16 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
     memberId = login.memberId;
 
     await setUserCookie(login.memberId, `zalo:${profile.uid}`);
+    // Tín hiệu nick trùng (G2d). Tự nuốt lỗi: đăng nhập không được hỏng vì nó.
+    await recordIpSignalQuietly(
+      db,
+      {
+        memberId: login.memberId,
+        ip,
+        kind: login.created ? "signup" : "login",
+      },
+      new Date(),
+    );
     return NextResponse.redirect(
       new URL(safeNextPath(st.next), request.nextUrl.origin),
       303,

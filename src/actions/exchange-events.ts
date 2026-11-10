@@ -27,6 +27,7 @@ import {
 } from "@/lib/exchange/guards";
 import { newPublicCode } from "@/lib/exchange/public-code";
 import { ensureMemberPublicCode } from "@/lib/reputation/member-code";
+import { scheduleRatingReminderAfterCommit } from "@/lib/reputation/rating-jobs";
 
 // Chỉ export action tự kiểm quyền: người thực hiện luôn lấy từ cookie phiên.
 
@@ -134,9 +135,12 @@ export async function createExchangeEvent(
     const publicCode = newPublicCode();
     try {
       const outcome = await db.transaction(
-        async (tx): Promise<{ code: string } | { error: string }> => {
+        async (
+          tx,
+        ): Promise<{ code: string; id: number } | { error: string }> => {
           const [replay] = await tx
             .select({
+              id: exchangeEvents.id,
               code: exchangeEvents.publicCode,
               host: exchangeEvents.hostMemberId,
             })
@@ -145,7 +149,7 @@ export async function createExchangeEvent(
             .limit(1);
           if (replay)
             return replay.host === memberId
-              ? { code: replay.code }
+              ? { code: replay.code, id: replay.id }
               : { error: t("notAllowed") };
 
           const [venue] = await tx
@@ -156,42 +160,47 @@ export async function createExchangeEvent(
           if (venue?.status !== "approved")
             return { error: t("venueUnavailable") };
 
-          await tx.insert(exchangeEvents).values({
-            publicCode,
-            idempotencyKey: f.idempotencyKey,
-            hostMemberId: memberId,
-            venueId: f.venueId,
-            title: f.title,
-            description: f.description.trim() || null,
-            startAt: times.startAt,
-            endAt: times.endAt,
-            skillMin: f.skillMin ?? null,
-            skillMax: f.skillMax ?? null,
-            slotsTotal: f.slotsTotal,
-            femaleReservedSlots: f.femaleReservedSlots,
-            reserveReleaseAt: times.reserveReleaseAt,
-            hostHeads: f.hostHeads,
-            shuttleType: f.shuttleType || null,
-            ...fee,
-            depositAmount: f.depositAmount,
-            registerDeadline: times.registerDeadline,
-            cancelDeadline: times.cancelDeadline,
-            autoApprove: f.autoApprove,
-            allowPlusOnes: f.allowPlusOnes,
-            payoutBankBin: payout?.bankBin ?? null,
-            payoutAccountNo: payout?.accountNo ?? null,
-            payoutAccountName: payout?.accountName ?? null,
-            hostContact: f.hostContact || null,
-            zaloGroupLink: f.zaloGroupLink || null,
-            status: "open",
-            createdAt: nowIso,
-            updatedAt: nowIso,
-          });
-          return { code: publicCode };
+          const [created] = await tx
+            .insert(exchangeEvents)
+            .values({
+              publicCode,
+              idempotencyKey: f.idempotencyKey,
+              hostMemberId: memberId,
+              venueId: f.venueId,
+              title: f.title,
+              description: f.description.trim() || null,
+              startAt: times.startAt,
+              endAt: times.endAt,
+              skillMin: f.skillMin ?? null,
+              skillMax: f.skillMax ?? null,
+              slotsTotal: f.slotsTotal,
+              femaleReservedSlots: f.femaleReservedSlots,
+              reserveReleaseAt: times.reserveReleaseAt,
+              hostHeads: f.hostHeads,
+              shuttleType: f.shuttleType || null,
+              ...fee,
+              depositAmount: f.depositAmount,
+              registerDeadline: times.registerDeadline,
+              cancelDeadline: times.cancelDeadline,
+              autoApprove: f.autoApprove,
+              allowPlusOnes: f.allowPlusOnes,
+              payoutBankBin: payout?.bankBin ?? null,
+              payoutAccountNo: payout?.accountNo ?? null,
+              payoutAccountName: payout?.accountName ?? null,
+              hostContact: f.hostContact || null,
+              zaloGroupLink: f.zaloGroupLink || null,
+              status: "open",
+              createdAt: nowIso,
+              updatedAt: nowIso,
+            })
+            .returning({ id: exchangeEvents.id });
+          return { code: publicCode, id: created.id };
         },
       );
       if (!("code" in outcome)) return { error: outcome.error };
       updateTag("exchange");
+      // Nhắc chấm sau buổi (G2d): hẹn sau commit, đọc lại buổi lúc chạy.
+      scheduleRatingReminderAfterCommit(outcome.id);
       return { success: true, data: { code: outcome.code } };
     } catch (e) {
       const which = uniqueConflict(e);
