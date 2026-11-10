@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { AlertTriangle, ArrowRight, X } from "lucide-react";
+import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
+import { motion, AnimatePresence } from "framer-motion";
+import { AlertTriangle, ArrowRight, Network, X } from "lucide-react";
 import { mergeMember, ignoreDuplicateGroup } from "@/actions/members";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +14,8 @@ import { formatK, cn } from "@/lib/utils";
 import { getFundStatus } from "@/lib/fund-core";
 import { useSettings } from "@/components/settings-provider";
 import { toast } from "sonner";
+import { fireAction } from "@/lib/optimistic-action";
+import type { DupSignalGroupView } from "@/lib/reputation/dup-signals";
 
 interface DupMember {
   id: number;
@@ -29,7 +34,15 @@ interface DupGroup {
   members: DupMember[];
 }
 
-export function DuplicateMembersBanner({ groups }: { groups: DupGroup[] }) {
+export function DuplicateMembersBanner({
+  groups,
+  signalGroups = [],
+}: {
+  groups: DupGroup[];
+  /** Tín hiệu nick trùng của tài khoản giao lưu; chỉ có khi cờ giao lưu bật. */
+  signalGroups?: DupSignalGroupView[];
+}) {
+  const t = useTranslations("adminMembers.dupSignals");
   const [pending, startTransition] = useTransition();
   const { lowFundThreshold } = useSettings();
   // selectedKeepId per group — id của member sẽ giữ lại; còn lại là source merge.
@@ -53,6 +66,25 @@ export function DuplicateMembersBanner({ groups }: { groups: DupGroup[] }) {
   const [mergingIds, setMergingIds] = useState<Set<number>>(new Set());
   // Optimistic "Bỏ qua": ẩn nhóm NGAY khi bấm; rollback nếu server fail.
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  // Như trên cho nhóm tín hiệu, theo `key` của nhóm.
+  const [dismissedSignals, setDismissedSignals] = useState<Set<string>>(
+    new Set(),
+  );
+
+  function handleIgnoreSignal(group: DupSignalGroupView) {
+    setDismissedSignals((prev) => new Set(prev).add(group.key));
+    // Bỏ qua ghi cặp với onConflictDoNothing nên gọi lại an toàn (retry mặc định).
+    fireAction(
+      () => ignoreDuplicateGroup(group.members.map((m) => m.id)),
+      () =>
+        setDismissedSignals((prev) => {
+          const next = new Set(prev);
+          next.delete(group.key);
+          return next;
+        }),
+      { successMsg: t("ignoredToast") },
+    );
+  }
 
   function handleIgnore(group: DupGroup) {
     setDismissed((prev) => new Set(prev).add(group.name));
@@ -116,127 +148,143 @@ export function DuplicateMembersBanner({ groups }: { groups: DupGroup[] }) {
 
   // Ẩn ngay các nhóm vừa "Bỏ qua" (optimistic); hết nhóm thì ẩn cả banner.
   const visibleGroups = groups.filter((g) => !dismissed.has(g.name));
-  if (visibleGroups.length === 0) return null;
+  const visibleSignals = signalGroups.filter(
+    (g) => !dismissedSignals.has(g.key),
+  );
+  if (visibleGroups.length === 0 && visibleSignals.length === 0) return null;
 
   return (
     <>
-      <Card className="border-amber-300/60 bg-amber-50/40 dark:border-amber-800/40 dark:bg-amber-950/20">
-        <CardContent className="space-y-3 p-4">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-            <h3 className="text-base font-bold">
-              Phát hiện thành viên trùng tên ({visibleGroups.length})
-            </h3>
-          </div>
-          <p className="text-muted-foreground text-sm">
-            Chọn ID giữ lại rồi Gộp để dồn vote / nợ / quỹ / giao dịch vào 1 bản
-            (xóa các bản kia). Nếu đây là những người KHÁC nhau chỉ trùng tên,
-            bấm Bỏ qua để không cảnh báo nữa.
-          </p>
+      {visibleGroups.length > 0 && (
+        <Card className="border-amber-300/60 bg-amber-50/40 dark:border-amber-800/40 dark:bg-amber-950/20">
+          <CardContent className="space-y-3 p-4">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              <h3 className="text-base font-bold">
+                Phát hiện thành viên trùng tên ({visibleGroups.length})
+              </h3>
+            </div>
+            <p className="text-muted-foreground text-sm">
+              Chọn ID giữ lại rồi Gộp để dồn vote / nợ / quỹ / giao dịch vào 1
+              bản (xóa các bản kia). Nếu đây là những người KHÁC nhau chỉ trùng
+              tên, bấm Bỏ qua để không cảnh báo nữa.
+            </p>
 
-          {visibleGroups.map((group) => {
-            const keepId = keepIds[group.name];
-            return (
-              <div
-                key={group.name}
-                className="bg-card space-y-2 rounded-xl border p-3"
-              >
-                <div className="text-sm font-semibold">
-                  Tên: <span className="text-primary">{group.name}</span>
-                </div>
-                <ul className="space-y-1.5">
-                  {group.members.map((m) => {
-                    const isKeep = m.id === keepId;
-                    const isMerging = mergingIds.has(m.id);
-                    return (
-                      <li key={m.id}>
-                        <label
-                          className={cn(
-                            "flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 transition-all duration-200",
-                            isKeep
-                              ? "border-primary bg-primary/10"
-                              : "border-border bg-muted/30",
-                            isMerging && "pointer-events-none opacity-40",
-                          )}
-                        >
-                          <input
-                            type="radio"
-                            name={`keep-${group.name}`}
-                            checked={isKeep}
-                            onChange={() =>
-                              setKeepIds((s) => ({ ...s, [group.name]: m.id }))
-                            }
-                            className="accent-primary h-4 w-4 shrink-0"
-                          />
-                          <MemberAvatar
-                            memberId={m.id}
-                            avatarKey={m.avatarKey}
-                            avatarUrl={m.avatarUrl}
-                            size={32}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="truncate font-semibold">
-                                #{m.id} · {m.name}
-                                {m.nickname ? ` (${m.nickname})` : ""}
-                              </span>
-                              {!m.isActive && (
-                                <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">
-                                  inactive
+            {visibleGroups.map((group) => {
+              const keepId = keepIds[group.name];
+              return (
+                <div
+                  key={group.name}
+                  className="bg-card space-y-2 rounded-xl border p-3"
+                >
+                  <div className="text-sm font-semibold">
+                    Tên: <span className="text-primary">{group.name}</span>
+                  </div>
+                  <ul className="space-y-1.5">
+                    {group.members.map((m) => {
+                      const isKeep = m.id === keepId;
+                      const isMerging = mergingIds.has(m.id);
+                      return (
+                        <li key={m.id}>
+                          <label
+                            className={cn(
+                              "flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 transition-all duration-200",
+                              isKeep
+                                ? "border-primary bg-primary/10"
+                                : "border-border bg-muted/30",
+                              isMerging && "pointer-events-none opacity-40",
+                            )}
+                          >
+                            <input
+                              type="radio"
+                              name={`keep-${group.name}`}
+                              checked={isKeep}
+                              onChange={() =>
+                                setKeepIds((s) => ({
+                                  ...s,
+                                  [group.name]: m.id,
+                                }))
+                              }
+                              className="accent-primary h-4 w-4 shrink-0"
+                            />
+                            <MemberAvatar
+                              memberId={m.id}
+                              avatarKey={m.avatarKey}
+                              avatarUrl={m.avatarUrl}
+                              size={32}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="truncate font-semibold">
+                                  #{m.id} · {m.name}
+                                  {m.nickname ? ` (${m.nickname})` : ""}
                                 </span>
-                              )}
-                            </div>
-                            <div className="text-muted-foreground text-xs">
-                              {m.ledgerCount} giao dịch ·{" "}
-                              <span
-                                className={cn(
-                                  "text-sm",
-                                  getFundStatus(m.balance, lowFundThreshold) ===
-                                    "owing"
-                                    ? "text-red-600 dark:text-red-400"
-                                    : getFundStatus(
-                                          m.balance,
-                                          lowFundThreshold,
-                                        ) === "depleted"
-                                      ? ""
-                                      : "text-green-600 dark:text-green-400",
+                                {!m.isActive && (
+                                  <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">
+                                    inactive
+                                  </span>
                                 )}
-                              >
-                                balance {formatK(m.balance)}
-                              </span>
-                              {m.facebookId?.startsWith("admin_") &&
-                                " · admin tạo"}
+                              </div>
+                              <div className="text-muted-foreground text-xs">
+                                {m.ledgerCount} giao dịch ·{" "}
+                                <span
+                                  className={cn(
+                                    "text-sm",
+                                    getFundStatus(
+                                      m.balance,
+                                      lowFundThreshold,
+                                    ) === "owing"
+                                      ? "text-red-600 dark:text-red-400"
+                                      : getFundStatus(
+                                            m.balance,
+                                            lowFundThreshold,
+                                          ) === "depleted"
+                                        ? ""
+                                        : "text-green-600 dark:text-green-400",
+                                  )}
+                                >
+                                  balance {formatK(m.balance)}
+                                </span>
+                                {m.facebookId?.startsWith("admin_") &&
+                                  " · admin tạo"}
+                              </div>
                             </div>
-                          </div>
-                        </label>
-                      </li>
-                    );
-                  })}
-                </ul>
-                <div className="flex justify-end gap-2 pt-1">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleIgnore(group)}
-                    disabled={pending}
-                  >
-                    <X className="mr-1 h-4 w-4" />
-                    Bỏ qua
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => openConfirm(group)}
-                    disabled={pending}
-                  >
-                    Gộp vào ID #{keepId}
-                    <ArrowRight className="ml-1 h-4 w-4" />
-                  </Button>
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <div className="flex justify-end gap-2 pt-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleIgnore(group)}
+                      disabled={pending}
+                    >
+                      <X className="mr-1 h-4 w-4" />
+                      Bỏ qua
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => openConfirm(group)}
+                      disabled={pending}
+                    >
+                      Gộp vào ID #{keepId}
+                      <ArrowRight className="ml-1 h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+      {visibleSignals.length > 0 && (
+        <ExchangeSignalSection
+          groups={visibleSignals}
+          onIgnore={handleIgnoreSignal}
+        />
+      )}
 
       <ConfirmDialog
         open={confirmTarget !== null}
@@ -256,5 +304,106 @@ export function DuplicateMembersBanner({ groups }: { groups: DupGroup[] }) {
         onConfirm={handleMerge}
       />
     </>
+  );
+}
+
+const VN_TZ = "Asia/Ho_Chi_Minh";
+
+/**
+ * Mục riêng cho tín hiệu nick trùng của tài khoản giao lưu (quyết định 53, 54).
+ * Chỉ để admin xem: có "Bỏ qua", không có gộp, app không tự khoá ai.
+ */
+function ExchangeSignalSection({
+  groups,
+  onIgnore,
+}: {
+  groups: DupSignalGroupView[];
+  onIgnore: (group: DupSignalGroupView) => void;
+}) {
+  const t = useTranslations("adminMembers.dupSignals");
+  const locale = useLocale();
+  const day = new Intl.DateTimeFormat(locale, {
+    timeZone: VN_TZ,
+    dateStyle: "medium",
+  });
+
+  return (
+    <Card className="border-amber-300/60 bg-amber-50/40 dark:border-amber-800/40 dark:bg-amber-950/20">
+      <CardContent className="space-y-3 p-4">
+        <div className="flex items-center gap-2">
+          <Network className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <h3 className="text-base font-bold">{t("title")}</h3>
+        </div>
+        <p className="text-muted-foreground text-sm">{t("hint")}</p>
+        <AnimatePresence initial={false}>
+          {groups.map((group) => (
+            <motion.div
+              key={group.key}
+              layout
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.97 }}
+              className="bg-card space-y-2 rounded-xl border p-3"
+            >
+              <p className="text-sm font-semibold">
+                {group.reason === "same_name_network"
+                  ? t("reasonSameNameNetwork")
+                  : t("reasonNetworkBurst", { count: group.members.length })}
+              </p>
+              <ul className="space-y-1.5">
+                {group.members.map((m) => (
+                  <li
+                    key={m.id}
+                    className="border-border bg-muted/30 flex min-h-11 items-center gap-3 rounded-lg border px-3 py-2"
+                  >
+                    <MemberAvatar
+                      memberId={m.id}
+                      avatarKey={m.avatarKey}
+                      avatarUrl={m.avatarUrl}
+                      size={32}
+                    />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <p className="font-semibold break-words">{m.name}</p>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                        {m.isExchange && (
+                          <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5">
+                            {t("exchangeChip")}
+                          </span>
+                        )}
+                        {m.createdAt && (
+                          <span className="text-muted-foreground">
+                            {t("createdAt", {
+                              date: day.format(new Date(m.createdAt)),
+                            })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {m.code && (
+                      <Link
+                        href={`/players/${m.code}`}
+                        className="text-primary inline-flex min-h-11 shrink-0 items-center text-sm font-medium underline underline-offset-2"
+                      >
+                        {t("viewProfile")}
+                      </Link>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <div className="flex justify-end pt-1">
+                <Button
+                  variant="outline"
+                  className="min-h-11"
+                  onClick={() => onIgnore(group)}
+                >
+                  <X className="mr-1 h-4 w-4" />
+                  {t("ignore")}
+                </Button>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </CardContent>
+    </Card>
   );
 }

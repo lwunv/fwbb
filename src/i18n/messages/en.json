@@ -898,7 +898,18 @@
     "genderUnset": "Not set",
     "genderMale": "Male",
     "genderFemale": "Female",
-    "genderLgbt": "LGBT"
+    "genderLgbt": "LGBT",
+    "dupSignals": {
+      "title": "Exchange accounts that may be duplicates",
+      "hint": "These accounts may have been created by the same person. This is only a signal for admins, and the app does not lock anyone. If they really are different people, tap Ignore to stop this warning.",
+      "reasonSameNameNetwork": "Same name and used the same network",
+      "reasonNetworkBurst": "{count, plural, one {# account was} other {# accounts were}} created within 24 hours from the same network",
+      "exchangeChip": "Exchange account",
+      "createdAt": "Created {date}",
+      "viewProfile": "View profile",
+      "ignore": "Ignore",
+      "ignoredToast": "This group was ignored"
+    }
   },
   "adminAccount": {
     "title": "Account",

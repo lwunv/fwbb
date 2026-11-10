@@ -898,7 +898,18 @@
     "genderUnset": "未填写",
     "genderMale": "男",
     "genderFemale": "女",
-    "genderLgbt": "LGBT"
+    "genderLgbt": "LGBT",
+    "dupSignals": {
+      "title": "可能重复的交流账号",
+      "hint": "这些账号可能由同一个人创建。这只是供管理员参考的信号，应用不会自动锁定任何人。如果确实是不同的人，点击忽略即可不再提醒。",
+      "reasonSameNameNetwork": "同名且曾使用同一网络",
+      "reasonNetworkBurst": "24 小时内从同一网络创建了 {count} 个账号",
+      "exchangeChip": "交流账号",
+      "createdAt": "创建于 {date}",
+      "viewProfile": "查看资料",
+      "ignore": "忽略",
+      "ignoredToast": "已忽略该组"
+    }
   },
   "adminAccount": {
     "title": "账户",

@@ -898,7 +898,18 @@
     "genderUnset": "Chưa khai",
     "genderMale": "Nam",
     "genderFemale": "Nữ",
-    "genderLgbt": "LGBT"
+    "genderLgbt": "LGBT",
+    "dupSignals": {
+      "title": "Tài khoản giao lưu có dấu hiệu trùng",
+      "hint": "Các tài khoản này có thể do cùng một người tạo. Đây chỉ là dấu hiệu để admin xem, app không tự khoá ai. Nếu đúng là những người khác nhau, bấm Bỏ qua để không cảnh báo nữa.",
+      "reasonSameNameNetwork": "Cùng tên và từng dùng chung mạng",
+      "reasonNetworkBurst": "{count} tài khoản tạo trong 24 giờ từ cùng một mạng",
+      "exchangeChip": "Tài khoản giao lưu",
+      "createdAt": "Tạo ngày {date}",
+      "viewProfile": "Xem hồ sơ",
+      "ignore": "Bỏ qua",
+      "ignoredToast": "Đã bỏ qua nhóm này"
+    }
   },
   "adminAccount": {
     "title": "Tài khoản",

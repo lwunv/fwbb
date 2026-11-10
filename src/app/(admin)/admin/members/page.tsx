@@ -11,6 +11,7 @@ import { eq, inArray, and } from "drizzle-orm";
 import { computeBalancesForMembers } from "@/lib/fund-core";
 import { getNameMatchesBatch } from "@/actions/member-approval";
 import { isExchangeEnabled } from "@/lib/exchange-flag";
+import { findExchangeDuplicateSignals } from "@/actions/exchange-dup-signals";
 import {
   loadPendingGroupRows,
   loadIdentityProviders,
@@ -28,6 +29,7 @@ import {
 } from "./pending-members-section";
 
 export default async function MembersPage() {
+  const exchangeOn = isExchangeEnabled();
   const [
     allMembers,
     allDebts,
@@ -37,6 +39,7 @@ export default async function MembersPage() {
     pendingRows,
     playStats,
     exchangeEnabled,
+    signalGroups,
   ] = await Promise.all([
     getMembers(),
     getAllDebts(),
@@ -51,7 +54,9 @@ export default async function MembersPage() {
     }),
     loadPendingGroupRows(),
     getMemberPlayStats(),
-    isExchangeEnabled(),
+    exchangeOn,
+    // Tín hiệu nick trùng chỉ đọc khi cờ giao lưu bật (quota Turso).
+    exchangeOn.then((on) => (on ? findExchangeDuplicateSignals() : [])),
   ]);
 
   // Tài khoản giao lưu (pending + exchange) ra khỏi danh sách chính, số dư và
@@ -172,7 +177,12 @@ export default async function MembersPage() {
           exchangeEnabled={exchangeEnabled}
         />
       )}
-      {dupGroups.length > 0 && <DuplicateMembersBanner groups={dupGroups} />}
+      {(dupGroups.length > 0 || signalGroups.length > 0) && (
+        <DuplicateMembersBanner
+          groups={dupGroups}
+          signalGroups={signalGroups}
+        />
+      )}
       <MemberList
         members={members}
         debtsByMember={debtsByMember}
