@@ -42,7 +42,7 @@ vi.mock("@/lib/auth", () => ({
 }));
 import { requireAdmin } from "@/lib/auth";
 
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 vi.mock("@/lib/messenger", () => ({
   sendGroupMessage: vi.fn(),
   buildDebtReminderMessage: vi.fn(() => ""),

@@ -13,7 +13,7 @@
  * The old addFundMember/removeFundMember actions were removed.
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
 import {
   admins,
@@ -21,10 +21,18 @@ import {
   financialTransactions,
   passwordResetTokens,
   memberOauthIdentities,
+  exchangeEvents,
+  hostFeedback,
+  peerFeedback,
+  venueReviews,
+  venues,
 } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
+vi.mock("@/lib/user-identity", () => ({
+  getUserFromCookie: vi.fn(async () => null),
+}));
 // after() thực thi ngay trong test — mail phải "xong" trước khi assert, cùng
 // pattern password-reset.integration.test.ts.
 vi.mock("next/server", () => ({ after: (fn: () => unknown) => fn() }));
@@ -46,6 +54,9 @@ const {
   updateMember,
   createMember,
   mergeMember,
+  updateMyAvatar,
+  updateMyProfile,
+  updateMySkillLevel,
 } = await import("./members");
 const { getFundBalance } = await import("@/lib/fund-calculator");
 
@@ -711,5 +722,164 @@ describe("tài khoản giao lưu (g2a)", () => {
     expect(
       await testDb.query.members.findFirst({ where: eq(members.id, sourceId) }),
     ).toBeDefined();
+  });
+});
+
+// ── G2d: làm mới cache hồ sơ và điểm sân khi sửa member ──
+
+describe("reputation caches on member edits (G2d)", () => {
+  const NOW = "2026-11-05T00:00:00.000Z";
+
+  async function cleanRep() {
+    for (const t of [
+      "peer_feedback",
+      "host_feedback",
+      "venue_reviews",
+      "exchange_events",
+      "venues",
+      "rate_limit_buckets",
+    ]) {
+      await client.execute(`DELETE FROM ${t}`);
+    }
+  }
+
+  async function mkVenue() {
+    const [v] = await testDb
+      .insert(venues)
+      .values({ name: "San", lat: 10, lng: 106 })
+      .returning({ id: venues.id });
+    return v.id;
+  }
+
+  async function mkReview(venueId: number, memberId: number) {
+    await testDb.insert(venueReviews).values({
+      venueId,
+      memberId,
+      scoreSurface: 4,
+      scoreLighting: 4,
+      scoreVentilation: 4,
+      scorePrice: 4,
+      scoreParking: 4,
+      scoreOwner: 4,
+      raterWeight: 5,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+  }
+
+  async function tags(): Promise<string[]> {
+    const { updateTag } = await import("next/cache");
+    return vi.mocked(updateTag).mock.calls.map((c) => c[0]);
+  }
+
+  async function clearTags() {
+    const { updateTag } = await import("next/cache");
+    vi.mocked(updateTag).mockClear();
+  }
+
+  beforeEach(async () => {
+    await cleanRep();
+    await reset();
+    await seedAdmin();
+    await clearTags();
+  });
+  afterEach(cleanRep);
+
+  it("locking, renaming or changing the self skill calls updateTag(repTag(id)) and the venue tags of their reviews", async () => {
+    const m = await seedMember("Nguoi danh gia");
+    const v1 = await mkVenue();
+    const v2 = await mkVenue();
+    await mkReview(v1, m);
+    await mkReview(v2, m);
+    const expected = [`rep:m${m}`, `vrev:v${v1}`, `vrev:v${v2}`];
+
+    expect(await toggleMemberActive(m)).toEqual({ success: true });
+    expect(await tags()).toEqual(expect.arrayContaining(expected));
+
+    await clearTags();
+    const fd = new FormData();
+    fd.set("name", "Ten moi");
+    expect(await updateMember(m, fd)).toEqual({ success: true });
+    expect(await tags()).toEqual(expect.arrayContaining(expected));
+
+    const { getUserFromCookie } = await import("@/lib/user-identity");
+    vi.mocked(getUserFromCookie).mockResolvedValue({
+      memberId: m,
+      externalId: "x",
+    });
+    await clearTags();
+    expect(await updateMySkillLevel("")).toEqual({ success: true });
+    expect(await tags()).toEqual(expect.arrayContaining(expected));
+
+    await clearTags();
+    const pf = new FormData();
+    pf.set("nickname", "Biet danh");
+    expect(await updateMyProfile({ success: true } as never, pf)).toEqual({
+      success: true,
+    });
+    expect(await tags()).toEqual(expect.arrayContaining([`rep:m${m}`]));
+
+    await clearTags();
+    expect(await updateMyAvatar(null)).toEqual({ success: true });
+    expect(await tags()).toEqual(expect.arrayContaining([`rep:m${m}`]));
+    vi.mocked(getUserFromCookie).mockResolvedValue(null);
+  });
+
+  it("locking a rater also refreshes everyone they rated, the hosts they rated and the venue average", async () => {
+    const rater = await seedMember("Nguoi cham");
+    const rated1 = await seedMember("Duoc cham 1");
+    const rated2 = await seedMember("Duoc cham 2");
+    const host = await seedMember("Host");
+    const v = await mkVenue();
+    const [ev] = await testDb
+      .insert(exchangeEvents)
+      .values({
+        publicCode: "REPLK1",
+        hostMemberId: host,
+        venueId: v,
+        title: "Giao lưu",
+        startAt: "2026-11-01T12:00:00.000Z",
+        endAt: "2026-11-01T14:00:00.000Z",
+        slotsTotal: 10,
+        feeMode: "fixed",
+        registerDeadline: "2026-11-01T10:00:00.000Z",
+        cancelDeadline: "2026-11-01T08:00:00.000Z",
+        createdAt: NOW,
+        updatedAt: NOW,
+      })
+      .returning({ id: exchangeEvents.id });
+    await testDb.insert(peerFeedback).values(
+      [rated1, rated2].map((to) => ({
+        eventId: ev.id,
+        fromMemberId: rater,
+        toMemberId: to,
+        raterWeight: 5,
+        createdAt: NOW,
+        updatedAt: NOW,
+      })),
+    );
+    await testDb.insert(hostFeedback).values({
+      eventId: ev.id,
+      fromMemberId: rater,
+      asDescribed: true,
+      feeAsPromised: true,
+      raterWeight: 5,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    await mkReview(v, rater);
+
+    expect(await toggleMemberActive(rater)).toEqual({ success: true });
+
+    expect(await tags()).toEqual(
+      expect.arrayContaining([
+        `rep:m${rater}`,
+        `rep:m${rated1}`,
+        `rep:m${rated2}`,
+        `rep:m${host}`,
+        `vrev:v${v}`,
+        "vrev:all",
+      ]),
+    );
   });
 });

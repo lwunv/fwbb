@@ -28,6 +28,7 @@ import {
   notExchangeAccountWhere,
 } from "@/lib/exchange-account";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { invalidateMemberReputation } from "@/lib/reputation/invalidate";
 import { memberSchema } from "@/lib/validators";
 import { normalizeUsername } from "@/lib/username";
 import { AVATAR_BRAND_KEYS } from "@/lib/member-avatar-presets";
@@ -336,6 +337,7 @@ export async function updateMyAvatar(
     .update(members)
     .set({ avatarKey: next })
     .where(eq(members.id, user.memberId));
+  await invalidateMemberReputation(db, [user.memberId]);
 
   revalidatePath("/me");
   revalidatePath("/");
@@ -436,6 +438,7 @@ export async function updateMyProfile(
     if (/email/i.test(msg)) return { error: t("emailTaken") };
     throw e; // lỗi khác không nuốt
   }
+  await invalidateMemberReputation(db, [user.memberId]);
 
   revalidatePath("/me");
   revalidatePath("/");
@@ -477,6 +480,7 @@ export async function updateMySkillLevel(
     .update(members)
     .set({ skillLevel: parseSkillLevel(raw) })
     .where(eq(members.id, user.memberId));
+  await invalidateMemberReputation(db, [user.memberId]);
 
   revalidatePath("/me");
   return { success: true };
@@ -578,6 +582,7 @@ export async function updateMember(id: number, formData: FormData) {
     if (/username/i.test(msg)) return { error: t("usernameTaken") };
     throw e;
   }
+  await invalidateMemberReputation(db, [id]);
   revalidatePath("/admin/members");
   return { success: true };
 }
@@ -698,6 +703,9 @@ export async function toggleMemberActive(id: number) {
     .update(members)
     .set({ isActive: !member.isActive })
     .where(eq(members.id, id));
+  // Khoá/mở người chấm: lượt chấm và đánh giá sân của họ rơi khỏi (hoặc trở
+  // lại) điểm của người khác ngay.
+  await invalidateMemberReputation(db, [id], { asRater: true });
   // Khóa/mở member = rời/vào quỹ (roster derive từ isActive). KHÔNG auto-hoàn —
   // balance đóng băng. Revalidate mọi surface phụ thuộc roster quỹ.
   revalidatePath("/admin/members");
@@ -1219,6 +1227,10 @@ export async function mergeMember(sourceId: number, targetId: number) {
 
     // 7. Xóa member nguồn.
     await tx.delete(members).where(eq(members.id, sourceId));
+  });
+  await invalidateMemberReputation(db, [sourceId, targetId], {
+    asRater: true,
+    codes: true,
   });
 
   revalidatePath("/admin/members");

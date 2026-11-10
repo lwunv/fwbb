@@ -1,5 +1,5 @@
 import "server-only";
-import { and, count, eq, inArray, or, sql } from "drizzle-orm";
+import { and, count, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import {
   abuseReports,
   exchangeCommentReads,
@@ -8,6 +8,12 @@ import {
   exchangeEvents,
   exchangeRegistrations,
   hostBlocks,
+  hostFeedback,
+  hostFlagReviews,
+  members,
+  peerFeedback,
+  referrals,
+  venueReviews,
 } from "@/db/schema";
 import type { DbOrTx, Tx } from "@/db/tx";
 
@@ -19,6 +25,8 @@ type RegMoney = {
   paidAt: string | null;
   refundedAmount: number | null;
   refundedAt: string | null;
+  checkedIn: boolean;
+  checkedInAt: string | null;
 };
 
 /** Mốc sớm nhất trong hai (ISO UTC so được bằng chuỗi), bỏ qua null. */
@@ -53,6 +61,16 @@ function mergeRegMoney(target: RegMoney, source: RegMoney): RegMoney {
         ? null
         : (target.refundedAmount ?? 0) + (source.refundedAmount ?? 0),
     refundedAt: earliest(target.refundedAt, source.refundedAt),
+    // Không phải tiền, nhưng cùng chỗ gộp: người đó đã có mặt nếu một trong
+    // hai tài khoản được điểm danh; giờ điểm danh lấy lần sớm hơn (I4).
+    checkedIn: target.checkedIn || source.checkedIn,
+    checkedInAt:
+      target.checkedIn || source.checkedIn
+        ? earliest(
+            target.checkedIn ? target.checkedInAt : null,
+            source.checkedIn ? source.checkedInAt : null,
+          )
+        : target.checkedInAt,
   };
 }
 
@@ -64,6 +82,8 @@ const moneyCols = {
   paidAt: exchangeRegistrations.paidAt,
   refundedAmount: exchangeRegistrations.refundedAmount,
   refundedAt: exchangeRegistrations.refundedAt,
+  checkedIn: exchangeRegistrations.checkedIn,
+  checkedInAt: exchangeRegistrations.checkedInAt,
 };
 
 /** Mốc lớn hơn trong hai (ISO UTC so được bằng chuỗi), null nhỏ hơn mọi giá trị. */
@@ -76,7 +96,7 @@ function latest(a: string | null, b: string | null): string | null {
 /**
  * Dời mọi dòng giao lưu của member nguồn sang member đích khi gộp tài khoản.
  * Gọi trong tx của merge, TRƯỚC khi xoá nguồn (FK bật thật). Không đụng sổ
- * quỹ hay công nợ: chỉ 4 bảng giao lưu. Tiền giao lưu (cọc, đã trả) đi theo
+ * quỹ hay công nợ: chỉ bảng giao lưu và uy tín. Tiền giao lưu (cọc, đã trả) đi theo
  * dòng đăng ký và được cộng sang dòng giữ lại khi trùng.
  *
  * Mọi trường hợp trùng khoá unique đều giữ dòng của đích, xoá dòng của nguồn.
@@ -300,6 +320,222 @@ export async function repointExchangeRows(
   }
 
   await repointCommentRows(tx, sourceId, targetId);
+  await repointReputationRows(tx, sourceId, targetId);
+}
+
+/**
+ * Lượt chấm, đánh giá sân, cờ host, giới thiệu và mã hồ sơ (G2d, quyết định
+ * 37). Trùng thì giữ dòng của đích. Sau khi gộp không còn lượt tự chấm mình
+ * hay host chấm (hoặc được chấm ở) buổi của chính mình, kể cả dòng vốn của
+ * đích. `member_ip_signals` không dời: xoá theo cascade cùng member nguồn.
+ */
+async function repointReputationRows(
+  tx: Tx,
+  sourceId: number,
+  targetId: number,
+): Promise<void> {
+  const now = new Date().toISOString();
+  const hostedByTarget = sql`(SELECT he.id FROM exchange_events he WHERE he.host_member_id = ${targetId})`;
+
+  // peer_feedback: bỏ cặp sẽ thành tự chấm, bỏ dòng nguồn trùng khoá với
+  // dòng đích, rồi dời hai chiều.
+  await tx
+    .delete(peerFeedback)
+    .where(
+      or(
+        and(
+          eq(peerFeedback.fromMemberId, sourceId),
+          eq(peerFeedback.toMemberId, targetId),
+        ),
+        and(
+          eq(peerFeedback.fromMemberId, targetId),
+          eq(peerFeedback.toMemberId, sourceId),
+        ),
+      ),
+    );
+  await tx
+    .delete(peerFeedback)
+    .where(
+      and(
+        eq(peerFeedback.fromMemberId, sourceId),
+        sql`EXISTS (SELECT 1 FROM peer_feedback k WHERE k.event_id = peer_feedback.event_id AND k.from_member_id = ${targetId} AND k.to_member_id = peer_feedback.to_member_id)`,
+      ),
+    );
+  await tx
+    .delete(peerFeedback)
+    .where(
+      and(
+        eq(peerFeedback.toMemberId, sourceId),
+        sql`EXISTS (SELECT 1 FROM peer_feedback k WHERE k.event_id = peer_feedback.event_id AND k.to_member_id = ${targetId} AND k.from_member_id = peer_feedback.from_member_id)`,
+      ),
+    );
+  await tx
+    .update(peerFeedback)
+    .set({ fromMemberId: targetId })
+    .where(eq(peerFeedback.fromMemberId, sourceId));
+  await tx
+    .update(peerFeedback)
+    .set({ toMemberId: targetId })
+    .where(eq(peerFeedback.toMemberId, sourceId));
+  await tx
+    .delete(peerFeedback)
+    .where(
+      and(
+        or(
+          eq(peerFeedback.fromMemberId, targetId),
+          eq(peerFeedback.toMemberId, targetId),
+        ),
+        sql`${peerFeedback.eventId} IN ${hostedByTarget}`,
+      ),
+    );
+
+  // host_feedback: một người một phiếu mỗi buổi, giữ của đích; rồi bỏ mọi
+  // phiếu đích chấm buổi mà giờ chính đích là host.
+  await tx
+    .delete(hostFeedback)
+    .where(
+      and(
+        eq(hostFeedback.fromMemberId, sourceId),
+        sql`EXISTS (SELECT 1 FROM host_feedback k WHERE k.event_id = host_feedback.event_id AND k.from_member_id = ${targetId})`,
+      ),
+    );
+  await tx
+    .update(hostFeedback)
+    .set({ fromMemberId: targetId })
+    .where(eq(hostFeedback.fromMemberId, sourceId));
+  await tx
+    .delete(hostFeedback)
+    .where(
+      and(
+        eq(hostFeedback.fromMemberId, targetId),
+        sql`${hostFeedback.eventId} IN ${hostedByTarget}`,
+      ),
+    );
+
+  // venue_reviews: một người một đánh giá mỗi sân. Đánh giá bị bỏ thì báo cáo
+  // đang mở nhắm vào nó không còn gì để xử lý: đóng lại.
+  const sourceReviews = await tx
+    .select({ id: venueReviews.id, venueId: venueReviews.venueId })
+    .from(venueReviews)
+    .where(eq(venueReviews.memberId, sourceId));
+  if (sourceReviews.length > 0) {
+    const targetVenues = new Set(
+      (
+        await tx
+          .select({ venueId: venueReviews.venueId })
+          .from(venueReviews)
+          .where(eq(venueReviews.memberId, targetId))
+      ).map((r) => r.venueId),
+    );
+    for (const r of sourceReviews) {
+      if (!targetVenues.has(r.venueId)) {
+        await tx
+          .update(venueReviews)
+          .set({ memberId: targetId })
+          .where(eq(venueReviews.id, r.id));
+        continue;
+      }
+      await tx.delete(venueReviews).where(eq(venueReviews.id, r.id));
+      await tx
+        .update(abuseReports)
+        .set({ status: "resolved", resolvedAt: now })
+        .where(
+          and(
+            eq(abuseReports.targetType, "review"),
+            eq(abuseReports.targetId, r.id),
+            eq(abuseReports.status, "open"),
+          ),
+        );
+    }
+  }
+
+  // host_flag_reviews: một dòng mỗi host; giữ số bị giữ lớn hơn và mốc xem
+  // muộn hơn để cờ không bật lại sai.
+  const [srcFlag] = await tx
+    .select()
+    .from(hostFlagReviews)
+    .where(eq(hostFlagReviews.hostMemberId, sourceId));
+  if (srcFlag) {
+    const [tgtFlag] = await tx
+      .select()
+      .from(hostFlagReviews)
+      .where(eq(hostFlagReviews.hostMemberId, targetId));
+    if (tgtFlag) {
+      await tx
+        .update(hostFlagReviews)
+        .set({
+          captives: Math.max(tgtFlag.captives, srcFlag.captives),
+          reviewedAt: latest(tgtFlag.reviewedAt, srcFlag.reviewedAt) ?? now,
+        })
+        .where(eq(hostFlagReviews.id, tgtFlag.id));
+      await tx
+        .delete(hostFlagReviews)
+        .where(eq(hostFlagReviews.id, srcFlag.id));
+    } else {
+      await tx
+        .update(hostFlagReviews)
+        .set({ hostMemberId: targetId })
+        .where(eq(hostFlagReviews.id, srcFlag.id));
+    }
+  }
+
+  // referrals: mỗi người tối đa một người giới thiệu. Dòng nguồn được giới
+  // thiệu bị bỏ nếu thành tự giới thiệu hoặc đích đã có người giới thiệu;
+  // dòng nguồn giới thiệu chính đích cũng bỏ.
+  const [asReferee] = await tx
+    .select()
+    .from(referrals)
+    .where(eq(referrals.refereeMemberId, sourceId));
+  if (asReferee) {
+    const [targetHas] = await tx
+      .select({ id: referrals.id })
+      .from(referrals)
+      .where(eq(referrals.refereeMemberId, targetId))
+      .limit(1);
+    if (asReferee.referrerMemberId === targetId || targetHas) {
+      await tx.delete(referrals).where(eq(referrals.id, asReferee.id));
+    } else {
+      await tx
+        .update(referrals)
+        .set({ refereeMemberId: targetId })
+        .where(eq(referrals.id, asReferee.id));
+    }
+  }
+  await tx
+    .delete(referrals)
+    .where(
+      and(
+        eq(referrals.referrerMemberId, sourceId),
+        eq(referrals.refereeMemberId, targetId),
+      ),
+    );
+  await tx
+    .update(referrals)
+    .set({ referrerMemberId: targetId })
+    .where(eq(referrals.referrerMemberId, sourceId));
+
+  // Mã hồ sơ: đích chưa có thì nhận mã của nguồn (link cũ vẫn mở đúng người).
+  // Nguồn nhả mã trước vì cột UNIQUE.
+  const [src] = await tx
+    .select({ code: members.publicCode })
+    .from(members)
+    .where(eq(members.id, sourceId));
+  if (src?.code) {
+    const [tgt] = await tx
+      .select({ code: members.publicCode })
+      .from(members)
+      .where(eq(members.id, targetId));
+    if (tgt && !tgt.code) {
+      await tx
+        .update(members)
+        .set({ publicCode: null })
+        .where(eq(members.id, sourceId));
+      await tx
+        .update(members)
+        .set({ publicCode: src.code })
+        .where(and(eq(members.id, targetId), isNull(members.publicCode)));
+    }
+  }
 }
 
 /**
@@ -415,7 +651,7 @@ async function repointCommentRows(
   }
 }
 
-/** Tổng số dòng giao lưu còn trỏ tới member (7 bảng), dùng để chặn xoá cứng. */
+/** Tổng số dòng giao lưu còn trỏ tới member (12 bảng), dùng để chặn xoá cứng. */
 export async function countExchangeRefs(
   db: DbOrTx,
   memberId: number,
@@ -460,6 +696,39 @@ export async function countExchangeRefs(
       .from(exchangeCommentReads)
       .where(eq(exchangeCommentReads.memberId, memberId)),
   ]);
+  // G2d (5 bảng): `member_ip_signals` không tính vì xoá theo cascade.
+  const [[pf], [hf], [vr], [fl], [rf]] = await Promise.all([
+    db
+      .select({ n: count() })
+      .from(peerFeedback)
+      .where(
+        or(
+          eq(peerFeedback.fromMemberId, memberId),
+          eq(peerFeedback.toMemberId, memberId),
+        ),
+      ),
+    db
+      .select({ n: count() })
+      .from(hostFeedback)
+      .where(eq(hostFeedback.fromMemberId, memberId)),
+    db
+      .select({ n: count() })
+      .from(venueReviews)
+      .where(eq(venueReviews.memberId, memberId)),
+    db
+      .select({ n: count() })
+      .from(hostFlagReviews)
+      .where(eq(hostFlagReviews.hostMemberId, memberId)),
+    db
+      .select({ n: count() })
+      .from(referrals)
+      .where(
+        or(
+          eq(referrals.referrerMemberId, memberId),
+          eq(referrals.refereeMemberId, memberId),
+        ),
+      ),
+  ]);
   return (
     Number(e.n) +
     Number(r.n) +
@@ -467,6 +736,11 @@ export async function countExchangeRefs(
     Number(a.n) +
     Number(cm.n) +
     Number(cv.n) +
-    Number(cr.n)
+    Number(cr.n) +
+    Number(pf.n) +
+    Number(hf.n) +
+    Number(vr.n) +
+    Number(fl.n) +
+    Number(rf.n)
   );
 }

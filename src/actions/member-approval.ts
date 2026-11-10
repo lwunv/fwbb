@@ -19,6 +19,7 @@ import {
   repointNotifications,
 } from "@/lib/notifications/account-events";
 import { repointExchangeRows } from "@/lib/exchange/member-rows";
+import { invalidateMemberReputation } from "@/lib/reputation/invalidate";
 
 /** Helper: normalize Vietnamese name for fuzzy matching (lowercase + strip
  *  diacritics + collapse whitespace). Đủ cho UX gợi ý, không phải search engine. */
@@ -359,6 +360,7 @@ export async function approveMember(memberId: number) {
       });
     }
   });
+  await invalidateMemberReputation(db, [memberId], { asRater: true });
 
   revalidatePath("/admin/members");
   revalidatePath("/pending-approval");
@@ -405,6 +407,7 @@ export async function rejectMember(memberId: number) {
       });
     }
   });
+  await invalidateMemberReputation(db, [memberId], { asRater: true });
 
   revalidatePath("/admin/members");
   revalidatePath("/pending-approval");
@@ -523,6 +526,10 @@ export async function approveAndMergeMember(
       memberId: targetMemberId,
       dedupBase: `acct:merge:m${targetMemberId}`,
     });
+  });
+  await invalidateMemberReputation(db, [pendingMemberId, targetMemberId], {
+    asRater: true,
+    codes: true,
   });
 
   revalidatePath("/admin/members");

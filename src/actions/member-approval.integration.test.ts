@@ -6,14 +6,21 @@
  * khoản theo cách khác: đảm bảo chỉ còn 1 đường đăng nhập sau merge).
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
-import { members, memberOauthIdentities } from "@/db/schema";
+import {
+  members,
+  memberOauthIdentities,
+  peerFeedback,
+  exchangeEvents,
+  venueReviews,
+  venues,
+} from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 const flag = vi.hoisted(() => ({ on: true }));
 
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 vi.mock("@/lib/exchange-flag", () => ({
   isExchangeEnabled: vi.fn(async () => flag.on),
 }));
@@ -24,8 +31,13 @@ vi.mock("@/lib/auth", () => ({
 const { db: testDb, client } = await createTestDb();
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { approveAndMergeMember, getNameMatches, declineGroupRequest } =
-  await import("./member-approval");
+const {
+  approveAndMergeMember,
+  approveMember,
+  getNameMatches,
+  declineGroupRequest,
+  rejectMember,
+} = await import("./member-approval");
 const { requireAdmin } = await import("@/lib/auth");
 const { findMemberByOAuth } = await import("@/lib/oauth-identity");
 
@@ -327,5 +339,97 @@ describe("declineGroupRequest", () => {
     expect((await memberById(locked))?.signupIntent).toBe("group");
     expect(await declineGroupRequest(0)).toHaveProperty("error");
     expect(await declineGroupRequest(99999)).toHaveProperty("error");
+  });
+});
+
+// ── G2d: duyệt / từ chối làm mới cache hồ sơ, người được chấm và điểm sân ──
+
+describe("approve and reject refresh reputation caches (G2d)", () => {
+  const NOW = "2026-11-05T00:00:00.000Z";
+
+  async function cleanRep() {
+    for (const t of [
+      "peer_feedback",
+      "venue_reviews",
+      "exchange_events",
+      "venues",
+      "notifications",
+    ]) {
+      await client.execute(`DELETE FROM ${t}`);
+    }
+  }
+
+  beforeEach(async () => {
+    await cleanRep();
+    await reset();
+    const { updateTag } = await import("next/cache");
+    vi.mocked(updateTag).mockClear();
+  });
+  afterEach(cleanRep);
+
+  it("rejecting or approving a rater refreshes their profile, the people they rated and their venue tags", async () => {
+    const [rater, rated, host] = await testDb
+      .insert(members)
+      .values([
+        { name: "Nguoi cham", approvalStatus: "pending" },
+        { name: "Duoc cham", approvalStatus: "approved" },
+        { name: "Host", approvalStatus: "approved" },
+      ])
+      .returning({ id: members.id });
+    const [v] = await testDb
+      .insert(venues)
+      .values({ name: "San", lat: 10, lng: 106 })
+      .returning({ id: venues.id });
+    const [ev] = await testDb
+      .insert(exchangeEvents)
+      .values({
+        publicCode: "REPAP1",
+        hostMemberId: host.id,
+        venueId: v.id,
+        title: "Giao lưu",
+        startAt: "2026-11-01T12:00:00.000Z",
+        endAt: "2026-11-01T14:00:00.000Z",
+        slotsTotal: 10,
+        feeMode: "fixed",
+        registerDeadline: "2026-11-01T10:00:00.000Z",
+        cancelDeadline: "2026-11-01T08:00:00.000Z",
+        createdAt: NOW,
+        updatedAt: NOW,
+      })
+      .returning({ id: exchangeEvents.id });
+    await testDb.insert(peerFeedback).values({
+      eventId: ev.id,
+      fromMemberId: rater.id,
+      toMemberId: rated.id,
+      raterWeight: 1,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    await testDb.insert(venueReviews).values({
+      venueId: v.id,
+      memberId: rater.id,
+      scoreSurface: 4,
+      scoreLighting: 4,
+      scoreVentilation: 4,
+      scorePrice: 4,
+      scoreParking: 4,
+      scoreOwner: 4,
+      raterWeight: 1,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    const { updateTag } = await import("next/cache");
+    const expected = [`rep:m${rater.id}`, `rep:m${rated.id}`, `vrev:v${v.id}`];
+
+    expect(await rejectMember(rater.id)).toEqual({ success: true });
+    expect(vi.mocked(updateTag).mock.calls.map((c) => c[0])).toEqual(
+      expect.arrayContaining(expected),
+    );
+
+    vi.mocked(updateTag).mockClear();
+    expect(await approveMember(rater.id)).toEqual({ success: true });
+    expect(vi.mocked(updateTag).mock.calls.map((c) => c[0])).toEqual(
+      expect.arrayContaining(expected),
+    );
   });
 });

@@ -14,16 +14,22 @@ import {
   exchangeRegistrations,
   financialTransactions,
   hostBlocks,
+  hostFeedback,
+  hostFlagReviews,
+  memberIpSignals,
   members,
+  peerFeedback,
+  referrals,
   sessionDebts,
   sessions,
+  venueReviews,
   venues,
   votes,
 } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { computeBalanceFromTransactions } from "@/lib/fund-core";
 
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 vi.mock("@/lib/exchange-flag", () => ({
   isExchangeEnabled: vi.fn(async () => true),
 }));
@@ -45,6 +51,12 @@ const NOW = "2026-11-05T00:00:00.000Z";
 
 async function reset() {
   for (const t of [
+    "peer_feedback",
+    "host_feedback",
+    "venue_reviews",
+    "host_flag_reviews",
+    "referrals",
+    "member_ip_signals",
     "exchange_comment_votes",
     "exchange_comment_reads",
     "exchange_comments",
@@ -707,5 +719,440 @@ describe("exchange rows through merge and delete", () => {
     expect(
       await testDb.query.members.findFirst({ where: eq(members.id, pending) }),
     ).toBeUndefined();
+  });
+});
+
+// ── G2d: lượt chấm, đánh giá sân, cờ host, giới thiệu qua gộp ──
+
+async function mkVenue(name = "San") {
+  const [v] = await testDb
+    .insert(venues)
+    .values({ name, lat: 10, lng: 106 })
+    .returning({ id: venues.id });
+  return v.id;
+}
+
+async function mkPeer(
+  eventId: number,
+  from: number,
+  to: number,
+  extra: Partial<typeof peerFeedback.$inferInsert> = {},
+) {
+  const [r] = await testDb
+    .insert(peerFeedback)
+    .values({
+      eventId,
+      fromMemberId: from,
+      toMemberId: to,
+      raterWeight: 5,
+      createdAt: NOW,
+      updatedAt: NOW,
+      ...extra,
+    })
+    .returning({ id: peerFeedback.id });
+  return r.id;
+}
+
+async function mkHostFb(eventId: number, from: number) {
+  const [r] = await testDb
+    .insert(hostFeedback)
+    .values({
+      eventId,
+      fromMemberId: from,
+      asDescribed: true,
+      feeAsPromised: true,
+      raterWeight: 5,
+      createdAt: NOW,
+      updatedAt: NOW,
+    })
+    .returning({ id: hostFeedback.id });
+  return r.id;
+}
+
+async function mkReview(venue: number, memberId: number) {
+  const [r] = await testDb
+    .insert(venueReviews)
+    .values({
+      venueId: venue,
+      memberId,
+      scoreSurface: 4,
+      scoreLighting: 4,
+      scoreVentilation: 4,
+      scorePrice: 4,
+      scoreParking: 4,
+      scoreOwner: 4,
+      raterWeight: 5,
+      createdAt: NOW,
+      updatedAt: NOW,
+    })
+    .returning({ id: venueReviews.id });
+  return r.id;
+}
+
+describe("reputation rows through merge (G2d)", () => {
+  beforeEach(async () => {
+    await reset();
+    venueId = 0;
+    const adminMember = await mk("Admin");
+    const [a] = await testDb
+      .insert(adminsTable)
+      .values({ username: "Admin", passwordHash: "x", memberId: adminMember })
+      .returning({ id: adminsTable.id });
+    const { requireAdmin } = await import("@/lib/auth");
+    vi.mocked(requireAdmin).mockResolvedValue({
+      admin: { sub: String(a.id), role: "admin" },
+    } as never);
+    const { updateTag } = await import("next/cache");
+    vi.mocked(updateTag).mockClear();
+  });
+
+  it("merge moves peer feedback both ways, host feedback, venue reviews, flag reviews and referrals to the target", async () => {
+    const source = await mk("Nguon");
+    const target = await mk("Dich");
+    const other = await mk("Khac");
+    const other2 = await mk("Khac 2");
+    const host = await mk("Host");
+    const ev = await mkEvent(host, "RP1");
+    const v = await mkVenue();
+    const pOut = await mkPeer(ev, source, other);
+    const pIn = await mkPeer(ev, other, source);
+    const hf = await mkHostFb(ev, source);
+    const rv = await mkReview(v, source);
+    await testDb.insert(hostFlagReviews).values({
+      hostMemberId: source,
+      captives: 4,
+      reviewedAt: NOW,
+    });
+    await testDb.insert(referrals).values([
+      { referrerMemberId: source, refereeMemberId: other, createdAt: NOW },
+      { referrerMemberId: other2, refereeMemberId: source, createdAt: NOW },
+    ]);
+    await testDb.insert(memberIpSignals).values({
+      memberId: source,
+      ipHash: "h1",
+      kind: "signup",
+      firstSeenAt: NOW,
+      lastSeenAt: NOW,
+    });
+
+    expect(await mergeMember(source, target)).toEqual({ success: true });
+
+    const peers = await testDb.select().from(peerFeedback);
+    expect(peers.find((p) => p.id === pOut)).toMatchObject({
+      fromMemberId: target,
+      toMemberId: other,
+    });
+    expect(peers.find((p) => p.id === pIn)).toMatchObject({
+      fromMemberId: other,
+      toMemberId: target,
+    });
+    const [h] = await testDb.select().from(hostFeedback);
+    expect(h).toMatchObject({ id: hf, fromMemberId: target });
+    const [r] = await testDb.select().from(venueReviews);
+    expect(r).toMatchObject({ id: rv, memberId: target });
+    const [f] = await testDb.select().from(hostFlagReviews);
+    expect(f).toMatchObject({ hostMemberId: target, captives: 4 });
+    const refs = await testDb.select().from(referrals);
+    expect(
+      refs.map((x) => `${x.referrerMemberId}>${x.refereeMemberId}`).sort(),
+    ).toEqual([`${other2}>${target}`, `${target}>${other}`].sort());
+    // Tín hiệu IP của nguồn không dời: xoá theo cascade cùng member nguồn.
+    expect(await testDb.select().from(memberIpSignals)).toHaveLength(0);
+  });
+
+  it("merge keeps the larger captives and the later review time when both hosts were flagged", async () => {
+    const source = await mk("Nguon");
+    const target = await mk("Dich");
+    await testDb.insert(hostFlagReviews).values([
+      {
+        hostMemberId: source,
+        captives: 7,
+        reviewedAt: "2026-11-01T00:00:00.000Z",
+      },
+      {
+        hostMemberId: target,
+        captives: 3,
+        reviewedAt: "2026-11-04T00:00:00.000Z",
+      },
+    ]);
+
+    expect(await mergeMember(source, target)).toEqual({ success: true });
+
+    const rows = await testDb.select().from(hostFlagReviews);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      hostMemberId: target,
+      captives: 7,
+      reviewedAt: "2026-11-04T00:00:00.000Z",
+    });
+  });
+
+  it("merge drops referrals that would refer the target to itself or name a second referrer", async () => {
+    const source = await mk("Nguon");
+    const target = await mk("Dich");
+    const a = await mk("A");
+    const b = await mk("B");
+    const c = await mk("C");
+    await testDb.insert(referrals).values([
+      // Đích giới thiệu nguồn, và nguồn giới thiệu đích: thành tự giới thiệu.
+      { referrerMemberId: target, refereeMemberId: source, createdAt: NOW },
+      { referrerMemberId: source, refereeMemberId: target, createdAt: NOW },
+      { referrerMemberId: c, refereeMemberId: b, createdAt: NOW },
+    ]);
+    const [ab] = await testDb
+      .insert(referrals)
+      .values({ referrerMemberId: a, refereeMemberId: c, createdAt: NOW })
+      .returning({ id: referrals.id });
+    expect(await mergeMember(source, target)).toEqual({ success: true });
+    let refs = await testDb.select().from(referrals);
+    expect(refs.some((r) => r.refereeMemberId === target)).toBe(false);
+    expect(refs.every((r) => r.referrerMemberId !== r.refereeMemberId)).toBe(
+      true,
+    );
+
+    // Đích đã có người giới thiệu: dòng của nguồn bị bỏ, giữ của đích.
+    const source2 = await mk("Nguon 2");
+    await testDb
+      .insert(referrals)
+      .values({
+        referrerMemberId: b,
+        refereeMemberId: source2,
+        createdAt: NOW,
+      });
+    await testDb
+      .update(referrals)
+      .set({ refereeMemberId: target })
+      .where(eq(referrals.id, ab.id));
+    expect(await mergeMember(source2, target)).toEqual({ success: true });
+    refs = await testDb.select().from(referrals);
+    const toTarget = refs.filter((r) => r.refereeMemberId === target);
+    expect(toTarget).toHaveLength(1);
+    expect(toTarget[0].referrerMemberId).toBe(a);
+  });
+
+  it("a duplicate peer row keeps the target's; a self pair after merge is deleted", async () => {
+    const source = await mk("Nguon");
+    const target = await mk("Dich");
+    const other = await mk("Khac");
+    const host = await mk("Host");
+    const ev = await mkEvent(host, "RP2");
+    await mkPeer(ev, source, other, { playAgain: true });
+    const keptOut = await mkPeer(ev, target, other, { playAgain: false });
+    await mkPeer(ev, other, source);
+    const keptIn = await mkPeer(ev, other, target);
+    await mkPeer(ev, source, target);
+    await mkPeer(ev, target, source);
+
+    expect(await mergeMember(source, target)).toEqual({ success: true });
+
+    const peers = await testDb.select().from(peerFeedback);
+    expect(peers.map((p) => p.id).sort()).toEqual([keptOut, keptIn].sort());
+    expect(peers.find((p) => p.id === keptOut)?.playAgain).toBe(false);
+    expect(peers.every((p) => p.fromMemberId !== p.toMemberId)).toBe(true);
+  });
+
+  it("after merge no host_feedback row rates the rater's own event, including the target's own row", async () => {
+    const source = await mk("Nguon");
+    const target = await mk("Dich");
+    const other = await mk("Khac");
+    const host = await mk("Host");
+    const evS = await mkEvent(source, "RP3");
+    const evT = await mkEvent(target, "RP4");
+    const evO = await mkEvent(host, "RP5");
+    await mkHostFb(evS, target); // dòng vốn của đích, nay thành tự chấm
+    await mkHostFb(evT, source);
+    const keptOther = await mkHostFb(evS, other);
+    await mkHostFb(evO, source);
+    const keptDup = await mkHostFb(evO, target);
+    // Đích chấm hay được chấm ở buổi nguồn làm host: nay là host trong cặp.
+    await mkPeer(evS, target, other);
+    await mkPeer(evS, other, target);
+    const keptPeer = await mkPeer(evS, other, host);
+
+    expect(await mergeMember(source, target)).toEqual({ success: true });
+
+    const hf = await testDb.select().from(hostFeedback);
+    expect(hf.map((r) => r.id).sort()).toEqual([keptOther, keptDup].sort());
+    const events = await testDb.select().from(exchangeEvents);
+    const hostOf = new Map(events.map((e) => [e.id, e.hostMemberId]));
+    for (const r of hf) expect(hostOf.get(r.eventId)).not.toBe(r.fromMemberId);
+    const peers = await testDb.select().from(peerFeedback);
+    expect(peers.map((p) => p.id)).toEqual([keptPeer]);
+  });
+
+  it("two registrations of one event keep the check-in and the earliest time", async () => {
+    const source = await mk("Nguon");
+    const target = await mk("Dich");
+    const host = await mk("Host");
+    const evA = await mkEvent(host, "RP6");
+    const evB = await mkEvent(host, "RP7");
+    const sA = await mkReg(evA, source);
+    const tA = await mkReg(evA, target);
+    const sB = await mkReg(evB, source);
+    const tB = await mkReg(evB, target);
+    const T1 = "2026-12-01T12:05:00.000Z";
+    const T2 = "2026-12-01T12:10:00.000Z";
+    const T3 = "2026-12-01T12:20:00.000Z";
+    await testDb
+      .update(exchangeRegistrations)
+      .set({ checkedIn: true, checkedInAt: T1 })
+      .where(eq(exchangeRegistrations.id, sA));
+    await testDb
+      .update(exchangeRegistrations)
+      .set({ checkedIn: true, checkedInAt: T2 })
+      .where(eq(exchangeRegistrations.id, sB));
+    await testDb
+      .update(exchangeRegistrations)
+      .set({ checkedIn: true, checkedInAt: T3 })
+      .where(eq(exchangeRegistrations.id, tB));
+
+    expect(await mergeMember(source, target)).toEqual({ success: true });
+
+    const rows = await testDb.select().from(exchangeRegistrations);
+    expect(rows).toHaveLength(2);
+    expect(rows.find((r) => r.id === tA)).toMatchObject({
+      memberId: target,
+      checkedIn: true,
+      checkedInAt: T1,
+    });
+    expect(rows.find((r) => r.id === tB)).toMatchObject({
+      memberId: target,
+      checkedIn: true,
+      checkedInAt: T2,
+    });
+  });
+
+  it("two reviews of one venue keep the target's and resolve reports on the dropped one", async () => {
+    const source = await mk("Nguon");
+    const target = await mk("Dich");
+    const other = await mk("Khac");
+    const v = await mkVenue();
+    const rs = await mkReview(v, source);
+    const rt = await mkReview(v, target);
+    await testDb.insert(abuseReports).values([
+      {
+        reporterMemberId: other,
+        targetType: "review",
+        targetId: rs,
+        reason: "spam",
+        createdAt: NOW,
+      },
+      {
+        reporterMemberId: other,
+        targetType: "review",
+        targetId: rt,
+        reason: "spam",
+        createdAt: NOW,
+      },
+    ]);
+
+    expect(await mergeMember(source, target)).toEqual({ success: true });
+
+    const reviews = await testDb.select().from(venueReviews);
+    expect(reviews.map((r) => r.id)).toEqual([rt]);
+    const reps = await testDb.select().from(abuseReports);
+    const onDropped = reps.find((r) => r.targetId === rs);
+    expect(onDropped?.status).toBe("resolved");
+    expect(onDropped?.resolvedAt).toBeTruthy();
+    expect(reps.find((r) => r.targetId === rt)?.status).toBe("open");
+  });
+
+  it("a target without a code takes the source's", async () => {
+    const source = await mk("Nguon", { publicCode: "SRCCODE001" });
+    const target = await mk("Dich");
+    const source2 = await mk("Nguon 2", { publicCode: "SRCCODE002" });
+    const target2 = await mk("Dich 2", { publicCode: "TGTCODE002" });
+
+    expect(await mergeMember(source, target)).toEqual({ success: true });
+    expect(await mergeMember(source2, target2)).toEqual({ success: true });
+
+    const t = await testDb.query.members.findFirst({
+      where: eq(members.id, target),
+    });
+    expect(t?.publicCode).toBe("SRCCODE001");
+    const t2 = await testDb.query.members.findFirst({
+      where: eq(members.id, target2),
+    });
+    expect(t2?.publicCode).toBe("TGTCODE002");
+  });
+
+  it("approve-as-merge of a pending account with venue reviews, two-way peer feedback and a code succeeds and the target gets the code", async () => {
+    const target = await mk("Dich");
+    const pending = await mk("Cho duyet", {
+      approvalStatus: "pending",
+      googleId: "g-pend-rep",
+      publicCode: "PENDCODE01",
+    });
+    const host = await mk("Host");
+    const other = await mk("Khac");
+    const ev = await mkEvent(host, "RP8");
+    const v = await mkVenue();
+    const rv = await mkReview(v, pending);
+    const pOut = await mkPeer(ev, pending, other);
+    const pIn = await mkPeer(ev, other, pending);
+
+    expect(await approveAndMergeMember(pending, target)).toEqual({
+      success: true,
+    });
+
+    const t = await testDb.query.members.findFirst({
+      where: eq(members.id, target),
+    });
+    expect(t?.publicCode).toBe("PENDCODE01");
+    const [r] = await testDb.select().from(venueReviews);
+    expect(r).toMatchObject({ id: rv, memberId: target });
+    const peers = await testDb.select().from(peerFeedback);
+    expect(peers.find((p) => p.id === pOut)?.fromMemberId).toBe(target);
+    expect(peers.find((p) => p.id === pIn)?.toMemberId).toBe(target);
+    expect(
+      await testDb.query.members.findFirst({ where: eq(members.id, pending) }),
+    ).toBeUndefined();
+  });
+
+  it("deleteMember with only a venue review is blocked", async () => {
+    const m = await mk("Chi danh gia san");
+    const v = await mkVenue();
+    await mkReview(v, m);
+
+    const r = await deleteMember(m);
+    expect(r).toHaveProperty("error");
+    expect(
+      await testDb.query.members.findFirst({ where: eq(members.id, m) }),
+    ).toBeDefined();
+    expect(await testDb.select().from(venueReviews)).toHaveLength(1);
+  });
+
+  it('merge also calls updateTag("exchange")', async () => {
+    const source = await mk("Nguon");
+    const target = await mk("Dich");
+    const v = await mkVenue();
+    await mkReview(v, source);
+
+    expect(await mergeMember(source, target)).toEqual({ success: true });
+
+    const { updateTag } = await import("next/cache");
+    const tags = vi.mocked(updateTag).mock.calls.map((c) => c[0]);
+    expect(tags).toContain("exchange");
+    expect(tags).toContain(`rep:m${source}`);
+    expect(tags).toContain(`rep:m${target}`);
+    expect(tags).toContain(`vrev:v${v}`);
+  });
+
+  it("approve-as-merge also refreshes both profiles and the exchange code cache", async () => {
+    const target = await mk("Dich");
+    const pending = await mk("Cho duyet", {
+      approvalStatus: "pending",
+      googleId: "g-pend-tag",
+    });
+
+    expect(await approveAndMergeMember(pending, target)).toEqual({
+      success: true,
+    });
+
+    const { updateTag } = await import("next/cache");
+    const tags = vi.mocked(updateTag).mock.calls.map((c) => c[0]);
+    expect(tags).toEqual(
+      expect.arrayContaining(["exchange", `rep:m${pending}`, `rep:m${target}`]),
+    );
   });
 });

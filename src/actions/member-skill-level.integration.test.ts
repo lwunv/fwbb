@@ -22,7 +22,7 @@ vi.mock("@/lib/auth", () => ({
   requireAdmin: vi.fn(async () => ({ admin: { sub: "1", role: "admin" } })),
   getAdminFromCookie: vi.fn(async () => ({ sub: "1", role: "admin" })),
 }));
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 vi.mock("@/lib/messenger", () => ({
   sendGroupMessage: vi.fn(),
   buildDebtReminderMessage: vi.fn(() => ""),
