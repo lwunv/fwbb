@@ -557,7 +557,10 @@ describe("switch off", () => {
     expect(second).toEqual({ success: true });
     expect(spy.sqls.length).toBeGreaterThan(0);
     const all = spy.sqls.join("\n");
-    expect(all).not.toMatch(/notification/);
+    // Dùng \b: bảng notifications / notification_prefs vẫn bị bắt, nhưng cột
+    // financial_transactions.payment_notification_id (main đọc sổ quỹ khi
+    // chặn vote vì nợ) thì không phải truy vấn vào bảng thông báo.
+    expect(all).not.toMatch(/\bnotification/);
     expect(all).not.toMatch(/"admins"/);
     expect(await testDb.select().from(notifications)).toHaveLength(0);
     expect(

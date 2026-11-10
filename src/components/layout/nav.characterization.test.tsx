@@ -11,6 +11,11 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/components/notifications/notification-bell", () => ({
   NotificationBell: () => null,
 }));
+// Chuông nợ của admin (từ main) gọi server action đọc DB; test này chỉ
+// kiểm menu nên thay bằng rỗng như chuông thông báo ở trên.
+vi.mock("@/components/layout/admin-debt-bell", () => ({
+  AdminDebtBell: () => null,
+}));
 vi.mock("@/actions/auth", () => ({ logout: vi.fn() }));
 vi.mock("@/components/shared/theme-toggle", () => ({
   ThemeToggle: () => null,
