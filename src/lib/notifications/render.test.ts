@@ -444,3 +444,19 @@ describe("render exchange kinds", () => {
     expect(viOut.body).not.toContain("event");
   });
 });
+
+describe("venue_review_held", () => {
+  it("href opens /admin/exchanges?tab=reputation", () => {
+    expect(notificationHref(view("venue_review_held"), "admin")).toBe(
+      "/admin/exchanges?tab=reputation",
+    );
+    for (const locale of ["vi", "en", "zh"] as const) {
+      const out = renderNotification(
+        translator(locale),
+        view("venue_review_held", { venueName: "Sân Cầu Giấy" }),
+        locale,
+      );
+      expect(out.body).toContain("Sân Cầu Giấy");
+    }
+  });
+});

@@ -1134,7 +1134,12 @@
       "feedbackNotYet": "This exchange has not ended yet, so it cannot be rated.",
       "feedbackClosed": "The rating period for this exchange has ended.",
       "feedbackNotAllowed": "You cannot rate this exchange.",
-      "feedbackSaveFailed": "Your ratings could not be saved. Please try again."
+      "feedbackSaveFailed": "Your ratings could not be saved. Please try again.",
+      "reviewVenueNotFound": "This venue could not be found.",
+      "reviewNotEligible": "Only players who have played at this venue can review it.",
+      "reviewEditTooSoon": "You edited your review recently. You can edit it again from {date}.",
+      "reviewHidden": "This review is hidden, so it cannot be edited.",
+      "reviewSaveFailed": "Your venue review could not be saved. Please try again."
     },
     "search": {
       "viewSwitch": "View mode",
@@ -2408,6 +2413,10 @@
       "exchange_comment_held": {
         "title": "Comment waiting for review",
         "body": "A comment on {eventTitle} is waiting for you to review."
+      },
+      "venue_review_held": {
+        "title": "Venue review waiting for review",
+        "body": "A review of {venueName} is waiting for you to review."
       }
     },
     "unsubscribe": {

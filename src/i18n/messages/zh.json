@@ -1134,7 +1134,12 @@
       "feedbackNotYet": "这场活动尚未结束，暂时无法评价。",
       "feedbackClosed": "这场活动的评价时间已结束。",
       "feedbackNotAllowed": "你无法评价这场活动。",
-      "feedbackSaveFailed": "评价未能保存，请重试。"
+      "feedbackSaveFailed": "评价未能保存，请重试。",
+      "reviewVenueNotFound": "找不到这个场馆。",
+      "reviewNotEligible": "只有在这个场馆打过球的人才能评价。",
+      "reviewEditTooSoon": "你最近修改过评价，{date} 起可以再次修改。",
+      "reviewHidden": "这条评价已被隐藏，无法修改。",
+      "reviewSaveFailed": "场馆评价未能保存，请重试。"
     },
     "search": {
       "viewSwitch": "查看方式",
@@ -2408,6 +2413,10 @@
       "exchange_comment_held": {
         "title": "有评论待审核",
         "body": "{eventTitle} 有一条评论等你审核。"
+      },
+      "venue_review_held": {
+        "title": "有场馆评价待审核",
+        "body": "{venueName} 有一条评价等你审核。"
       }
     },
     "unsubscribe": {
