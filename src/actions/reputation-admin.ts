@@ -1,14 +1,12 @@
 "use server";
 
-import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { updateTag } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { db } from "@/db";
 import {
   abuseReports,
-  exchangeEvents,
-  exchangeRegistrations,
   hostFlagReviews,
   members,
   venueReviews,
@@ -27,7 +25,7 @@ import {
   VENUE_REVIEWS_TAG,
   venueReviewTag,
 } from "@/lib/reputation/constants";
-import { validCheckInSql } from "@/lib/reputation/eligibility";
+import { hostFlagRowsQuery } from "@/lib/reputation/host-flag-rows";
 import { findCaptiveHosts } from "@/lib/reputation/host-flags";
 
 // Tab Uy tín của admin. Mọi export là endpoint POST nên mỗi hàm tự kiểm: cờ,
@@ -324,27 +322,7 @@ async function computeCaptiveHosts() {
   const since = new Date(
     Date.now() - HOST_FLAG_WINDOW_DAYS * 86_400_000,
   ).toISOString();
-  const rows = await db
-    .select({
-      hostId: exchangeEvents.hostMemberId,
-      eventId: exchangeEvents.id,
-      memberId: exchangeRegistrations.memberId,
-      approvalStatus: members.approvalStatus,
-    })
-    .from(exchangeRegistrations)
-    .innerJoin(
-      exchangeEvents,
-      eq(exchangeEvents.id, exchangeRegistrations.eventId),
-    )
-    .innerJoin(members, eq(members.id, exchangeRegistrations.memberId))
-    .where(
-      and(
-        validCheckInSql(exchangeRegistrations, exchangeEvents),
-        gte(exchangeEvents.startAt, since),
-      ),
-    )
-    .orderBy(desc(exchangeEvents.startAt))
-    .limit(HOST_FLAG_ROW_CAP);
+  const rows = await hostFlagRowsQuery(db, since);
   return {
     hosts: findCaptiveHosts(
       rows.map((r) => ({

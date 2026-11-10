@@ -9,7 +9,7 @@ import {
   venueReviews,
   venues,
 } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 const mocks = vi.hoisted(() => ({
   flag: vi.fn(),
@@ -36,6 +36,7 @@ const { db: testDb } = await createTestDb();
 vi.mock("@/db", () => ({ db: testDb }));
 
 const mod = await import("./reputation-admin");
+const { hostFlagRowsQuery } = await import("@/lib/reputation/host-flag-rows");
 const {
   adminListHostFlags,
   adminListVenueReviews,
@@ -521,10 +522,33 @@ describe("host flags", () => {
     mocks.admin.mockResolvedValue({ error: "Không có quyền admin" });
     for (const res of await Promise.all(calls()))
       expect(res).toEqual({ error: "Không có quyền admin" });
+    // Input hỏng với cookie member: lỗi quyền, không phải invalidInput (zod sau requireAdmin).
+    for (const res of await Promise.all([
+      adminListVenueReviews("visible"),
+      adminModerateVenueReview({ reviewId: "x", action: "delete" }),
+      adminReviewHostFlag({ hostMemberId: -1 }),
+    ]))
+      expect(res).toEqual({ error: "Không có quyền admin" });
 
     expect((await reviewById(r.id)).status).toBe("held");
     expect(await testDb.select().from(hostFlagReviews)).toEqual([]);
     expect(mocks.updateTag).not.toHaveBeenCalled();
+  });
+  it("EXPLAIN QUERY PLAN of the host-flag scan searches events by status and start_at, then registrations by event, no SCAN", async () => {
+    const since = iso(-90 * DAY);
+    const plan = await testDb.all<{ detail: string }>(
+      sql`EXPLAIN QUERY PLAN ${hostFlagRowsQuery(testDb, since).getSQL()}`,
+    );
+    const details = plan.map((p) => p.detail);
+    expect(details.filter((d) => /\bSCAN\b/.test(d))).toEqual([]);
+    expect(
+      details.some((d) => d.includes("exchange_events_status_start_idx")),
+    ).toBe(true);
+    expect(
+      details.some((d) =>
+        d.includes("exchange_registrations_event_status_idx"),
+      ),
+    ).toBe(true);
   });
 });
 
