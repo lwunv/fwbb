@@ -90,6 +90,7 @@ function member(id: number, name: string, isActive = true): Member {
     gender: null,
     defaultWithPartner: false,
     createdAt: "2026-01-01T00:00:00.000Z",
+    publicCode: null,
   };
 }
 

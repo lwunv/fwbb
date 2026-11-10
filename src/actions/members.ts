@@ -134,6 +134,8 @@ export async function getActiveMembers() {
     // ra trang công khai (trang chủ, màn vote), mà giới tính là thông tin cá
     // nhân và không màn công khai nào cần. Chỉ màn admin đọc cột thật.
     gender: null,
+    // Mã hồ sơ công khai (G2d): không nạp ở danh sách này, luôn null.
+    publicCode: null,
   }));
 }
 

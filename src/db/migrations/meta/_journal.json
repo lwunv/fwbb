@@ -225,6 +225,13 @@
       "when": 1793939100453,
       "tag": "0031_thankful_titanium_man",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1794275131217,
+      "tag": "0032_overconfident_hex",
+      "breakpoints": true
     }
   ]
 }

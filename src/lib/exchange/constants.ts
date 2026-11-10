@@ -36,7 +36,13 @@ export const FEE_MODES = [
 ] as const;
 
 // G2c thêm `comment`, G2d thêm `review`, `venue`: chỉ ở TS, không đổi DB.
-export const REPORT_TARGET_TYPES = ["member", "event", "comment"] as const;
+export const REPORT_TARGET_TYPES = [
+  "member",
+  "event",
+  "comment",
+  "review",
+  "venue",
+] as const;
 
 export const REPORT_REASONS = [
   "spam",

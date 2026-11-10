@@ -563,6 +563,7 @@ export function MemberList({
       gender: null,
       defaultWithPartner: withPartner,
       createdAt: new Date().toISOString(),
+      publicCode: null,
     };
     setAddedMembers((prev) => [ghost, ...prev]);
     fireAction(

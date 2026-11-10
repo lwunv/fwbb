@@ -22,6 +22,11 @@ import {
   COMMENT_CHANNELS,
   COMMENT_STATUSES,
 } from "@/lib/exchange/constants";
+import {
+  VENUE_REVIEW_STATUSES,
+  REVIEW_HOLD_REASONS,
+  IP_SIGNAL_KINDS,
+} from "@/lib/reputation/constants";
 
 export const admins = sqliteTable(
   "admins",
@@ -153,12 +158,17 @@ export const members = sqliteTable(
       .notNull()
       .default(false),
     createdAt: text("created_at").default(sql`(current_timestamp)`),
+    /** Mã hồ sơ công khai `/players/{code}` (G2d), 10 ký tự ngẫu nhiên, sinh
+     *  lúc cần. NULL = chưa có; nhiều NULL được vì SQLite coi NULL là khác nhau
+     *  trong unique index. */
+    publicCode: text("public_code"),
   },
   (table) => [
     // Username unique (lowercase lưu ở app layer). Dùng uniqueIndex thay vì
     // .unique() inline để drizzle sinh CREATE UNIQUE INDEX (ADD COLUMN an toàn,
     // KHÔNG recreate-table — Turso rớt index khi recreate).
     uniqueIndex("members_username_unique").on(table.username),
+    uniqueIndex("members_public_code_unique").on(table.publicCode),
   ],
 );
 
@@ -425,32 +435,37 @@ export const votes = sqliteTable(
   ],
 );
 
-export const sessionAttendees = sqliteTable("session_attendees", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  sessionId: integer("session_id")
-    .notNull()
-    .references(() => sessions.id, { onDelete: "cascade" }),
-  memberId: integer("member_id").references(() => members.id, {
-    onDelete: "set null",
-  }),
-  guestName: text("guest_name"),
-  invitedById: integer("invited_by_id").references(() => members.id, {
-    onDelete: "set null",
-  }),
-  isGuest: integer("is_guest", { mode: "boolean" }).default(false),
-  /** Số đầu người attendee này đại diện ở phần CHƠI/NHẬU của CHÍNH họ. Member
-   *  "đi 2 người" → 2. Guest luôn 1. Bất biến headcount ∈ {1,2} giữ ở app layer
-   *  (zod) — KHÔNG thêm CHECK ở DB để migration là ADD COLUMN thuần (tránh
-   *  recreate-table làm rớt index trên Turso; cùng cách courtPrice giữ invariant ở app). */
-  headcount: integer("headcount").notNull().default(1),
-  /** Giới tính CHỐT tại lúc chốt sổ. Đây là chỗ cost-calculator đọc lại khi
-   *  tính từ attendee rows, nên nó phải được ghi lúc finalize chứ không suy
-   *  ngược từ `members.gender` về sau: member đổi khai báo giới tính không
-   *  được phép làm đổi tiền của một buổi đã chốt. NULL = không khai. */
-  gender: text("gender", { enum: GENDERS }),
-  attendsPlay: integer("attends_play", { mode: "boolean" }).default(false),
-  attendsDine: integer("attends_dine", { mode: "boolean" }).default(false),
-});
+export const sessionAttendees = sqliteTable(
+  "session_attendees",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    sessionId: integer("session_id")
+      .notNull()
+      .references(() => sessions.id, { onDelete: "cascade" }),
+    memberId: integer("member_id").references(() => members.id, {
+      onDelete: "set null",
+    }),
+    guestName: text("guest_name"),
+    invitedById: integer("invited_by_id").references(() => members.id, {
+      onDelete: "set null",
+    }),
+    isGuest: integer("is_guest", { mode: "boolean" }).default(false),
+    /** Số đầu người attendee này đại diện ở phần CHƠI/NHẬU của CHÍNH họ. Member
+     *  "đi 2 người" → 2. Guest luôn 1. Bất biến headcount ∈ {1,2} giữ ở app layer
+     *  (zod) — KHÔNG thêm CHECK ở DB để migration là ADD COLUMN thuần (tránh
+     *  recreate-table làm rớt index trên Turso; cùng cách courtPrice giữ invariant ở app). */
+    headcount: integer("headcount").notNull().default(1),
+    /** Giới tính CHỐT tại lúc chốt sổ. Đây là chỗ cost-calculator đọc lại khi
+     *  tính từ attendee rows, nên nó phải được ghi lúc finalize chứ không suy
+     *  ngược từ `members.gender` về sau: member đổi khai báo giới tính không
+     *  được phép làm đổi tiền của một buổi đã chốt. NULL = không khai. */
+    gender: text("gender", { enum: GENDERS }),
+    attendsPlay: integer("attends_play", { mode: "boolean" }).default(false),
+    attendsDine: integer("attends_dine", { mode: "boolean" }).default(false),
+  },
+  // G2d đếm "số buổi đã đến" theo member cho trọng số người chấm.
+  (table) => [index("session_attendees_member_idx").on(table.memberId)],
+);
 
 export const sessionShuttlecocks = sqliteTable(
   "session_shuttlecocks",
@@ -1109,6 +1124,9 @@ export const exchangeEvents = sqliteTable(
       table.hostMemberId,
       table.startAt,
     ),
+    // Cron G2d quét buổi theo khoảng `end_at`; các index trên đều bắt đầu bằng
+    // cột khác nên không phủ được điều kiện này.
+    index("exchange_events_end_at_idx").on(table.endAt),
     check(
       "exchange_events_fee_male_non_negative",
       sql`${table.feeAmountMale} IS NULL OR ${table.feeAmountMale} >= 0`,
@@ -1361,5 +1379,230 @@ export const abuseReports = sqliteTable(
     ),
     index("abuse_reports_status_created_idx").on(table.status, table.createdAt),
     index("abuse_reports_target_idx").on(table.targetType, table.targetId),
+  ],
+);
+
+// ── G2d: uy tín, đánh giá sân, người giới thiệu, tín hiệu nick trùng ──
+// Bảng mới nên CHECK đặt trong CREATE TABLE được (không recreate bảng cũ).
+// Enum chỉ ở TS. `rater_weight` là trọng số người chấm chụp lúc ghi, đơn vị
+// 1/5 lượt (5 = nặng 1).
+
+export const peerFeedback = sqliteTable(
+  "peer_feedback",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    eventId: integer("event_id")
+      .notNull()
+      .references(() => exchangeEvents.id),
+    fromMemberId: integer("from_member_id")
+      .notNull()
+      .references(() => members.id),
+    toMemberId: integer("to_member_id")
+      .notNull()
+      .references(() => members.id),
+    playAgain: integer("play_again", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    /** JSON mảng `PeerTag`. */
+    tags: text("tags").notNull().default("[]"),
+    skillLevel: text("skill_level", { enum: SKILL_LEVELS }),
+    raterWeight: integer("rater_weight").notNull(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("peer_feedback_event_from_to_unique").on(
+      table.eventId,
+      table.fromMemberId,
+      table.toMemberId,
+    ),
+    index("peer_feedback_to_updated_idx").on(table.toMemberId, table.updatedAt),
+    index("peer_feedback_from_idx").on(table.fromMemberId),
+    check(
+      "peer_feedback_rater_weight_range",
+      sql`${table.raterWeight} BETWEEN 0 AND 5`,
+    ),
+    check(
+      "peer_feedback_not_self",
+      sql`${table.fromMemberId} <> ${table.toMemberId}`,
+    ),
+  ],
+);
+
+export const hostFeedback = sqliteTable(
+  "host_feedback",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    eventId: integer("event_id")
+      .notNull()
+      .references(() => exchangeEvents.id),
+    fromMemberId: integer("from_member_id")
+      .notNull()
+      .references(() => members.id),
+    asDescribed: integer("as_described", { mode: "boolean" }).notNull(),
+    feeAsPromised: integer("fee_as_promised", { mode: "boolean" }).notNull(),
+    raterWeight: integer("rater_weight").notNull(),
+    idempotencyKey: text("idempotency_key"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("host_feedback_event_from_unique").on(
+      table.eventId,
+      table.fromMemberId,
+    ),
+    index("host_feedback_from_idx").on(table.fromMemberId),
+    check(
+      "host_feedback_rater_weight_range",
+      sql`${table.raterWeight} BETWEEN 0 AND 5`,
+    ),
+  ],
+);
+
+export const venueReviews = sqliteTable(
+  "venue_reviews",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    venueId: integer("venue_id")
+      .notNull()
+      .references(() => venues.id),
+    memberId: integer("member_id")
+      .notNull()
+      .references(() => members.id),
+    scoreSurface: integer("score_surface").notNull(),
+    scoreLighting: integer("score_lighting").notNull(),
+    scoreVentilation: integer("score_ventilation").notNull(),
+    scorePrice: integer("score_price").notNull(),
+    scoreParking: integer("score_parking").notNull(),
+    scoreOwner: integer("score_owner").notNull(),
+    comment: text("comment"),
+    status: text("status", { enum: VENUE_REVIEW_STATUSES })
+      .notNull()
+      .default("visible"),
+    holdReason: text("hold_reason", { enum: REVIEW_HOLD_REASONS }),
+    reportCount: integer("report_count").notNull().default(0),
+    raterWeight: integer("rater_weight").notNull(),
+    idempotencyKey: text("idempotency_key"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+    editedAt: text("edited_at"),
+  },
+  (table) => [
+    uniqueIndex("venue_reviews_venue_member_unique").on(
+      table.venueId,
+      table.memberId,
+    ),
+    index("venue_reviews_venue_status_created_idx").on(
+      table.venueId,
+      table.status,
+      table.createdAt,
+    ),
+    index("venue_reviews_status_updated_idx").on(table.status, table.updatedAt),
+    index("venue_reviews_member_idx").on(table.memberId),
+    check(
+      "venue_reviews_score_surface_range",
+      sql`${table.scoreSurface} BETWEEN 1 AND 5`,
+    ),
+    check(
+      "venue_reviews_score_lighting_range",
+      sql`${table.scoreLighting} BETWEEN 1 AND 5`,
+    ),
+    check(
+      "venue_reviews_score_ventilation_range",
+      sql`${table.scoreVentilation} BETWEEN 1 AND 5`,
+    ),
+    check(
+      "venue_reviews_score_price_range",
+      sql`${table.scorePrice} BETWEEN 1 AND 5`,
+    ),
+    check(
+      "venue_reviews_score_parking_range",
+      sql`${table.scoreParking} BETWEEN 1 AND 5`,
+    ),
+    check(
+      "venue_reviews_score_owner_range",
+      sql`${table.scoreOwner} BETWEEN 1 AND 5`,
+    ),
+    check(
+      "venue_reviews_report_count_non_negative",
+      sql`${table.reportCount} >= 0`,
+    ),
+    check(
+      "venue_reviews_rater_weight_range",
+      sql`${table.raterWeight} BETWEEN 0 AND 5`,
+    ),
+  ],
+);
+
+export const hostFlagReviews = sqliteTable(
+  "host_flag_reviews",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    hostMemberId: integer("host_member_id")
+      .notNull()
+      .references(() => members.id),
+    /** Số người "bị giữ" lúc admin đã xem; cờ chỉ hiện lại khi số này tăng. */
+    captives: integer("captives").notNull(),
+    reviewedAt: text("reviewed_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("host_flag_reviews_host_unique").on(table.hostMemberId),
+    check(
+      "host_flag_reviews_captives_non_negative",
+      sql`${table.captives} >= 0`,
+    ),
+  ],
+);
+
+export const referrals = sqliteTable(
+  "referrals",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    referrerMemberId: integer("referrer_member_id")
+      .notNull()
+      .references(() => members.id),
+    refereeMemberId: integer("referee_member_id")
+      .notNull()
+      .references(() => members.id),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("referrals_referee_unique").on(table.refereeMemberId),
+    index("referrals_referrer_created_idx").on(
+      table.referrerMemberId,
+      table.createdAt,
+    ),
+    check(
+      "referrals_not_self",
+      sql`${table.referrerMemberId} <> ${table.refereeMemberId}`,
+    ),
+  ],
+);
+
+export const memberIpSignals = sqliteTable(
+  "member_ip_signals",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    memberId: integer("member_id")
+      .notNull()
+      .references(() => members.id, { onDelete: "cascade" }),
+    /** HMAC của IP (`hashedIpKey`), không bao giờ là IP thô. */
+    ipHash: text("ip_hash").notNull(),
+    kind: text("kind", { enum: IP_SIGNAL_KINDS }).notNull(),
+    firstSeenAt: text("first_seen_at").notNull(),
+    lastSeenAt: text("last_seen_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("member_ip_signals_member_hash_kind_unique").on(
+      table.memberId,
+      table.ipHash,
+      table.kind,
+    ),
+    index("member_ip_signals_hash_last_seen_idx").on(
+      table.ipHash,
+      table.lastSeenAt,
+    ),
+    // Lệnh dọn theo lô xoá dòng cũ theo `last_seen_at`.
+    index("member_ip_signals_last_seen_idx").on(table.lastSeenAt),
   ],
 );
