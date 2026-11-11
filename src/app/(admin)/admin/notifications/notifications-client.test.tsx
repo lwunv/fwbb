@@ -167,3 +167,37 @@ describe("NotificationsClient — bấm vào thông báo", () => {
     expect(screen.getAllByLabelText(vn.unread)).toHaveLength(before - 1);
   });
 });
+
+describe("NotificationsClient — chưa có email admin", () => {
+  afterEach(cleanup);
+
+  function renderWith(mailRecipientCount: number) {
+    render(
+      <NuqsTestingAdapter>
+        <NextIntlClientProvider locale="vi" messages={viMessages}>
+          <NotificationsClient
+            owing={owing}
+            history={history}
+            voteBlockDebtThreshold={100_000}
+            mailRecipientCount={mailRecipientCount}
+          />
+        </NextIntlClientProvider>
+      </NuqsTestingAdapter>,
+    );
+  }
+
+  it("0 email admin → cảnh báo mail không gửi được + link sang Tài khoản", () => {
+    renderWith(0);
+    expect(screen.getByText(vn.noMailRecipient)).toBeTruthy();
+    expect(
+      screen
+        .getByRole("link", { name: vn.noMailRecipientAction })
+        .getAttribute("href"),
+    ).toBe("/admin/account");
+  });
+
+  it("có email admin → không cảnh báo", () => {
+    renderWith(1);
+    expect(screen.queryByText(vn.noMailRecipient)).toBeNull();
+  });
+});

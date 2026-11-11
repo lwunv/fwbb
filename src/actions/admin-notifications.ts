@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/db";
-import { financialTransactions, members } from "@/db/schema";
-import { inArray } from "drizzle-orm";
+import { admins, financialTransactions, members } from "@/db/schema";
+import { and, inArray, isNotNull, ne } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth";
 import { getSettings } from "@/actions/settings";
 import {
@@ -47,19 +47,32 @@ export async function getAdminDebtNotifications(): Promise<
       owing: OwingMember[];
       history: DebtHistoryItem[];
       voteBlockDebtThreshold: number;
+      /** Số email admin nhận mail báo âm quỹ. 0 thì trang cảnh báo: mail
+       *  không gửi được cho ai (prod 11/11/2026 đúng là 0). */
+      mailRecipientCount: number;
     }
   | { error: string }
 > {
   const auth = await requireAdmin();
   if ("error" in auth) return { error: auth.error };
 
-  const [ids, settings] = await Promise.all([
+  const [ids, settings, adminEmailRows] = await Promise.all([
     getFundRosterMemberIds(),
     getSettings(),
+    db
+      .select({ email: admins.email })
+      .from(admins)
+      .where(and(isNotNull(admins.email), ne(admins.email, ""))),
   ]);
   const threshold = settings.voteBlockDebtThreshold;
+  const mailRecipientCount = new Set(adminEmailRows.map((a) => a.email)).size;
   if (ids.length === 0) {
-    return { owing: [], history: [], voteBlockDebtThreshold: threshold };
+    return {
+      owing: [],
+      history: [],
+      voteBlockDebtThreshold: threshold,
+      mailRecipientCount,
+    };
   }
 
   const [memberRows, txRows] = await Promise.all([
@@ -129,5 +142,6 @@ export async function getAdminDebtNotifications(): Promise<
     owing,
     history: history.slice(0, HISTORY_LIMIT),
     voteBlockDebtThreshold: threshold,
+    mailRecipientCount,
   };
 }

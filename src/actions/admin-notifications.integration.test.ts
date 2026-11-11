@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
-import { members, financialTransactions } from "@/db/schema";
+import { members, financialTransactions, admins } from "@/db/schema";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth", () => ({
@@ -47,7 +47,12 @@ async function ledger(
 
 describe("getAdminDebtNotifications", () => {
   beforeEach(async () => {
-    for (const t of ["financial_transactions", "members", "app_settings"]) {
+    for (const t of [
+      "financial_transactions",
+      "admins",
+      "members",
+      "app_settings",
+    ]) {
       await client.execute(`DELETE FROM ${t}`);
     }
   });
@@ -112,5 +117,17 @@ describe("getAdminDebtNotifications", () => {
       error: "unauthorized",
     } as never);
     expect(await getAdminDebtNotifications()).toHaveProperty("error");
+  });
+
+  it("báo số email admin nhận mail âm quỹ (0 → trang hiện cảnh báo)", async () => {
+    let r = await getAdminDebtNotifications();
+    if ("error" in r) throw new Error(r.error);
+    expect(r.mailRecipientCount).toBe(0);
+    await testDb
+      .insert(admins)
+      .values({ username: "Admin", passwordHash: "x", email: "a@fwbb.test" });
+    r = await getAdminDebtNotifications();
+    if ("error" in r) throw new Error(r.error);
+    expect(r.mailRecipientCount).toBe(1);
   });
 });

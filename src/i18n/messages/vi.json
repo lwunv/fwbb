@@ -2690,6 +2690,8 @@
       "earlier": "Trước đó"
     },
     "historyEmptyRange": "Không có ai âm quỹ trong {days} ngày qua",
-    "noMatch": "Không có kết quả phù hợp"
+    "noMatch": "Không có kết quả phù hợp",
+    "noMailRecipient": "Chưa có email admin nên mail báo âm quỹ chưa gửi được.",
+    "noMailRecipientAction": "Thêm email ở trang Tài khoản"
   }
 }

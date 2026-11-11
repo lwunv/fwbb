@@ -2690,6 +2690,8 @@
       "earlier": "更早"
     },
     "historyEmptyRange": "过去 {days} 天内没有人欠基金",
-    "noMatch": "没有符合条件的结果"
+    "noMatch": "没有符合条件的结果",
+    "noMailRecipient": "尚未设置管理员邮箱，欠款提醒邮件无法发送。",
+    "noMailRecipientAction": "在账户页面添加邮箱"
   }
 }

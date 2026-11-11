@@ -2690,6 +2690,8 @@
       "earlier": "Earlier"
     },
     "historyEmptyRange": "Nobody went into debt in the last {days} days",
-    "noMatch": "No matching results"
+    "noMatch": "No matching results",
+    "noMailRecipient": "No admin email is set, so debt alert emails can't be sent.",
+    "noMailRecipientAction": "Add an email on the Account page"
   }
 }

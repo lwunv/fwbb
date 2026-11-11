@@ -6,7 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
 import { AnimatePresence, motion } from "framer-motion";
 import { formatDistanceToNow } from "date-fns";
-import { BellOff, CheckCheck } from "lucide-react";
+import { AlertTriangle, BellOff, CheckCheck } from "lucide-react";
 import type {
   DebtHistoryItem,
   OwingMember,
@@ -47,10 +47,13 @@ export function NotificationsClient({
   owing,
   history,
   voteBlockDebtThreshold,
+  mailRecipientCount = 1,
 }: {
   owing: OwingMember[];
   history: DebtHistoryItem[];
   voteBlockDebtThreshold: number;
+  /** Số email admin nhận mail âm quỹ; 0 thì cảnh báo (mail sẽ không gửi). */
+  mailRecipientCount?: number;
 }) {
   const t = useTranslations("adminNotifications");
   const locale = useLocale();
@@ -118,6 +121,29 @@ export function NotificationsClient({
           </button>
         )}
       </div>
+
+      {mailRecipientCount === 0 && (
+        // Không có email admin thì mail báo âm quỹ bị bỏ qua: nói ra, đừng để
+        // admin tưởng đang nhận mail (prod 11/11/2026 đúng là chưa có email).
+        <div
+          role="alert"
+          className="border-destructive/40 bg-destructive/10 flex items-start gap-3 rounded-xl border p-3"
+        >
+          <AlertTriangle
+            className="text-destructive mt-0.5 h-5 w-5 shrink-0"
+            aria-hidden
+          />
+          <div className="min-w-0 flex-1 space-y-1">
+            <p className="text-base">{t("noMailRecipient")}</p>
+            <Link
+              href="/admin/account"
+              className="text-primary inline-flex min-h-11 items-center text-base font-medium underline-offset-4 hover:underline"
+            >
+              {t("noMailRecipientAction")}
+            </Link>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-2">
         {[
