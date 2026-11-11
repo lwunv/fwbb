@@ -29,61 +29,51 @@ async function clearDebt() {
   c.close();
 }
 
-/** Đặt số dư member về đúng `balance` bằng một dòng sổ riêng của bài test. */
+/** Đặt số dư member về đúng `balance` (member riêng của bài, sổ trống). */
 async function setBalance(balance: number) {
   await clearDebt();
+  if (balance === 0) return;
   const c = await db();
-  const rows = (
-    await c.execute({
-      sql: "SELECT type, amount FROM financial_transactions WHERE member_id = ?",
-      args: [memberId],
-    })
-  ).rows;
-  // Không tự tính lại sổ ở đây: chỉ cần member nợ thật sâu hoặc không nợ.
-  // Số dư hiện có của member seed được bù bằng 1 dòng điều chỉnh.
-  const current = rows.reduce((s, r) => {
-    const amt = Number(r.amount);
-    return r.type === "fund_contribution"
-      ? s + amt
-      : r.type === "fund_deduction" || r.type === "fund_refund"
-        ? s - amt
-        : s;
-  }, 0);
-  const delta = balance - current;
-  if (delta !== 0) {
-    await c.execute({
-      sql: "INSERT INTO financial_transactions (type, direction, amount, member_id, idempotency_key, description) VALUES (?, ?, ?, ?, ?, 'e2e')",
-      args: [
-        delta > 0 ? "fund_contribution" : "fund_deduction",
-        delta > 0 ? "in" : "out",
-        Math.abs(delta),
-        memberId,
-        DEBT_KEY,
-      ],
-    });
-  }
+  await c.execute({
+    sql: "INSERT INTO financial_transactions (type, direction, amount, member_id, idempotency_key, description) VALUES (?, ?, ?, ?, ?, 'e2e')",
+    args: [
+      balance > 0 ? "fund_contribution" : "fund_deduction",
+      balance > 0 ? "in" : "out",
+      Math.abs(balance),
+      memberId,
+      DEBT_KEY,
+    ],
+  });
   c.close();
 }
 
-test.beforeAll(async () => {
-  const c = await db();
-  const m = (
-    await c.execute(
-      "SELECT id FROM members WHERE is_active=1 AND approval_status='approved' ORDER BY id DESC LIMIT 1",
-    )
-  ).rows[0];
-  memberId = Number(m.id);
-  const hash = await bcrypt.hash(PASSWORD, 10);
+async function removeOwnMember(c: Awaited<ReturnType<typeof db>>) {
   await c.execute({
-    sql: "UPDATE members SET email = NULL WHERE email = ?",
+    sql: "DELETE FROM votes WHERE member_id IN (SELECT id FROM members WHERE email = ?)",
     args: [EMAIL],
   });
   await c.execute({
-    // Member mới nhất có thể là fixture của reset-password.spec (mật khẩu tạm
-    // đã hết hạn, bắt đổi mật khẩu): xoá hai cờ đó như product-tour.spec.
-    sql: "UPDATE members SET password_hash=?, email=?, must_change_password=0, password_reset_expires_at=NULL WHERE id=?",
-    args: [hash, EMAIL, memberId],
+    sql: "DELETE FROM financial_transactions WHERE member_id IN (SELECT id FROM members WHERE email = ?)",
+    args: [EMAIL],
   });
+  await c.execute({
+    sql: "DELETE FROM members WHERE email = ?",
+    args: [EMAIL],
+  });
+}
+
+// Member RIÊNG của bài (không mượn member seed): bài khác có thể khoá, đổi
+// mật khẩu hay gắn nợ cho member seed, làm bài này đăng nhập hỏng khi chạy
+// chung cả bộ (dính 6/11/2026).
+test.beforeAll(async () => {
+  const c = await db();
+  await removeOwnMember(c);
+  const hash = await bcrypt.hash(PASSWORD, 10);
+  const m = await c.execute({
+    sql: "INSERT INTO members (name, email, password_hash, is_active, approval_status) VALUES ('E2E Nợ Quỹ', ?, ?, 1, 'approved')",
+    args: [EMAIL, hash],
+  });
+  memberId = Number(m.lastInsertRowid);
   await c.execute("DELETE FROM rate_limit_buckets");
   await c.execute({
     sql: "DELETE FROM sessions WHERE date=?",
@@ -98,8 +88,8 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await clearDebt();
   const c = await db();
+  await removeOwnMember(c);
   await c.execute({
     sql: "DELETE FROM votes WHERE session_id=?",
     args: [sessionId],
